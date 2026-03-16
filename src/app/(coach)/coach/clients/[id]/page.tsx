@@ -1,419 +1,438 @@
 "use client";
 
-import { MessageSquare, Settings, Calendar, Clock, TrendingUp, AlertCircle, Activity } from "lucide-react";
+import { useState, useMemo } from "react";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  MessageSquare,
+  Settings,
+  Calendar,
+  Activity,
+  TrendingUp,
+  AlertCircle,
+  Clock,
+  Pin,
+  Trash2,
+  CheckCircle,
+  Send,
+} from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
+import {
+  seedCoachClients,
+  getCoachClient,
+  resolveAlert,
+  addCoachNote,
+  getCoachNotes,
+  pinNote,
+  deleteNote,
+} from "@/lib/coach-clients/engine";
+import {
+  TIER_LABELS,
+  TIER_BADGE_COLORS,
+  STATUS_LABELS,
+  STATUS_DOT_COLORS,
+  STATUS_COLORS,
+  ALERT_PRIORITY_COLORS,
+  formatRelativeTime,
+} from "@/lib/coach-clients/types";
+
+const COACH_ID = "demo-coach";
 
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
-  // Mock client data
-  const client = {
-    id: params.id,
-    name: "Sarah Mitchell",
-    tier: "Tier 1 Private",
-    healthScore: 87,
-    memberSince: "March 2023",
-    lastActive: "2 hours ago",
-    avatar: "SM",
-    adherence: 92,
-    avgGlucose: 105,
-    sleepScore: 78,
-    hrv: 52,
-    checkInStreak: 12,
-    activeAlerts: 2,
-  };
 
-  const protocol = {
-    name: "Metabolic Optimization Phase 2",
-    startDate: "February 15, 2024",
-    duration: "12 weeks",
-    progress: 65,
-    goals: [
-      "Reduce fasting glucose to <100 mg/dL",
-      "Optimize circadian rhythm sleep pattern",
-      "Increase HRV by 15%",
-      "Maintain adherence >90%",
-    ],
-  };
+  const [noteText, setNoteText] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const glucoseData = [105, 98, 112, 102, 95, 108, 101];
-  const sleepData = [7.2, 6.8, 7.5, 7.1, 6.9, 7.4, 7.0];
-  const weightData = [168, 167.5, 167, 166.8, 166.5];
+  // Seed data on first render
+  useMemo(() => seedCoachClients(COACH_ID), []);
 
-  const alerts = [
-    {
-      id: 1,
-      priority: "high",
-      message: "Glucose levels elevated at 3 consecutive readings",
-      timestamp: "4 hours ago",
-    },
-    {
-      id: 2,
-      priority: "medium",
-      message: "Sleep duration below target (6.5 hours last night)",
-      timestamp: "18 hours ago",
-    },
-  ];
+  // refreshKey is intentionally used to re-fetch after mutations
+  const client = refreshKey >= 0 ? getCoachClient(params.id) : null;
+  const notes = refreshKey >= 0 ? getCoachNotes(params.id) : [];
 
-  const activities = [
-    {
-      id: 1,
-      type: "check-in",
-      label: "Morning Check-in",
-      timestamp: "Today at 8:15 AM",
-    },
-    {
-      id: 2,
-      type: "supplement",
-      label: "Logged supplement: Omega-3",
-      timestamp: "Today at 7:30 AM",
-    },
-    {
-      id: 3,
-      type: "workout",
-      label: "Completed 45-min cardio session",
-      timestamp: "Yesterday at 6:00 PM",
-    },
-    {
-      id: 4,
-      type: "chat",
-      label: "Coach message: Protocol adjustment advice",
-      timestamp: "2 days ago",
-    },
-    {
-      id: 5,
-      type: "lab",
-      label: "Lab results uploaded: Metabolic panel",
-      timestamp: "3 days ago",
-    },
-  ];
+  if (!client) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Link href="/coach/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-[#D4AF37] text-sm transition-colors">
+          <ArrowLeft size={14} /> Back to clients
+        </Link>
+        <div className="kairos-card p-12 text-center">
+          <p className="text-gray-500">Client not found.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const unresolvedAlerts = client.alerts.filter((a) => !a.resolved);
+  const trendIcon = client.scoreTrend === "up" ? "↑" : client.scoreTrend === "down" ? "↓" : "→";
+  const trendColor = client.scoreTrend === "up" ? "text-green-400" : client.scoreTrend === "down" ? "text-red-400" : "text-gray-400";
+
+  function handleResolveAlert(alertId: string) {
+    resolveAlert(params.id, alertId);
+    setRefreshKey((k) => k + 1);
+  }
+
+  function handleAddNote() {
+    if (!noteText.trim()) return;
+    addCoachNote(params.id, COACH_ID, noteText.trim());
+    setNoteText("");
+    setRefreshKey((k) => k + 1);
+  }
+
+  function handlePinNote(noteId: string) {
+    pinNote(params.id, noteId);
+    setRefreshKey((k) => k + 1);
+  }
+
+  function handleDeleteNote(noteId: string) {
+    deleteNote(params.id, noteId);
+    setRefreshKey((k) => k + 1);
+  }
+
+  // SVG chart helper
+  function renderSparkLine(data: number[], maxVal: number, color: string) {
+    if (data.length < 2) return null;
+    const points = data.map((val, i) => `${(i / (data.length - 1)) * 100},${60 - (val / maxVal) * 50}`).join(" ");
+    return (
+      <svg viewBox="0 0 100 60" className="w-full h-24">
+        <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
+        <circle cx="0" cy={60 - (data[0] / maxVal) * 50} r="1.5" fill={color} />
+        <circle cx="100" cy={60 - (data[data.length - 1] / maxVal) * 50} r="1.5" fill={color} />
+      </svg>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-kairos-dark p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Client Header */}
-        <div className="kairos-card mb-6 animate-fade-in">
-          <div className="flex items-start justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-kairos-sm bg-kairos-gold flex items-center justify-center text-kairos-dark font-heading text-xl font-bold">
-                {client.avatar}
+    <div className="space-y-6 animate-fade-in">
+      {/* Back link */}
+      <Link href="/coach/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-[#D4AF37] text-sm transition-colors">
+        <ArrowLeft size={14} /> Back to clients
+      </Link>
+
+      {/* Client Header */}
+      <div className="kairos-card">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37] font-heading font-bold text-xl">
+              {client.initials}
+            </div>
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-2xl font-heading font-bold text-white">{client.name}</h1>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${TIER_BADGE_COLORS[client.tier]}`}>
+                  {TIER_LABELS[client.tier]}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[client.status]}`} />
+                  <span className={STATUS_COLORS[client.status]}>{STATUS_LABELS[client.status]}</span>
+                </div>
+                <span className="text-gray-600">•</span>
+                <span className="text-gray-500">{client.email}</span>
+                <span className="text-gray-600">•</span>
+                <span className="text-gray-500">Member since {client.memberSince}</span>
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-4xl font-heading font-bold text-[#D4AF37]">{client.healthScore}</p>
+            <p className={`text-sm font-medium ${trendColor}`}>{trendIcon} Health Score</p>
+            <p className="text-xs text-gray-500 mt-1">Last active: {client.lastActive}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Date Range Navigator */}
+      <DateRangeNavigator
+        availablePeriods={["week", "month", "quarter"]}
+        selectedPeriod={period}
+        onPeriodChange={setPeriod}
+        formattedRange={formattedRange}
+        isCurrent={isCurrent}
+        canForward={canForward}
+        onBack={goBack}
+        onForward={goForward}
+        onToday={goToToday}
+      />
+
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div className="kairos-card p-3 text-center">
+          <p className="text-[10px] text-gray-500 uppercase mb-1">Adherence</p>
+          <p className="text-xl font-heading font-bold text-[#D4AF37]">{client.metrics.adherence}%</p>
+        </div>
+        <div className="kairos-card p-3 text-center">
+          <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Glucose</p>
+          <p className="text-xl font-heading font-bold text-white">
+            {client.metrics.avgGlucose ?? "—"}<span className="text-xs text-gray-500 ml-1">mg/dL</span>
+          </p>
+        </div>
+        <div className="kairos-card p-3 text-center">
+          <p className="text-[10px] text-gray-500 uppercase mb-1">Sleep Score</p>
+          <p className="text-xl font-heading font-bold text-white">{client.metrics.sleepScore ?? "—"}</p>
+        </div>
+        <div className="kairos-card p-3 text-center">
+          <p className="text-[10px] text-gray-500 uppercase mb-1">HRV</p>
+          <p className="text-xl font-heading font-bold text-white">
+            {client.metrics.hrv ?? "—"}<span className="text-xs text-gray-500 ml-1">ms</span>
+          </p>
+        </div>
+        <div className="kairos-card p-3 text-center">
+          <p className="text-[10px] text-gray-500 uppercase mb-1">Check-in Streak</p>
+          <p className="text-xl font-heading font-bold text-white">
+            {client.metrics.checkInStreak}<span className="text-xs text-gray-500 ml-1">days</span>
+          </p>
+        </div>
+        <div className="kairos-card p-3 text-center">
+          <p className="text-[10px] text-gray-500 uppercase mb-1">Active Alerts</p>
+          <p className={`text-xl font-heading font-bold ${unresolvedAlerts.length > 0 ? "text-orange-400" : "text-green-400"}`}>
+            {unresolvedAlerts.length}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Protocol & Biometrics */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Current Protocol */}
+          <div className="kairos-card">
+            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+              <TrendingUp size={18} /> Current Protocol
+            </h2>
+            <h3 className="font-heading font-semibold text-white mb-2">{client.protocol.name}</h3>
+            <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase">Start Date</p>
+                <p className="text-gray-300">{client.protocol.startDate}</p>
               </div>
               <div>
-                <h1 className="font-heading text-3xl font-bold text-kairos-silver mb-2">
-                  {client.name}
-                </h1>
-                <div className="flex items-center gap-3">
-                  <span className="inline-block px-3 py-1 bg-kairos-gold text-kairos-dark text-sm font-semibold rounded-kairos-sm">
-                    {client.tier}
-                  </span>
-                  <span className="font-body text-kairos-silver-dark text-sm">
-                    Member since {client.memberSince}
-                  </span>
-                </div>
+                <p className="text-[10px] text-gray-500 uppercase">Duration</p>
+                <p className="text-gray-300">{client.protocol.duration}</p>
               </div>
-            </div>
-            <div className="text-right">
-              <div className="mb-2">
-                <div className="text-5xl font-heading font-bold text-kairos-gold mb-1">
-                  {client.healthScore}
-                </div>
-                <div className="font-body text-kairos-silver-dark text-sm">/100 Health Score</div>
-              </div>
-              <div className="font-body text-kairos-silver-dark text-sm mt-4">
-                Last active: {client.lastActive}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Date Range Navigator */}
-        <div className="mb-6">
-          <DateRangeNavigator
-            availablePeriods={["week", "month", "quarter"]}
-            selectedPeriod={period}
-            onPeriodChange={setPeriod}
-            formattedRange={formattedRange}
-            isCurrent={isCurrent}
-            canForward={canForward}
-            onBack={goBack}
-            onForward={goForward}
-            onToday={goToToday}
-          />
-        </div>
-
-        {/* Quick Stats Row */}
-        <div className="grid grid-cols-6 gap-4 mb-6">
-          <div className="kairos-card text-center animate-fade-in">
-            <div className="font-body text-kairos-silver-dark text-xs uppercase mb-2">Adherence</div>
-            <div className="font-heading text-2xl font-bold text-kairos-gold">{client.adherence}%</div>
-          </div>
-          <div className="kairos-card text-center animate-fade-in">
-            <div className="font-body text-kairos-silver-dark text-xs uppercase mb-2">
-              Avg Glucose
-            </div>
-            <div className="font-heading text-2xl font-bold text-kairos-gold">
-              {client.avgGlucose}
-              <span className="text-sm text-kairos-silver-dark ml-1">mg/dL</span>
-            </div>
-          </div>
-          <div className="kairos-card text-center animate-fade-in">
-            <div className="font-body text-kairos-silver-dark text-xs uppercase mb-2">Sleep</div>
-            <div className="font-heading text-2xl font-bold text-kairos-gold">{client.sleepScore}</div>
-          </div>
-          <div className="kairos-card text-center animate-fade-in">
-            <div className="font-body text-kairos-silver-dark text-xs uppercase mb-2">HRV</div>
-            <div className="font-heading text-2xl font-bold text-kairos-gold">
-              {client.hrv}
-              <span className="text-sm text-kairos-silver-dark ml-1">ms</span>
-            </div>
-          </div>
-          <div className="kairos-card text-center animate-fade-in">
-            <div className="font-body text-kairos-silver-dark text-xs uppercase mb-2">
-              Check-in Streak
-            </div>
-            <div className="font-heading text-2xl font-bold text-kairos-gold">
-              {client.checkInStreak}
-              <span className="text-sm text-kairos-silver-dark ml-1">days</span>
-            </div>
-          </div>
-          <div className="kairos-card text-center animate-fade-in">
-            <div className="font-body text-kairos-silver-dark text-xs uppercase mb-2">
-              Active Alerts
-            </div>
-            <div className="font-heading text-2xl font-bold text-orange-400">{client.activeAlerts}</div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-6">
-          {/* Left Column: Protocol & Biometrics */}
-          <div className="col-span-2 space-y-6">
-            {/* Current Protocol */}
-            <div className="kairos-card animate-fade-in">
-              <h2 className="font-heading text-xl font-bold text-kairos-gold mb-4 flex items-center gap-2">
-                <TrendingUp size={20} />
-                Current Protocol
-              </h2>
-              <div className="mb-4">
-                <h3 className="font-heading text-lg font-semibold text-kairos-silver mb-2">
-                  {protocol.name}
-                </h3>
-                <div className="grid grid-cols-2 gap-4 mb-4 font-body text-kairos-silver-dark text-sm">
-                  <div>
-                    <span className="text-kairos-silver-dark text-xs uppercase">Start Date:</span>
-                    <div>{protocol.startDate}</div>
-                  </div>
-                  <div>
-                    <span className="text-kairos-silver-dark text-xs uppercase">Duration:</span>
-                    <div>{protocol.duration}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="mb-6">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-body text-kairos-silver-dark text-sm">Progress</span>
-                  <span className="font-heading text-kairos-gold font-semibold">{protocol.progress}%</span>
-                </div>
-                <div className="w-full h-2 bg-kairos-dark rounded-kairos-sm overflow-hidden border border-kairos-border">
-                  <div
-                    className="h-full bg-kairos-gold transition-all duration-300"
-                    style={{ width: `${protocol.progress}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Goals List */}
               <div>
-                <h4 className="font-heading text-sm font-semibold text-kairos-gold mb-3 uppercase">
-                  Goals
-                </h4>
-                <ul className="space-y-2">
-                  {protocol.goals.map((goal, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <span className="text-kairos-gold mt-1">•</span>
-                      <span className="font-body text-kairos-silver text-sm">{goal}</span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="text-[10px] text-gray-500 uppercase">Status</p>
+                <p className="text-gray-300 capitalize">{client.protocol.status}</p>
               </div>
             </div>
 
-            {/* Recent Biometrics */}
-            <div className="kairos-card animate-fade-in">
-              <h2 className="font-heading text-xl font-bold text-kairos-gold mb-4 flex items-center gap-2">
-                <Activity size={20} />
-                Recent Biometrics
-              </h2>
-              <div className="grid grid-cols-3 gap-4">
-                {/* Glucose Chart */}
-                <div>
-                  <h3 className="font-heading text-sm font-semibold text-kairos-silver mb-3">
-                    Glucose (7d)
-                  </h3>
-                  <svg viewBox="0 0 100 60" className="w-full h-24 mb-2">
-                    <polyline
-                      points={glucoseData
-                        .map((val, i) => `${(i / (glucoseData.length - 1)) * 100},${60 - (val / 120) * 50}`)
-                        .join(" ")}
-                      fill="none"
-                      stroke="#D4AF37"
-                      strokeWidth="1.5"
-                    />
-                    <circle cx="0" cy={60 - (glucoseData[0] / 120) * 50} r="1.5" fill="#D4AF37" />
-                    <circle
-                      cx="100"
-                      cy={60 - (glucoseData[glucoseData.length - 1] / 120) * 50}
-                      r="1.5"
-                      fill="#D4AF37"
-                    />
-                  </svg>
-                  <div className="font-body text-kairos-silver-dark text-xs text-center">
-                    Avg: {(glucoseData.reduce((a, b) => a + b) / glucoseData.length).toFixed(0)} mg/dL
-                  </div>
-                </div>
+            {/* Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs text-gray-500">Progress</span>
+                <span className="text-sm font-heading font-bold text-[#D4AF37]">{client.protocol.progress}%</span>
+              </div>
+              <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-full bg-[#D4AF37] rounded-full transition-all" style={{ width: `${client.protocol.progress}%` }} />
+              </div>
+            </div>
 
-                {/* Sleep Chart */}
-                <div>
-                  <h3 className="font-heading text-sm font-semibold text-kairos-silver mb-3">
-                    Sleep (7d)
-                  </h3>
-                  <svg viewBox="0 0 100 60" className="w-full h-24 mb-2">
-                    <polyline
-                      points={sleepData
-                        .map((val, i) => `${(i / (sleepData.length - 1)) * 100},${60 - (val / 9) * 50}`)
-                        .join(" ")}
-                      fill="none"
-                      stroke="#D4AF37"
-                      strokeWidth="1.5"
-                    />
-                    <circle cx="0" cy={60 - (sleepData[0] / 9) * 50} r="1.5" fill="#D4AF37" />
-                    <circle
-                      cx="100"
-                      cy={60 - (sleepData[sleepData.length - 1] / 9) * 50}
-                      r="1.5"
-                      fill="#D4AF37"
-                    />
-                  </svg>
-                  <div className="font-body text-kairos-silver-dark text-xs text-center">
-                    Avg: {(sleepData.reduce((a, b) => a + b) / sleepData.length).toFixed(1)} hrs
-                  </div>
-                </div>
+            {/* Goals */}
+            <div>
+              <p className="text-[10px] text-gray-500 uppercase mb-2">Goals</p>
+              <ul className="space-y-1.5">
+                {client.protocol.goals.map((goal, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
+                    <span className="text-[#D4AF37] mt-0.5">•</span>
+                    {goal}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
 
-                {/* Weight Chart */}
-                <div>
-                  <h3 className="font-heading text-sm font-semibold text-kairos-silver mb-3">
-                    Weight (4w)
-                  </h3>
-                  <svg viewBox="0 0 100 60" className="w-full h-24 mb-2">
-                    <polyline
-                      points={weightData
-                        .map((val, i) => `${(i / (weightData.length - 1)) * 100},${60 - (val - 166) * 10}`)
-                        .join(" ")}
-                      fill="none"
-                      stroke="#D4AF37"
-                      strokeWidth="1.5"
-                    />
-                    <circle cx="0" cy={60 - (weightData[0] - 166) * 10} r="1.5" fill="#D4AF37" />
-                    <circle
-                      cx="100"
-                      cy={60 - (weightData[weightData.length - 1] - 166) * 10}
-                      r="1.5"
-                      fill="#D4AF37"
-                    />
-                  </svg>
-                  <div className="font-body text-kairos-silver-dark text-xs text-center">
-                    Current: {weightData[weightData.length - 1]} lbs
-                  </div>
-                </div>
+          {/* Biometric Charts */}
+          <div className="kairos-card">
+            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+              <Activity size={18} /> Recent Biometrics
+            </h2>
+            <div className="grid grid-cols-3 gap-4">
+              {/* Glucose */}
+              <div>
+                <p className="text-xs font-semibold text-gray-300 mb-2">Glucose (7d)</p>
+                {renderSparkLine(client.metrics.glucoseData, 140, "#D4AF37")}
+                <p className="text-[10px] text-gray-500 text-center mt-1">
+                  Avg: {client.metrics.avgGlucose ?? "—"} mg/dL
+                </p>
+              </div>
+              {/* Sleep */}
+              <div>
+                <p className="text-xs font-semibold text-gray-300 mb-2">Sleep (7d)</p>
+                {renderSparkLine(client.metrics.sleepData, 10, "#60A5FA")}
+                <p className="text-[10px] text-gray-500 text-center mt-1">
+                  Avg: {client.metrics.sleepData.length > 0
+                    ? (client.metrics.sleepData.reduce((a, b) => a + b, 0) / client.metrics.sleepData.length).toFixed(1)
+                    : "—"} hrs
+                </p>
+              </div>
+              {/* Weight */}
+              <div>
+                <p className="text-xs font-semibold text-gray-300 mb-2">Weight (4w)</p>
+                {renderSparkLine(client.metrics.weightData, Math.max(...client.metrics.weightData) + 10, "#A78BFA")}
+                <p className="text-[10px] text-gray-500 text-center mt-1">
+                  Current: {client.metrics.weight ?? "—"} lbs
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Right Column: Alerts & Activity */}
-          <div className="space-y-6">
-            {/* Active Alerts */}
-            <div className="kairos-card animate-fade-in">
-              <h2 className="font-heading text-xl font-bold text-kairos-gold mb-4 flex items-center gap-2">
-                <AlertCircle size={20} />
-                Active Alerts
-              </h2>
-              <div className="space-y-3">
-                {alerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className={`p-3 rounded-kairos-sm border-l-4 ${
-                      alert.priority === "high"
-                        ? "border-orange-400 bg-orange-400 bg-opacity-10"
-                        : "border-yellow-400 bg-yellow-400 bg-opacity-10"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <AlertCircle
-                        size={16}
-                        className={alert.priority === "high" ? "text-orange-400" : "text-yellow-400"}
-                      />
+          {/* Coach Notes */}
+          <div className="kairos-card">
+            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-4">Coach Notes</h2>
+
+            {/* Add Note */}
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                placeholder="Add a note about this client..."
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }}
+                className="flex-1 px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37]/50"
+              />
+              <button
+                onClick={handleAddNote}
+                disabled={!noteText.trim()}
+                className="px-3 py-2 rounded-xl bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30 text-sm font-medium hover:bg-[#D4AF37]/30 transition-colors disabled:opacity-40"
+              >
+                <Send size={14} />
+              </button>
+            </div>
+
+            {/* Notes List */}
+            {notes.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">No notes yet.</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {notes.map((note) => (
+                  <div key={note.id} className={`p-3 rounded-xl border ${note.pinned ? "border-[#D4AF37]/30 bg-[#D4AF37]/5" : "border-gray-700 bg-gray-800/50"}`}>
+                    <p className="text-sm text-gray-300">{note.content}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-[10px] text-gray-500">{formatRelativeTime(note.createdAt)}</p>
+                      <div className="flex gap-1">
+                        <button onClick={() => handlePinNote(note.id)} className="p-1 text-gray-500 hover:text-[#D4AF37] transition-colors">
+                          <Pin size={12} className={note.pinned ? "text-[#D4AF37]" : ""} />
+                        </button>
+                        <button onClick={() => handleDeleteNote(note.id)} className="p-1 text-gray-500 hover:text-red-400 transition-colors">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Alerts & Activity */}
+        <div className="space-y-6">
+          {/* Active Alerts */}
+          <div className="kairos-card">
+            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+              <AlertCircle size={18} /> Alerts ({unresolvedAlerts.length})
+            </h2>
+            {unresolvedAlerts.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">No active alerts.</p>
+            ) : (
+              <div className="space-y-2">
+                {unresolvedAlerts.map((alert) => (
+                  <div key={alert.id} className={`p-3 rounded-xl border-l-4 ${ALERT_PRIORITY_COLORS[alert.priority]}`}>
+                    <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="font-body text-kairos-silver text-sm leading-snug">
-                          {alert.message}
-                        </p>
-                        <p className="font-body text-kairos-silver-dark text-xs mt-1">{alert.timestamp}</p>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-[10px] text-gray-500 uppercase">{alert.category}</span>
+                          <span className="text-[10px] text-gray-600">•</span>
+                          <span className="text-[10px] text-gray-500">{alert.priority}</span>
+                        </div>
+                        <p className="text-sm text-gray-300">{alert.message}</p>
+                        <p className="text-[10px] text-gray-500 mt-1">{formatRelativeTime(alert.timestamp)}</p>
                       </div>
+                      <button
+                        onClick={() => handleResolveAlert(alert.id)}
+                        className="p-1.5 text-gray-500 hover:text-green-400 transition-colors shrink-0"
+                        title="Resolve"
+                      >
+                        <CheckCircle size={16} />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* Recent Activity */}
-            <div className="kairos-card animate-fade-in">
-              <h2 className="font-heading text-xl font-bold text-kairos-gold mb-4 flex items-center gap-2">
-                <Clock size={20} />
-                Recent Activity
-              </h2>
-              <div className="space-y-3 max-h-64 overflow-y-auto">
-                {activities.map((activity, idx) => (
-                  <div key={activity.id} className="flex gap-3 pb-3 border-b border-kairos-border last:border-b-0">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 rounded-full bg-kairos-gold bg-opacity-20 flex items-center justify-center text-kairos-gold text-xs font-bold">
-                        {idx + 1}
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-body text-kairos-silver text-sm leading-snug">
-                        {activity.label}
-                      </p>
-                      <p className="font-body text-kairos-silver-dark text-xs mt-1">
-                        {activity.timestamp}
-                      </p>
-                    </div>
+          {/* Recent Activity */}
+          <div className="kairos-card">
+            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+              <Clock size={18} /> Recent Activity
+            </h2>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {client.recentActivity.map((activity) => (
+                <div key={activity.id} className="flex gap-3 pb-2 border-b border-gray-800 last:border-b-0">
+                  <div className="w-7 h-7 rounded-full bg-[#D4AF37]/10 flex items-center justify-center text-[#D4AF37] text-[10px] font-bold shrink-0 mt-0.5">
+                    {activity.type === "check-in" ? "✓" :
+                     activity.type === "workout" ? "💪" :
+                     activity.type === "supplement" ? "💊" :
+                     activity.type === "message" ? "💬" :
+                     activity.type === "lab" ? "🔬" :
+                     activity.type === "goal" ? "🎯" : "📅"}
                   </div>
-                ))}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-300">{activity.label}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">{formatRelativeTime(activity.timestamp)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Client Info */}
+          <div className="kairos-card">
+            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-3">Details</h2>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Body Fat</span>
+                <span className="text-gray-300">{client.metrics.bodyFat ?? "—"}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">HRV Trend</span>
+                <span className="text-gray-300">{client.metrics.hrvTrend === "up" ? "↑ Improving" : client.metrics.hrvTrend === "down" ? "↓ Declining" : "→ Stable"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Glucose Trend</span>
+                <span className="text-gray-300">{client.metrics.glucoseTrend === "up" ? "↑ Improving" : client.metrics.glucoseTrend === "down" ? "↓ Declining" : "→ Stable"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Sleep Trend</span>
+                <span className="text-gray-300">{client.metrics.sleepTrend === "up" ? "↑ Improving" : client.metrics.sleepTrend === "down" ? "↓ Declining" : "→ Stable"}</span>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-4 gap-4 mt-6">
-          <button className="kairos-card hover:bg-kairos-card-hover transition-colors flex items-center justify-center gap-2 py-3 animate-fade-in">
-            <MessageSquare size={18} className="text-kairos-gold" />
-            <span className="font-body font-semibold text-kairos-silver">Send Message</span>
-          </button>
-          <button className="kairos-card hover:bg-kairos-card-hover transition-colors flex items-center justify-center gap-2 py-3 animate-fade-in">
-            <Settings size={18} className="text-kairos-gold" />
-            <span className="font-body font-semibold text-kairos-silver">Adjust Protocol</span>
-          </button>
-          <button className="kairos-card hover:bg-kairos-card-hover transition-colors flex items-center justify-center gap-2 py-3 animate-fade-in">
-            <Calendar size={18} className="text-kairos-gold" />
-            <span className="font-body font-semibold text-kairos-silver">Schedule Session</span>
-          </button>
-          <button className="kairos-card hover:bg-kairos-card-hover transition-colors flex items-center justify-center gap-2 py-3 animate-fade-in">
-            <Activity size={18} className="text-kairos-gold" />
-            <span className="font-body font-semibold text-kairos-silver">View Full History</span>
-          </button>
-        </div>
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button className="kairos-card hover:border-[#D4AF37]/30 transition-all flex items-center justify-center gap-2 py-3">
+          <MessageSquare size={16} className="text-[#D4AF37]" />
+          <span className="text-sm font-medium text-white">Send Message</span>
+        </button>
+        <button className="kairos-card hover:border-[#D4AF37]/30 transition-all flex items-center justify-center gap-2 py-3">
+          <Settings size={16} className="text-[#D4AF37]" />
+          <span className="text-sm font-medium text-white">Adjust Protocol</span>
+        </button>
+        <button className="kairos-card hover:border-[#D4AF37]/30 transition-all flex items-center justify-center gap-2 py-3">
+          <Calendar size={16} className="text-[#D4AF37]" />
+          <span className="text-sm font-medium text-white">Schedule Session</span>
+        </button>
+        <button className="kairos-card hover:border-[#D4AF37]/30 transition-all flex items-center justify-center gap-2 py-3">
+          <Activity size={16} className="text-[#D4AF37]" />
+          <span className="text-sm font-medium text-white">View Full History</span>
+        </button>
       </div>
     </div>
   );

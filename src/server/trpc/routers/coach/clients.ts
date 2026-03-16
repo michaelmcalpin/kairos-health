@@ -1,151 +1,97 @@
 import { z } from "zod";
 import { router, coachProcedure } from "@/server/trpc";
 import {
-  coachClientRelationships, users, clientProfiles,
-  glucoseReadings, sleepSessions, bodyMeasurements,
-  adherenceLogs, dailyCheckins,
-} from "@/server/db/schema";
-import { eq, desc, and, gte, sql } from "drizzle-orm";
+  seedCoachClients,
+  listCoachClients,
+  getCoachClient,
+  getRosterStats,
+  filterCoachClients,
+  resolveAlert,
+  addCoachNote,
+  getCoachNotes,
+  pinNote,
+  deleteNote,
+} from "@/lib/coach-clients/engine";
 
 export const coachClientsRouter = router({
   // List all coach's clients with summary
-  list: coachProcedure.query(async ({ ctx }) => {
-    const relationships = await ctx.db.query.coachClientRelationships.findMany({
-      where: and(
-        eq(coachClientRelationships.coachId, ctx.dbUserId),
-        eq(coachClientRelationships.status, "active")
-      ),
-    });
+  list: coachProcedure
+    .input(
+      z.object({
+        search: z.string().optional(),
+        tier: z.enum(["tier1", "tier2", "tier3", "all"]).optional(),
+        status: z.enum(["stable", "attention", "critical", "all"]).optional(),
+        sortBy: z.enum(["name", "healthScore", "alerts", "lastActive", "adherence"]).optional(),
+        sortOrder: z.enum(["asc", "desc"]).optional(),
+      }).optional()
+    )
+    .query(({ ctx, input }) => {
+      const coachId = ctx.dbUserId;
+      seedCoachClients(coachId);
 
-    const clientIds = relationships.map((r) => r.clientId);
-    if (clientIds.length === 0) return [];
-
-    const clients = await Promise.all(
-      clientIds.map(async (clientId) => {
-        const user = await ctx.db.query.users.findFirst({
-          where: eq(users.id, clientId),
+      if (input) {
+        return filterCoachClients(coachId, {
+          search: input.search,
+          tier: input.tier,
+          status: input.status,
+          sortBy: input.sortBy,
+          sortOrder: input.sortOrder,
         });
-        const profile = await ctx.db.query.clientProfiles.findFirst({
-          where: eq(clientProfiles.userId, clientId),
-        });
+      }
 
-        return {
-          id: clientId,
-          firstName: user?.firstName ?? null,
-          lastName: user?.lastName ?? null,
-          email: user?.email ?? null,
-          avatarUrl: user?.avatarUrl ?? null,
-          tier: profile?.tier ?? null,
-          goals: profile?.goals ?? [],
-          startedAt: relationships.find((r) => r.clientId === clientId)?.startedAt,
-        };
-      })
-    );
-
-    return clients;
-  }),
+      return listCoachClients(coachId);
+    }),
 
   // Get detailed view of a single client
   getDetail: coachProcedure
-    .input(z.object({ clientId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      // Verify coach-client relationship
-      const relationship = await ctx.db.query.coachClientRelationships.findFirst({
-        where: and(
-          eq(coachClientRelationships.coachId, ctx.dbUserId),
-          eq(coachClientRelationships.clientId, input.clientId),
-          eq(coachClientRelationships.status, "active")
-        ),
-      });
+    .input(z.object({ clientId: z.string() }))
+    .query(({ ctx, input }) => {
+      seedCoachClients(ctx.dbUserId);
+      return getCoachClient(input.clientId);
+    }),
 
-      if (!relationship) return null;
+  // Get roster stats
+  getStats: coachProcedure.query(({ ctx }) => {
+    return getRosterStats(ctx.dbUserId);
+  }),
 
-      const user = await ctx.db.query.users.findFirst({
-        where: eq(users.id, input.clientId),
-      });
-      const profile = await ctx.db.query.clientProfiles.findFirst({
-        where: eq(clientProfiles.userId, input.clientId),
-      });
+  // Resolve an alert
+  resolveAlert: coachProcedure
+    .input(z.object({ clientId: z.string(), alertId: z.string() }))
+    .mutation(({ ctx, input }) => {
+      seedCoachClients(ctx.dbUserId);
+      return resolveAlert(input.clientId, input.alertId);
+    }),
 
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split("T")[0];
+  // Add a coach note
+  addNote: coachProcedure
+    .input(z.object({ clientId: z.string(), content: z.string().min(1) }))
+    .mutation(({ ctx, input }) => {
+      seedCoachClients(ctx.dbUserId);
+      return addCoachNote(input.clientId, ctx.dbUserId, input.content);
+    }),
 
-      // Recent glucose avg
-      const glucoseAvg = await ctx.db
-        .select({ avg: sql<number>`avg(${glucoseReadings.valueMgdl})` })
-        .from(glucoseReadings)
-        .where(
-          and(
-            eq(glucoseReadings.clientId, input.clientId),
-            gte(glucoseReadings.timestamp, sevenDaysAgo)
-          )
-        );
+  // Get notes for a client
+  getNotes: coachProcedure
+    .input(z.object({ clientId: z.string() }))
+    .query(({ ctx, input }) => {
+      seedCoachClients(ctx.dbUserId);
+      return getCoachNotes(input.clientId);
+    }),
 
-      // Recent sleep avg
-      const sleepAvg = await ctx.db
-        .select({ avgScore: sql<number>`avg(${sleepSessions.score})` })
-        .from(sleepSessions)
-        .where(
-          and(
-            eq(sleepSessions.clientId, input.clientId),
-            gte(sleepSessions.date, sevenDaysAgoStr)
-          )
-        );
+  // Pin/unpin a note
+  pinNote: coachProcedure
+    .input(z.object({ clientId: z.string(), noteId: z.string() }))
+    .mutation(({ ctx, input }) => {
+      seedCoachClients(ctx.dbUserId);
+      return pinNote(input.clientId, input.noteId);
+    }),
 
-      // Latest measurement
-      const latestMeasurement = await ctx.db.query.bodyMeasurements.findFirst({
-        where: eq(bodyMeasurements.clientId, input.clientId),
-        orderBy: desc(bodyMeasurements.date),
-      });
-
-      // Recent adherence rate
-      const adherenceRate = await ctx.db
-        .select({
-          total: sql<number>`count(*)`,
-          taken: sql<number>`count(*) filter (where ${adherenceLogs.skipped} = false)`,
-        })
-        .from(adherenceLogs)
-        .where(
-          and(
-            eq(adherenceLogs.clientId, input.clientId),
-            gte(adherenceLogs.date, sevenDaysAgoStr)
-          )
-        );
-
-      // Last check-in
-      const lastCheckin = await ctx.db.query.dailyCheckins.findFirst({
-        where: eq(dailyCheckins.clientId, input.clientId),
-        orderBy: desc(dailyCheckins.date),
-      });
-
-      return {
-        user: {
-          id: user?.id,
-          firstName: user?.firstName,
-          lastName: user?.lastName,
-          email: user?.email,
-          avatarUrl: user?.avatarUrl,
-        },
-        profile: {
-          tier: profile?.tier,
-          goals: profile?.goals,
-          dateOfBirth: profile?.dateOfBirth,
-          gender: profile?.gender,
-          heightInches: profile?.heightInches,
-        },
-        recentMetrics: {
-          avgGlucose: glucoseAvg[0]?.avg ? Math.round(Number(glucoseAvg[0].avg)) : null,
-          avgSleepScore: sleepAvg[0]?.avgScore ? Math.round(Number(sleepAvg[0].avgScore)) : null,
-          latestWeight: latestMeasurement?.weightLbs ?? null,
-          latestBodyFat: latestMeasurement?.bodyFatPct ?? null,
-          adherenceRate:
-            Number(adherenceRate[0]?.total ?? 0) > 0
-              ? Math.round((Number(adherenceRate[0]?.taken ?? 0) / Number(adherenceRate[0]?.total ?? 1)) * 100)
-              : null,
-          lastCheckinDate: lastCheckin?.date ?? null,
-        },
-        startedAt: relationship.startedAt,
-      };
+  // Delete a note
+  deleteNote: coachProcedure
+    .input(z.object({ clientId: z.string(), noteId: z.string() }))
+    .mutation(({ ctx, input }) => {
+      seedCoachClients(ctx.dbUserId);
+      return deleteNote(input.clientId, input.noteId);
     }),
 });
