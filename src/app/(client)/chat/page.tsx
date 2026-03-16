@@ -1,56 +1,52 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Send, Bot, User, Paperclip } from "lucide-react";
+import {
+  listChatMessages,
+  sendMessage as engineSendMessage,
+} from "@/lib/client-ops/engine";
 
-interface Message {
-  id: string;
-  sender: "client" | "coach" | "ai";
-  body: string;
-  timestamp: string;
-}
-
-const initialMessages: Message[] = [
-  { id: "1", sender: "coach", body: "Good morning Michael! I reviewed your glucose data from yesterday. Your post-dinner spike was a bit higher than usual — 168 mg/dL. Did you have anything different for dinner?", timestamp: "8:15 AM" },
-  { id: "2", sender: "client", body: "Hey! Yeah, we had pasta last night. I know carbs are a trigger but it was a family dinner.", timestamp: "8:22 AM" },
-  { id: "3", sender: "coach", body: "Totally understandable — life happens! A few tips for next time: try having a small salad first, and take a 10-15 min walk right after. That alone can cut the spike by 30-40%.", timestamp: "8:25 AM" },
-  { id: "4", sender: "coach", body: "Also, I noticed your HRV has been trending up nicely — 56ms 7-day average. The magnesium and ashwagandha seem to be working well. How are you feeling overall?", timestamp: "8:26 AM" },
-  { id: "5", sender: "client", body: "Feeling pretty good actually. Energy has been better in the mornings. Sleep has been great since I started the magnesium before bed.", timestamp: "8:30 AM" },
-  { id: "6", sender: "coach", body: "That's excellent to hear! Let's keep the current protocol for another 2 weeks and then reassess. Your next lab draw is scheduled for March 15th — I'll send you a reminder.", timestamp: "8:32 AM" },
-];
+const CLIENT_ID = "demo-client";
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState(initialMessages);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const messages = useMemo(
+    () => listChatMessages(CLIENT_ID),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [refreshKey]
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  function sendMessage() {
+  function handleSend() {
     if (!input.trim()) return;
-    const newMsg: Message = {
-      id: String(Date.now()),
-      sender: "client",
-      body: input.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
-    };
-    setMessages((prev) => [...prev, newMsg]);
+    engineSendMessage(CLIENT_ID, input.trim());
     setInput("");
+    setRefreshKey((k) => k + 1);
 
     // Simulate coach typing response
     setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: String(Date.now() + 1),
-          sender: "coach",
-          body: "Thanks for the update! I'll review this and get back to you shortly.",
-          timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
-        },
-      ]);
+      engineSendMessage(CLIENT_ID, "Thanks for the update! I'll review this and get back to you shortly.");
+      // Patch last message to be from coach
+      const msgs = listChatMessages(CLIENT_ID);
+      const last = msgs[msgs.length - 1];
+      if (last) {
+        last.sender = "coach";
+        last.senderName = "Dr. Marcus Chen";
+      }
+      setRefreshKey((k) => k + 1);
     }, 2000);
+  }
+
+  function formatTime(timestamp: string): string {
+    const d = new Date(timestamp);
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   }
 
   return (
@@ -79,9 +75,9 @@ export default function ChatPage() {
             <div key={msg.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
               <div className={`flex gap-2 max-w-[75%] ${isMe ? "flex-row-reverse" : ""}`}>
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-1 ${
-                  isMe ? "bg-kairos-gold/20" : msg.sender === "ai" ? "bg-purple-500/20" : "bg-blue-500/20"
+                  isMe ? "bg-kairos-gold/20" : msg.sender === "system" ? "bg-purple-500/20" : "bg-blue-500/20"
                 }`}>
-                  {isMe ? <User size={12} className="text-kairos-gold" /> : msg.sender === "ai" ? <Bot size={12} className="text-purple-400" /> : <User size={12} className="text-blue-400" />}
+                  {isMe ? <User size={12} className="text-kairos-gold" /> : msg.sender === "system" ? <Bot size={12} className="text-purple-400" /> : <User size={12} className="text-blue-400" />}
                 </div>
                 <div>
                   <div className={`px-4 py-2.5 rounded-2xl ${
@@ -89,10 +85,10 @@ export default function ChatPage() {
                       ? "bg-kairos-gold text-kairos-royal-dark rounded-br-sm"
                       : "bg-kairos-card border border-kairos-border text-white rounded-bl-sm"
                   }`}>
-                    <p className="text-sm font-body">{msg.body}</p>
+                    <p className="text-sm font-body">{msg.content}</p>
                   </div>
                   <p className={`text-[10px] font-body text-kairos-silver-dark mt-1 ${isMe ? "text-right" : ""}`}>
-                    {msg.timestamp}
+                    {formatTime(msg.timestamp)}
                   </p>
                 </div>
               </div>
@@ -110,15 +106,12 @@ export default function ChatPage() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder="Type a message..."
           className="kairos-input flex-1"
         />
-        <button
-          onClick={sendMessage}
-          disabled={!input.trim()}
-          className="kairos-btn-gold p-2.5 disabled:opacity-30 disabled:cursor-not-allowed"
-        >
+        <button onClick={handleSend} disabled={!input.trim()}
+          className="kairos-btn-gold p-2.5 disabled:opacity-30 disabled:cursor-not-allowed">
           <Send size={16} />
         </button>
       </div>
