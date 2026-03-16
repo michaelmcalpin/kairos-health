@@ -1,0 +1,64 @@
+{
+  "name": "KAIROS Health Management",
+  "short_name": "KAIROS",
+  "description": "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0F1F",
+  "theme_color": "#122055",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "categories": ["health", "fitness", "medical"],
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.svg",
+      "sizes": "72x72",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/icon-96x96.svg",
+      "sizes": "96x96",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/icon-128x128.svg",
+      "sizes": "128x128",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/icon-144x144.svg",
+      "sizes": "144x144",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/icon-192x192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/",
+      "description": "View your health dashboard"
+    },
+    {
+      "name": "Glucose",
+      "url": "/glucose",
+      "description": "Check glucose readings"
+    },
+    {
+      "name": "Sleep",
+      "url": "/sleep",
+      "description": "View sleep data"
+    }
+  ]
+}
