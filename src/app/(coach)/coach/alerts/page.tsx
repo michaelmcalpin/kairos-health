@@ -4,68 +4,43 @@ import { useState, useMemo } from "react";
 import { Bell, CheckCircle, ChevronDown, ChevronUp, Clock, Users } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
-import { useCoachAlerts } from "@/hooks/coach/useCoachAlerts";
+import {
+  listCoachAlerts,
+  getCoachAlertStats,
+  acknowledgeAlert,
+  filterCoachAlerts,
+} from "@/lib/coach-ops/engine";
+import { PRIORITY_CONFIG } from "@/lib/coach-ops/types";
+import type { AlertStatus } from "@/lib/coach-ops/types";
 
-type AlertPriority = "critical" | "high" | "medium" | "low" | "info";
-type AlertStatus = "active" | "acknowledged" | "resolved";
-
-interface CoachAlert {
-  id: string;
-  clientName: string;
-  clientInitials: string;
-  title: string;
-  message: string;
-  priority: AlertPriority;
-  status: AlertStatus;
-  createdAt: string;
-  details?: string;
-}
-
-const mockAlerts: CoachAlert[] = [
-  { id: "1", clientName: "Lisa Park", clientInitials: "LP", title: "Critical: Glucose spike — 192 mg/dL", message: "Post-meal glucose exceeded critical threshold of 180 mg/dL.", priority: "critical", status: "active", createdAt: "30 min ago", details: "Lisa's glucose peaked at 192 mg/dL after lunch. This is the third critical spike this week. Consider adjusting her meal timing protocol and scheduling a review." },
-  { id: "2", clientName: "Sarah Kim", clientInitials: "SK", title: "Adherence dropping — 3-day trend", message: "Supplement adherence dropped from 85% to 45% over 3 days.", priority: "high", status: "active", createdAt: "2 hours ago", details: "Sarah has missed her evening supplements for 3 consecutive days. Her magnesium and ashwagandha doses are being skipped." },
-  { id: "3", clientName: "Nina Patel", clientInitials: "NP", title: "Sleep quality declining", message: "Sleep score dropped below 65 for two consecutive nights.", priority: "high", status: "active", createdAt: "4 hours ago", details: "Deep sleep reduced by 35%. Wake events increased. Late screen time and irregular bedtime reported." },
-  { id: "4", clientName: "Lisa Park", clientInitials: "LP", title: "Missed check-in — 3 days", message: "No daily check-in completed since March 5.", priority: "medium", status: "active", createdAt: "6 hours ago" },
-  { id: "5", clientName: "Sarah Kim", clientInitials: "SK", title: "HRV below baseline", message: "7-day HRV average dropped from 52ms to 41ms.", priority: "medium", status: "acknowledged", createdAt: "1 day ago", details: "Possible stress or overtraining. Current recovery score is low." },
-  { id: "6", clientName: "Emma Wilson", clientInitials: "EW", title: "Lab results ready", message: "Metabolic panel results available from Quest Diagnostics.", priority: "low", status: "active", createdAt: "1 day ago" },
-  { id: "7", clientName: "Michael McAlpin", clientInitials: "MM", title: "Fasting streak — 5 days", message: "Successfully completed 5 consecutive 16:8 fasts.", priority: "info", status: "resolved", createdAt: "2 days ago" },
-  { id: "8", clientName: "James Torres", clientInitials: "JT", title: "Health score improved", message: "Overall health score increased from 85 to 91 over 2 weeks.", priority: "info", status: "resolved", createdAt: "3 days ago" },
-];
-
-const priorityConfig: Record<AlertPriority, { color: string; bgColor: string; label: string }> = {
-  critical: { color: "text-red-400", bgColor: "bg-red-500/15", label: "Critical" },
-  high: { color: "text-orange-400", bgColor: "bg-orange-500/15", label: "High" },
-  medium: { color: "text-yellow-400", bgColor: "bg-yellow-500/15", label: "Medium" },
-  low: { color: "text-blue-400", bgColor: "bg-blue-500/15", label: "Low" },
-  info: { color: "text-kairos-silver", bgColor: "bg-kairos-silver/10", label: "Info" },
-};
+const COACH_ID = "demo-coach";
 
 export default function CoachAlertsPage() {
-  const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
+  const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { alerts: _apiAlerts, summary: _alertsSummary } = useCoachAlerts(dateRange);
 
   const [filter, setFilter] = useState<"all" | AlertStatus>("all");
   const [clientFilter, setClientFilter] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [alerts, setAlerts] = useState(mockAlerts);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Suppress unused variable warnings for date-range-aware future implementation
-  void useMemo(() => dateRange, [dateRange]);
+  const alerts = useMemo(
+    () => listCoachAlerts(COACH_ID),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [refreshKey]
+  );
+  const stats = refreshKey >= 0 ? getCoachAlertStats(COACH_ID) : { total: 0, active: 0, critical: 0, high: 0, medium: 0, low: 0 };
 
-  const uniqueClients = Array.from(new Set(mockAlerts.map((a) => a.clientName)));
-  const filtered = alerts.filter((a) => {
-    if (filter !== "all" && a.status !== filter) return false;
-    if (clientFilter !== "all" && a.clientName !== clientFilter) return false;
-    return true;
-  });
-  const activeCount = alerts.filter((a) => a.status === "active").length;
-  const criticalCount = alerts.filter((a) => a.priority === "critical" && a.status === "active").length;
+  const uniqueClients = useMemo(
+    () => Array.from(new Set(alerts.map((a) => a.clientName))),
+    [alerts]
+  );
 
-  function acknowledge(id: string) {
-    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, status: "acknowledged" as AlertStatus } : a)));
+  const filtered = filterCoachAlerts(COACH_ID, { status: filter, client: clientFilter });
+
+  function handleAcknowledge(id: string) {
+    acknowledgeAlert(COACH_ID, id);
+    setRefreshKey((k) => k + 1);
   }
 
   return (
@@ -74,20 +49,20 @@ export default function CoachAlertsPage() {
         <div>
           <h2 className="font-heading font-bold text-xl text-white">Client Alerts</h2>
           <p className="text-sm font-body text-kairos-silver-dark">
-            {activeCount} active{criticalCount > 0 && ` • ${criticalCount} critical`}
+            {stats.active} active{stats.critical > 0 && ` • ${stats.critical} critical`}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Bell size={16} className={criticalCount > 0 ? "text-red-400 animate-pulse" : "text-kairos-gold"} />
-          <span className="text-sm font-heading font-bold text-kairos-gold">{activeCount}</span>
+          <Bell size={16} className={stats.critical > 0 ? "text-red-400 animate-pulse" : "text-kairos-gold"} />
+          <span className="text-sm font-heading font-bold text-kairos-gold">{stats.active}</span>
         </div>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {(["critical", "high", "medium", "low"] as AlertPriority[]).map((p) => {
-          const count = alerts.filter((a) => a.priority === p && a.status === "active").length;
-          const cfg = priorityConfig[p];
+        {(["critical", "high", "medium", "low"] as const).map((p) => {
+          const count = p === "critical" ? stats.critical : p === "high" ? stats.high : p === "medium" ? stats.medium : stats.low;
+          const cfg = PRIORITY_CONFIG[p];
           return (
             <div key={p} className="kairos-card text-center">
               <span className={`text-2xl font-heading font-bold ${cfg.color}`}>{count}</span>
@@ -130,7 +105,7 @@ export default function CoachAlertsPage() {
       {/* Alert List */}
       <div className="space-y-3">
         {filtered.map((alert) => {
-          const config = priorityConfig[alert.priority];
+          const config = PRIORITY_CONFIG[alert.priority];
           const isExpanded = expanded === alert.id;
           return (
             <div key={alert.id} className="kairos-card">
@@ -157,7 +132,7 @@ export default function CoachAlertsPage() {
                   {alert.details && <p className="text-sm font-body text-kairos-silver">{alert.details}</p>}
                   {alert.status === "active" && (
                     <div className="flex gap-2">
-                      <button onClick={() => acknowledge(alert.id)} className="kairos-btn-outline text-xs"><CheckCircle size={14} className="mr-1" /> Acknowledge</button>
+                      <button onClick={() => handleAcknowledge(alert.id)} className="kairos-btn-outline text-xs"><CheckCircle size={14} className="mr-1" /> Acknowledge</button>
                       <button className="kairos-btn-outline text-xs border-kairos-gold/30 text-kairos-gold hover:bg-kairos-gold/10">View Client</button>
                     </div>
                   )}
