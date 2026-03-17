@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { CheckCircle, ChevronRight, Smile, Meh, Frown, Zap, Moon, Pill } from "lucide-react";
+import { CHECKIN_STEPS, SYMPTOM_OPTIONS } from "@/lib/client-ops/types";
 
-type Step = "mood" | "energy" | "sleep" | "symptoms" | "adherence" | "notes" | "complete";
-const steps: Step[] = ["mood", "energy", "sleep", "symptoms", "adherence", "notes", "complete"];
-const symptomOptions = ["Headache", "Brain fog", "Joint pain", "Bloating", "Anxiety", "Muscle soreness", "Nausea", "None"];
+const steps = CHECKIN_STEPS;
+const symptomOptions = SYMPTOM_OPTIONS;
 
 export default function CheckinPage() {
   const [currentStep, setCurrentStep] = useState(0);

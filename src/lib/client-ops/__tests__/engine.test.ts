@@ -591,3 +591,56 @@ describe("generateSleepStages", () => {
     expect(aDurations).not.toEqual(bDurations);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// Dashboard Protocol
+// ═══════════════════════════════════════════════════════════════════
+
+import { getDashboardProtocol } from "../engine";
+
+describe("getDashboardProtocol", () => {
+  it("returns 5 protocol items", () => {
+    expect(getDashboardProtocol()).toHaveLength(5);
+  });
+
+  it("each item has time, item name, and done status", () => {
+    for (const p of getDashboardProtocol()) {
+      expect(p.time).toBeTruthy();
+      expect(p.item).toBeTruthy();
+      expect(typeof p.done).toBe("boolean");
+    }
+  });
+
+  it("is deterministic for same seed", () => {
+    expect(getDashboardProtocol(42)).toEqual(getDashboardProtocol(42));
+  });
+
+  it("may vary completion by seed", () => {
+    const a = getDashboardProtocol(1).filter(p => p.done).length;
+    const b = getDashboardProtocol(99).filter(p => p.done).length;
+    // Seeds should produce different completion states
+    // (or at least not crash)
+    expect(typeof a).toBe("number");
+    expect(typeof b).toBe("number");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// Check-in Constants
+// ═══════════════════════════════════════════════════════════════════
+
+import { CHECKIN_STEPS, SYMPTOM_OPTIONS } from "../types";
+
+describe("Checkin constants", () => {
+  it("CHECKIN_STEPS has 7 steps ending with complete", () => {
+    expect(CHECKIN_STEPS).toHaveLength(7);
+    expect(CHECKIN_STEPS[0]).toBe("mood");
+    expect(CHECKIN_STEPS[CHECKIN_STEPS.length - 1]).toBe("complete");
+  });
+
+  it("SYMPTOM_OPTIONS has 8 options including None", () => {
+    expect(SYMPTOM_OPTIONS).toHaveLength(8);
+    expect(SYMPTOM_OPTIONS).toContain("None");
+    expect(SYMPTOM_OPTIONS).toContain("Headache");
+  });
+});

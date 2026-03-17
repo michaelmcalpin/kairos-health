@@ -216,6 +216,27 @@ export interface SleepStageBlock {
   duration: number;
 }
 
+// ─── Dashboard Protocol ───────────────────────────────────────────
+
+export interface DashboardProtocolItem {
+  time: string;
+  item: string;
+  done: boolean;
+}
+
+// ─── Check-in ─────────────────────────────────────────────────────
+
+export type CheckinStep = "mood" | "energy" | "sleep" | "symptoms" | "adherence" | "notes" | "complete";
+
+export const CHECKIN_STEPS: CheckinStep[] = [
+  "mood", "energy", "sleep", "symptoms", "adherence", "notes", "complete",
+];
+
+export const SYMPTOM_OPTIONS: string[] = [
+  "Headache", "Brain fog", "Joint pain", "Bloating",
+  "Anxiety", "Muscle soreness", "Nausea", "None",
+];
+
 // ─── Chat ─────────────────────────────────────────────────────────
 
 export type MessageSender = "client" | "coach" | "system";

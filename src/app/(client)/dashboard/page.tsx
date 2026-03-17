@@ -5,6 +5,7 @@ import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useDashboard } from "@/hooks/client/useDashboard";
 import { Droplets, Heart, Brain, Moon, Bell, CheckCircle } from "lucide-react";
+import { getDashboardProtocol } from "@/lib/client-ops/engine";
 
 export default function ClientDashboard() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
@@ -13,14 +14,8 @@ export default function ClientDashboard() {
   // Data from hooks (mock fallback until DB is connected)
   const { glucoseSummaries, sleepRecords, supplementRecords, kpis } = useDashboard(dateRange);
 
-  // Protocol items (static for today view, summary for week/month)
-  const protocolItems = [
-    { time: "7:00 AM", item: "Vitamin D3 — 5000 IU", done: true },
-    { time: "7:00 AM", item: "Omega-3 Fish Oil — 2g", done: true },
-    { time: "12:00 PM", item: "Magnesium Glycinate — 400mg", done: false },
-    { time: "8:00 PM", item: "Ashwagandha — 600mg", done: false },
-    { time: "9:00 PM", item: "Melatonin — 0.5mg", done: false },
-  ];
+  // Protocol items from client-ops engine
+  const protocolItems = getDashboardProtocol();
   const doneCount = protocolItems.filter((e) => e.done).length;
 
   return (

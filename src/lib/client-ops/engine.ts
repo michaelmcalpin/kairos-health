@@ -622,6 +622,30 @@ export function generateSleepStages(dateRef: Date): SleepStageBlock[] {
   });
 }
 
+// ─── Dashboard Protocol ───────────────────────────────────────────
+
+import type { DashboardProtocolItem } from "./types";
+
+const PROTOCOL_SEED: DashboardProtocolItem[] = [
+  { time: "7:00 AM", item: "Vitamin D3 — 5000 IU", done: true },
+  { time: "7:00 AM", item: "Omega-3 Fish Oil — 2g", done: true },
+  { time: "12:00 PM", item: "Magnesium Glycinate — 400mg", done: false },
+  { time: "8:00 PM", item: "Ashwagandha — 600mg", done: false },
+  { time: "9:00 PM", item: "Melatonin — 0.5mg", done: false },
+];
+
+export function getDashboardProtocol(seed = 1): DashboardProtocolItem[] {
+  // Deterministic completion based on seed (time-of-day simulation)
+  const completedCount = Math.min(
+    PROTOCOL_SEED.length,
+    Math.round(seededRandom(seed) * PROTOCOL_SEED.length),
+  );
+  return PROTOCOL_SEED.map((p, i) => ({
+    ...p,
+    done: i < completedCount,
+  }));
+}
+
 // ─── Reset ────────────────────────────────────────────────────────
 
 export function resetClientOpsStore(): void {
