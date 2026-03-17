@@ -112,6 +112,55 @@ export interface CartItem {
   quantity: number;
 }
 
+// ─── Client Alerts ───────────────────────────────────────────────
+
+export type ClientAlertPriority = "critical" | "high" | "medium" | "low" | "info";
+export type ClientAlertStatus = "active" | "acknowledged" | "resolved";
+
+export interface ClientAlert {
+  id: string;
+  title: string;
+  message: string;
+  priority: ClientAlertPriority;
+  status: ClientAlertStatus;
+  category: string;
+  createdAt: string;
+  details?: string;
+}
+
+export const CLIENT_ALERT_PRIORITY_CONFIG: Record<ClientAlertPriority, { color: string; bgColor: string; label: string }> = {
+  critical: { color: "text-red-400", bgColor: "bg-red-500/15", label: "Critical" },
+  high: { color: "text-orange-400", bgColor: "bg-orange-500/15", label: "High" },
+  medium: { color: "text-yellow-400", bgColor: "bg-yellow-500/15", label: "Medium" },
+  low: { color: "text-blue-400", bgColor: "bg-blue-500/15", label: "Low" },
+  info: { color: "text-kairos-silver", bgColor: "bg-kairos-silver/10", label: "Info" },
+};
+
+// ─── Client Insights ────────────────────────────────────────────
+
+export type InsightCategory = "Metabolic" | "Sleep" | "Recovery" | "Nutrition" | "Supplementation" | "Exercise" | "Stress";
+export type InsightConfidence = "high" | "medium";
+
+export interface ClientInsight {
+  id: string;
+  category: InsightCategory;
+  title: string;
+  description: string;
+  confidence: InsightConfidence;
+  recommendation: string;
+  dataSource: string;
+  timestamp: string;
+}
+
+export interface InsightSummary {
+  score: string;
+  trend: string;
+}
+
+export const INSIGHT_CATEGORIES: InsightCategory[] = [
+  "Metabolic", "Sleep", "Recovery", "Nutrition", "Supplementation", "Exercise", "Stress",
+];
+
 // ─── Chat ─────────────────────────────────────────────────────────
 
 export type MessageSender = "client" | "coach" | "system";

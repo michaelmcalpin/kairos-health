@@ -18,6 +18,14 @@ import {
   sendMessage,
   getUnreadCount,
   markAllRead,
+  generateClientAlerts,
+  getClientAlerts,
+  acknowledgeClientAlert,
+  filterClientAlerts,
+  getClientAlertActiveCount,
+  generateClientInsights,
+  filterClientInsights,
+  getInsightSummary,
   resetClientOpsStore,
 } from "../engine";
 
@@ -261,5 +269,155 @@ describe("markAllRead", () => {
   it("marks all messages as read", () => {
     markAllRead(CLIENT_ID);
     expect(getUnreadCount(CLIENT_ID)).toBe(0);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════
+// CLIENT ALERTS
+// ═════════════════════════════════════════════════════════════════
+
+const weekStart = new Date("2026-03-09");
+const weekEnd = new Date("2026-03-15");
+
+describe("generateClientAlerts", () => {
+  it("generates alerts for a date range", () => {
+    const alerts = generateClientAlerts(weekStart, weekEnd);
+    expect(alerts.length).toBeGreaterThanOrEqual(3);
+    expect(alerts.length).toBeLessThanOrEqual(15);
+  });
+
+  it("is deterministic for same dates", () => {
+    const a1 = generateClientAlerts(weekStart, weekEnd);
+    const a2 = generateClientAlerts(weekStart, weekEnd);
+    expect(a1.length).toBe(a2.length);
+    expect(a1[0].title).toBe(a2[0].title);
+  });
+
+  it("alerts have required fields", () => {
+    const alerts = generateClientAlerts(weekStart, weekEnd);
+    const a = alerts[0];
+    expect(a).toHaveProperty("id");
+    expect(a).toHaveProperty("title");
+    expect(a).toHaveProperty("message");
+    expect(a).toHaveProperty("priority");
+    expect(a).toHaveProperty("status");
+    expect(a).toHaveProperty("category");
+    expect(a).toHaveProperty("createdAt");
+  });
+
+  it("produces more alerts for longer ranges", () => {
+    const short = generateClientAlerts(weekStart, weekEnd);
+    const monthEnd = new Date("2026-03-31");
+    const long = generateClientAlerts(weekStart, monthEnd);
+    expect(long.length).toBeGreaterThanOrEqual(short.length);
+  });
+});
+
+describe("acknowledgeClientAlert", () => {
+  it("acknowledges an alert", () => {
+    const alerts = getClientAlerts(CLIENT_ID, weekStart, weekEnd);
+    const active = alerts.find((a) => a.status === "active");
+    if (active) {
+      acknowledgeClientAlert(CLIENT_ID, active.id);
+      const updated = getClientAlerts(CLIENT_ID, weekStart, weekEnd);
+      const found = updated.find((a) => a.id === active.id);
+      expect(found?.status).toBe("acknowledged");
+    }
+  });
+});
+
+describe("filterClientAlerts", () => {
+  it("returns all with 'all' filter", () => {
+    const all = filterClientAlerts(CLIENT_ID, weekStart, weekEnd, "all");
+    const base = getClientAlerts(CLIENT_ID, weekStart, weekEnd);
+    expect(all.length).toBe(base.length);
+  });
+
+  it("filters by status", () => {
+    const resolved = filterClientAlerts(CLIENT_ID, weekStart, weekEnd, "resolved");
+    expect(resolved.every((a) => a.status === "resolved")).toBe(true);
+  });
+});
+
+describe("getClientAlertActiveCount", () => {
+  it("returns count of active alerts", () => {
+    const count = getClientAlertActiveCount(CLIENT_ID, weekStart, weekEnd);
+    expect(count).toBeGreaterThanOrEqual(0);
+    const alerts = getClientAlerts(CLIENT_ID, weekStart, weekEnd);
+    expect(count).toBe(alerts.filter((a) => a.status === "active").length);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════
+// CLIENT INSIGHTS
+// ═════════════════════════════════════════════════════════════════
+
+describe("generateClientInsights", () => {
+  it("generates insights for a date range", () => {
+    const insights = generateClientInsights(weekStart, weekEnd);
+    expect(insights.length).toBeGreaterThanOrEqual(3);
+    expect(insights.length).toBeLessThanOrEqual(10);
+  });
+
+  it("is deterministic for same dates", () => {
+    const a = generateClientInsights(weekStart, weekEnd);
+    const b = generateClientInsights(weekStart, weekEnd);
+    expect(a.length).toBe(b.length);
+    expect(a[0].title).toBe(b[0].title);
+    expect(a[0].description).toBe(b[0].description);
+  });
+
+  it("insights have required fields", () => {
+    const insights = generateClientInsights(weekStart, weekEnd);
+    const i = insights[0];
+    expect(i).toHaveProperty("id");
+    expect(i).toHaveProperty("category");
+    expect(i).toHaveProperty("title");
+    expect(i).toHaveProperty("description");
+    expect(i).toHaveProperty("confidence");
+    expect(i).toHaveProperty("recommendation");
+    expect(i).toHaveProperty("dataSource");
+    expect(i).toHaveProperty("timestamp");
+  });
+
+  it("does not duplicate categories in the same batch", () => {
+    const insights = generateClientInsights(weekStart, weekEnd);
+    const ids = insights.map((i) => i.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe("filterClientInsights", () => {
+  it("returns all with null category", () => {
+    const all = filterClientInsights(weekStart, weekEnd, null);
+    const base = generateClientInsights(weekStart, weekEnd);
+    expect(all.length).toBe(base.length);
+  });
+
+  it("filters by category", () => {
+    const all = generateClientInsights(weekStart, weekEnd);
+    const categories = Array.from(new Set(all.map((i) => i.category)));
+    if (categories.length > 0) {
+      const filtered = filterClientInsights(weekStart, weekEnd, categories[0]);
+      expect(filtered.length).toBeGreaterThan(0);
+      expect(filtered.every((i) => i.category === categories[0])).toBe(true);
+    }
+  });
+});
+
+describe("getInsightSummary", () => {
+  it("returns score and trend", () => {
+    const summary = getInsightSummary(weekStart);
+    expect(summary).toHaveProperty("score");
+    expect(summary).toHaveProperty("trend");
+    expect(parseFloat(summary.score)).toBeGreaterThanOrEqual(7);
+    expect(parseFloat(summary.score)).toBeLessThanOrEqual(10);
+  });
+
+  it("is deterministic for same date", () => {
+    const a = getInsightSummary(weekStart);
+    const b = getInsightSummary(weekStart);
+    expect(a.score).toBe(b.score);
+    expect(a.trend).toBe(b.trend);
   });
 });

@@ -15,68 +15,14 @@ import {
 } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
+import {
+  generateClientInsights,
+  getInsightSummary,
+} from "@/lib/client-ops/engine";
+import { INSIGHT_CATEGORIES } from "@/lib/client-ops/types";
+import type { InsightCategory } from "@/lib/client-ops/types";
 
-interface Insight {
-  id: string;
-  category: "Metabolic" | "Sleep" | "Recovery" | "Nutrition" | "Supplementation" | "Exercise" | "Stress";
-  title: string;
-  description: string;
-  confidence: "high" | "medium";
-  recommendation: string;
-  dataSource: string;
-  timestamp: string;
-}
-
-// Seeded random for consistent mock data
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
-const insightTemplates: Omit<Insight, "id" | "timestamp">[] = [
-  { category: "Metabolic", title: "Glucose Stability Improvement", description: "Your post-meal glucose spikes have decreased by {pct}% this period compared to the previous period.", confidence: "high", recommendation: "Continue your current meal timing and protein intake patterns—they are working well for metabolic stability.", dataSource: "Based on {n} glucose measurements" },
-  { category: "Sleep", title: "Sleep Quality & Recovery Link", description: "Your sleep quality improves {pct}% on days you complete evening magnesium supplementation.", confidence: "high", recommendation: "Maintain consistent evening magnesium intake around 8 PM for optimal sleep architecture.", dataSource: "Based on {n} sleep records" },
-  { category: "Exercise", title: "Post-Dinner Walk Effect", description: "Post-dinner walks reduce your glucose spikes by an average of {v} mg/dL compared to resting.", confidence: "high", recommendation: "Incorporate a 10-15 minute walk within 30 minutes after dinner on most days.", dataSource: "Based on {n} glucose-activity correlations" },
-  { category: "Recovery", title: "HRV Trend Rising", description: "Your Heart Rate Variability shows an upward trend, indicating improved parasympathetic tone and recovery capacity.", confidence: "medium", recommendation: "Your recovery metrics are trending positively. Consider adding one additional rest day to further optimize.", dataSource: "Based on {n} days of HRV data" },
-  { category: "Nutrition", title: "Fiber Intake Optimization", description: "You are meeting {pct}% of your daily fiber targets. This correlates with stable energy levels throughout the day.", confidence: "high", recommendation: "Aim for consistent daily fiber intake of 30-35g. Add one serving of vegetables or whole grains to one meal.", dataSource: "Based on {n} days of nutrition logs" },
-  { category: "Stress", title: "Cortisol Patterns Emerging", description: "Morning cortisol levels are highest on days with high stress scores. Consider morning meditation or movement.", confidence: "medium", recommendation: "Try 10 minutes of breathwork or light stretching within 30 minutes of waking on high-stress days.", dataSource: "Based on stress logs and biomarker data" },
-  { category: "Supplementation", title: "Supplement Compliance Strong", description: "Your supplement adherence is {pct}% this period. Consistent intake is supporting your health goals.", confidence: "high", recommendation: "Maintain your current supplement schedule. Consider setting a calendar reminder for your evening protocol.", dataSource: "Based on supplement logs" },
-  { category: "Sleep", title: "Sleep Duration Consistency", description: "Consistent sleep schedule correlates with {pct}% better next-day cognitive performance.", confidence: "high", recommendation: "Maintain your current sleep and wake times within 30 minutes even on weekends for optimal circadian alignment.", dataSource: "Based on {n} nights of sleep data" },
-  { category: "Metabolic", title: "Fasting Window Optimization", description: "Your metabolic markers improve by {pct}% when fasting windows exceed 14 hours.", confidence: "high", recommendation: "Extend your fasting window to 14-16 hours on most days for optimal metabolic benefits.", dataSource: "Based on {n} fasting sessions" },
-  { category: "Exercise", title: "Zone 2 Training Progress", description: "Your aerobic base is improving. VO2 max estimate has increased by {pct}% over this period.", confidence: "medium", recommendation: "Continue Zone 2 cardio sessions 3-4 times per week for sustained aerobic development.", dataSource: "Based on {n} workout sessions" },
-];
-
-function generateInsights(startDate: Date, endDate: Date): Insight[] {
-  const baseSeed = startDate.getTime() / 86400000;
-  const days = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400000));
-  const count = Math.min(insightTemplates.length, Math.max(4, Math.round(days / 2)));
-  const insights: Insight[] = [];
-  const used = new Set<number>();
-
-  for (let i = 0; i < count; i++) {
-    let idx = Math.floor(seededRandom(baseSeed + i * 11) * insightTemplates.length);
-    while (used.has(idx)) idx = (idx + 1) % insightTemplates.length;
-    used.add(idx);
-
-    const tpl = insightTemplates[idx];
-    const pct = Math.round(10 + seededRandom(baseSeed + i * 13) * 30);
-    const n = Math.round(7 + seededRandom(baseSeed + i * 17) * days * 3);
-    const v = Math.round(20 + seededRandom(baseSeed + i * 19) * 25);
-    const hoursAgo = Math.round(seededRandom(baseSeed + i * 23) * days * 24);
-    const timestamp = hoursAgo < 24 ? `${hoursAgo}h ago` : `${Math.round(hoursAgo / 24)}d ago`;
-
-    insights.push({
-      ...tpl,
-      id: `insight-${i}`,
-      description: tpl.description.replace("{pct}", String(pct)).replace("{v}", String(v)),
-      dataSource: tpl.dataSource.replace("{n}", String(n)),
-      timestamp,
-    });
-  }
-  return insights;
-}
-
-const categoryIcons: Record<Insight["category"], React.ReactNode> = {
+const categoryIcons: Record<InsightCategory, React.ReactNode> = {
   Metabolic: <Zap className="w-5 h-5" />,
   Sleep: <Moon className="w-5 h-5" />,
   Recovery: <Heart className="w-5 h-5" />,
@@ -86,7 +32,7 @@ const categoryIcons: Record<Insight["category"], React.ReactNode> = {
   Stress: <Brain className="w-5 h-5" />,
 };
 
-const categoryGradients: Record<Insight["category"], string> = {
+const categoryGradients: Record<InsightCategory, string> = {
   Metabolic: "from-yellow-500/20 to-orange-500/20 border-yellow-500/30",
   Sleep: "from-indigo-500/20 to-purple-500/20 border-indigo-500/30",
   Recovery: "from-pink-500/20 to-rose-500/20 border-pink-500/30",
@@ -100,28 +46,21 @@ export default function InsightsPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
-  const [selectedCategory, setSelectedCategory] = useState<Insight["category"] | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<InsightCategory | null>(null);
 
-  const insights = useMemo(() => generateInsights(dateRange.startDate, dateRange.endDate), [dateRange]);
+  const insights = useMemo(
+    () => generateClientInsights(dateRange.startDate, dateRange.endDate),
+    [dateRange]
+  );
 
   const filteredInsights = selectedCategory
     ? insights.filter((insight) => insight.category === selectedCategory)
     : insights;
 
-  const categories: Insight["category"][] = [
-    "Metabolic", "Sleep", "Recovery", "Nutrition", "Supplementation", "Exercise", "Stress",
-  ];
-
-  // Summary stats from insights
-  const summaryScore = useMemo(() => {
-    const baseSeed = dateRange.startDate.getTime() / 86400000;
-    return (7 + seededRandom(baseSeed + 99) * 2.5).toFixed(1);
-  }, [dateRange]);
-
-  const summaryTrend = useMemo(() => {
-    const baseSeed = dateRange.startDate.getTime() / 86400000;
-    return (seededRandom(baseSeed + 100) * 1.5 - 0.3).toFixed(1);
-  }, [dateRange]);
+  const summary = useMemo(
+    () => getInsightSummary(dateRange.startDate),
+    [dateRange]
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -161,7 +100,7 @@ export default function InsightsPage() {
             <p className="text-kairos-silver-dark text-sm">{formattedRange}</p>
           </div>
           <div className="text-right">
-            <div className="text-4xl font-heading font-bold text-kairos-gold">{summaryScore}/10</div>
+            <div className="text-4xl font-heading font-bold text-kairos-gold">{summary.score}/10</div>
             <p className="text-xs text-kairos-silver-dark">Overall Score</p>
           </div>
         </div>
@@ -172,7 +111,7 @@ export default function InsightsPage() {
               <TrendingUp className="w-4 h-4 text-kairos-gold" />
               <span className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Score Trend</span>
             </div>
-            <p className="text-lg font-bold text-kairos-gold">{Number(summaryTrend) >= 0 ? "+" : ""}{summaryTrend}</p>
+            <p className="text-lg font-bold text-kairos-gold">{Number(summary.trend) >= 0 ? "+" : ""}{summary.trend}</p>
             <p className="text-xs text-kairos-silver-dark">vs previous {period}</p>
           </div>
 
@@ -233,7 +172,7 @@ export default function InsightsPage() {
           >
             All Insights
           </button>
-          {categories.map((category) => (
+          {INSIGHT_CATEGORIES.map((category) => (
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}

@@ -1,5 +1,6 @@
 // ─── Client Operations Engine ─────────────────────────────────────
-// In-memory engines for client payments, labs, marketplace, and chat.
+// In-memory engines for client payments, labs, marketplace, chat,
+// alerts, and insights.
 
 import type {
   ClientPaymentData,
@@ -12,6 +13,12 @@ import type {
   CartItem,
   ChatMessage,
   MessageSender,
+  ClientAlert,
+  ClientAlertPriority,
+  ClientAlertStatus,
+  ClientInsight,
+  InsightCategory,
+  InsightSummary,
 } from "./types";
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -19,6 +26,12 @@ import type {
 function uid(): string {
   return `cl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
+
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
 
 // ─── Stores ───────────────────────────────────────────────────────
 
@@ -334,6 +347,152 @@ export function markAllRead(clientId: string): void {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// CLIENT ALERTS ENGINE (date-range based, deterministic)
+// ═══════════════════════════════════════════════════════════════════
+
+const ALERT_TEMPLATES: { title: string; message: string; priority: ClientAlertPriority; category: string; details?: string }[] = [
+  { title: "Glucose spike detected — {v} mg/dL", message: "Post-dinner glucose exceeded 160 mg/dL threshold.", priority: "high", category: "glucose", details: "Your glucose peaked above your personalized threshold of 160 mg/dL. Consider reducing carbohydrate intake at dinner or adding a post-meal walk." },
+  { title: "Sleep quality declining — {n}-night trend", message: "Average sleep score dropped over the last few nights.", priority: "medium", category: "sleep", details: "Deep sleep has decreased and wake events increased. Possible contributing factors: later bedtime and screen time before bed." },
+  { title: "Weekly check-in due", message: "Your weekly symptom assessment is due.", priority: "low", category: "checkin" },
+  { title: "Lab results available", message: "Your metabolic panel results are ready for review.", priority: "medium", category: "labs" },
+  { title: "HRV trending upward", message: "Your 7-day HRV average improved. Great progress!", priority: "info", category: "hrv" },
+  { title: "Missed morning supplements", message: "No adherence logged for AM protocol items.", priority: "medium", category: "adherence" },
+  { title: "Fasting window completed", message: "Fast completed successfully. Ketone levels estimated optimal.", priority: "info", category: "fasting" },
+  { title: "Elevated resting heart rate", message: "Resting HR is 8 bpm above your 30-day average.", priority: "high", category: "heart" },
+  { title: "Supplement protocol updated", message: "Your coach has updated your evening supplement protocol.", priority: "low", category: "protocol" },
+  { title: "Low hydration detected", message: "Water intake is below target for the day.", priority: "medium", category: "hydration" },
+];
+
+// Store for acknowledged alerts (keyed by clientId, stores acknowledged alert ids)
+const acknowledgedAlertStore = new Map<string, Set<string>>();
+
+export function generateClientAlerts(startDate: Date, endDate: Date): ClientAlert[] {
+  const alerts: ClientAlert[] = [];
+  const dayMs = 86400000;
+  const days = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / dayMs));
+  const baseSeed = startDate.getTime() / dayMs;
+  const count = Math.min(15, Math.max(3, Math.round(days * 1.5)));
+  const statuses: ClientAlertStatus[] = ["active", "acknowledged", "resolved"];
+
+  for (let i = 0; i < count; i++) {
+    const tplIdx = Math.floor(seededRandom(baseSeed + i * 7) * ALERT_TEMPLATES.length);
+    const tpl = ALERT_TEMPLATES[tplIdx];
+    const statusIdx = Math.floor(seededRandom(baseSeed + i * 13) * 3);
+    const daysAgo = Math.floor(seededRandom(baseSeed + i * 17) * days);
+    const hoursAgo = Math.floor(seededRandom(baseSeed + i * 19) * 24);
+    const totalHoursAgo = daysAgo * 24 + hoursAgo;
+
+    let createdAt: string;
+    if (totalHoursAgo < 1) createdAt = "just now";
+    else if (totalHoursAgo < 24) createdAt = `${totalHoursAgo}h ago`;
+    else createdAt = `${daysAgo}d ago`;
+
+    const glucoseVal = Math.round(155 + seededRandom(baseSeed + i * 23) * 30);
+    const nightTrend = Math.round(2 + seededRandom(baseSeed + i * 29) * 4);
+
+    alerts.push({
+      id: `alert-${i}`,
+      title: tpl.title.replace("{v}", String(glucoseVal)).replace("{n}", String(nightTrend)),
+      message: tpl.message,
+      priority: tpl.priority,
+      status: statuses[statusIdx],
+      category: tpl.category,
+      createdAt,
+      details: tpl.details,
+    });
+  }
+  return alerts;
+}
+
+export function getClientAlerts(clientId: string, startDate: Date, endDate: Date): ClientAlert[] {
+  const base = generateClientAlerts(startDate, endDate);
+  const acked = acknowledgedAlertStore.get(clientId);
+  if (!acked) return base;
+  return base.map((a) => acked.has(a.id) ? { ...a, status: "acknowledged" as ClientAlertStatus } : a);
+}
+
+export function acknowledgeClientAlert(clientId: string, alertId: string): void {
+  if (!acknowledgedAlertStore.has(clientId)) {
+    acknowledgedAlertStore.set(clientId, new Set());
+  }
+  acknowledgedAlertStore.get(clientId)!.add(alertId);
+}
+
+export function filterClientAlerts(clientId: string, startDate: Date, endDate: Date, status: "all" | ClientAlertStatus): ClientAlert[] {
+  const alerts = getClientAlerts(clientId, startDate, endDate);
+  if (status === "all") return alerts;
+  return alerts.filter((a) => a.status === status);
+}
+
+export function getClientAlertActiveCount(clientId: string, startDate: Date, endDate: Date): number {
+  return getClientAlerts(clientId, startDate, endDate).filter((a) => a.status === "active").length;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CLIENT INSIGHTS ENGINE (date-range based, deterministic)
+// ═══════════════════════════════════════════════════════════════════
+
+const INSIGHT_TEMPLATES: { category: InsightCategory; title: string; description: string; confidence: "high" | "medium"; recommendation: string; dataSource: string }[] = [
+  { category: "Metabolic", title: "Glucose Stability Improvement", description: "Your post-meal glucose spikes have decreased by {pct}% this period compared to the previous period.", confidence: "high", recommendation: "Continue your current meal timing and protein intake patterns—they are working well for metabolic stability.", dataSource: "Based on {n} glucose measurements" },
+  { category: "Sleep", title: "Sleep Quality & Recovery Link", description: "Your sleep quality improves {pct}% on days you complete evening magnesium supplementation.", confidence: "high", recommendation: "Maintain consistent evening magnesium intake around 8 PM for optimal sleep architecture.", dataSource: "Based on {n} sleep records" },
+  { category: "Exercise", title: "Post-Dinner Walk Effect", description: "Post-dinner walks reduce your glucose spikes by an average of {v} mg/dL compared to resting.", confidence: "high", recommendation: "Incorporate a 10-15 minute walk within 30 minutes after dinner on most days.", dataSource: "Based on {n} glucose-activity correlations" },
+  { category: "Recovery", title: "HRV Trend Rising", description: "Your Heart Rate Variability shows an upward trend, indicating improved parasympathetic tone and recovery capacity.", confidence: "medium", recommendation: "Your recovery metrics are trending positively. Consider adding one additional rest day to further optimize.", dataSource: "Based on {n} days of HRV data" },
+  { category: "Nutrition", title: "Fiber Intake Optimization", description: "You are meeting {pct}% of your daily fiber targets. This correlates with stable energy levels throughout the day.", confidence: "high", recommendation: "Aim for consistent daily fiber intake of 30-35g. Add one serving of vegetables or whole grains to one meal.", dataSource: "Based on {n} days of nutrition logs" },
+  { category: "Stress", title: "Cortisol Patterns Emerging", description: "Morning cortisol levels are highest on days with high stress scores. Consider morning meditation or movement.", confidence: "medium", recommendation: "Try 10 minutes of breathwork or light stretching within 30 minutes of waking on high-stress days.", dataSource: "Based on stress logs and biomarker data" },
+  { category: "Supplementation", title: "Supplement Compliance Strong", description: "Your supplement adherence is {pct}% this period. Consistent intake is supporting your health goals.", confidence: "high", recommendation: "Maintain your current supplement schedule. Consider setting a calendar reminder for your evening protocol.", dataSource: "Based on supplement logs" },
+  { category: "Sleep", title: "Sleep Duration Consistency", description: "Consistent sleep schedule correlates with {pct}% better next-day cognitive performance.", confidence: "high", recommendation: "Maintain your current sleep and wake times within 30 minutes even on weekends for optimal circadian alignment.", dataSource: "Based on {n} nights of sleep data" },
+  { category: "Metabolic", title: "Fasting Window Optimization", description: "Your metabolic markers improve by {pct}% when fasting windows exceed 14 hours.", confidence: "high", recommendation: "Extend your fasting window to 14-16 hours on most days for optimal metabolic benefits.", dataSource: "Based on {n} fasting sessions" },
+  { category: "Exercise", title: "Zone 2 Training Progress", description: "Your aerobic base is improving. VO2 max estimate has increased by {pct}% over this period.", confidence: "medium", recommendation: "Continue Zone 2 cardio sessions 3-4 times per week for sustained aerobic development.", dataSource: "Based on {n} workout sessions" },
+];
+
+export function generateClientInsights(startDate: Date, endDate: Date): ClientInsight[] {
+  const baseSeed = startDate.getTime() / 86400000;
+  const days = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400000));
+  const count = Math.min(INSIGHT_TEMPLATES.length, Math.max(4, Math.round(days / 2)));
+  const insights: ClientInsight[] = [];
+  const used = new Set<number>();
+
+  for (let i = 0; i < count; i++) {
+    let idx = Math.floor(seededRandom(baseSeed + i * 11) * INSIGHT_TEMPLATES.length);
+    while (used.has(idx)) idx = (idx + 1) % INSIGHT_TEMPLATES.length;
+    used.add(idx);
+
+    const tpl = INSIGHT_TEMPLATES[idx];
+    const pct = Math.round(10 + seededRandom(baseSeed + i * 13) * 30);
+    const n = Math.round(7 + seededRandom(baseSeed + i * 17) * days * 3);
+    const v = Math.round(20 + seededRandom(baseSeed + i * 19) * 25);
+    const hoursAgo = Math.round(seededRandom(baseSeed + i * 23) * days * 24);
+    const timestamp = hoursAgo < 24 ? `${hoursAgo}h ago` : `${Math.round(hoursAgo / 24)}d ago`;
+
+    insights.push({
+      id: `insight-${i}`,
+      category: tpl.category,
+      title: tpl.title,
+      description: tpl.description.replace("{pct}", String(pct)).replace("{v}", String(v)),
+      confidence: tpl.confidence,
+      recommendation: tpl.recommendation,
+      dataSource: tpl.dataSource.replace("{n}", String(n)),
+      timestamp,
+    });
+  }
+  return insights;
+}
+
+export function filterClientInsights(startDate: Date, endDate: Date, category: InsightCategory | null): ClientInsight[] {
+  const insights = generateClientInsights(startDate, endDate);
+  if (!category) return insights;
+  return insights.filter((i) => i.category === category);
+}
+
+export function getInsightSummary(startDate: Date): InsightSummary {
+  const baseSeed = startDate.getTime() / 86400000;
+  return {
+    score: (7 + seededRandom(baseSeed + 99) * 2.5).toFixed(1),
+    trend: (seededRandom(baseSeed + 100) * 1.5 - 0.3).toFixed(1),
+  };
+}
+
 // ─── Reset ────────────────────────────────────────────────────────
 
 export function resetClientOpsStore(): void {
@@ -342,4 +501,5 @@ export function resetClientOpsStore(): void {
   productStore.clear();
   cartStore.clear();
   chatStore.clear();
+  acknowledgedAlertStore.clear();
 }
