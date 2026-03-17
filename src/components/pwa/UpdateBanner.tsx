@@ -12,7 +12,7 @@ export function UpdateBanner() {
   if (!isUpdateAvailable) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] bg-[#122055] px-4 py-2.5 safe-area-top">
+    <div className="fixed top-0 left-0 right-0 z-[100] bg-kairos-royal px-4 py-2.5 safe-area-top">
       <div className="flex items-center justify-between max-w-lg mx-auto">
         <div className="flex items-center gap-2 text-white">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-kairos-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

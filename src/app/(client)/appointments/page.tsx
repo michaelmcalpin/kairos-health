@@ -149,7 +149,7 @@ export default function AppointmentsPage() {
                 onClick={() => setFilter(f)}
                 className={`px-4 py-1.5 rounded-full text-sm transition-colors ${
                   filter === f
-                    ? "bg-[#D4AF37]/20 text-[#D4AF37]"
+                    ? "bg-kairos-gold/20 text-kairos-gold"
                     : "text-gray-400 hover:text-gray-300 hover:bg-gray-800"
                 }`}
               >

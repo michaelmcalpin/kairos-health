@@ -2,12 +2,14 @@
 
 import type { RevenueSummary } from "@/lib/analytics/types";
 import { TIER_LABELS, formatCurrency, getShortMonthLabel } from "@/lib/analytics/types";
+import { useThemeColors } from "@/lib/theme";
 
 interface RevenueChartProps {
   data: RevenueSummary;
 }
 
 export function RevenueChart({ data }: RevenueChartProps) {
+  const tc = useThemeColors();
   const chartHeight = 200;
   const chartWidth = 500;
   const padding = { top: 20, right: 20, bottom: 40, left: 60 };
@@ -18,7 +20,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
   const barSpacing = innerWidth / data.dataPoints.length;
   const barWidth = Math.min(40, barSpacing * 0.7);
 
-  const tierColors = { tier1: "#D4AF37", tier2: "#3b82f6", tier3: "#a855f7" };
+  const tierColors = { tier1: tc.accent, tier2: "#3b82f6", tier3: "#a855f7" };
 
   return (
     <div className="kairos-card p-6">
@@ -44,8 +46,8 @@ export function RevenueChart({ data }: RevenueChartProps) {
           const value = Math.round(((4 - i) * maxRevenue) / 4);
           return (
             <g key={`grid-${i}`}>
-              <line x1={padding.left} y1={y} x2={chartWidth - padding.right} y2={y} stroke="#2a3a6d" strokeDasharray="4" />
-              <text x={padding.left - 8} y={y + 4} textAnchor="end" className="text-[9px]" fill="#8892b0">
+              <line x1={padding.left} y1={y} x2={chartWidth - padding.right} y2={y} stroke={tc.primaryLight} strokeDasharray="4" />
+              <text x={padding.left - 8} y={y + 4} textAnchor="end" className="text-[9px]" fill={tc.textSecondary}>
                 ${Math.round(value / 1000)}k
               </text>
             </g>
@@ -74,7 +76,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
                 y={tier1Y - 6}
                 textAnchor="middle"
                 className="text-[9px] font-bold"
-                fill="#D4AF37"
+                fill={tc.accent}
               >
                 ${Math.round(d.totalRevenue / 1000)}k
               </text>
@@ -84,7 +86,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
                 y={padding.top + innerHeight + 20}
                 textAnchor="middle"
                 className="text-[10px]"
-                fill="#8892b0"
+                fill={tc.textSecondary}
               >
                 {getShortMonthLabel(d.date)}
               </text>
@@ -98,7 +100,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
           y1={padding.top + innerHeight}
           x2={chartWidth - padding.right}
           y2={padding.top + innerHeight}
-          stroke="#2a3a6d"
+          stroke={tc.primaryLight}
           strokeWidth="1"
         />
       </svg>
@@ -107,7 +109,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
       <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t border-gray-700/50">
         <div>
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">MRR</p>
-          <p className="text-lg font-heading font-bold text-[#D4AF37]">{formatCurrency(data.mrr)}</p>
+          <p className="text-lg font-heading font-bold" style={{ color: tc.accent }}>{formatCurrency(data.mrr)}</p>
         </div>
         <div>
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">ARR</p>

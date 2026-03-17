@@ -36,7 +36,7 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-[#122055]/50 flex items-center justify-center text-[#D4AF37] text-lg font-bold">
+          <div className="w-14 h-14 rounded-full bg-kairos-royal/50 flex items-center justify-center text-kairos-gold text-lg font-bold">
             {getInitials(user.firstName, user.lastName)}
           </div>
           <div>
@@ -136,7 +136,7 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
           {isClient && (
             <button
               onClick={() => setShowTierChange(!showTierChange)}
-              className="px-3 py-1.5 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg text-xs hover:bg-[#D4AF37]/20 transition-colors"
+              className="px-3 py-1.5 bg-kairos-gold/10 text-kairos-gold rounded-lg text-xs hover:bg-kairos-gold/20 transition-colors"
             >
               Change Tier
             </button>
@@ -207,7 +207,7 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
 
         {/* Tier change */}
         {showTierChange && (
-          <div className="bg-[#D4AF37]/5 border border-[#D4AF37]/20 rounded-lg p-3 mt-2 flex gap-2">
+          <div className="bg-kairos-gold/5 border border-kairos-gold/20 rounded-lg p-3 mt-2 flex gap-2">
             {(["tier1", "tier2", "tier3"] as SubscriptionTier[])
               .filter((t) => t !== user.subscription?.tier)
               .map((t) => (
@@ -217,7 +217,7 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
                     onAction("change_tier", { newTier: t });
                     setShowTierChange(false);
                   }}
-                  className="px-3 py-1 bg-[#D4AF37]/10 text-[#D4AF37] rounded text-xs hover:bg-[#D4AF37]/20"
+                  className="px-3 py-1 bg-kairos-gold/10 text-kairos-gold rounded text-xs hover:bg-kairos-gold/20"
                 >
                   {TIER_LABELS[t]}
                 </button>

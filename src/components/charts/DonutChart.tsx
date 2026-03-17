@@ -1,5 +1,7 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
+
 /**
  * Lightweight SVG donut chart for percentage breakdowns.
  * Supports multiple segments with labels and center text.
@@ -28,6 +30,7 @@ export function DonutChart({
   centerValue,
   className = "",
 }: DonutChartProps) {
+  const tc = useThemeColors();
   const total = segments.reduce((sum, s) => sum + s.value, 0);
   if (total === 0) return null;
 
@@ -47,7 +50,7 @@ export function DonutChart({
           cy={cy}
           r={radius}
           fill="none"
-          stroke="#1E2A5A"
+          stroke={tc.primary}
           strokeWidth={thickness}
         />
 
@@ -86,7 +89,7 @@ export function DonutChart({
               dominantBaseline="middle"
               fontSize={size * 0.16}
               fontWeight="700"
-              fill="#E0E0E0"
+              fill={tc.text}
               fontFamily="Montserrat, sans-serif"
             >
               {centerValue}
@@ -98,7 +101,7 @@ export function DonutChart({
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fontSize={size * 0.07}
-                fill="#9E9E9E"
+                fill={tc.textSecondary}
                 fontFamily="Open Sans, sans-serif"
               >
                 {centerLabel}

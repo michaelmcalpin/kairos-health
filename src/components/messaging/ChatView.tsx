@@ -112,7 +112,7 @@ export function ChatView({
           className={`w-10 h-10 rounded-full flex items-center justify-center ${
             conversation.isAiCoach
               ? "bg-purple-500/20 text-purple-400"
-              : "bg-[#122055]/50 text-[#D4AF37]"
+              : "bg-kairos-royal/50 text-kairos-gold"
           }`}
         >
           {conversation.isAiCoach ? (
@@ -178,14 +178,14 @@ export function ChatView({
                       <div
                         className={`rounded-2xl px-4 py-2.5 ${
                           isOwn
-                            ? "bg-[#D4AF37]/20 text-white rounded-br-md"
+                            ? "bg-kairos-gold/20 text-white rounded-br-md"
                             : msg.isAiMessage
                               ? "bg-purple-500/10 text-gray-200 rounded-bl-md"
                               : "bg-gray-800 text-gray-200 rounded-bl-md"
                         }`}
                       >
                         {!isOwn && (
-                          <p className="text-xs font-medium text-[#D4AF37] mb-1">
+                          <p className="text-xs font-medium text-kairos-gold mb-1">
                             {msg.senderName}
                           </p>
                         )}
@@ -204,7 +204,7 @@ export function ChatView({
                         {isOwn && (
                           <span className="text-[10px]">
                             {msg.readAt ? (
-                              <span className="text-[#D4AF37]" title="Read">
+                              <span className="text-kairos-gold" title="Read">
                                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                                   <path d="M2 8l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                   <path d="M6 8l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
@@ -249,7 +249,7 @@ export function ChatView({
       {replyTo && (
         <div className="px-4 py-2 border-t border-gray-800 bg-gray-800/30 flex items-center justify-between">
           <div className="text-xs text-gray-400">
-            <span className="text-[#D4AF37]">Replying to {replyTo.senderName}</span>
+            <span className="text-kairos-gold">Replying to {replyTo.senderName}</span>
             <p className="truncate max-w-[300px]">{replyTo.body}</p>
           </div>
           <button
@@ -287,7 +287,7 @@ export function ChatView({
             onClick={() => setShowQuickReplies(!showQuickReplies)}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
               showQuickReplies
-                ? "bg-[#D4AF37]/20 text-[#D4AF37]"
+                ? "bg-kairos-gold/20 text-kairos-gold"
                 : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
             }`}
             title="Quick replies"
@@ -305,7 +305,7 @@ export function ChatView({
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={1}
-              className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37]/50 resize-none"
+              className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50 resize-none"
               style={{ maxHeight: 120 }}
             />
           </div>
@@ -315,7 +315,7 @@ export function ChatView({
             disabled={!inputValue.trim()}
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
               inputValue.trim()
-                ? "bg-[#D4AF37] text-[#122055] hover:bg-[#D4AF37]/80"
+                ? "bg-kairos-gold text-kairos-royal hover:bg-kairos-gold/80"
                 : "bg-gray-800 text-gray-600 cursor-not-allowed"
             }`}
             title="Send"

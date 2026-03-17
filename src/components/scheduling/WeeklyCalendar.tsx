@@ -30,20 +30,20 @@ export function WeeklyCalendar({
           <div
             key={day.date}
             className={`p-2 text-center border-r border-gray-800 last:border-r-0 ${
-              day.isToday ? "bg-[#D4AF37]/10" : ""
+              day.isToday ? "bg-kairos-gold/10" : ""
             }`}
           >
             <div className="text-xs text-gray-400">{DAY_NAMES[day.dayOfWeek]}</div>
             <div
               className={`text-sm font-semibold mt-0.5 ${
-                day.isToday ? "text-[#D4AF37]" : "text-white"
+                day.isToday ? "text-kairos-gold" : "text-white"
               }`}
             >
               {new Date(day.date + "T00:00:00").getDate()}
             </div>
             {day.appointments.length > 0 && (
               <div className="flex justify-center mt-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-kairos-gold" />
               </div>
             )}
           </div>
@@ -70,7 +70,7 @@ export function WeeklyCalendar({
                 <div
                   key={`${day.date}-${hour}`}
                   className={`relative p-1 border-r border-gray-800/30 last:border-r-0 ${
-                    day.isToday ? "bg-[#D4AF37]/5" : ""
+                    day.isToday ? "bg-kairos-gold/5" : ""
                   }`}
                 >
                   {dayAppts.map((appt) => {

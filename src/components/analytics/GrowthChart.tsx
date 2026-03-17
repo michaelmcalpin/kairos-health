@@ -2,6 +2,7 @@
 
 import type { GrowthDataPoint } from "@/lib/analytics/types";
 import { getShortMonthLabel } from "@/lib/analytics/types";
+import { useThemeColors } from "@/lib/theme";
 
 interface GrowthChartProps {
   data: GrowthDataPoint[];
@@ -9,6 +10,7 @@ interface GrowthChartProps {
 }
 
 export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
+  const tc = useThemeColors();
   if (data.length === 0) return null;
 
   const maxUsers = Math.max(...data.map((d) => d.cumulativeUsers));
@@ -31,8 +33,8 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
           const value = Math.round(((4 - i) * maxUsers) / 4);
           return (
             <g key={`grid-${i}`}>
-              <line x1={padding.left} y1={y} x2={chartWidth - padding.right} y2={y} stroke="#2a3a6d" strokeDasharray="4" />
-              <text x={padding.left - 8} y={y + 4} textAnchor="end" className="text-[10px]" fill="#8892b0">{value}</text>
+              <line x1={padding.left} y1={y} x2={chartWidth - padding.right} y2={y} stroke={tc.primaryLight} strokeDasharray="4" />
+              <text x={padding.left - 8} y={y + 4} textAnchor="end" className="text-[10px]" fill={tc.textSecondary}>{value}</text>
             </g>
           );
         })}
@@ -51,7 +53,7 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
                 y={y}
                 width={barWidth}
                 height={barHeight}
-                fill="#D4AF37"
+                fill={tc.accent}
                 rx="4"
                 opacity={0.8}
               />
@@ -62,7 +64,7 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
                   y={y}
                   width={barWidth}
                   height={Math.min(barHeight, (d.newUsers / maxUsers) * innerHeight)}
-                  fill="#D4AF37"
+                  fill={tc.accent}
                   rx="4"
                 />
               )}
@@ -72,7 +74,7 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
                 y={y - 6}
                 textAnchor="middle"
                 className="text-[10px] font-bold"
-                fill="#D4AF37"
+                fill={tc.accent}
               >
                 {d.cumulativeUsers}
               </text>
@@ -82,7 +84,7 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
                 y={padding.top + innerHeight + 20}
                 textAnchor="middle"
                 className="text-[10px]"
-                fill="#8892b0"
+                fill={tc.textSecondary}
               >
                 {getShortMonthLabel(d.date)}
               </text>
@@ -92,7 +94,7 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
                 y={padding.top + innerHeight + 34}
                 textAnchor="middle"
                 className="text-[9px]"
-                fill="#5a6a9f"
+                fill={tc.textSecondary}
               >
                 +{d.newUsers}
               </text>
@@ -106,7 +108,7 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
           y1={padding.top + innerHeight}
           x2={chartWidth - padding.right}
           y2={padding.top + innerHeight}
-          stroke="#2a3a6d"
+          stroke={tc.primaryLight}
           strokeWidth="1"
         />
       </svg>

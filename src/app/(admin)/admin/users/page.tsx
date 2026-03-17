@@ -100,7 +100,7 @@ export default function AdminUsersPage() {
         </div>
         <div className="kairos-card p-3">
           <p className="text-[10px] text-gray-500 uppercase tracking-wider">New This Week</p>
-          <p className="text-xl font-heading font-bold text-[#D4AF37]">{stats.newUsersThisWeek}</p>
+          <p className="text-xl font-heading font-bold text-kairos-gold">{stats.newUsersThisWeek}</p>
         </div>
         <div className="kairos-card p-3">
           <div className="flex items-center gap-1.5">

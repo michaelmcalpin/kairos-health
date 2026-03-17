@@ -56,7 +56,7 @@ export function IntegrationStatusCard({
     <div className="kairos-card p-4">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h4 className="font-heading text-sm font-semibold text-[#122055]">
+          <h4 className="font-heading text-sm font-semibold text-kairos-royal">
             {integration.name}
           </h4>
           <p className="text-xs text-gray-500 mt-0.5">{integration.description}</p>
@@ -113,7 +113,7 @@ export function IntegrationStatusCard({
             <button
               onClick={onSync}
               disabled={integration.status === "syncing"}
-              className="flex-1 text-xs font-medium py-1.5 px-3 rounded-lg bg-[#122055] text-white hover:bg-[#1a2d6d] transition-colors disabled:opacity-50"
+              className="flex-1 text-xs font-medium py-1.5 px-3 rounded-lg bg-kairos-royal text-white hover:bg-kairos-royal-dark transition-colors disabled:opacity-50"
             >
               {integration.status === "syncing" ? "Syncing..." : "Sync Now"}
             </button>
@@ -127,7 +127,7 @@ export function IntegrationStatusCard({
         ) : (
           <button
             onClick={onConnect}
-            className="w-full text-xs font-medium py-1.5 px-3 rounded-lg bg-[#D4AF37] text-white hover:bg-[#b8962e] transition-colors"
+            className="w-full text-xs font-medium py-1.5 px-3 rounded-lg bg-kairos-gold text-white hover:bg-kairos-gold-dim transition-colors"
           >
             Connect {integration.name}
           </button>
@@ -223,7 +223,7 @@ export function IntegrationDashboard() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="font-heading text-lg font-bold text-[#122055]">Connected Integrations</h2>
+          <h2 className="font-heading text-lg font-bold text-kairos-royal">Connected Integrations</h2>
           <p className="text-sm text-gray-500">{connectedCount} of {integrations.length} connected</p>
         </div>
       </div>

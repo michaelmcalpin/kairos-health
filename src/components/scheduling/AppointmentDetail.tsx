@@ -116,7 +116,7 @@ export function AppointmentDetail({
         {appointment.meetingUrl && (
           <div className="flex justify-between py-2 border-b border-gray-800">
             <span className="text-sm text-gray-400">Meeting Link</span>
-            <span className="text-sm text-[#D4AF37] truncate max-w-[200px]">
+            <span className="text-sm text-kairos-gold truncate max-w-[200px]">
               {appointment.meetingUrl}
             </span>
           </div>
@@ -155,7 +155,7 @@ export function AppointmentDetail({
               <ul className="mt-1 space-y-1">
                 {sessionNotes.keyFindings.map((f, i) => (
                   <li key={i} className="text-xs text-gray-300 flex items-start gap-1.5">
-                    <span className="text-[#D4AF37] mt-0.5">•</span> {f}
+                    <span className="text-kairos-gold mt-0.5">•</span> {f}
                   </li>
                 ))}
               </ul>
@@ -191,7 +191,7 @@ export function AppointmentDetail({
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
               rows={2}
-              className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-[#D4AF37]/50"
+              className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-kairos-gold/50"
               placeholder="Brief session summary..."
             />
           </div>
@@ -201,7 +201,7 @@ export function AppointmentDetail({
               value={keyFindings}
               onChange={(e) => setKeyFindings(e.target.value)}
               rows={3}
-              className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-[#D4AF37]/50"
+              className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-kairos-gold/50"
               placeholder="Notable observations..."
             />
           </div>
@@ -211,7 +211,7 @@ export function AppointmentDetail({
               value={actionItems}
               onChange={(e) => setActionItems(e.target.value)}
               rows={3}
-              className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-[#D4AF37]/50"
+              className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-kairos-gold/50"
               placeholder="Follow-up actions..."
             />
           </div>
@@ -220,7 +220,7 @@ export function AppointmentDetail({
             <input
               value={nextFocus}
               onChange={(e) => setNextFocus(e.target.value)}
-              className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-[#D4AF37]/50"
+              className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-kairos-gold/50"
               placeholder="What to focus on next..."
             />
           </div>
@@ -230,7 +230,7 @@ export function AppointmentDetail({
               value={privateNotes}
               onChange={(e) => setPrivateNotes(e.target.value)}
               rows={2}
-              className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-[#D4AF37]/50"
+              className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white resize-none focus:outline-none focus:border-kairos-gold/50"
               placeholder="Private observations..."
             />
           </div>

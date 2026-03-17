@@ -178,6 +178,7 @@ export const coachNavItems: NavItem[] = [
   { label: "Profile", href: "/coach/profile", icon: <UserCircle size={18} />, section: "Business" },
   { label: "Revenue", href: "/coach/revenue", icon: <DollarSign size={18} />, section: "Business" },
   { label: "Marketplace", href: "/coach/marketplace", icon: <Store size={18} />, section: "Business" },
+  { label: "Settings", href: "/coach/settings", icon: <Settings size={18} />, section: "Business" },
 ];
 
 export const adminNavItems: NavItem[] = [
@@ -187,4 +188,5 @@ export const adminNavItems: NavItem[] = [
   { label: "Revenue", href: "/admin/revenue", icon: <DollarSign size={18} />, section: "Data" },
   { label: "Content", href: "/admin/content", icon: <FileText size={18} />, section: "Manage" },
   { label: "References", href: "/admin/references", icon: <FlaskConical size={18} />, section: "Manage" },
+  { label: "Settings", href: "/admin/settings", icon: <Settings size={18} />, section: "Manage" },
 ];

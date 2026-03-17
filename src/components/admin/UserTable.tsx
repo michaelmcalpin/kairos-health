@@ -46,7 +46,7 @@ export function UserTable({
             value={filters.search}
             onChange={(e) => onFiltersChange({ search: e.target.value, page: 1 })}
             placeholder="Search users..."
-            className="w-full pl-9 pr-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37]/50"
+            className="w-full pl-9 pr-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
           />
         </div>
 
@@ -54,7 +54,7 @@ export function UserTable({
         <select
           value={filters.role}
           onChange={(e) => onFiltersChange({ role: e.target.value as UserRole | "all", page: 1 })}
-          className="px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-[#D4AF37]/50"
+          className="px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-kairos-gold/50"
         >
           <option value="all">All Roles</option>
           <option value="client">Clients</option>
@@ -66,7 +66,7 @@ export function UserTable({
         <select
           value={filters.status}
           onChange={(e) => onFiltersChange({ status: e.target.value as UserStatus | "all", page: 1 })}
-          className="px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-[#D4AF37]/50"
+          className="px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-kairos-gold/50"
         >
           <option value="all">All Statuses</option>
           <option value="active">Active</option>
@@ -79,7 +79,7 @@ export function UserTable({
         <select
           value={filters.tier}
           onChange={(e) => onFiltersChange({ tier: e.target.value as SubscriptionTier | "all", page: 1 })}
-          className="px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-[#D4AF37]/50"
+          className="px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-kairos-gold/50"
         >
           <option value="all">All Tiers</option>
           <option value="tier1">Private</option>
@@ -119,7 +119,7 @@ export function UserTable({
                   {/* User */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#122055]/50 flex items-center justify-center text-[#D4AF37] text-xs font-bold flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-kairos-royal/50 flex items-center justify-center text-kairos-gold text-xs font-bold flex-shrink-0">
                         {getInitials(user.firstName, user.lastName)}
                       </div>
                       <div>

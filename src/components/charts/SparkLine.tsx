@@ -1,5 +1,7 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
+
 /**
  * Lightweight SVG sparkline chart.
  * No external dependencies — renders inline trend visualization.
@@ -26,6 +28,8 @@ export function SparkLine({
   showDots = false,
   className = "",
 }: SparkLineProps) {
+  const tc = useThemeColors();
+  const resolvedStroke = strokeColor === "#D4AF37" ? tc.accent : strokeColor;
   if (data.length < 2) return null;
 
   const padding = 2;
@@ -60,7 +64,7 @@ export function SparkLine({
       <path
         d={linePath}
         fill="none"
-        stroke={strokeColor}
+        stroke={resolvedStroke}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -71,7 +75,7 @@ export function SparkLine({
           cx={p.x}
           cy={p.y}
           r={2}
-          fill={strokeColor}
+          fill={resolvedStroke}
         />
       ))}
     </svg>

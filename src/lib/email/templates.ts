@@ -3,6 +3,9 @@
  *
  * Generates branded HTML emails using inline styles
  * for maximum email client compatibility.
+ *
+ * NOTE: Server-rendered emails with static inline styles. CSS variables don't work in email clients,
+ * so hex color values must remain hardcoded here for consistent brand appearance across all email clients.
  */
 
 // ─── Brand Constants ─────────────────────────────────────────────────────────

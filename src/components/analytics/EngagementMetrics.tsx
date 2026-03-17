@@ -1,12 +1,14 @@
 "use client";
 
 import type { EngagementSummary } from "@/lib/analytics/types";
+import { useThemeColors } from "@/lib/theme";
 
 interface EngagementMetricsProps {
   data: EngagementSummary;
 }
 
 export function EngagementMetrics({ data }: EngagementMetricsProps) {
+  const tc = useThemeColors();
   // Show top 5 features by usage
   const topFeatures = data.featureUsage.slice(0, 5);
 
@@ -33,7 +35,7 @@ export function EngagementMetrics({ data }: EngagementMetricsProps) {
                 className="rounded-full h-2 transition-all duration-500"
                 style={{
                   width: `${Math.min(100, feature.usageRate)}%`,
-                  backgroundColor: feature.usageRate >= 80 ? "#D4AF37" : feature.usageRate >= 60 ? "#3b82f6" : "#6b7280",
+                  backgroundColor: feature.usageRate >= 80 ? tc.accent : feature.usageRate >= 60 ? "#3b82f6" : "#6b7280",
                 }}
               />
             </div>

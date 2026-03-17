@@ -4,6 +4,7 @@ import { KPICard } from "@/components/ui/KPICard";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useGlucose } from "@/hooks/client/useGlucose";
+import { useThemeColors } from "@/lib/theme";
 import { Droplets, TrendingDown, TrendingUp, Clock, Target, AlertTriangle } from "lucide-react";
 
 export default function GlucosePage() {
@@ -11,6 +12,7 @@ export default function GlucosePage() {
     useDateRange({ initialPeriod: "day" });
 
   const { readings: rawReadings, dailySummaries, weeklySummaries, stats } = useGlucose(dateRange);
+  const themeColors = useThemeColors();
 
   // Chart dimensions
   const chartWidth = 800;
@@ -77,7 +79,7 @@ export default function GlucosePage() {
                 const y = padding.top + plotH - ((d.value - yMin) / (yMax - yMin)) * plotH;
                 return `${x},${y}`;
               }).join(" ")}
-              fill="none" stroke="#D4AF37" strokeWidth="1.5" strokeLinejoin="round"
+              fill="none" stroke={themeColors.accent} strokeWidth="1.5" strokeLinejoin="round"
             />
             {rawReadings
               .filter((_, i) => i % Math.floor(rawReadings.length / 6) === 0)
@@ -92,8 +94,8 @@ export default function GlucosePage() {
               })}
           </svg>
           <div className="flex items-center gap-4 mt-3 text-xs font-body text-kairos-silver-dark">
-            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-kairos-gold inline-block" /> Glucose</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-500/10 border border-green-500/30 inline-block rounded-sm" /> Target Range (70–140)</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 inline-block" style={{ backgroundColor: themeColors.accent }} /> Glucose</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 border border-green-500/30 inline-block rounded-sm" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)' }} /> Target Range (70–140)</span>
           </div>
         </div>
       )}

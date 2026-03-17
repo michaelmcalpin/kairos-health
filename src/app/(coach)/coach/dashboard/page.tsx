@@ -68,15 +68,15 @@ export default function CoachDashboard() {
             {data.priorityClients.map((client) => (
               <Link key={client.id} href={`/coach/clients/${client.id}`}>
                 <div className="flex items-center gap-4 py-3 px-3 rounded-xl hover:bg-gray-800/50 transition-colors cursor-pointer">
-                  <div className="w-9 h-9 rounded-full bg-[#D4AF37]/20 flex items-center justify-center">
-                    <span className="text-xs font-heading font-bold text-[#D4AF37]">{client.initials}</span>
+                  <div className="w-9 h-9 rounded-full bg-kairos-gold/20 flex items-center justify-center">
+                    <span className="text-xs font-heading font-bold text-kairos-gold">{client.initials}</span>
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-heading font-semibold text-white">{client.name}</p>
                     <p className="text-xs text-gray-500">{client.status}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-heading font-bold text-[#D4AF37]">{client.healthScore}</p>
+                    <p className="text-sm font-heading font-bold text-kairos-gold">{client.healthScore}</p>
                     <p className="text-[10px] text-gray-500">health score</p>
                   </div>
                   {client.alerts > 0 && (
@@ -98,7 +98,7 @@ export default function CoachDashboard() {
           <div className="space-y-3">
             {data.todaySchedule.map((session) => (
               <div key={session.id} className="flex items-center gap-3 py-2">
-                <span className="text-xs text-[#D4AF37] w-16 shrink-0">{session.time}</span>
+                <span className="text-xs text-kairos-gold w-16 shrink-0">{session.time}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white truncate">{session.client}</p>
                   <p className="text-[10px] text-gray-500">{session.type}</p>

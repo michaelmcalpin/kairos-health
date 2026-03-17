@@ -31,7 +31,7 @@ export function EngagementMetrics({ dailyCheckins, totalActiveClients }: Engagem
   const barData = recentDays.map((d) => ({
     label: d.date.slice(5), // MM-DD
     value: d.rate,
-    color: d.rate >= 60 ? "#10b981" : d.rate >= 40 ? "#D4AF37" : "#ef4444",
+    color: d.rate >= 60 ? "#10b981" : d.rate >= 40 ? "#D4AF37" : "#ef4444",  // colors passed to BarChart which handles theme
   }));
 
   return (

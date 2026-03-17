@@ -1,5 +1,7 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
+
 /**
  * Lightweight SVG bar chart.
  * Supports vertical bars with labels, values, and tooltips.
@@ -30,6 +32,7 @@ export function BarChart({
   showLabels = true,
   className = "",
 }: BarChartProps) {
+  const tc = useThemeColors();
   if (data.length === 0) return null;
 
   const padding = { top: 20, right: 10, bottom: showLabels ? 36 : 10, left: 10 };
@@ -55,7 +58,7 @@ export function BarChart({
           y1={padding.top + chartHeight * (1 - pct)}
           x2={width - padding.right}
           y2={padding.top + chartHeight * (1 - pct)}
-          stroke="#1E2A5A"
+          stroke={tc.primary}
           strokeWidth={0.5}
           strokeDasharray="4 4"
         />
@@ -88,7 +91,7 @@ export function BarChart({
                 y={y - 4}
                 textAnchor="middle"
                 fontSize={10}
-                fill="#E0E0E0"
+                fill={tc.text}
                 fontFamily="Open Sans, sans-serif"
               >
                 {d.value >= 1000 ? `${(d.value / 1000).toFixed(1)}k` : d.value}
@@ -101,7 +104,7 @@ export function BarChart({
                 y={height - padding.bottom + 16}
                 textAnchor="middle"
                 fontSize={9}
-                fill="#9E9E9E"
+                fill={tc.textSecondary}
                 fontFamily="Open Sans, sans-serif"
               >
                 {d.label.length > 6 ? d.label.slice(0, 5) + "…" : d.label}

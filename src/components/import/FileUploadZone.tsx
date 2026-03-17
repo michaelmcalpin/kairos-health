@@ -40,7 +40,7 @@ export function FileUploadZone({ onFileSelect }: FileUploadZoneProps) {
               onClick={() => setCategory(cat.id)}
               className={`px-3 py-2 rounded-lg text-xs font-medium transition border text-left ${
                 category === cat.id
-                  ? "border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]"
+                  ? "border-kairos-gold bg-kairos-gold/10 text-kairos-gold"
                   : "border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-500"
               }`}
             >
@@ -77,7 +77,7 @@ export function FileUploadZone({ onFileSelect }: FileUploadZoneProps) {
         onClick={() => fileInputRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all ${
           dragOver
-            ? "border-[#D4AF37] bg-[#D4AF37]/5"
+            ? "border-kairos-gold bg-kairos-gold/5"
             : "border-gray-700 hover:border-gray-500 bg-gray-800/30"
         }`}
       >

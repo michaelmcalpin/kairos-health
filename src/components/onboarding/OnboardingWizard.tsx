@@ -86,11 +86,11 @@ export function OnboardingWizard({
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "linear-gradient(180deg, #0A0F1F 0%, #122055 100%)" }}>
+    <div className="min-h-screen flex flex-col bg-kairos-royal-dark/50">
       {/* Header */}
       <div className="w-full px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="font-heading font-bold text-lg" style={{ color: "#D4AF37" }}>
+          <span className="font-heading font-bold text-lg text-kairos-gold">
             KAIROS
           </span>
         </div>

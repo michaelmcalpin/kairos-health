@@ -55,7 +55,7 @@ export default function CoachClientsPage() {
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="kairos-card p-3 text-center">
-          <p className="text-2xl font-heading font-bold text-[#D4AF37]">{stats.totalClients}</p>
+          <p className="text-2xl font-heading font-bold text-kairos-gold">{stats.totalClients}</p>
           <p className="text-[10px] text-gray-500 uppercase">Total</p>
         </div>
         <div className="kairos-card p-3 text-center">
@@ -85,14 +85,14 @@ export default function CoachClientsPage() {
             placeholder="Search by name or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37]/50"
+            className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
           />
         </div>
 
         <select
           value={tierFilter}
           onChange={(e) => setTierFilter(e.target.value as ClientTier | "all")}
-          className="px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white focus:outline-none focus:border-[#D4AF37]/50"
+          className="px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white focus:outline-none focus:border-kairos-gold/50"
         >
           <option value="all">All Tiers</option>
           <option value="tier1">{TIER_LABELS.tier1}</option>
@@ -103,7 +103,7 @@ export default function CoachClientsPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as ClientStatus | "all")}
-          className="px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white focus:outline-none focus:border-[#D4AF37]/50"
+          className="px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white focus:outline-none focus:border-kairos-gold/50"
         >
           <option value="all">All Status</option>
           <option value="stable">{STATUS_LABELS.stable}</option>
@@ -118,7 +118,7 @@ export default function CoachClientsPage() {
               onClick={() => handleSort(field)}
               className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
                 sortBy === field
-                  ? "bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30"
+                  ? "bg-kairos-gold/20 text-kairos-gold border border-kairos-gold/30"
                   : "bg-gray-800 text-gray-400 border border-gray-700 hover:border-gray-600"
               }`}
             >

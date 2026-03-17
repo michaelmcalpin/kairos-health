@@ -95,7 +95,7 @@ export function InsightsDashboard({
                 onClick={() => setCategoryFilter(tab.value)}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                   categoryFilter === tab.value
-                    ? "bg-[#122055] text-white"
+                    ? "bg-kairos-royal text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
@@ -112,7 +112,7 @@ export function InsightsDashboard({
                 onClick={() => setSeverityFilter(tab.value)}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                   severityFilter === tab.value
-                    ? tab.value === "all" ? "bg-[#122055] text-white" : tab.color
+                    ? tab.value === "all" ? "bg-kairos-royal text-white" : tab.color
                     : "bg-gray-50 text-gray-400 hover:bg-gray-100"
                 }`}
               >

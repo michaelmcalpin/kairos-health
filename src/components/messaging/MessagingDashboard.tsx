@@ -136,7 +136,7 @@ export function MessagingDashboard({ userId, role, userName }: MessagingDashboar
         </div>
         <div className="kairos-card p-3">
           <p className="text-xs text-gray-400">Unread</p>
-          <p className="text-xl font-heading font-bold text-[#D4AF37]">{stats.unreadMessages}</p>
+          <p className="text-xl font-heading font-bold text-kairos-gold">{stats.unreadMessages}</p>
         </div>
         <div className="kairos-card p-3">
           <p className="text-xs text-gray-400">This Week</p>

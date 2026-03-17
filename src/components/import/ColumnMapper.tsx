@@ -88,7 +88,7 @@ export function ColumnMapper({
                 onChange={(e) => handleFieldChange(idx, e.target.value || null)}
                 className={`flex-1 px-2 py-1.5 rounded bg-gray-900 border text-sm ${
                   isRequired
-                    ? "border-[#D4AF37]/50 text-[#D4AF37]"
+                    ? "border-kairos-gold/50 text-kairos-gold"
                     : mapping.targetField
                       ? "border-emerald-700/50 text-emerald-400"
                       : "border-gray-600 text-gray-500"

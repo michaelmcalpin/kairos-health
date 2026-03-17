@@ -35,25 +35,25 @@ export function OnboardingProgress({ currentStep, completedSteps }: OnboardingPr
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
                   isCurrent
-                    ? "ring-2 ring-[#D4AF37] ring-offset-2 ring-offset-gray-900"
+                    ? "ring-2 ring-kairos-gold ring-offset-2 ring-offset-gray-900"
                     : ""
                 }`}
                 style={{
                   backgroundColor:
                     isCompleted || isPast
-                      ? "#D4AF37"
+                      ? "rgb(var(--k-accent))"
                       : isCurrent
-                        ? "#D4AF37"
+                        ? "rgb(var(--k-accent))"
                         : "rgba(55, 65, 81, 0.5)",
                   color:
                     isCompleted || isPast || isCurrent
-                      ? "#122055"
+                      ? "rgb(var(--k-primary))"
                       : "rgba(156, 163, 175, 0.5)",
                 }}
               >
                 {isCompleted || isPast ? (
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M3 7L6 10L11 4" stroke="#122055" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M3 7L6 10L11 4" stroke="rgb(var(--k-primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 ) : (
                   idx + 1
@@ -68,7 +68,7 @@ export function OnboardingProgress({ currentStep, completedSteps }: OnboardingPr
                     style={{
                       backgroundColor:
                         isPast || isCompleted
-                          ? "#D4AF37"
+                          ? "rgb(var(--k-accent))"
                           : "rgba(55, 65, 81, 0.5)",
                     }}
                   />
@@ -87,7 +87,7 @@ export function OnboardingProgress({ currentStep, completedSteps }: OnboardingPr
             <div
               key={step.id}
               className={`text-xs text-center ${
-                isCurrent ? "text-[#D4AF37] font-semibold" : "text-gray-600"
+                isCurrent ? "text-kairos-gold font-semibold" : "text-gray-600"
               }`}
               style={{ width: `${100 / middleSteps.length}%` }}
             >

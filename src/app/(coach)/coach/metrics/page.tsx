@@ -162,8 +162,8 @@ export default function CoachMetricsPage() {
                         />
                         <defs>
                           <linearGradient id="goldGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stopColor="#D4AF37" />
-                            <stop offset="100%" stopColor="#AA8C2C" />
+                            <stop offset="0%" stopColor="rgb(var(--k-accent))" />
+                            <stop offset="100%" stopColor="rgb(var(--k-accent-deep))" />
                           </linearGradient>
                         </defs>
                       </svg>
@@ -191,8 +191,8 @@ export default function CoachMetricsPage() {
                         />
                         <defs>
                           <linearGradient id="silverGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stopColor="#E0E0E0" />
-                            <stop offset="100%" stopColor="#888888" />
+                            <stop offset="0%" stopColor="rgb(var(--k-text))" />
+                            <stop offset="100%" stopColor="rgb(158, 158, 158)" />
                           </linearGradient>
                         </defs>
                       </svg>

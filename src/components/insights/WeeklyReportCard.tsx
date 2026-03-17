@@ -27,7 +27,7 @@ export function WeeklyReportCard({ report }: WeeklyReportCardProps) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#122055] to-[#1a3080] p-6 text-white">
+      <div className="bg-gradient-to-r from-kairos-royal to-kairos-royal-dark p-6 text-white">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-wider text-white/70">Weekly Health Report</p>
@@ -106,7 +106,7 @@ export function WeeklyReportCard({ report }: WeeklyReportCardProps) {
           {report.insights.length > 5 && (
             <button
               onClick={() => setShowAllInsights(!showAllInsights)}
-              className="text-xs font-medium text-[#122055] hover:text-[#1a3080] transition-colors"
+              className="text-xs font-medium text-kairos-royal hover:text-kairos-royal-dark transition-colors"
             >
               {showAllInsights ? "Show less" : `Show all ${report.insights.length}`}
             </button>

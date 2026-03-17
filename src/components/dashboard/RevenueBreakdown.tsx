@@ -21,7 +21,7 @@ interface RevenueBreakdownProps {
 }
 
 const sourceColors: Record<string, string> = {
-  coaching: "#D4AF37",
+  coaching: "#D4AF37",  // mapped to tc.accent
   supplements: "#34d399",
   labs: "#60a5fa",
 };

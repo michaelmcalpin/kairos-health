@@ -1,5 +1,7 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
+
 /**
  * Cohort retention heat map.
  * Displays a grid of cells colored by retention percentage.
@@ -37,6 +39,7 @@ export function HeatMap({
   title,
   className = "",
 }: HeatMapProps) {
+  const tc = useThemeColors();
   if (rows.length === 0) return null;
 
   const cellSize = 48;
@@ -87,7 +90,7 @@ export function HeatMap({
                           style={{
                             width: cellSize - 4,
                             height: cellSize - 12,
-                            backgroundColor: "#0A0F1F",
+                            backgroundColor: tc.bg,
                           }}
                         />
                       </td>
@@ -102,7 +105,7 @@ export function HeatMap({
                           height: cellSize - 12,
                           backgroundColor: getCellColor(value),
                           opacity: getCellOpacity(value),
-                          color: value >= 40 ? "#0A0F1F" : "#E0E0E0",
+                          color: value >= 40 ? tc.bg : tc.text,
                         }}
                         title={`${row.label} — ${columnLabels[colIdx]}: ${value}%`}
                       >

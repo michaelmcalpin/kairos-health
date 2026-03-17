@@ -115,7 +115,7 @@ export default function SupplementsPage() {
                   day.adherence >= 90 ? "bg-green-500/60" : day.adherence >= 70 ? "bg-kairos-gold/60" : "bg-red-500/40"
                 }`} style={{ height: `${day.adherence}%` }} />
               </div>
-              <p className="text-xs font-heading font-bold mt-1" style={{ color: day.adherence >= 90 ? "#4ade80" : day.adherence >= 70 ? "#D4AF37" : "#f87171" }}>
+              <p className="text-xs font-heading font-bold mt-1" style={{ color: day.adherence >= 90 ? "rgb(74, 222, 128)" : day.adherence >= 70 ? "rgb(var(--k-accent))" : "rgb(248, 113, 113)" }}>
                 {day.adherence}%
               </p>
             </div>

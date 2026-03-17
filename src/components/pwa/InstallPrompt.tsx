@@ -58,7 +58,7 @@ export function InstallPrompt() {
       <div className="rounded-xl border border-kairos-border bg-kairos-card p-4 shadow-2xl">
         <div className="flex items-start gap-3">
           {/* App icon */}
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#122055] to-[#1A2D6D] border border-kairos-border">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-kairos-royal to-kairos-royal-dark border border-kairos-border">
             <span className="font-heading text-xl font-bold text-kairos-gold">K</span>
           </div>
 

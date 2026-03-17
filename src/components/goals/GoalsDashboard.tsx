@@ -70,7 +70,7 @@ export function GoalsDashboard({ initialGoals = [], clientId = "demo" }: GoalsDa
               percent={summary.avgProgress}
               size={64}
               strokeWidth={5}
-              color="#D4AF37"
+              color="rgb(var(--k-accent))"
               label={`${summary.avgProgress}%`}
               sublabel="avg"
             />
@@ -80,7 +80,7 @@ export function GoalsDashboard({ initialGoals = [], clientId = "demo" }: GoalsDa
             <div className="text-gray-500 text-xs">Active</div>
           </div>
           <div className="kairos-card p-4 text-center">
-            <div className="text-2xl font-bold text-[#D4AF37]">{summary.completedGoals}</div>
+            <div className="text-2xl font-bold text-kairos-gold">{summary.completedGoals}</div>
             <div className="text-gray-500 text-xs">Completed</div>
           </div>
           <div className="kairos-card p-4 text-center">
@@ -103,7 +103,7 @@ export function GoalsDashboard({ initialGoals = [], clientId = "demo" }: GoalsDa
               onClick={() => setFilterStatus(status)}
               className={`px-3 py-1 rounded-full text-xs transition ${
                 filterStatus === status
-                  ? "bg-[#D4AF37]/20 text-[#D4AF37]"
+                  ? "bg-kairos-gold/20 text-kairos-gold"
                   : "bg-gray-800 text-gray-500 hover:text-gray-300"
               }`}
             >

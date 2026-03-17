@@ -73,7 +73,7 @@ export default function CoachesPage() {
                 onClick={() => setStatusFilter(status)}
                 className={`px-4 py-2 rounded-kairos-sm text-sm font-body font-semibold transition-colors ${
                   statusFilter === status
-                    ? "bg-kairos-gold text-[#122055]"
+                    ? "bg-kairos-gold text-kairos-royal"
                     : "bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:border-kairos-gold"
                 }`}
               >

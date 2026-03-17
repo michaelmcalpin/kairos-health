@@ -18,8 +18,7 @@ export function CompleteStep({ state, onFinish }: CompleteStepProps) {
   return (
     <div className="flex flex-col items-center text-center max-w-lg mx-auto">
       {/* Success Animation */}
-      <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 animate-fade-in"
-        style={{ background: "linear-gradient(135deg, #10B981 0%, #059669 100%)" }}>
+      <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 animate-fade-in bg-gradient-to-br from-green-500 to-emerald-600">
         <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
           <path d="M12 20L18 26L28 14" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -44,7 +43,7 @@ export function CompleteStep({ state, onFinish }: CompleteStepProps) {
               <div className="text-white font-semibold">{tier.name}</div>
             </div>
             <div className="text-right">
-              <span className="text-[#D4AF37] font-bold text-lg">${tier.price}</span>
+              <span className="text-kairos-gold font-bold text-lg">${tier.price}</span>
               <span className="text-gray-500 text-sm">/mo</span>
             </div>
           </div>
@@ -55,7 +54,7 @@ export function CompleteStep({ state, onFinish }: CompleteStepProps) {
           <div className="text-gray-500 text-xs uppercase tracking-wider mb-2">Your Goals</div>
           <div className="flex flex-wrap gap-2">
             {goalLabels.map((label) => (
-              <span key={label} className="px-2 py-1 rounded-full text-xs bg-[#D4AF37]/10 text-[#D4AF37]">
+              <span key={label} className="px-2 py-1 rounded-full text-xs bg-kairos-gold/10 text-kairos-gold">
                 {label}
               </span>
             ))}
@@ -86,8 +85,7 @@ export function CompleteStep({ state, onFinish }: CompleteStepProps) {
             { step: "3", text: "Review your AI-generated insights", time: "5 min" },
           ].map((item) => (
             <div key={item.step} className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                style={{ backgroundColor: "#D4AF37", color: "#122055" }}>
+              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold bg-kairos-gold text-kairos-royal">
                 {item.step}
               </div>
               <div className="flex-1 text-gray-300 text-sm">{item.text}</div>

@@ -28,7 +28,7 @@ export function ImportPreview({ session, onToggleRow, onExecute, onBack }: Impor
 
       {/* Stats Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        <StatCard label="Total Rows" value={stats.total} color="#D4AF37" />
+        <StatCard label="Total Rows" value={stats.total} color="rgb(var(--k-accent))" />
         <StatCard label="Valid" value={stats.validCount} color="#10B981" />
         <StatCard label="Warnings" value={stats.warningCount} color="#F59E0B" />
         <StatCard label="Errors" value={stats.errorCount} color="#EF4444" />

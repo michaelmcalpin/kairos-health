@@ -131,7 +131,7 @@ export function InsightCard({ insight, expanded = false, onToggle }: InsightCard
                 .sort((a, b) => a.priority - b.priority)
                 .map((action, i) => (
                   <div key={i} className="flex items-start gap-2 rounded-lg bg-white/80 p-2.5">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#122055] text-[10px] font-bold text-white">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-kairos-royal text-[10px] font-bold text-white">
                       {i + 1}
                     </span>
                     <div>

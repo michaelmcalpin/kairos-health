@@ -96,6 +96,7 @@ function MiniSparkline({ readings }: { readings: number[] }) {
 }
 
 export function LiveGlucoseMonitor({ demo = false }: { demo?: boolean }) {
+  // Theme colors available via useThemeColors() when needed
   const glucoseSSE = useSSE<GlucoseReading>({
     url: `/api/realtime/glucose${demo ? "?demo=true" : ""}`,
     eventTypes: ["glucose:reading"],
@@ -119,7 +120,7 @@ export function LiveGlucoseMonitor({ demo = false }: { demo?: boolean }) {
   return (
     <div className="kairos-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-heading text-sm font-semibold text-[#122055] uppercase tracking-wider">
+        <h3 className="font-heading text-sm font-semibold text-kairos-royal uppercase tracking-wider">
           Live Glucose
         </h3>
         <div className="flex items-center gap-2">

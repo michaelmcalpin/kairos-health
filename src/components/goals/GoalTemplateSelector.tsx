@@ -60,7 +60,7 @@ export function GoalTemplateSelector({ onSelect, onCancel }: GoalTemplateSelecto
               type="number"
               value={startValue}
               onChange={(e) => setStartValue(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-[#D4AF37] focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-kairos-gold focus:outline-none"
               placeholder={`Current ${selectedTemplate.defaultTarget.unit}`}
             />
           </div>
@@ -73,7 +73,7 @@ export function GoalTemplateSelector({ onSelect, onCancel }: GoalTemplateSelecto
               type="number"
               value={customTarget}
               onChange={(e) => setCustomTarget(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-[#D4AF37] focus:outline-none"
+              className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-kairos-gold focus:outline-none"
               placeholder={String(selectedTemplate.defaultTarget.value)}
             />
           </div>
@@ -128,7 +128,7 @@ export function GoalTemplateSelector({ onSelect, onCancel }: GoalTemplateSelecto
           onClick={() => setFilterCategory("all")}
           className={`px-3 py-1 rounded-full text-xs transition ${
             filterCategory === "all"
-              ? "bg-[#D4AF37]/20 text-[#D4AF37]"
+              ? "bg-kairos-gold/20 text-kairos-gold"
               : "bg-gray-800 text-gray-500 hover:text-gray-300"
           }`}
         >
@@ -140,7 +140,7 @@ export function GoalTemplateSelector({ onSelect, onCancel }: GoalTemplateSelecto
             onClick={() => setFilterCategory(cat)}
             className={`px-3 py-1 rounded-full text-xs transition ${
               filterCategory === cat
-                ? "bg-[#D4AF37]/20 text-[#D4AF37]"
+                ? "bg-kairos-gold/20 text-kairos-gold"
                 : "bg-gray-800 text-gray-500 hover:text-gray-300"
             }`}
           >
@@ -156,7 +156,7 @@ export function GoalTemplateSelector({ onSelect, onCancel }: GoalTemplateSelecto
             key={template.id}
             type="button"
             onClick={() => setSelectedTemplate(template)}
-            className="kairos-card p-4 text-left hover:border-[#D4AF37]/50 transition-all"
+            className="kairos-card p-4 text-left hover:border-kairos-gold/50 transition-all"
           >
             <div className="flex items-start gap-3">
               <span className="text-xl">{template.icon}</span>

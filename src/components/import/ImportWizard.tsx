@@ -103,7 +103,7 @@ export function ImportWizard() {
                   <span
                     className={`px-3 py-1 rounded-full text-xs ${
                       isActive
-                        ? "bg-[#D4AF37]/20 text-[#D4AF37] font-semibold"
+                        ? "bg-kairos-gold/20 text-kairos-gold font-semibold"
                         : isPast
                           ? "bg-emerald-900/20 text-emerald-500"
                           : "bg-gray-800 text-gray-600"
@@ -137,7 +137,7 @@ export function ImportWizard() {
           </div>
           <button
             onClick={handleDownloadTemplate}
-            className="text-[#D4AF37] text-xs hover:underline"
+            className="text-kairos-gold text-xs hover:underline"
           >
             Download Template
           </button>

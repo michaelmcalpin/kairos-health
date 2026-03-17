@@ -143,9 +143,9 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 export const ROLE_COLORS: Record<UserRole, string> = {
-  client: "#3B82F6",
-  coach: "#D4AF37",
-  admin: "#EF4444",
+  client: "rgb(59, 130, 246)",
+  coach: "rgb(var(--k-accent))",
+  admin: "rgb(239, 68, 68)",
 };
 
 export const STATUS_LABELS: Record<UserStatus, string> = {
@@ -156,10 +156,10 @@ export const STATUS_LABELS: Record<UserStatus, string> = {
 };
 
 export const STATUS_COLORS: Record<UserStatus, string> = {
-  active: "#22C55E",
-  inactive: "#6B7280",
-  suspended: "#EF4444",
-  onboarding: "#F59E0B",
+  active: "rgb(34, 197, 94)",
+  inactive: "rgb(107, 114, 128)",
+  suspended: "rgb(239, 68, 68)",
+  onboarding: "rgb(245, 158, 11)",
 };
 
 export const TIER_LABELS: Record<SubscriptionTier, string> = {

@@ -1,5 +1,7 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
+
 interface GoalProgressRingProps {
   percent: number;
   size?: number;
@@ -13,10 +15,13 @@ export function GoalProgressRing({
   percent,
   size = 120,
   strokeWidth = 8,
-  color = "#D4AF37",
+  color,
   label,
   sublabel,
 }: GoalProgressRingProps) {
+  const colors = useThemeColors();
+  const defaultColor = `rgb(${colors.accent})`;
+  const finalColor = color ?? defaultColor;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (Math.min(percent, 100) / 100) * circumference;
@@ -40,7 +45,7 @@ export function GoalProgressRing({
           cy={center}
           r={radius}
           fill="none"
-          stroke={color}
+          stroke={finalColor}
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={offset}

@@ -1,5 +1,7 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
+
 /**
  * Mobile-optimized circular health score display.
  * Renders an SVG ring gauge with animated score.
@@ -18,17 +20,18 @@ export function MobileHealthScore({
   size = 160,
   change,
 }: MobileHealthScoreProps) {
+  const { primary } = useThemeColors();
   const radius = (size - 16) / 2;
   const circumference = 2 * Math.PI * radius;
   const progress = Math.min(Math.max(score / 100, 0), 1);
   const offset = circumference * (1 - progress);
 
   const scoreColor =
-    score >= 80 ? "#10b981" :
-    score >= 60 ? "#f59e0b" :
-    "#ef4444";
+    score >= 80 ? "rgb(16, 185, 129)" :
+    score >= 60 ? "rgb(245, 158, 11)" :
+    "rgb(239, 68, 68)";
 
-  const bgStroke = "#1E2A5A";
+  const bgStroke = `rgb(${primary})`;
 
   return (
     <div className="flex flex-col items-center">

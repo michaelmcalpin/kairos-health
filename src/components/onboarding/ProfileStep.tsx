@@ -57,7 +57,7 @@ export function ProfileStep({ data, onChange, onContinue, onBack }: ProfileStepP
               type="text"
               value={data.firstName ?? ""}
               onChange={(e) => handleChange("firstName", e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-[#D4AF37] focus:outline-none transition"
+              className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-kairos-gold focus:outline-none transition"
               placeholder="John"
             />
           </div>
@@ -67,7 +67,7 @@ export function ProfileStep({ data, onChange, onContinue, onBack }: ProfileStepP
               type="text"
               value={data.lastName ?? ""}
               onChange={(e) => handleChange("lastName", e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-[#D4AF37] focus:outline-none transition"
+              className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-kairos-gold focus:outline-none transition"
               placeholder="Doe"
             />
           </div>
@@ -80,7 +80,7 @@ export function ProfileStep({ data, onChange, onContinue, onBack }: ProfileStepP
             type="date"
             value={data.dateOfBirth ?? ""}
             onChange={(e) => handleChange("dateOfBirth", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-[#D4AF37] focus:outline-none transition"
+            className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-kairos-gold focus:outline-none transition"
           />
         </div>
 
@@ -95,7 +95,7 @@ export function ProfileStep({ data, onChange, onContinue, onBack }: ProfileStepP
                 onClick={() => handleChange("gender", opt.value)}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition border ${
                   data.gender === opt.value
-                    ? "border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]"
+                    ? "border-kairos-gold bg-kairos-gold/10 text-kairos-gold"
                     : "border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-500"
                 }`}
               >
@@ -114,7 +114,7 @@ export function ProfileStep({ data, onChange, onContinue, onBack }: ProfileStepP
                 type="number"
                 value={data.heightFeet ?? ""}
                 onChange={(e) => handleChange("heightFeet", parseInt(e.target.value) || 0)}
-                className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-[#D4AF37] focus:outline-none transition"
+                className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-kairos-gold focus:outline-none transition"
                 placeholder="5"
                 min={3}
                 max={8}
@@ -126,7 +126,7 @@ export function ProfileStep({ data, onChange, onContinue, onBack }: ProfileStepP
                 type="number"
                 value={data.heightInches ?? ""}
                 onChange={(e) => handleChange("heightInches", parseInt(e.target.value) || 0)}
-                className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-[#D4AF37] focus:outline-none transition"
+                className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-kairos-gold focus:outline-none transition"
                 placeholder="10"
                 min={0}
                 max={11}

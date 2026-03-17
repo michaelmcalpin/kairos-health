@@ -57,7 +57,7 @@ export function DevicesStep({ devices, onUpdate, onContinue, onBack }: DevicesSt
         Link your wearables and health devices for automated data tracking.
         You can always add more later.
       </p>
-      <p className="text-sm mb-6" style={{ color: "#D4AF37" }}>
+      <p className="text-sm mb-6 text-kairos-gold">
         This step is optional — {connectedCount > 0 ? `${connectedCount} connected` : "skip if you prefer"}
       </p>
 
@@ -82,7 +82,7 @@ export function DevicesStep({ devices, onUpdate, onContinue, onBack }: DevicesSt
                   <div className="font-semibold text-white text-sm flex items-center gap-2">
                     {provider.name}
                     {provider.popular && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-[#D4AF37]/10 text-[#D4AF37]">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-kairos-gold/10 text-kairos-gold">
                         Popular
                       </span>
                     )}

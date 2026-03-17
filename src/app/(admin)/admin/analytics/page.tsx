@@ -74,7 +74,7 @@ export default function AnalyticsPage() {
                 <p className="text-gray-400 text-xs mb-1">{kpi.label}</p>
                 <p className="text-xl font-heading font-bold text-white">{kpi.value}</p>
               </div>
-              <div className="text-[#D4AF37] opacity-60">
+              <div className="text-kairos-gold opacity-60">
                 {KPI_ICONS[kpi.icon] ?? <TrendingUp size={24} />}
               </div>
             </div>

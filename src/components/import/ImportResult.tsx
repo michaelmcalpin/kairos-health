@@ -46,7 +46,7 @@ export function ImportResult({ summary, category, fileName, onNewImport, onViewD
           <div className="text-gray-500 text-xs">Imported</div>
         </div>
         <div className="kairos-card p-4">
-          <div className="text-2xl font-bold text-[#D4AF37]">{successRate}%</div>
+          <div className="text-2xl font-bold text-kairos-gold">{successRate}%</div>
           <div className="text-gray-500 text-xs">Success Rate</div>
         </div>
         <div className="kairos-card p-4">

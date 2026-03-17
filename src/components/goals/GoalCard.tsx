@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { HealthGoal } from "@/lib/goals/types";
 import { calculateProgress } from "@/lib/goals/engine";
+import { useThemeColors } from "@/lib/theme";
 import { GoalProgressRing } from "./GoalProgressRing";
 
 interface GoalCardProps {
@@ -12,12 +13,12 @@ interface GoalCardProps {
   onResume?: (goalId: string) => void;
 }
 
-const STATUS_COLORS: Record<string, string> = {
+const getStatusColors = (accentColor: string): Record<string, string> => ({
   active: "#10B981",
   paused: "#F59E0B",
-  completed: "#D4AF37",
+  completed: accentColor,
   abandoned: "#6B7280",
-};
+});
 
 const TREND_ICONS: Record<string, string> = {
   improving: "↑",
@@ -35,15 +36,18 @@ export function GoalCard({ goal, onAddCheckpoint, onPause, onResume }: GoalCardP
   const [expanded, setExpanded] = useState(false);
   const [checkpointValue, setCheckpointValue] = useState("");
   const [checkpointNote, setCheckpointNote] = useState("");
+  const colors = useThemeColors();
 
   const progress = calculateProgress(goal);
   const progressColor = progress.percentComplete >= 80
     ? "#10B981"
     : progress.percentComplete >= 50
-      ? "#D4AF37"
+      ? `rgb(${colors.accent})`
       : progress.percentComplete >= 25
         ? "#F59E0B"
         : "#EF4444";
+
+  const STATUS_COLORS = getStatusColors(`rgb(${colors.accent})`);
 
   function handleSubmitCheckpoint() {
     const val = parseFloat(checkpointValue);
@@ -93,7 +97,7 @@ export function GoalCard({ goal, onAddCheckpoint, onPause, onResume }: GoalCardP
             </div>
             <div>
               <span className="text-gray-600">Target: </span>
-              <span className="text-[#D4AF37] font-semibold">
+              <span className="text-kairos-gold font-semibold">
                 {goal.target.value} {goal.target.unit}
               </span>
             </div>
@@ -121,7 +125,7 @@ export function GoalCard({ goal, onAddCheckpoint, onPause, onResume }: GoalCardP
                   className="w-2 h-2 rounded-full"
                   title={`${m.label}${m.reachedAt ? " ✓" : ""}`}
                   style={{
-                    backgroundColor: m.reachedAt ? "#D4AF37" : "rgba(55, 65, 81, 0.5)",
+                    backgroundColor: m.reachedAt ? "rgb(var(--k-accent))" : "rgba(55, 65, 81, 0.5)",
                   }}
                 />
               ))}
@@ -162,7 +166,7 @@ export function GoalCard({ goal, onAddCheckpoint, onPause, onResume }: GoalCardP
               <div className="text-gray-600 text-xs">Days Left</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-[#D4AF37]">
+              <div className="text-lg font-bold text-kairos-gold">
                 {progress.milestonesReached}/{progress.totalMilestones}
               </div>
               <div className="text-gray-600 text-xs">Milestones</div>
@@ -187,16 +191,16 @@ export function GoalCard({ goal, onAddCheckpoint, onPause, onResume }: GoalCardP
                   >
                     <div
                       className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        m.reachedAt ? "bg-[#D4AF37]/20" : "bg-gray-800"
+                        m.reachedAt ? "bg-kairos-gold/20" : "bg-gray-800"
                       }`}
                     >
                       {m.reachedAt && (
                         <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                          <path d="M1.5 4L3.5 6L6.5 2" stroke="#D4AF37" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M1.5 4L3.5 6L6.5 2" stroke="rgb(var(--k-accent))" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                       )}
                     </div>
-                    <span className={m.reachedAt ? "text-[#D4AF37]" : "text-gray-500"}>
+                    <span className={m.reachedAt ? "text-kairos-gold" : "text-gray-500"}>
                       {m.label}
                     </span>
                     <span className="text-gray-700">
@@ -249,14 +253,14 @@ export function GoalCard({ goal, onAddCheckpoint, onPause, onResume }: GoalCardP
                   value={checkpointValue}
                   onChange={(e) => setCheckpointValue(e.target.value)}
                   placeholder={`Value (${goal.target.unit})`}
-                  className="flex-1 px-3 py-1.5 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:border-[#D4AF37] focus:outline-none"
+                  className="flex-1 px-3 py-1.5 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:border-kairos-gold focus:outline-none"
                 />
                 <input
                   type="text"
                   value={checkpointNote}
                   onChange={(e) => setCheckpointNote(e.target.value)}
                   placeholder="Note (optional)"
-                  className="flex-1 px-3 py-1.5 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:border-[#D4AF37] focus:outline-none"
+                  className="flex-1 px-3 py-1.5 rounded bg-gray-800 border border-gray-700 text-white text-sm focus:border-kairos-gold focus:outline-none"
                 />
                 <button
                   onClick={handleSubmitCheckpoint}

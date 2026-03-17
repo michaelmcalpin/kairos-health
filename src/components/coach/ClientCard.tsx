@@ -20,12 +20,12 @@ export function ClientCard({ client, onClick }: ClientCardProps) {
   return (
     <div
       onClick={onClick}
-      className="kairos-card hover:border-[#D4AF37]/30 transition-all cursor-pointer group"
+      className="kairos-card hover:border-kairos-gold/30 transition-all cursor-pointer group"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           {/* Avatar */}
-          <div className="w-10 h-10 rounded-full bg-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37] font-heading font-bold text-sm shrink-0">
+          <div className="w-10 h-10 rounded-full bg-kairos-gold/20 flex items-center justify-center text-kairos-gold font-heading font-bold text-sm shrink-0">
             {client.initials}
           </div>
 
@@ -50,7 +50,7 @@ export function ClientCard({ client, onClick }: ClientCardProps) {
         <div className="flex items-center gap-5 shrink-0">
           {/* Health Score */}
           <div className="text-center">
-            <p className="text-lg font-heading font-bold text-[#D4AF37]">{client.healthScore}</p>
+            <p className="text-lg font-heading font-bold text-kairos-gold">{client.healthScore}</p>
             <p className={`text-[10px] ${trendColor}`}>{trendIcon}</p>
           </div>
 
@@ -78,7 +78,7 @@ export function ClientCard({ client, onClick }: ClientCardProps) {
           )}
 
           {/* Chevron */}
-          <span className="text-gray-600 group-hover:text-[#D4AF37] transition-colors">›</span>
+          <span className="text-gray-600 group-hover:text-kairos-gold transition-colors">›</span>
         </div>
       </div>
     </div>

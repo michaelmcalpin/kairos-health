@@ -11,9 +11,9 @@ interface TierSelectionStepProps {
 }
 
 const TIER_COLORS: Record<TierChoice, string> = {
-  tier1: "#D4AF37",
-  tier2: "#3B82F6",
-  tier3: "#9CA3AF",
+  tier1: "rgb(var(--k-accent))",
+  tier2: "rgb(59, 130, 246)",
+  tier3: "rgb(156, 163, 175)",
 };
 
 export function TierSelectionStep({ selected, onSelect, onContinue, onBack }: TierSelectionStepProps) {

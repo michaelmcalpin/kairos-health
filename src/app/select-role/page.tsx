@@ -32,7 +32,7 @@ export default function SelectRolePage() {
   // Brief loading while checking saved role
   if (checking) {
     return (
-      <div className="min-h-screen bg-kairos-royal-dark flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-kairos-royal-dark to-kairos-royal flex items-center justify-center">
         <div className="text-center">
           <h1 className="font-heading font-bold text-xl text-kairos-gold tracking-wide mb-2">KAIROS</h1>
           <p className="text-xs font-body text-kairos-silver-dark animate-pulse">Loading your portal...</p>

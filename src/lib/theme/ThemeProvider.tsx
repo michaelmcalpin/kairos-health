@@ -25,6 +25,57 @@ export const THEMES: Record<ThemeId, ThemeConfig> = {
   },
 };
 
+// ─── Hex Color Maps (for chart libraries / SVG that need raw strings) ────
+
+export interface ThemeColors {
+  primary: string;
+  primaryLight: string;
+  accent: string;
+  accentLight: string;
+  accentDeep: string;
+  bg: string;
+  card: string;
+  text: string;
+  textSecondary: string;
+  success: string;
+  warning: string;
+  danger: string;
+  info: string;
+}
+
+export const THEME_COLORS: Record<ThemeId, ThemeColors> = {
+  "warm-slate": {
+    primary: "#3A3A3C",
+    primaryLight: "#5A5A5C",
+    accent: "#C9A89A",
+    accentLight: "#F0E6E0",
+    accentDeep: "#9E7B6E",
+    bg: "#2C2C2E",
+    card: "#3A3A3C",
+    text: "#FAF5F0",
+    textSecondary: "#C9A89A",
+    success: "#6B8E5E",
+    warning: "#C4956A",
+    danger: "#C97B6B",
+    info: "#6B8BA4",
+  },
+  "classic-royal": {
+    primary: "#122055",
+    primaryLight: "#1A2D6D",
+    accent: "#D4AF37",
+    accentLight: "#E8D48B",
+    accentDeep: "#B8962F",
+    bg: "#0A0F1F",
+    card: "#12183A",
+    text: "#E0E0E0",
+    textSecondary: "#9E9E9E",
+    success: "#2E7D32",
+    warning: "#E65100",
+    danger: "#C62828",
+    info: "#1565C0",
+  },
+};
+
 // ─── Context ─────────────────────────────────────────────────────
 
 interface ThemeContextValue {
@@ -41,6 +92,12 @@ const ThemeContext = createContext<ThemeContextValue>({
 
 export function useTheme(): ThemeContextValue {
   return useContext(ThemeContext);
+}
+
+/** Returns hex color strings for the active theme — use in charts / SVG props */
+export function useThemeColors(): ThemeColors {
+  const { theme } = useTheme();
+  return THEME_COLORS[theme];
 }
 
 // ─── Provider ────────────────────────────────────────────────────

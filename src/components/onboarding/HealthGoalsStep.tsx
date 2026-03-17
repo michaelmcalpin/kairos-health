@@ -10,11 +10,11 @@ interface HealthGoalsStepProps {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  longevity: "#D4AF37",
-  performance: "#10B981",
-  metabolic: "#3B82F6",
-  recovery: "#8B5CF6",
-  body_composition: "#F59E0B",
+  longevity: "rgb(var(--k-accent))",
+  performance: "rgb(16, 185, 129)",
+  metabolic: "rgb(59, 130, 246)",
+  recovery: "rgb(139, 92, 246)",
+  body_composition: "rgb(245, 158, 11)",
 };
 
 export function HealthGoalsStep({ selectedGoals, onToggle, onContinue, onBack }: HealthGoalsStepProps) {
@@ -35,7 +35,7 @@ export function HealthGoalsStep({ selectedGoals, onToggle, onContinue, onBack }:
         {AVAILABLE_HEALTH_GOALS.map((goal) => {
           const isSelected = selectedGoals.includes(goal.id);
           const isDisabled = !isSelected && selectedGoals.length >= 5;
-          const accentColor = CATEGORY_COLORS[goal.category] ?? "#D4AF37";
+          const accentColor = CATEGORY_COLORS[goal.category] ?? "rgb(var(--k-accent))";
 
           return (
             <button
@@ -45,7 +45,7 @@ export function HealthGoalsStep({ selectedGoals, onToggle, onContinue, onBack }:
               disabled={isDisabled}
               className={`text-left p-4 rounded-lg border transition-all ${
                 isSelected
-                  ? "border-[#D4AF37] bg-[#D4AF37]/5"
+                  ? "border-kairos-gold bg-kairos-gold/5"
                   : isDisabled
                     ? "border-gray-800 bg-gray-900/50 opacity-50 cursor-not-allowed"
                     : "border-gray-700 bg-gray-800/50 hover:border-gray-500"
@@ -54,7 +54,7 @@ export function HealthGoalsStep({ selectedGoals, onToggle, onContinue, onBack }:
               <div className="flex items-start gap-3">
                 <div
                   className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 border ${
-                    isSelected ? "border-[#D4AF37] bg-[#D4AF37]/20" : "border-gray-600"
+                    isSelected ? "border-kairos-gold bg-kairos-gold/20" : "border-gray-600"
                   }`}
                 >
                   {isSelected && (

@@ -144,13 +144,13 @@ export const TIER_LABELS: Record<ClientTier, string> = {
 };
 
 export const TIER_COLORS: Record<ClientTier, string> = {
-  tier1: "text-[#D4AF37]",
+  tier1: "text-kairos-gold",
   tier2: "text-blue-400",
   tier3: "text-purple-400",
 };
 
 export const TIER_BADGE_COLORS: Record<ClientTier, string> = {
-  tier1: "bg-[#D4AF37]/20 text-[#D4AF37] border-[#D4AF37]/30",
+  tier1: "bg-kairos-gold/20 text-kairos-gold border-kairos-gold/30",
   tier2: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   tier3: "bg-purple-500/20 text-purple-400 border-purple-500/30",
 };

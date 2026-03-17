@@ -75,9 +75,9 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
             <div
               className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                 step === s
-                  ? "bg-[#D4AF37] text-[#122055]"
+                  ? "bg-kairos-gold text-kairos-royal"
                   : i < ["session_type", "date_time", "details", "confirm"].indexOf(step)
-                    ? "bg-[#D4AF37]/30 text-[#D4AF37]"
+                    ? "bg-kairos-gold/30 text-kairos-gold"
                     : "bg-gray-800 text-gray-500"
               }`}
             >
@@ -108,7 +108,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
                 }}
                 className={`w-full p-4 rounded-xl border text-left transition-colors ${
                   sessionType === st.id
-                    ? "border-[#D4AF37] bg-[#D4AF37]/10"
+                    ? "border-kairos-gold bg-kairos-gold/10"
                     : "border-gray-700 hover:border-gray-600 hover:bg-gray-800/50"
                 }`}
               >
@@ -155,7 +155,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
                     onClick={() => handleDateChange(d)}
                     className={`p-2 rounded-lg text-center transition-colors ${
                       selectedDate === d
-                        ? "bg-[#D4AF37] text-[#122055]"
+                        ? "bg-kairos-gold text-kairos-royal"
                         : "hover:bg-gray-800 text-gray-300"
                     }`}
                   >
@@ -188,7 +188,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
                         }}
                         className={`px-3 py-2 rounded-lg text-sm transition-colors ${
                           selectedSlot?.startTime === slot.startTime
-                            ? "bg-[#D4AF37] text-[#122055] font-medium"
+                            ? "bg-kairos-gold text-kairos-royal font-medium"
                             : "bg-gray-800 text-gray-300 hover:bg-gray-700"
                         }`}
                       >
@@ -230,7 +230,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
                   onClick={() => setMeetingType(mt)}
                   className={`flex-1 px-3 py-2 rounded-lg text-sm transition-colors ${
                     meetingType === mt
-                      ? "bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]"
+                      ? "bg-kairos-gold/20 text-kairos-gold border border-kairos-gold"
                       : "bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600"
                   }`}
                 >
@@ -250,7 +250,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Anything you'd like to discuss..."
               rows={3}
-              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37]/50 resize-none"
+              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50 resize-none"
             />
           </div>
 

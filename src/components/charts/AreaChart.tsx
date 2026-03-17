@@ -1,5 +1,7 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
+
 /**
  * Lightweight SVG area chart for time-series data.
  * Supports gradient fills, grid lines, and axis labels.
@@ -34,6 +36,7 @@ export function AreaChart({
   showValues = false,
   className = "",
 }: AreaChartProps) {
+  const tc = useThemeColors();
   if (data.length < 2) return null;
 
   const padding = { top: 16, right: 12, bottom: showLabels ? 32 : 12, left: 12 };
@@ -80,7 +83,7 @@ export function AreaChart({
           y1={padding.top + chartHeight * (1 - pct)}
           x2={width - padding.right}
           y2={padding.top + chartHeight * (1 - pct)}
-          stroke="#1E2A5A"
+          stroke={tc.primary}
           strokeWidth={0.5}
           strokeDasharray={pct === 0 ? "0" : "4 4"}
         />
@@ -111,7 +114,7 @@ export function AreaChart({
               y={p.y - 8}
               textAnchor="middle"
               fontSize={9}
-              fill="#E0E0E0"
+              fill={tc.text}
               fontFamily="Open Sans, sans-serif"
             >
               {p.value >= 1000 ? `${(p.value / 1000).toFixed(1)}k` : p.value}
@@ -132,7 +135,7 @@ export function AreaChart({
           y={height - 8}
           textAnchor="middle"
           fontSize={9}
-          fill="#9E9E9E"
+          fill={tc.textSecondary}
           fontFamily="Open Sans, sans-serif"
         >
           {p.label}

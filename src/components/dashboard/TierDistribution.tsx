@@ -20,9 +20,9 @@ interface TierDistributionProps {
 }
 
 const tierColors: Record<string, string> = {
-  tier1: "#D4AF37",  // Gold — Private
+  tier1: "#D4AF37",  // Gold — Private (mapped to tc.accent)
   tier2: "#60a5fa",  // Blue — Associate
-  tier3: "#9E9E9E",  // Silver — AI-Guided
+  tier3: "#9E9E9E",  // Silver — AI-Guided (mapped to tc.textSecondary)
 };
 
 export function TierDistribution({ tiers, totalClients }: TierDistributionProps) {

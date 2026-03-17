@@ -3,6 +3,9 @@
  *
  * Generates structured HTML report content that can be rendered
  * or converted to PDF. Works with the weekly report data structure.
+ *
+ * NOTE: Server-rendered static HTML/PDF with inline styles. CSS variables don't work in PDF generation,
+ * so hex color values are hardcoded in the stylesheet for consistent output when exported.
  */
 
 import type { WeeklyHealthReport, HealthInsight } from "@/lib/ai/types";

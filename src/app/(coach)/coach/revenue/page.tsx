@@ -6,6 +6,7 @@ import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { getCoachRevenue } from "@/lib/coach-dashboard/engine";
 import { TIER_LABELS } from "@/lib/coach-clients/types";
+import { useThemeColors } from "@/lib/theme";
 
 const COACH_ID = "demo-coach";
 
@@ -19,6 +20,7 @@ export default function RevenueCoachPage() {
   }), [dateRange]);
 
   const data = useMemo(() => getCoachRevenue(COACH_ID, range), [range]);
+  const themeColors = useThemeColors();
 
   const maxMonthlyRevenue = Math.max(...data.monthlyTrend.map((m) => m.coaching + m.supplement));
 
@@ -110,13 +112,13 @@ export default function RevenueCoachPage() {
               <div key={item.month} className="flex-1 flex flex-col items-center">
                 <div className="w-full flex flex-col-reverse items-stretch justify-start h-48 gap-0 mb-2">
                   <div
-                    className="w-full bg-kairos-gold rounded-kairos-sm transition-all hover:opacity-80"
-                    style={{ height: `${supplementHeight}%` }}
+                    className="w-full rounded-kairos-sm transition-all hover:opacity-80"
+                    style={{ height: `${supplementHeight}%`, backgroundColor: themeColors.accent }}
                     title={`Supplements: $${item.supplement}`}
                   />
                   <div
-                    className="w-full bg-blue-600 rounded-kairos-sm transition-all hover:opacity-80"
-                    style={{ height: `${coachingHeight}%` }}
+                    className="w-full rounded-kairos-sm transition-all hover:opacity-80"
+                    style={{ height: `${coachingHeight}%`, backgroundColor: themeColors.info }}
                     title={`Coaching: $${item.coaching}`}
                   />
                 </div>
@@ -127,11 +129,11 @@ export default function RevenueCoachPage() {
         </div>
         <div className="mt-6 flex gap-6 justify-center">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-blue-600 rounded"></div>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: themeColors.info }}></div>
             <span className="text-sm font-body text-kairos-silver-dark">Coaching Revenue</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-kairos-gold rounded"></div>
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: themeColors.accent }}></div>
             <span className="text-sm font-body text-kairos-silver-dark">Supplement Markup</span>
           </div>
         </div>
@@ -218,11 +220,11 @@ export default function RevenueCoachPage() {
                   <td className="py-4 px-4 font-heading font-bold text-white text-right">${tx.amount.toLocaleString()}</td>
                   <td className="py-4 px-4">
                     <span
-                      className={`inline-block px-3 py-1 rounded-kairos-sm text-xs font-semibold ${
-                        tx.status === "paid"
-                          ? "bg-green-900 text-green-200"
-                          : "bg-yellow-900 text-yellow-200"
-                      }`}
+                      className="inline-block px-3 py-1 rounded-kairos-sm text-xs font-semibold"
+                      style={{
+                        backgroundColor: tx.status === "paid" ? `${themeColors.success}20` : `${themeColors.warning}20`,
+                        color: tx.status === "paid" ? themeColors.success : themeColors.warning,
+                      }}
                     >
                       {tx.status === "paid" ? "Paid" : "Pending"}
                     </span>

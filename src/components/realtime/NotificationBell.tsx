@@ -91,12 +91,12 @@ export function NotificationBell({ demo = false }: { demo?: boolean }) {
       {isOpen && (
         <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
           <div className="flex items-center justify-between p-3 border-b border-gray-100">
-            <span className="text-sm font-semibold text-[#122055]">Notifications</span>
+            <span className="text-sm font-semibold text-kairos-royal">Notifications</span>
             <div className="flex gap-2">
               {unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
-                  className="text-xs text-[#D4AF37] hover:text-[#b8962e] transition-colors"
+                  className="text-xs text-kairos-gold hover:text-kairos-gold-dim transition-colors"
                 >
                   Mark all read
                 </button>

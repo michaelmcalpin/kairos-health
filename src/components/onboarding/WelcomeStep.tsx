@@ -8,9 +8,8 @@ export function WelcomeStep({ onContinue }: WelcomeStepProps) {
   return (
     <div className="flex flex-col items-center text-center max-w-lg mx-auto">
       {/* KAIROS Logo */}
-      <div className="w-24 h-24 rounded-full flex items-center justify-center mb-8"
-        style={{ background: "linear-gradient(135deg, #122055 0%, #1a2d6d 100%)" }}>
-        <span className="text-4xl font-bold" style={{ color: "#D4AF37" }}>K</span>
+      <div className="w-24 h-24 rounded-full flex items-center justify-center mb-8 bg-gradient-to-br from-kairos-royal to-kairos-royal-dark">
+        <span className="text-4xl font-bold text-kairos-gold">K</span>
       </div>
 
       <h1 className="text-3xl font-heading font-bold text-white mb-4">

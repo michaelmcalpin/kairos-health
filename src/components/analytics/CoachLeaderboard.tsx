@@ -1,12 +1,14 @@
 "use client";
 
 import type { CoachPerformanceSummary } from "@/lib/analytics/types";
+import { useThemeColors } from "@/lib/theme";
 
 interface CoachLeaderboardProps {
   data: CoachPerformanceSummary;
 }
 
 export function CoachLeaderboard({ data }: CoachLeaderboardProps) {
+  const tc = useThemeColors();
   return (
     <div className="kairos-card p-6">
       <div className="flex items-center justify-between mb-6">
@@ -30,7 +32,7 @@ export function CoachLeaderboard({ data }: CoachLeaderboardProps) {
             className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl border border-gray-700/30"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37] font-heading font-bold text-sm">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center font-heading font-bold text-sm" style={{ backgroundColor: `${tc.accent}33`, color: tc.accent }}>
                 {idx + 1}
               </div>
               <div>
@@ -43,7 +45,7 @@ export function CoachLeaderboard({ data }: CoachLeaderboardProps) {
             <div className="flex gap-6 text-right">
               <div>
                 <p className="text-[10px] text-gray-500">Health Score</p>
-                <p className="text-sm font-heading font-bold text-[#D4AF37]">
+                <p className="text-sm font-heading font-bold" style={{ color: tc.accent }}>
                   {coach.avgClientHealthScore}
                 </p>
               </div>

@@ -56,7 +56,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   if (!client) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <Link href="/coach/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-[#D4AF37] text-sm transition-colors">
+        <Link href="/coach/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
           <ArrowLeft size={14} /> Back to clients
         </Link>
         <div className="kairos-card p-12 text-center">
@@ -108,7 +108,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Back link */}
-      <Link href="/coach/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-[#D4AF37] text-sm transition-colors">
+      <Link href="/coach/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
         <ArrowLeft size={14} /> Back to clients
       </Link>
 
@@ -116,7 +116,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       <div className="kairos-card">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37] font-heading font-bold text-xl">
+            <div className="w-16 h-16 rounded-full bg-kairos-gold/20 flex items-center justify-center text-kairos-gold font-heading font-bold text-xl">
               {client.initials}
             </div>
             <div>
@@ -139,7 +139,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             </div>
           </div>
           <div className="text-right">
-            <p className="text-4xl font-heading font-bold text-[#D4AF37]">{client.healthScore}</p>
+            <p className="text-4xl font-heading font-bold text-kairos-gold">{client.healthScore}</p>
             <p className={`text-sm font-medium ${trendColor}`}>{trendIcon} Health Score</p>
             <p className="text-xs text-gray-500 mt-1">Last active: {client.lastActive}</p>
           </div>
@@ -163,7 +163,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <div className="kairos-card p-3 text-center">
           <p className="text-[10px] text-gray-500 uppercase mb-1">Adherence</p>
-          <p className="text-xl font-heading font-bold text-[#D4AF37]">{client.metrics.adherence}%</p>
+          <p className="text-xl font-heading font-bold text-kairos-gold">{client.metrics.adherence}%</p>
         </div>
         <div className="kairos-card p-3 text-center">
           <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Glucose</p>
@@ -200,7 +200,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         <div className="lg:col-span-2 space-y-6">
           {/* Current Protocol */}
           <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4 flex items-center gap-2">
               <TrendingUp size={18} /> Current Protocol
             </h2>
             <h3 className="font-heading font-semibold text-white mb-2">{client.protocol.name}</h3>
@@ -223,7 +223,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             <div className="mb-4">
               <div className="flex justify-between items-center mb-1">
                 <span className="text-xs text-gray-500">Progress</span>
-                <span className="text-sm font-heading font-bold text-[#D4AF37]">{client.protocol.progress}%</span>
+                <span className="text-sm font-heading font-bold text-kairos-gold">{client.protocol.progress}%</span>
               </div>
               <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
                 <div className="h-full bg-[#D4AF37] rounded-full transition-all" style={{ width: `${client.protocol.progress}%` }} />
@@ -236,7 +236,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               <ul className="space-y-1.5">
                 {client.protocol.goals.map((goal, idx) => (
                   <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
-                    <span className="text-[#D4AF37] mt-0.5">•</span>
+                    <span className="text-kairos-gold mt-0.5">•</span>
                     {goal}
                   </li>
                 ))}
@@ -246,14 +246,14 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
           {/* Biometric Charts */}
           <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4 flex items-center gap-2">
               <Activity size={18} /> Recent Biometrics
             </h2>
             <div className="grid grid-cols-3 gap-4">
               {/* Glucose */}
               <div>
                 <p className="text-xs font-semibold text-gray-300 mb-2">Glucose (7d)</p>
-                {renderSparkLine(client.metrics.glucoseData, 140, "#D4AF37")}
+                {renderSparkLine(client.metrics.glucoseData, 140, "rgb(var(--k-accent))")}
                 <p className="text-[10px] text-gray-500 text-center mt-1">
                   Avg: {client.metrics.avgGlucose ?? "—"} mg/dL
                 </p>
@@ -261,7 +261,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               {/* Sleep */}
               <div>
                 <p className="text-xs font-semibold text-gray-300 mb-2">Sleep (7d)</p>
-                {renderSparkLine(client.metrics.sleepData, 10, "#60A5FA")}
+                {renderSparkLine(client.metrics.sleepData, 10, "rgb(96, 165, 250)")}
                 <p className="text-[10px] text-gray-500 text-center mt-1">
                   Avg: {client.metrics.sleepData.length > 0
                     ? (client.metrics.sleepData.reduce((a, b) => a + b, 0) / client.metrics.sleepData.length).toFixed(1)
@@ -271,7 +271,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               {/* Weight */}
               <div>
                 <p className="text-xs font-semibold text-gray-300 mb-2">Weight (4w)</p>
-                {renderSparkLine(client.metrics.weightData, Math.max(...client.metrics.weightData) + 10, "#A78BFA")}
+                {renderSparkLine(client.metrics.weightData, Math.max(...client.metrics.weightData) + 10, "rgb(167, 139, 250)")}
                 <p className="text-[10px] text-gray-500 text-center mt-1">
                   Current: {client.metrics.weight ?? "—"} lbs
                 </p>
@@ -281,7 +281,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
           {/* Coach Notes */}
           <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-4">Coach Notes</h2>
+            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4">Coach Notes</h2>
 
             {/* Add Note */}
             <div className="flex gap-2 mb-4">
@@ -291,12 +291,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }}
-                className="flex-1 px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37]/50"
+                className="flex-1 px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
               />
               <button
                 onClick={handleAddNote}
                 disabled={!noteText.trim()}
-                className="px-3 py-2 rounded-xl bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30 text-sm font-medium hover:bg-[#D4AF37]/30 transition-colors disabled:opacity-40"
+                className="px-3 py-2 rounded-xl bg-kairos-gold/20 text-kairos-gold border border-kairos-gold/30 text-sm font-medium hover:bg-[#D4AF37]/30 transition-colors disabled:opacity-40"
               >
                 <Send size={14} />
               </button>
@@ -308,13 +308,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {notes.map((note) => (
-                  <div key={note.id} className={`p-3 rounded-xl border ${note.pinned ? "border-[#D4AF37]/30 bg-[#D4AF37]/5" : "border-gray-700 bg-gray-800/50"}`}>
+                  <div key={note.id} className={`p-3 rounded-xl border ${note.pinned ? "border-kairos-gold/30 bg-[#D4AF37]/5" : "border-gray-700 bg-gray-800/50"}`}>
                     <p className="text-sm text-gray-300">{note.content}</p>
                     <div className="flex items-center justify-between mt-2">
                       <p className="text-[10px] text-gray-500">{formatRelativeTime(note.createdAt)}</p>
                       <div className="flex gap-1">
-                        <button onClick={() => handlePinNote(note.id)} className="p-1 text-gray-500 hover:text-[#D4AF37] transition-colors">
-                          <Pin size={12} className={note.pinned ? "text-[#D4AF37]" : ""} />
+                        <button onClick={() => handlePinNote(note.id)} className="p-1 text-gray-500 hover:text-kairos-gold transition-colors">
+                          <Pin size={12} className={note.pinned ? "text-kairos-gold" : ""} />
                         </button>
                         <button onClick={() => handleDeleteNote(note.id)} className="p-1 text-gray-500 hover:text-red-400 transition-colors">
                           <Trash2 size={12} />
@@ -332,7 +332,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         <div className="space-y-6">
           {/* Active Alerts */}
           <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4 flex items-center gap-2">
               <AlertCircle size={18} /> Alerts ({unresolvedAlerts.length})
             </h2>
             {unresolvedAlerts.length === 0 ? (
@@ -367,13 +367,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
           {/* Recent Activity */}
           <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4 flex items-center gap-2">
               <Clock size={18} /> Recent Activity
             </h2>
             <div className="space-y-2 max-h-72 overflow-y-auto">
               {client.recentActivity.map((activity) => (
                 <div key={activity.id} className="flex gap-3 pb-2 border-b border-gray-800 last:border-b-0">
-                  <div className="w-7 h-7 rounded-full bg-[#D4AF37]/10 flex items-center justify-center text-[#D4AF37] text-[10px] font-bold shrink-0 mt-0.5">
+                  <div className="w-7 h-7 rounded-full bg-[#D4AF37]/10 flex items-center justify-center text-kairos-gold text-[10px] font-bold shrink-0 mt-0.5">
                     {activity.type === "check-in" ? "✓" :
                      activity.type === "workout" ? "💪" :
                      activity.type === "supplement" ? "💊" :
@@ -392,7 +392,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
           {/* Client Info */}
           <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-[#D4AF37] mb-3">Details</h2>
+            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-3">Details</h2>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500">Body Fat</span>
@@ -417,20 +417,20 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
       {/* Action Buttons */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <button className="kairos-card hover:border-[#D4AF37]/30 transition-all flex items-center justify-center gap-2 py-3">
-          <MessageSquare size={16} className="text-[#D4AF37]" />
+        <button className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
+          <MessageSquare size={16} className="text-kairos-gold" />
           <span className="text-sm font-medium text-white">Send Message</span>
         </button>
-        <button className="kairos-card hover:border-[#D4AF37]/30 transition-all flex items-center justify-center gap-2 py-3">
-          <Settings size={16} className="text-[#D4AF37]" />
+        <button className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
+          <Settings size={16} className="text-kairos-gold" />
           <span className="text-sm font-medium text-white">Adjust Protocol</span>
         </button>
-        <button className="kairos-card hover:border-[#D4AF37]/30 transition-all flex items-center justify-center gap-2 py-3">
-          <Calendar size={16} className="text-[#D4AF37]" />
+        <button className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
+          <Calendar size={16} className="text-kairos-gold" />
           <span className="text-sm font-medium text-white">Schedule Session</span>
         </button>
-        <button className="kairos-card hover:border-[#D4AF37]/30 transition-all flex items-center justify-center gap-2 py-3">
-          <Activity size={16} className="text-[#D4AF37]" />
+        <button className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
+          <Activity size={16} className="text-kairos-gold" />
           <span className="text-sm font-medium text-white">View Full History</span>
         </button>
       </div>
