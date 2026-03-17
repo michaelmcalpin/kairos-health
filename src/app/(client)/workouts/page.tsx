@@ -15,6 +15,7 @@ import {
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useWorkouts } from "@/hooks/client/useWorkouts";
+import { getTodaysWorkout, getWeeklySchedule, getHeartRateZones } from "@/lib/client-ops";
 
 export default function WorkoutsPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
@@ -25,30 +26,9 @@ export default function WorkoutsPage() {
   const { records: workouts, stats: workoutStats } = useWorkouts(dateRange);
   const stats = workoutStats;
 
-  const todaysWorkout = {
-    name: "Zone 2 Aerobic Base",
-    duration: 45,
-    targetZone: "Zone 2 (120-140 bpm)",
-    time: "6:00 AM - 6:45 AM",
-  };
-
-  const weeklySchedule = [
-    { day: "Mon", type: "Zone 2 Cardio", color: "bg-blue-900/40" },
-    { day: "Tue", type: "Strength Training", color: "bg-orange-900/40" },
-    { day: "Wed", type: "Rest", color: "bg-gray-900/40" },
-    { day: "Thu", type: "HIIT", color: "bg-red-900/40" },
-    { day: "Fri", type: "Zone 2 Cardio", color: "bg-blue-900/40" },
-    { day: "Sat", type: "Yoga/Mobility", color: "bg-purple-900/40" },
-    { day: "Sun", type: "Strength Training", color: "bg-orange-900/40" },
-  ];
-
-  const heartRateZones = [
-    { zone: "Zone 1", name: "Recovery", description: "Light activity, active recovery", hrRange: "50-70% max HR", benefits: "Promotes blood flow and adaptation" },
-    { zone: "Zone 2", name: "Aerobic Base", description: "Sustainable steady-state training", hrRange: "70-80% max HR", benefits: "Builds aerobic capacity and mitochondrial function" },
-    { zone: "Zone 3", name: "Tempo", description: "Comfortably hard, conversation difficult", hrRange: "80-90% max HR", benefits: "Improves lactate threshold" },
-    { zone: "Zone 4", name: "Threshold", description: "Hard effort, breathing elevated", hrRange: "90-95% max HR", benefits: "Strengthens anaerobic capacity" },
-    { zone: "Zone 5", name: "VO2 Max", description: "Maximum sustainable effort", hrRange: "95-100% max HR", benefits: "Maximizes cardiovascular power" },
-  ];
+  const todaysWorkout = getTodaysWorkout(new Date());
+  const weeklySchedule = getWeeklySchedule();
+  const heartRateZones = getHeartRateZones();
 
   return (
     <div className="space-y-6 animate-fade-in">

@@ -26,6 +26,12 @@ import {
   generateClientInsights,
   filterClientInsights,
   getInsightSummary,
+  generateMeals,
+  getTodaysWorkout,
+  getWeeklySchedule,
+  getHeartRateZones,
+  getSupplementProtocol,
+  generateSleepStages,
   resetClientOpsStore,
 } from "../engine";
 
@@ -419,5 +425,169 @@ describe("getInsightSummary", () => {
     const b = getInsightSummary(weekStart);
     expect(a.score).toBe(b.score);
     expect(a.trend).toBe(b.trend);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════
+// NUTRITION MEALS
+// ═════════════════════════════════════════════════════════════════
+
+describe("generateMeals", () => {
+  it("returns 4 meals (Breakfast, Lunch, Dinner, Snacks)", () => {
+    const meals = generateMeals(new Date("2026-03-10"));
+    expect(meals).toHaveLength(4);
+    expect(meals.map((m) => m.name)).toEqual(["Breakfast", "Lunch", "Dinner", "Snacks"]);
+  });
+
+  it("meals have required fields", () => {
+    const meals = generateMeals(new Date("2026-03-10"));
+    const m = meals[0];
+    expect(m).toHaveProperty("name");
+    expect(m).toHaveProperty("items");
+    expect(m).toHaveProperty("calories");
+    expect(m).toHaveProperty("protein");
+    expect(m).toHaveProperty("carbs");
+    expect(m).toHaveProperty("fat");
+    expect(m.items.length).toBeGreaterThan(0);
+  });
+
+  it("is deterministic for same date", () => {
+    const a = generateMeals(new Date("2026-03-10"));
+    const b = generateMeals(new Date("2026-03-10"));
+    expect(a[0].items).toEqual(b[0].items);
+    expect(a[1].calories).toBe(b[1].calories);
+  });
+
+  it("varies by date", () => {
+    const a = generateMeals(new Date("2026-03-10"));
+    const b = generateMeals(new Date("2026-03-11"));
+    const aStr = JSON.stringify(a);
+    const bStr = JSON.stringify(b);
+    expect(aStr).not.toBe(bStr);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════
+// WORKOUT SCHEDULE
+// ═════════════════════════════════════════════════════════════════
+
+describe("getTodaysWorkout", () => {
+  it("returns workout with required fields", () => {
+    const w = getTodaysWorkout(new Date(2026, 2, 16)); // Monday local
+    expect(w).toHaveProperty("name");
+    expect(w).toHaveProperty("duration");
+    expect(w).toHaveProperty("targetZone");
+    expect(w).toHaveProperty("time");
+    expect(w.duration).toBeGreaterThan(0);
+  });
+
+  it("returns Zone 2 on Monday", () => {
+    const w = getTodaysWorkout(new Date(2026, 2, 16)); // Monday local
+    expect(w.name).toBe("Zone 2 Aerobic Base");
+  });
+
+  it("returns different workouts on different days", () => {
+    const mon = getTodaysWorkout(new Date(2026, 2, 16));
+    const tue = getTodaysWorkout(new Date(2026, 2, 17));
+    expect(mon.name).not.toBe(tue.name);
+  });
+});
+
+describe("getWeeklySchedule", () => {
+  it("returns 7 days", () => {
+    expect(getWeeklySchedule()).toHaveLength(7);
+  });
+
+  it("items have day, type, and color", () => {
+    const schedule = getWeeklySchedule();
+    const item = schedule[0];
+    expect(item).toHaveProperty("day");
+    expect(item).toHaveProperty("type");
+    expect(item).toHaveProperty("color");
+  });
+});
+
+describe("getHeartRateZones", () => {
+  it("returns 5 zones", () => {
+    expect(getHeartRateZones()).toHaveLength(5);
+  });
+
+  it("zones have required fields", () => {
+    const zone = getHeartRateZones()[0];
+    expect(zone).toHaveProperty("zone");
+    expect(zone).toHaveProperty("name");
+    expect(zone).toHaveProperty("description");
+    expect(zone).toHaveProperty("hrRange");
+    expect(zone).toHaveProperty("benefits");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════
+// SUPPLEMENT PROTOCOL
+// ═════════════════════════════════════════════════════════════════
+
+describe("getSupplementProtocol", () => {
+  it("returns 9 protocol items", () => {
+    expect(getSupplementProtocol()).toHaveLength(9);
+  });
+
+  it("items have required fields", () => {
+    const item = getSupplementProtocol()[0];
+    expect(item).toHaveProperty("id");
+    expect(item).toHaveProperty("name");
+    expect(item).toHaveProperty("dosage");
+    expect(item).toHaveProperty("timing");
+    expect(item).toHaveProperty("timeOfDay");
+    expect(item).toHaveProperty("instructions");
+    expect(item).toHaveProperty("taken");
+  });
+
+  it("first 3 items are marked as taken", () => {
+    const items = getSupplementProtocol();
+    expect(items[0].taken).toBe(true);
+    expect(items[1].taken).toBe(true);
+    expect(items[2].taken).toBe(true);
+    expect(items[3].taken).toBe(false);
+  });
+
+  it("covers all time-of-day slots", () => {
+    const items = getSupplementProtocol();
+    const tods = new Set(items.map((i) => i.timeOfDay));
+    expect(tods.has("morning")).toBe(true);
+    expect(tods.has("midday")).toBe(true);
+    expect(tods.has("evening")).toBe(true);
+    expect(tods.has("bedtime")).toBe(true);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════
+// SLEEP STAGES
+// ═════════════════════════════════════════════════════════════════
+
+describe("generateSleepStages", () => {
+  it("returns 20 stage blocks", () => {
+    expect(generateSleepStages(new Date("2026-03-10"))).toHaveLength(20);
+  });
+
+  it("blocks have stage and positive duration", () => {
+    const stages = generateSleepStages(new Date("2026-03-10"));
+    for (const block of stages) {
+      expect(["deep", "rem", "light", "awake"]).toContain(block.stage);
+      expect(block.duration).toBeGreaterThan(0);
+    }
+  });
+
+  it("is deterministic for same date", () => {
+    const a = generateSleepStages(new Date("2026-03-10"));
+    const b = generateSleepStages(new Date("2026-03-10"));
+    expect(a).toEqual(b);
+  });
+
+  it("varies by date", () => {
+    const a = generateSleepStages(new Date("2026-03-10"));
+    const b = generateSleepStages(new Date("2026-03-11"));
+    const aDurations = a.map((s) => s.duration);
+    const bDurations = b.map((s) => s.duration);
+    expect(aDurations).not.toEqual(bDurations);
   });
 });

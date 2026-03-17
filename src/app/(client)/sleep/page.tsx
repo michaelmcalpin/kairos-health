@@ -5,6 +5,7 @@ import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useSleep } from "@/hooks/client/useSleep";
 import { Moon, Clock, Zap, Brain, TrendingUp, Sun } from "lucide-react";
+import { generateSleepStages } from "@/lib/client-ops";
 
 const stageColors: Record<string, string> = {
   deep: "#6366f1",
@@ -56,18 +57,7 @@ export default function SleepPage() {
             <h3 className="font-heading font-semibold text-white mb-4">Sleep Stages — {formattedRange}</h3>
             <div className="space-y-1">
               {(() => {
-                const stages = [
-                  { stage: "light", duration: 25 }, { stage: "deep", duration: 35 },
-                  { stage: "light", duration: 15 }, { stage: "rem", duration: 20 },
-                  { stage: "light", duration: 10 }, { stage: "awake", duration: 5 },
-                  { stage: "light", duration: 20 }, { stage: "deep", duration: 40 },
-                  { stage: "light", duration: 15 }, { stage: "rem", duration: 25 },
-                  { stage: "light", duration: 20 }, { stage: "deep", duration: 30 },
-                  { stage: "rem", duration: 20 }, { stage: "light", duration: 30 },
-                  { stage: "awake", duration: 5 }, { stage: "light", duration: 20 },
-                  { stage: "rem", duration: 25 }, { stage: "light", duration: 25 },
-                  { stage: "awake", duration: 5 }, { stage: "light", duration: 20 },
-                ];
+                const stages = generateSleepStages(dateRange.startDate);
                 const totalMin = stages.reduce((s, b) => s + b.duration, 0);
                 return (
                   <div>

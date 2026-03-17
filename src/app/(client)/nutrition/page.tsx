@@ -13,15 +13,7 @@ import {
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useNutrition } from "@/hooks/client/useNutrition";
-
-interface MealEntry {
-  name: string;
-  items: string[];
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-}
+import { generateMeals } from "@/lib/client-ops";
 
 export default function NutritionPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
@@ -40,12 +32,7 @@ export default function NutritionPage() {
     fat: { target: 120, actual: stats.fat, unit: "g", label: "Fat" },
   };
 
-  const meals: MealEntry[] = [
-    { name: "Breakfast", items: ["Greek yogurt with berries", "Handful of almonds", "Green tea"], calories: 420, protein: 28, carbs: 32, fat: 18 },
-    { name: "Lunch", items: ["Grilled salmon", "Roasted broccoli", "Sweet potato"], calories: 580, protein: 46, carbs: 38, fat: 22 },
-    { name: "Dinner", items: ["Grass-fed beef steak", "Mixed green salad with olive oil", "Asparagus"], calories: 520, protein: 52, carbs: 16, fat: 28 },
-    { name: "Snacks", items: ["Macadamia nuts", "Grass-fed beef jerky"], calories: 160, protein: 16, carbs: 6, fat: 9 },
-  ];
+  const meals = generateMeals(dateRange.startDate);
 
   const calculatePercentage = (actual: number, target: number) => Math.min((actual / target) * 100, 100);
 

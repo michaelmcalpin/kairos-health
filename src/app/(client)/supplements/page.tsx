@@ -5,28 +5,8 @@ import { Pill, CheckCircle, TrendingUp } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useSupplements } from "@/hooks/client/useSupplements";
-
-interface ProtocolItem {
-  id: string;
-  name: string;
-  dosage: string;
-  timing: string;
-  timeOfDay: "morning" | "midday" | "evening" | "bedtime";
-  instructions: string;
-  taken: boolean;
-}
-
-const protocolItems: ProtocolItem[] = [
-  { id: "1", name: "Vitamin D3", dosage: "5,000 IU", timing: "7:00 AM", timeOfDay: "morning", instructions: "Take with fatty meal", taken: true },
-  { id: "2", name: "Omega-3 Fish Oil", dosage: "2g EPA/DHA", timing: "7:00 AM", timeOfDay: "morning", instructions: "Take with breakfast", taken: true },
-  { id: "3", name: "Vitamin K2 (MK-7)", dosage: "200 mcg", timing: "7:00 AM", timeOfDay: "morning", instructions: "Take with Vitamin D", taken: true },
-  { id: "4", name: "Magnesium Glycinate", dosage: "400 mg", timing: "12:00 PM", timeOfDay: "midday", instructions: "Can take with or without food", taken: false },
-  { id: "5", name: "NAC", dosage: "600 mg", timing: "12:00 PM", timeOfDay: "midday", instructions: "Take on empty stomach", taken: false },
-  { id: "6", name: "CoQ10 (Ubiquinol)", dosage: "200 mg", timing: "12:00 PM", timeOfDay: "midday", instructions: "Take with fatty meal", taken: false },
-  { id: "7", name: "Ashwagandha (KSM-66)", dosage: "600 mg", timing: "8:00 PM", timeOfDay: "evening", instructions: "Take with dinner", taken: false },
-  { id: "8", name: "Magnesium L-Threonate", dosage: "144 mg", timing: "9:30 PM", timeOfDay: "bedtime", instructions: "Take 30 min before bed", taken: false },
-  { id: "9", name: "Melatonin", dosage: "0.5 mg", timing: "9:30 PM", timeOfDay: "bedtime", instructions: "Low dose, sublingual", taken: false },
-];
+import { getSupplementProtocol } from "@/lib/client-ops";
+import type { ProtocolItem } from "@/lib/client-ops";
 
 const timeOfDayLabels: Record<string, string> = { morning: "Morning", midday: "Midday", evening: "Evening", bedtime: "Bedtime" };
 const timeOfDayIcons: Record<string, string> = { morning: "\u2600\uFE0F", midday: "\uD83C\uDF24\uFE0F", evening: "\uD83C\uDF05", bedtime: "\uD83C\uDF19" };
@@ -35,7 +15,7 @@ export default function SupplementsPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
-  const [items, setItems] = useState(protocolItems);
+  const [items, setItems] = useState<ProtocolItem[]>(() => getSupplementProtocol());
 
   const { records: supplementHistory, stats: supplementStats } = useSupplements(dateRange);
 

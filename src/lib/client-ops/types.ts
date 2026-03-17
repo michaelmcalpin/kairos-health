@@ -161,6 +161,61 @@ export const INSIGHT_CATEGORIES: InsightCategory[] = [
   "Metabolic", "Sleep", "Recovery", "Nutrition", "Supplementation", "Exercise", "Stress",
 ];
 
+// ─── Nutrition (Meals) ───────────────────────────────────────────
+
+export interface MealEntry {
+  name: string;
+  items: string[];
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+// ─── Workouts (Schedule) ────────────────────────────────────────
+
+export interface TodaysWorkout {
+  name: string;
+  duration: number;
+  targetZone: string;
+  time: string;
+}
+
+export interface WeeklyScheduleItem {
+  day: string;
+  type: string;
+  color: string;
+}
+
+export interface HeartRateZone {
+  zone: string;
+  name: string;
+  description: string;
+  hrRange: string;
+  benefits: string;
+}
+
+// ─── Supplements (Protocol) ────────────────────────────────────
+
+export type TimeOfDay = "morning" | "midday" | "evening" | "bedtime";
+
+export interface ProtocolItem {
+  id: string;
+  name: string;
+  dosage: string;
+  timing: string;
+  timeOfDay: TimeOfDay;
+  instructions: string;
+  taken: boolean;
+}
+
+// ─── Sleep (Stages) ─────────────────────────────────────────────
+
+export interface SleepStageBlock {
+  stage: "deep" | "rem" | "light" | "awake";
+  duration: number;
+}
+
 // ─── Chat ─────────────────────────────────────────────────────────
 
 export type MessageSender = "client" | "coach" | "system";

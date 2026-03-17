@@ -19,6 +19,13 @@ import type {
   ClientInsight,
   InsightCategory,
   InsightSummary,
+  MealEntry,
+  TodaysWorkout,
+  WeeklyScheduleItem,
+  HeartRateZone,
+  ProtocolItem,
+  TimeOfDay,
+  SleepStageBlock,
 } from "./types";
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -491,6 +498,128 @@ export function getInsightSummary(startDate: Date): InsightSummary {
     score: (7 + seededRandom(baseSeed + 99) * 2.5).toFixed(1),
     trend: (seededRandom(baseSeed + 100) * 1.5 - 0.3).toFixed(1),
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NUTRITION MEALS ENGINE (date-based, deterministic)
+// ═══════════════════════════════════════════════════════════════════
+
+const MEAL_TEMPLATES: { name: string; items: string[][]; cals: number[]; protein: number[]; carbs: number[]; fat: number[] }[] = [
+  { name: "Breakfast", items: [["Greek yogurt with berries", "Handful of almonds", "Green tea"], ["Omelette with spinach & feta", "Avocado toast", "Black coffee"], ["Overnight oats with chia seeds", "Mixed berries", "Matcha latte"], ["Smoked salmon on rye", "Cream cheese & capers", "Herbal tea"]], cals: [420, 480, 390, 510], protein: [28, 34, 18, 32], carbs: [32, 28, 48, 22], fat: [18, 26, 14, 28] },
+  { name: "Lunch", items: [["Grilled salmon", "Roasted broccoli", "Sweet potato"], ["Chicken Caesar salad", "Parmesan crisps", "Sparkling water"], ["Mediterranean bowl with hummus", "Grilled chicken", "Tabbouleh"], ["Grass-fed burger (no bun)", "Mixed greens", "Sweet potato fries"]], cals: [580, 520, 560, 610], protein: [46, 42, 38, 48], carbs: [38, 18, 42, 32], fat: [22, 28, 24, 30] },
+  { name: "Dinner", items: [["Grass-fed beef steak", "Mixed green salad with olive oil", "Asparagus"], ["Baked cod with lemon", "Quinoa pilaf", "Steamed green beans"], ["Lamb chops with rosemary", "Roasted root vegetables", "Kale salad"], ["Pan-seared duck breast", "Wild rice", "Sautéed mushrooms"]], cals: [520, 480, 560, 540], protein: [52, 44, 48, 46], carbs: [16, 34, 22, 28], fat: [28, 18, 32, 24] },
+  { name: "Snacks", items: [["Macadamia nuts", "Grass-fed beef jerky"], ["Apple slices with almond butter"], ["Dark chocolate (85%)", "Walnuts"], ["Cottage cheese with pumpkin seeds"]], cals: [160, 210, 180, 200], protein: [16, 8, 6, 22], carbs: [6, 22, 12, 8], fat: [9, 14, 14, 10] },
+];
+
+export function generateMeals(dateRef: Date): MealEntry[] {
+  const seed = dateRef.getFullYear() * 10000 + (dateRef.getMonth() + 1) * 100 + dateRef.getDate();
+  return MEAL_TEMPLATES.map((tpl, mi) => {
+    const variantIdx = Math.floor(seededRandom(seed + mi * 7) * tpl.items.length);
+    return {
+      name: tpl.name,
+      items: tpl.items[variantIdx],
+      calories: tpl.cals[variantIdx],
+      protein: tpl.protein[variantIdx],
+      carbs: tpl.carbs[variantIdx],
+      fat: tpl.fat[variantIdx],
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// WORKOUT SCHEDULE ENGINE
+// ═══════════════════════════════════════════════════════════════════
+
+const WORKOUT_TYPES: { name: string; duration: number; zone: string; time: string }[] = [
+  { name: "Zone 2 Aerobic Base", duration: 45, zone: "Zone 2 (120-140 bpm)", time: "6:00 AM - 6:45 AM" },
+  { name: "Upper Body Strength", duration: 55, zone: "Zone 3 (140-155 bpm)", time: "6:00 AM - 6:55 AM" },
+  { name: "Rest & Recovery", duration: 20, zone: "Zone 1 (<120 bpm)", time: "7:00 AM - 7:20 AM" },
+  { name: "HIIT Intervals", duration: 30, zone: "Zone 4-5 (155-180 bpm)", time: "6:00 AM - 6:30 AM" },
+  { name: "Zone 2 Cardio", duration: 45, zone: "Zone 2 (120-140 bpm)", time: "6:00 AM - 6:45 AM" },
+  { name: "Yoga & Mobility", duration: 40, zone: "Zone 1 (<120 bpm)", time: "7:00 AM - 7:40 AM" },
+  { name: "Lower Body Strength", duration: 55, zone: "Zone 3 (140-155 bpm)", time: "6:00 AM - 6:55 AM" },
+];
+
+const WEEKLY_SCHEDULE_DATA: WeeklyScheduleItem[] = [
+  { day: "Mon", type: "Zone 2 Cardio", color: "bg-blue-900/40" },
+  { day: "Tue", type: "Strength Training", color: "bg-orange-900/40" },
+  { day: "Wed", type: "Rest", color: "bg-gray-900/40" },
+  { day: "Thu", type: "HIIT", color: "bg-red-900/40" },
+  { day: "Fri", type: "Zone 2 Cardio", color: "bg-blue-900/40" },
+  { day: "Sat", type: "Yoga/Mobility", color: "bg-purple-900/40" },
+  { day: "Sun", type: "Strength Training", color: "bg-orange-900/40" },
+];
+
+const HR_ZONES: HeartRateZone[] = [
+  { zone: "Zone 1", name: "Recovery", description: "Light activity, active recovery", hrRange: "50-70% max HR", benefits: "Promotes blood flow and adaptation" },
+  { zone: "Zone 2", name: "Aerobic Base", description: "Sustainable steady-state training", hrRange: "70-80% max HR", benefits: "Builds aerobic capacity and mitochondrial function" },
+  { zone: "Zone 3", name: "Tempo", description: "Comfortably hard, conversation difficult", hrRange: "80-90% max HR", benefits: "Improves lactate threshold" },
+  { zone: "Zone 4", name: "Threshold", description: "Hard effort, breathing elevated", hrRange: "90-95% max HR", benefits: "Strengthens anaerobic capacity" },
+  { zone: "Zone 5", name: "VO2 Max", description: "Maximum sustainable effort", hrRange: "95-100% max HR", benefits: "Maximizes cardiovascular power" },
+];
+
+export function getTodaysWorkout(dateRef: Date): TodaysWorkout {
+  const dow = dateRef.getDay(); // 0=Sun..6=Sat
+  const idx = dow === 0 ? 6 : dow - 1; // Mon=0..Sun=6
+  const wt = WORKOUT_TYPES[idx];
+  return { name: wt.name, duration: wt.duration, targetZone: wt.zone, time: wt.time };
+}
+
+export function getWeeklySchedule(): WeeklyScheduleItem[] {
+  return WEEKLY_SCHEDULE_DATA;
+}
+
+export function getHeartRateZones(): HeartRateZone[] {
+  return HR_ZONES;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SUPPLEMENT PROTOCOL ENGINE
+// ═══════════════════════════════════════════════════════════════════
+
+const PROTOCOL_DATA: Omit<ProtocolItem, "id" | "taken">[] = [
+  { name: "Vitamin D3", dosage: "5,000 IU", timing: "7:00 AM", timeOfDay: "morning" as TimeOfDay, instructions: "Take with fatty meal" },
+  { name: "Omega-3 Fish Oil", dosage: "2g EPA/DHA", timing: "7:00 AM", timeOfDay: "morning" as TimeOfDay, instructions: "Take with breakfast" },
+  { name: "Vitamin K2 (MK-7)", dosage: "200 mcg", timing: "7:00 AM", timeOfDay: "morning" as TimeOfDay, instructions: "Take with Vitamin D" },
+  { name: "Magnesium Glycinate", dosage: "400 mg", timing: "12:00 PM", timeOfDay: "midday" as TimeOfDay, instructions: "Can take with or without food" },
+  { name: "NAC", dosage: "600 mg", timing: "12:00 PM", timeOfDay: "midday" as TimeOfDay, instructions: "Take on empty stomach" },
+  { name: "CoQ10 (Ubiquinol)", dosage: "200 mg", timing: "12:00 PM", timeOfDay: "midday" as TimeOfDay, instructions: "Take with fatty meal" },
+  { name: "Ashwagandha (KSM-66)", dosage: "600 mg", timing: "8:00 PM", timeOfDay: "evening" as TimeOfDay, instructions: "Take with dinner" },
+  { name: "Magnesium L-Threonate", dosage: "144 mg", timing: "9:30 PM", timeOfDay: "bedtime" as TimeOfDay, instructions: "Take 30 min before bed" },
+  { name: "Melatonin", dosage: "0.5 mg", timing: "9:30 PM", timeOfDay: "bedtime" as TimeOfDay, instructions: "Low dose, sublingual" },
+];
+
+export function getSupplementProtocol(): ProtocolItem[] {
+  return PROTOCOL_DATA.map((p, i) => ({
+    id: `supp_${i + 1}`,
+    ...p,
+    taken: i < 3, // first 3 morning supps marked as taken by default
+  }));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SLEEP STAGES ENGINE (date-based, deterministic)
+// ═══════════════════════════════════════════════════════════════════
+
+const BASE_STAGES: SleepStageBlock[] = [
+  { stage: "light", duration: 25 }, { stage: "deep", duration: 35 },
+  { stage: "light", duration: 15 }, { stage: "rem", duration: 20 },
+  { stage: "light", duration: 10 }, { stage: "awake", duration: 5 },
+  { stage: "light", duration: 20 }, { stage: "deep", duration: 40 },
+  { stage: "light", duration: 15 }, { stage: "rem", duration: 25 },
+  { stage: "light", duration: 20 }, { stage: "deep", duration: 30 },
+  { stage: "rem", duration: 20 }, { stage: "light", duration: 30 },
+  { stage: "awake", duration: 5 }, { stage: "light", duration: 20 },
+  { stage: "rem", duration: 25 }, { stage: "light", duration: 25 },
+  { stage: "awake", duration: 5 }, { stage: "light", duration: 20 },
+];
+
+export function generateSleepStages(dateRef: Date): SleepStageBlock[] {
+  const seed = dateRef.getFullYear() * 10000 + (dateRef.getMonth() + 1) * 100 + dateRef.getDate();
+  return BASE_STAGES.map((block, i) => {
+    const jitter = Math.round((seededRandom(seed + i * 3) - 0.5) * 10);
+    return { stage: block.stage, duration: Math.max(2, block.duration + jitter) };
+  });
 }
 
 // ─── Reset ────────────────────────────────────────────────────────
