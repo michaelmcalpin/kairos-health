@@ -27,12 +27,13 @@ export function BarChart({
   data,
   width = 400,
   height = 200,
-  barColor = "#D4AF37",
+  barColor,
   showValues = true,
   showLabels = true,
   className = "",
 }: BarChartProps) {
   const tc = useThemeColors();
+  const resolvedBarColor = barColor ?? tc.accent;
   if (data.length === 0) return null;
 
   const padding = { top: 20, right: 10, bottom: showLabels ? 36 : 10, left: 10 };
@@ -69,7 +70,7 @@ export function BarChart({
         const barHeight = (d.value / maxValue) * chartHeight;
         const x = padding.left + barGap + i * (barWidth + barGap);
         const y = padding.top + chartHeight - barHeight;
-        const color = d.color ?? barColor;
+        const color = d.color ?? resolvedBarColor;
 
         return (
           <g key={i}>

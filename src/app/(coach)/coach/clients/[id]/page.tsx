@@ -16,6 +16,7 @@ import {
   CheckCircle,
   Send,
 } from "lucide-react";
+import { useThemeColors } from "@/lib/theme";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import {
@@ -40,6 +41,7 @@ import {
 const COACH_ID = "demo-coach";
 
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
+  const tc = useThemeColors();
   const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
@@ -226,7 +228,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <span className="text-sm font-heading font-bold text-kairos-gold">{client.protocol.progress}%</span>
               </div>
               <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div className="h-full bg-[#D4AF37] rounded-full transition-all" style={{ width: `${client.protocol.progress}%` }} />
+                <div className="h-full rounded-full transition-all" style={{ backgroundColor: tc.accent, width: `${client.protocol.progress}%` }} />
               </div>
             </div>
 
@@ -253,7 +255,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               {/* Glucose */}
               <div>
                 <p className="text-xs font-semibold text-gray-300 mb-2">Glucose (7d)</p>
-                {renderSparkLine(client.metrics.glucoseData, 140, "rgb(var(--k-accent))")}
+                {renderSparkLine(client.metrics.glucoseData, 140, tc.accent)}
                 <p className="text-[10px] text-gray-500 text-center mt-1">
                   Avg: {client.metrics.avgGlucose ?? "—"} mg/dL
                 </p>
@@ -296,7 +298,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               <button
                 onClick={handleAddNote}
                 disabled={!noteText.trim()}
-                className="px-3 py-2 rounded-xl bg-kairos-gold/20 text-kairos-gold border border-kairos-gold/30 text-sm font-medium hover:bg-[#D4AF37]/30 transition-colors disabled:opacity-40"
+                className="px-3 py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 text-kairos-gold border border-kairos-gold/30 bg-kairos-gold/10 hover:bg-kairos-gold/20"
               >
                 <Send size={14} />
               </button>
@@ -308,7 +310,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {notes.map((note) => (
-                  <div key={note.id} className={`p-3 rounded-xl border ${note.pinned ? "border-kairos-gold/30 bg-[#D4AF37]/5" : "border-gray-700 bg-gray-800/50"}`}>
+                  <div key={note.id} className={`p-3 rounded-xl border ${note.pinned ? "border-gray-700" : "border-gray-700 bg-gray-800/50"}`} style={note.pinned ? { borderColor: tc.accent + "30", backgroundColor: tc.accent + "05" } : {}}>
                     <p className="text-sm text-gray-300">{note.content}</p>
                     <div className="flex items-center justify-between mt-2">
                       <p className="text-[10px] text-gray-500">{formatRelativeTime(note.createdAt)}</p>
@@ -373,7 +375,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             <div className="space-y-2 max-h-72 overflow-y-auto">
               {client.recentActivity.map((activity) => (
                 <div key={activity.id} className="flex gap-3 pb-2 border-b border-gray-800 last:border-b-0">
-                  <div className="w-7 h-7 rounded-full bg-[#D4AF37]/10 flex items-center justify-center text-kairos-gold text-[10px] font-bold shrink-0 mt-0.5">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-kairos-gold text-[10px] font-bold shrink-0 mt-0.5" style={{ backgroundColor: tc.accent + "10" }}>
                     {activity.type === "check-in" ? "✓" :
                      activity.type === "workout" ? "💪" :
                      activity.type === "supplement" ? "💊" :

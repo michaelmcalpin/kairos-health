@@ -1,5 +1,6 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
 import { SparkLine } from "@/components/charts";
 
 /**
@@ -21,6 +22,7 @@ interface AdminKPIGridProps {
 }
 
 export function AdminKPIGrid({ kpis }: AdminKPIGridProps) {
+  const tc = useThemeColors();
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {kpis.map((kpi, i) => (
@@ -40,8 +42,8 @@ export function AdminKPIGrid({ kpis }: AdminKPIGridProps) {
                 data={kpi.sparkData}
                 width={64}
                 height={28}
-                strokeColor={kpi.sparkColor ?? "#D4AF37"}
-                fillColor={kpi.sparkColor ?? "#D4AF37"}
+                strokeColor={kpi.sparkColor ?? tc.accent}
+                fillColor={kpi.sparkColor ?? tc.accent}
               />
             )}
           </div>

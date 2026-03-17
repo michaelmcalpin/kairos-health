@@ -1,5 +1,6 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
 import { AreaChart } from "@/components/charts";
 
 /**
@@ -17,6 +18,7 @@ interface UserGrowthChartProps {
 }
 
 export function UserGrowthChart({ data }: UserGrowthChartProps) {
+  const tc = useThemeColors();
   if (data.length === 0) {
     return (
       <div className="kairos-card p-5">
@@ -61,8 +63,8 @@ export function UserGrowthChart({ data }: UserGrowthChartProps) {
           data={cumulativePoints}
           width={480}
           height={160}
-          strokeColor="#D4AF37"
-          fillColor="#D4AF37"
+          strokeColor={tc.accent}
+          fillColor={tc.accent}
           showValues
           className="w-full"
         />

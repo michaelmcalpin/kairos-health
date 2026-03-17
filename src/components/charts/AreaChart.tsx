@@ -29,14 +29,16 @@ export function AreaChart({
   data,
   width = 400,
   height = 200,
-  strokeColor = "#D4AF37",
-  fillColor = "#D4AF37",
+  strokeColor,
+  fillColor,
   showGrid = true,
   showLabels = true,
   showValues = false,
   className = "",
 }: AreaChartProps) {
   const tc = useThemeColors();
+  const resolvedStrokeColor = strokeColor ?? tc.accent;
+  const resolvedFillColor = fillColor ?? tc.accent;
   if (data.length < 2) return null;
 
   const padding = { top: 16, right: 12, bottom: showLabels ? 32 : 12, left: 12 };
@@ -70,8 +72,8 @@ export function AreaChart({
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={fillColor} stopOpacity={0.3} />
-          <stop offset="100%" stopColor={fillColor} stopOpacity={0.02} />
+          <stop offset="0%" stopColor={resolvedFillColor} stopOpacity={0.3} />
+          <stop offset="100%" stopColor={resolvedFillColor} stopOpacity={0.02} />
         </linearGradient>
       </defs>
 
@@ -96,7 +98,7 @@ export function AreaChart({
       <path
         d={linePath}
         fill="none"
-        stroke={strokeColor}
+        stroke={resolvedStrokeColor}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -105,7 +107,7 @@ export function AreaChart({
       {/* Data points */}
       {points.map((p, i) => (
         <g key={i}>
-          <circle cx={p.x} cy={p.y} r={3} fill={strokeColor}>
+          <circle cx={p.x} cy={p.y} r={3} fill={resolvedStrokeColor}>
             <title>{`${p.label}: ${p.value}`}</title>
           </circle>
           {showValues && (

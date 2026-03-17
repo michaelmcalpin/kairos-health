@@ -1,5 +1,6 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
 import { BarChart } from "@/components/charts";
 
 /**
@@ -18,6 +19,7 @@ interface EngagementMetricsProps {
 }
 
 export function EngagementMetrics({ dailyCheckins, totalActiveClients }: EngagementMetricsProps) {
+  const tc = useThemeColors();
   // Summary stats
   const avgRate = dailyCheckins.length > 0
     ? Math.round(dailyCheckins.reduce((sum, d) => sum + d.rate, 0) / dailyCheckins.length)
@@ -31,7 +33,7 @@ export function EngagementMetrics({ dailyCheckins, totalActiveClients }: Engagem
   const barData = recentDays.map((d) => ({
     label: d.date.slice(5), // MM-DD
     value: d.rate,
-    color: d.rate >= 60 ? "#10b981" : d.rate >= 40 ? "#D4AF37" : "#ef4444",  // colors passed to BarChart which handles theme
+    color: d.rate >= 60 ? "#10b981" : d.rate >= 40 ? tc.accent : "#ef4444",  // colors passed to BarChart which handles theme
   }));
 
   return (

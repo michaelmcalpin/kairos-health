@@ -1,5 +1,6 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
 import { DonutChart } from "@/components/charts";
 
 /**
@@ -20,21 +21,23 @@ interface RevenueBreakdownProps {
   arr: number;
 }
 
-const sourceColors: Record<string, string> = {
-  coaching: "#D4AF37",  // mapped to tc.accent
-  supplements: "#34d399",
-  labs: "#60a5fa",
-};
-
 function formatCurrency(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0 })}`;
 }
 
 export function RevenueBreakdown({ total, sources, mrr, arr }: RevenueBreakdownProps) {
+  const tc = useThemeColors();
+
+  const sourceColors: Record<string, string> = {
+    coaching: tc.accent,  // mapped to tc.accent
+    supplements: "#34d399",
+    labs: "#60a5fa",
+  };
+
   const donutSegments = sources.map((s) => ({
     label: s.label,
     value: s.amount,
-    color: sourceColors[s.source] ?? "#9E9E9E",
+    color: sourceColors[s.source] ?? tc.textSecondary,
   }));
 
   return (
@@ -78,7 +81,7 @@ export function RevenueBreakdown({ total, sources, mrr, arr }: RevenueBreakdownP
                 <div className="flex items-center gap-2">
                   <span
                     className="inline-block h-3 w-3 rounded-full"
-                    style={{ backgroundColor: sourceColors[s.source] ?? "#9E9E9E" }}
+                    style={{ backgroundColor: sourceColors[s.source] ?? tc.textSecondary }}
                   />
                   <span className="text-sm text-kairos-silver">{s.label}</span>
                 </div>

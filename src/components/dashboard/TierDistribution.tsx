@@ -1,5 +1,6 @@
 "use client";
 
+import { useThemeColors } from "@/lib/theme";
 import { DonutChart } from "@/components/charts";
 
 /**
@@ -19,17 +20,19 @@ interface TierDistributionProps {
   totalClients: number;
 }
 
-const tierColors: Record<string, string> = {
-  tier1: "#D4AF37",  // Gold — Private (mapped to tc.accent)
-  tier2: "#60a5fa",  // Blue — Associate
-  tier3: "#9E9E9E",  // Silver — AI-Guided (mapped to tc.textSecondary)
-};
-
 export function TierDistribution({ tiers, totalClients }: TierDistributionProps) {
+  const tc = useThemeColors();
+
+  const tierColors: Record<string, string> = {
+    tier1: tc.accent,  // Gold — Private
+    tier2: "#60a5fa",  // Blue — Associate
+    tier3: tc.textSecondary,  // Silver — AI-Guided
+  };
+
   const donutSegments = tiers.map((t) => ({
     label: t.label,
     value: t.clientCount,
-    color: tierColors[t.tier] ?? "#9E9E9E",
+    color: tierColors[t.tier] ?? tc.textSecondary,
   }));
 
   return (
@@ -56,7 +59,7 @@ export function TierDistribution({ tiers, totalClients }: TierDistributionProps)
               <div className="flex items-center gap-2.5">
                 <span
                   className="inline-block h-3 w-3 rounded-full"
-                  style={{ backgroundColor: tierColors[t.tier] ?? "#9E9E9E" }}
+                  style={{ backgroundColor: tierColors[t.tier] ?? tc.textSecondary }}
                 />
                 <div>
                   <span className="text-sm font-medium text-white">{t.label}</span>

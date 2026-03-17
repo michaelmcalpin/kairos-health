@@ -19,13 +19,13 @@ interface HeatMapProps {
   className?: string;
 }
 
-function getCellColor(value: number): string {
+function getCellColor(value: number, tc: ReturnType<typeof useThemeColors>): string {
   if (value >= 80) return "#10b981"; // emerald
   if (value >= 60) return "#34d399";
   if (value >= 40) return "#fbbf24"; // amber
   if (value >= 20) return "#f59e0b";
   if (value > 0) return "#ef4444";  // red
-  return "#1E2A5A";
+  return tc.card;
 }
 
 function getCellOpacity(value: number): number {
@@ -103,7 +103,7 @@ export function HeatMap({
                         style={{
                           width: cellSize - 4,
                           height: cellSize - 12,
-                          backgroundColor: getCellColor(value),
+                          backgroundColor: getCellColor(value, tc),
                           opacity: getCellOpacity(value),
                           color: value >= 40 ? tc.bg : tc.text,
                         }}

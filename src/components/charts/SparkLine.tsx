@@ -22,14 +22,14 @@ export function SparkLine({
   data,
   width = 120,
   height = 32,
-  strokeColor = "#D4AF37",
+  strokeColor,
   fillColor,
   strokeWidth = 1.5,
   showDots = false,
   className = "",
 }: SparkLineProps) {
   const tc = useThemeColors();
-  const resolvedStroke = strokeColor === "#D4AF37" ? tc.accent : strokeColor;
+  const resolvedStroke = strokeColor ?? tc.accent;
   if (data.length < 2) return null;
 
   const padding = 2;
