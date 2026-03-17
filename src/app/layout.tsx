@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { TRPCProvider } from "@/lib/providers";
 import { ToastProvider } from "@/components/ui/Toast";
+import { ThemeProvider } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,16 +25,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark theme-warm-slate">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#122055" />
+        <meta name="theme-color" content="#2C2C2E" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />
       </head>
       <body className="min-h-screen">
         <ClerkProvider>
           <TRPCProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ThemeProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </ThemeProvider>
           </TRPCProvider>
         </ClerkProvider>
       </body>

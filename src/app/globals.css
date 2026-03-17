@@ -4,19 +4,105 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Open+Sans:wght@400;500;600&display=swap');
 
-@layer base {
-  :root {
-    --kairos-royal: #122055;
-    --kairos-royal-light: #1A2D6D;
-    --kairos-royal-dark: #0A0F1F;
-    --kairos-gold: #D4AF37;
-    --kairos-gold-light: #E8D48B;
-    --kairos-silver: #E0E0E0;
-    --kairos-silver-dark: #9E9E9E;
-    --kairos-card: #12183A;
-    --kairos-border: #1E2A5A;
-  }
+/* ═══════════════════════════════════════════════════════════════════
+   THEME: Warm Slate (Default)
+   Colors stored as space-separated RGB channels so Tailwind opacity
+   modifiers (e.g. bg-kairos-gold/15) work at build time.
+   ═══════════════════════════════════════════════════════════════════ */
 
+:root,
+.theme-warm-slate {
+  /* Core palette  (R G B) */
+  --k-primary:        58 58 60;      /* #3A3A3C  Charcoal Slate */
+  --k-primary-light:  90 90 92;      /* #5A5A5C  Charcoal Light */
+  --k-accent:         201 168 154;   /* #C9A89A  Dusty Rose */
+  --k-accent-light:   240 230 224;   /* #F0E6E0  Rose Wash */
+  --k-accent-deep:    158 123 110;   /* #9E7B6E  Rose Deep */
+
+  /* Full-value colors (contain alpha — can't decompose) */
+  --k-accent-muted:   rgba(201,168,154,0.15);
+  --k-border:         rgba(250,245,240,0.10);
+
+  /* Backgrounds */
+  --k-bg:             44 44 46;      /* #2C2C2E  Charcoal Dark */
+  --k-card:           58 58 60;      /* #3A3A3C  Charcoal Slate */
+  --k-card-hover:     74 74 76;      /* #4A4A4C */
+  --k-input:          44 44 46;      /* #2C2C2E */
+
+  /* Text */
+  --k-text:           250 245 240;   /* #FAF5F0  Soft Cream */
+  --k-text-secondary: 201 168 154;   /* #C9A89A  Dusty Rose */
+  --k-text-light:     250 245 240;   /* #FAF5F0 */
+
+  /* Semantic */
+  --k-success:        107 142 94;    /* #6B8E5E  Sage Green */
+  --k-warning:        196 149 106;   /* #C4956A  Warm Amber */
+  --k-danger:         201 123 107;   /* #C97B6B  Terra Red */
+  --k-info:           107 139 164;   /* #6B8BA4  Slate Blue */
+
+  /* Semantic washes (full values) */
+  --k-success-wash:   #E6EBE3;
+  --k-warning-wash:   #FDF3EB;
+  --k-danger-wash:    #FAEAE6;
+  --k-info-wash:      #E6EDF2;
+
+  /* Surfaces */
+  --k-sand:           232 222 214;   /* #E8DED6  Warm Sand */
+  --k-cream:          250 245 240;   /* #FAF5F0  Soft Cream */
+  --k-umber:          139 111 101;   /* #8B6F65  Warm Umber */
+
+  /* Shadows (full values) */
+  --k-shadow:         0 4px 24px rgba(44,44,46,0.3);
+  --k-shadow-lg:      0 8px 40px rgba(44,44,46,0.4);
+  --k-accent-glow:    0 0 20px rgba(201,168,154,0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME: Classic Royal
+   ═══════════════════════════════════════════════════════════════════ */
+
+.theme-classic-royal {
+  --k-primary:        18 32 85;      /* #122055 */
+  --k-primary-light:  26 45 109;     /* #1A2D6D */
+  --k-accent:         212 175 55;    /* #D4AF37 */
+  --k-accent-light:   232 212 139;   /* #E8D48B */
+  --k-accent-deep:    184 150 47;    /* #B8962F */
+  --k-accent-muted:   rgba(212,175,55,0.15);
+
+  --k-bg:             10 15 31;      /* #0A0F1F */
+  --k-card:           18 24 58;      /* #12183A */
+  --k-card-hover:     22 32 80;      /* #162050 */
+  --k-border:         rgba(30,42,90,1); /* #1E2A5A */
+  --k-input:          24 34 68;      /* #182244 */
+
+  --k-text:           224 224 224;   /* #E0E0E0 */
+  --k-text-secondary: 158 158 158;   /* #9E9E9E */
+  --k-text-light:     245 245 247;   /* #F5F5F7 */
+
+  --k-success:        46 125 50;     /* #2E7D32 */
+  --k-warning:        230 81 0;      /* #E65100 */
+  --k-danger:         198 40 40;     /* #C62828 */
+  --k-info:           21 101 192;    /* #1565C0 */
+
+  --k-success-wash:   rgba(46,125,50,0.15);
+  --k-warning-wash:   rgba(230,81,0,0.15);
+  --k-danger-wash:    rgba(198,40,40,0.15);
+  --k-info-wash:      rgba(21,101,192,0.15);
+
+  --k-sand:           30 42 90;      /* #1E2A5A */
+  --k-cream:          13 18 41;      /* #0D1229 */
+  --k-umber:          158 158 158;   /* #9E9E9E */
+
+  --k-shadow:         0 4px 24px rgba(18,32,85,0.3);
+  --k-shadow-lg:      0 8px 40px rgba(18,32,85,0.4);
+  --k-accent-glow:    0 0 20px rgba(212,175,55,0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════════════════════ */
+
+@layer base {
   body {
     @apply bg-kairos-royal-dark text-kairos-silver font-body antialiased;
   }
@@ -25,6 +111,10 @@
     @apply font-heading;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   COMPONENT CLASSES
+   ═══════════════════════════════════════════════════════════════════ */
 
 @layer components {
   .kairos-card {
@@ -89,15 +179,19 @@
   }
 }
 
-/* Scrollbar styling */
+/* ═══════════════════════════════════════════════════════════════════
+   SCROLLBAR
+   ═══════════════════════════════════════════════════════════════════ */
+
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--kairos-royal-dark); }
-::-webkit-scrollbar-thumb { background: var(--kairos-border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--kairos-gold); }
+::-webkit-scrollbar-track { background: rgb(var(--k-bg)); }
+::-webkit-scrollbar-thumb { background: var(--k-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--k-accent)); }
 
-/* ─── PWA & Mobile ──────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   PWA & MOBILE
+   ═══════════════════════════════════════════════════════════════════ */
 
-/* Safe area padding for notched devices */
 .safe-area-top {
   padding-top: env(safe-area-inset-top, 0);
 }
@@ -106,14 +200,12 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
-/* Mobile bottom nav spacing - prevent content from being hidden behind nav */
 @media (max-width: 767px) {
   .mobile-content {
     padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0));
   }
 }
 
-/* Touch-optimized tap targets */
 @media (max-width: 767px) {
   .touch-target {
     min-height: 44px;
@@ -121,7 +213,10 @@
   }
 }
 
-/* Animation keyframes */
+/* ═══════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
@@ -140,7 +235,6 @@
   animation: slideUp 0.3s ease-out;
 }
 
-/* Prevent overscroll bounce on iOS when in standalone mode */
 @media (display-mode: standalone) {
   html {
     overscroll-behavior: none;

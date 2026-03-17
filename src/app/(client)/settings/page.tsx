@@ -9,7 +9,10 @@ import {
   Shield,
   Trash2,
   Save,
+  Palette,
 } from "lucide-react";
+import { useTheme, THEMES } from "@/lib/theme";
+import type { ThemeId } from "@/lib/theme";
 
 export default function SettingsPage() {
   const [formData, setFormData] = useState({
@@ -37,6 +40,7 @@ export default function SettingsPage() {
     { id: "dexcom", name: "Dexcom CGM", status: "not connected" },
   ]);
 
+  const { theme, setTheme } = useTheme();
   const [saveMessage, setSaveMessage] = useState("");
 
   const handleInputChange = (
@@ -316,6 +320,54 @@ export default function SettingsPage() {
                 <option value="Private">Private</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        {/* Appearance Section */}
+        <div className="kairos-card rounded-kairos-sm p-8 mb-6 bg-kairos-card border border-kairos-border">
+          <div className="flex items-center gap-3 mb-6">
+            <Palette className="w-6 h-6 text-kairos-gold" />
+            <h2 className="font-heading text-2xl text-kairos-gold">Appearance</h2>
+          </div>
+
+          <p className="text-sm font-body text-kairos-silver-dark mb-4">
+            Choose your preferred visual theme for the KAIROS dashboard.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(Object.keys(THEMES) as ThemeId[]).map((id) => {
+              const t = THEMES[id];
+              const isActive = theme === id;
+              const swatches = id === "warm-slate"
+                ? ["#3A3A3C", "#C9A89A", "#FAF5F0", "#8B6F65"]
+                : ["#122055", "#D4AF37", "#E0E0E0", "#9E9E9E"];
+              return (
+                <button
+                  key={id}
+                  onClick={() => setTheme(id)}
+                  className={`text-left p-5 rounded-kairos-sm border-2 transition-all ${
+                    isActive
+                      ? "border-kairos-gold bg-kairos-gold/10"
+                      : "border-kairos-border hover:border-kairos-gold/40"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      isActive ? "border-kairos-gold" : "border-kairos-border"
+                    }`}>
+                      {isActive && <div className="w-2 h-2 rounded-full bg-kairos-gold" />}
+                    </div>
+                    <span className="font-heading font-semibold text-kairos-silver">{t.name}</span>
+                  </div>
+                  <p className="text-xs font-body text-kairos-silver-dark mb-3">{t.description}</p>
+                  <div className="flex gap-2">
+                    {swatches.map((color, i) => (
+                      <div key={i} className="w-8 h-8 rounded-full border border-kairos-border" style={{ backgroundColor: color }} />
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
