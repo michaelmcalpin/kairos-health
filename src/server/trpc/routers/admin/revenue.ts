@@ -1,5 +1,5 @@
-import { router, adminProcedure } from "@/server/trpc";
-import { users, clientProfiles, coachClientRelationships } from "@/server/db/schema";
+import { router, superAdminProcedure } from "@/server/trpc";
+import { users, clientProfiles, trainerClientRelationships } from "@/server/db/schema";
 import { sql, eq, and } from "drizzle-orm";
 
 // Tier pricing (mirrors coach/revenue.ts)
@@ -11,7 +11,7 @@ const tierPricing: Record<string, { monthly: number; label: string }> = {
 
 export const adminRevenueRouter = router({
   // Platform-wide revenue: MRR, ARR, revenue by tier
-  getPlatformRevenue: adminProcedure.query(async ({ ctx }) => {
+  getPlatformRevenue: superAdminProcedure.query(async ({ ctx }) => {
     // Count active subscribers by tier
     const tierBreakdown = await ctx.db
       .select({
@@ -47,7 +47,7 @@ export const adminRevenueRouter = router({
   }),
 
   // Revenue by source: coaching fees vs supplement markup vs lab fees
-  getRevenueBySource: adminProcedure.query(async ({ ctx }) => {
+  getRevenueBySource: superAdminProcedure.query(async ({ ctx }) => {
     // Get active client count by tier
     const tierBreakdown = await ctx.db
       .select({
@@ -95,10 +95,10 @@ export const adminRevenueRouter = router({
     };
   }),
 
-  // Coach payout summary: revenue generated per coach
-  getCoachPayouts: adminProcedure.query(async ({ ctx }) => {
-    // Get all coaches
-    const coaches = await ctx.db
+  // Trainer payout summary: revenue generated per trainer
+  getTrainerPayouts: superAdminProcedure.query(async ({ ctx }) => {
+    // Get all trainers
+    const trainers = await ctx.db
       .select({
         id: users.id,
         firstName: users.firstName,
@@ -106,18 +106,18 @@ export const adminRevenueRouter = router({
         email: users.email,
       })
       .from(users)
-      .where(eq(users.role, "coach"));
+      .where(eq(users.role, "trainer"));
 
-    // For each coach, calculate client revenue
+    // For each trainer, calculate client revenue
     const payouts = await Promise.all(
-      coaches.map(async (coach) => {
+      trainers.map(async (trainer) => {
         const relationships = await ctx.db
-          .select({ clientId: coachClientRelationships.clientId })
-          .from(coachClientRelationships)
+          .select({ clientId: trainerClientRelationships.clientId })
+          .from(trainerClientRelationships)
           .where(
             and(
-              eq(coachClientRelationships.coachId, coach.id),
-              eq(coachClientRelationships.status, "active")
+              eq(trainerClientRelationships.trainerId, trainer.id),
+              eq(trainerClientRelationships.status, "active")
             )
           );
 
@@ -133,13 +133,13 @@ export const adminRevenueRouter = router({
           totalRevenue += pricing.monthly;
         }
 
-        // Coach payout at 60% of coaching revenue
+        // Trainer payout at 60% of coaching revenue
         const payoutRate = 0.6;
         const payout = Math.round(totalRevenue * payoutRate);
 
         return {
-          coachId: coach.id,
-          name: `${coach.firstName ?? ""} ${coach.lastName ?? ""}`.trim() || coach.email,
+          trainerId: trainer.id,
+          name: `${trainer.firstName ?? ""} ${trainer.lastName ?? ""}`.trim() || trainer.email,
           clientCount,
           grossRevenue: totalRevenue,
           payoutRate,

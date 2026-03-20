@@ -8,18 +8,11 @@ import {
   getCart,
   getCartTotal,
 } from "@/lib/client-ops/engine";
+import { PRODUCT_CATEGORIES, PRODUCT_CATEGORY_LABELS } from "@/lib/client-ops/types";
 
 const CLIENT_ID = "demo-client";
-
-const CATEGORIES = ["All", "longevity", "metabolic", "sleep", "cognitive", "immune"];
-const CATEGORY_LABELS: Record<string, string> = {
-  All: "All",
-  longevity: "Longevity",
-  metabolic: "Metabolic",
-  sleep: "Sleep",
-  cognitive: "Cognitive",
-  immune: "Immune",
-};
+const CATEGORIES = PRODUCT_CATEGORIES;
+const CATEGORY_LABELS = PRODUCT_CATEGORY_LABELS;
 
 export default function Page() {
   const [selectedCategory, setSelectedCategory] = useState("All");

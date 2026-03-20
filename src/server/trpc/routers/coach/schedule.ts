@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { router, coachProcedure } from "@/server/trpc";
-import { coachProfiles } from "@/server/db/schema";
+import { router, trainerProcedure } from "@/server/trpc";
+import { trainerProfiles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import {
   createAppointment,
@@ -19,10 +19,10 @@ import {
 } from "@/lib/scheduling/engine";
 
 export const coachScheduleRouter = router({
-  // Get coach profile (for schedule settings like capacity)
-  getProfile: coachProcedure.query(async ({ ctx }) => {
-    const profile = await ctx.db.query.coachProfiles.findFirst({
-      where: eq(coachProfiles.userId, ctx.dbUserId),
+  // Get trainer profile (for schedule settings like capacity)
+  getProfile: trainerProcedure.query(async ({ ctx }) => {
+    const profile = await ctx.db.query.trainerProfiles.findFirst({
+      where: eq(trainerProfiles.userId, ctx.dbUserId),
     });
 
     return profile
@@ -35,7 +35,7 @@ export const coachScheduleRouter = router({
   }),
 
   // List appointments for a week
-  listAppointments: coachProcedure
+  listAppointments: trainerProcedure
     .input(
       z.object({
         weekStart: z.string().describe("ISO date string for the start of the week"),
@@ -46,14 +46,14 @@ export const coachScheduleRouter = router({
     }),
 
   // Get calendar view for a week
-  getCalendarWeek: coachProcedure
+  getCalendarWeek: trainerProcedure
     .input(z.object({ weekStart: z.string() }))
     .query(async ({ ctx, input }) => {
       return getCalendarWeek(ctx.dbUserId, input.weekStart);
     }),
 
   // Get all appointments with optional filter
-  listAll: coachProcedure
+  listAll: trainerProcedure
     .input(
       z.object({
         filter: z.enum(["upcoming", "past", "all"]).optional().default("all"),
@@ -64,7 +64,7 @@ export const coachScheduleRouter = router({
     }),
 
   // Get a specific appointment
-  getAppointment: coachProcedure
+  getAppointment: trainerProcedure
     .input(z.object({ appointmentId: z.string() }))
     .query(async ({ ctx, input }) => {
       const appt = getAppointment(input.appointmentId);
@@ -75,7 +75,7 @@ export const coachScheduleRouter = router({
     }),
 
   // Create an appointment
-  createAppointment: coachProcedure
+  createAppointment: trainerProcedure
     .input(
       z.object({
         clientId: z.string(),
@@ -92,7 +92,7 @@ export const coachScheduleRouter = router({
         coachId: ctx.dbUserId,
         clientId: input.clientId,
         clientName: input.clientName,
-        coachName: "Coach",
+        coachName: "Trainer",
         sessionType: input.sessionType as "follow_up",
         meetingType: input.meetingType,
         date: input.date,
@@ -102,7 +102,7 @@ export const coachScheduleRouter = router({
     }),
 
   // Update appointment status
-  updateStatus: coachProcedure
+  updateStatus: trainerProcedure
     .input(
       z.object({
         appointmentId: z.string(),
@@ -119,7 +119,7 @@ export const coachScheduleRouter = router({
     }),
 
   // Reschedule an appointment
-  reschedule: coachProcedure
+  reschedule: trainerProcedure
     .input(
       z.object({
         appointmentId: z.string(),
@@ -136,7 +136,7 @@ export const coachScheduleRouter = router({
     }),
 
   // Get available slots for a date
-  getAvailableSlots: coachProcedure
+  getAvailableSlots: trainerProcedure
     .input(
       z.object({
         date: z.string(),
@@ -148,12 +148,12 @@ export const coachScheduleRouter = router({
     }),
 
   // Get/update availability settings
-  getAvailability: coachProcedure
+  getAvailability: trainerProcedure
     .query(async ({ ctx }) => {
       return getCoachAvailability(ctx.dbUserId);
     }),
 
-  updateAvailability: coachProcedure
+  updateAvailability: trainerProcedure
     .input(
       z.object({
         bufferMinutes: z.number().min(0).max(60).optional(),
@@ -173,7 +173,7 @@ export const coachScheduleRouter = router({
     }),
 
   // Session notes
-  saveSessionNotes: coachProcedure
+  saveSessionNotes: trainerProcedure
     .input(
       z.object({
         appointmentId: z.string(),
@@ -194,14 +194,14 @@ export const coachScheduleRouter = router({
       });
     }),
 
-  getSessionNotes: coachProcedure
+  getSessionNotes: trainerProcedure
     .input(z.object({ appointmentId: z.string() }))
     .query(async ({ input }) => {
       return getSessionNotes(input.appointmentId);
     }),
 
   // Scheduling stats
-  getStats: coachProcedure
+  getStats: trainerProcedure
     .query(async ({ ctx }) => {
       return getSchedulingStats(ctx.dbUserId);
     }),

@@ -1,7 +1,7 @@
 // ─── Admin User Management Types ──────────────────────────────────────
 // Platform user administration, role management, audit logging.
 
-export type UserRole = "client" | "coach" | "admin";
+export type UserRole = "client" | "trainer" | "company_admin" | "super_admin";
 export type UserStatus = "active" | "inactive" | "suspended" | "onboarding";
 export type SubscriptionTier = "tier1" | "tier2" | "tier3";
 export type SubscriptionStatus = "active" | "past_due" | "canceled" | "trialing";
@@ -120,8 +120,9 @@ export interface PlatformUserStats {
   suspendedUsers: number;
   onboardingUsers: number;
   clientCount: number;
-  coachCount: number;
-  adminCount: number;
+  trainerCount: number;
+  companyAdminCount: number;
+  superAdminCount: number;
   tier1Count: number;
   tier2Count: number;
   tier3Count: number;
@@ -138,14 +139,16 @@ export function uid(): string {
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   client: "Client",
-  coach: "Coach",
-  admin: "Admin",
+  trainer: "Trainer",
+  company_admin: "Company Admin",
+  super_admin: "Super Admin",
 };
 
 export const ROLE_COLORS: Record<UserRole, string> = {
   client: "rgb(59, 130, 246)",
-  coach: "rgb(var(--k-accent))",
-  admin: "rgb(239, 68, 68)",
+  trainer: "rgb(var(--k-accent))",
+  company_admin: "rgb(16, 185, 129)",
+  super_admin: "rgb(239, 68, 68)",
 };
 
 export const STATUS_LABELS: Record<UserStatus, string> = {

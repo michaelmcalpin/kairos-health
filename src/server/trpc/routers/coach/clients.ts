@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, coachProcedure } from "@/server/trpc";
+import { router, trainerProcedure } from "@/server/trpc";
 import {
   seedCoachClients,
   listCoachClients,
@@ -14,8 +14,8 @@ import {
 } from "@/lib/coach-clients/engine";
 
 export const coachClientsRouter = router({
-  // List all coach's clients with summary
-  list: coachProcedure
+  // List all trainer's clients with summary
+  list: trainerProcedure
     .input(
       z.object({
         search: z.string().optional(),
@@ -26,11 +26,11 @@ export const coachClientsRouter = router({
       }).optional()
     )
     .query(({ ctx, input }) => {
-      const coachId = ctx.dbUserId;
-      seedCoachClients(coachId);
+      const trainerId = ctx.dbUserId;
+      seedCoachClients(trainerId);
 
       if (input) {
-        return filterCoachClients(coachId, {
+        return filterCoachClients(trainerId, {
           search: input.search,
           tier: input.tier,
           status: input.status,
@@ -39,11 +39,11 @@ export const coachClientsRouter = router({
         });
       }
 
-      return listCoachClients(coachId);
+      return listCoachClients(trainerId);
     }),
 
   // Get detailed view of a single client
-  getDetail: coachProcedure
+  getDetail: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(({ ctx, input }) => {
       seedCoachClients(ctx.dbUserId);
@@ -51,20 +51,20 @@ export const coachClientsRouter = router({
     }),
 
   // Get roster stats
-  getStats: coachProcedure.query(({ ctx }) => {
+  getStats: trainerProcedure.query(({ ctx }) => {
     return getRosterStats(ctx.dbUserId);
   }),
 
   // Resolve an alert
-  resolveAlert: coachProcedure
+  resolveAlert: trainerProcedure
     .input(z.object({ clientId: z.string(), alertId: z.string() }))
     .mutation(({ ctx, input }) => {
       seedCoachClients(ctx.dbUserId);
       return resolveAlert(input.clientId, input.alertId);
     }),
 
-  // Add a coach note
-  addNote: coachProcedure
+  // Add a trainer note
+  addNote: trainerProcedure
     .input(z.object({ clientId: z.string(), content: z.string().min(1) }))
     .mutation(({ ctx, input }) => {
       seedCoachClients(ctx.dbUserId);
@@ -72,7 +72,7 @@ export const coachClientsRouter = router({
     }),
 
   // Get notes for a client
-  getNotes: coachProcedure
+  getNotes: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(({ ctx, input }) => {
       seedCoachClients(ctx.dbUserId);
@@ -80,7 +80,7 @@ export const coachClientsRouter = router({
     }),
 
   // Pin/unpin a note
-  pinNote: coachProcedure
+  pinNote: trainerProcedure
     .input(z.object({ clientId: z.string(), noteId: z.string() }))
     .mutation(({ ctx, input }) => {
       seedCoachClients(ctx.dbUserId);
@@ -88,7 +88,7 @@ export const coachClientsRouter = router({
     }),
 
   // Delete a note
-  deleteNote: coachProcedure
+  deleteNote: trainerProcedure
     .input(z.object({ clientId: z.string(), noteId: z.string() }))
     .mutation(({ ctx, input }) => {
       seedCoachClients(ctx.dbUserId);

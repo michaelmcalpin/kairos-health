@@ -31,6 +31,8 @@ import {
   ChevronRight,
   Settings,
   ClipboardCheck,
+  Building2,
+  BookOpen,
 } from "lucide-react";
 
 export type NavItem = {
@@ -43,12 +45,11 @@ export type NavItem = {
 
 interface SidebarProps {
   items: NavItem[];
-  role: "client" | "coach" | "admin";
   userName?: string;
   userTier?: string;
 }
 
-export function Sidebar({ items, userName, userTier }: Omit<SidebarProps, "role">) {
+export function Sidebar({ items, userName, userTier }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -148,7 +149,7 @@ export function Sidebar({ items, userName, userTier }: Omit<SidebarProps, "role"
   );
 }
 
-// Pre-built nav configs
+// ─── Client Nav ──────────────────────────────────────────────────
 export const clientNavItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
   { label: "Alerts", href: "/alerts", icon: <Bell size={18} />, section: "Overview" },
@@ -168,25 +169,41 @@ export const clientNavItems: NavItem[] = [
   { label: "Settings", href: "/settings", icon: <Settings size={18} />, section: "Account" },
 ];
 
-export const coachNavItems: NavItem[] = [
-  { label: "Dashboard", href: "/coach/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
-  { label: "Alerts", href: "/coach/alerts", icon: <Bell size={18} />, section: "Overview" },
-  { label: "Schedule", href: "/coach/schedule", icon: <Calendar size={18} />, section: "Overview" },
-  { label: "Follow-ups", href: "/coach/followups", icon: <ClipboardList size={18} />, section: "Overview" },
-  { label: "Clients", href: "/coach/clients", icon: <Users size={18} />, section: "Clients" },
-  { label: "Metrics", href: "/coach/metrics", icon: <TrendingUp size={18} />, section: "Clients" },
-  { label: "Profile", href: "/coach/profile", icon: <UserCircle size={18} />, section: "Business" },
-  { label: "Revenue", href: "/coach/revenue", icon: <DollarSign size={18} />, section: "Business" },
-  { label: "Marketplace", href: "/coach/marketplace", icon: <Store size={18} />, section: "Business" },
-  { label: "Settings", href: "/coach/settings", icon: <Settings size={18} />, section: "Business" },
+// ─── Trainer Nav ─────────────────────────────────────────────────
+export const trainerNavItems: NavItem[] = [
+  { label: "Dashboard", href: "/trainer/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
+  { label: "Alerts", href: "/trainer/alerts", icon: <Bell size={18} />, section: "Overview" },
+  { label: "Schedule", href: "/trainer/schedule", icon: <Calendar size={18} />, section: "Overview" },
+  { label: "Follow-ups", href: "/trainer/followups", icon: <ClipboardList size={18} />, section: "Overview" },
+  { label: "Clients", href: "/trainer/clients", icon: <Users size={18} />, section: "Clients" },
+  { label: "Metrics", href: "/trainer/metrics", icon: <TrendingUp size={18} />, section: "Clients" },
+  { label: "Profile", href: "/trainer/profile", icon: <UserCircle size={18} />, section: "Business" },
+  { label: "Revenue", href: "/trainer/revenue", icon: <DollarSign size={18} />, section: "Business" },
+  { label: "Marketplace", href: "/trainer/marketplace", icon: <Store size={18} />, section: "Business" },
+  { label: "Settings", href: "/trainer/settings", icon: <Settings size={18} />, section: "Business" },
 ];
 
-export const adminNavItems: NavItem[] = [
-  { label: "Dashboard", href: "/admin/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
-  { label: "Coaches", href: "/admin/coaches", icon: <Users size={18} />, section: "People" },
-  { label: "Analytics", href: "/admin/analytics", icon: <BarChart3 size={18} />, section: "Data" },
-  { label: "Revenue", href: "/admin/revenue", icon: <DollarSign size={18} />, section: "Data" },
-  { label: "Content", href: "/admin/content", icon: <FileText size={18} />, section: "Manage" },
-  { label: "References", href: "/admin/references", icon: <FlaskConical size={18} />, section: "Manage" },
-  { label: "Settings", href: "/admin/settings", icon: <Settings size={18} />, section: "Manage" },
+// ─── Company Admin Nav ───────────────────────────────────────────
+export const companyAdminNavItems: NavItem[] = [
+  { label: "Dashboard", href: "/company/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
+  { label: "Trainers", href: "/company/trainers", icon: <Dumbbell size={18} />, section: "People" },
+  { label: "Clients", href: "/company/clients", icon: <Users size={18} />, section: "People" },
+  { label: "Settings", href: "/company/settings", icon: <Settings size={18} />, section: "Manage" },
 ];
+
+// ─── Super Admin Nav ─────────────────────────────────────────────
+export const superAdminNavItems: NavItem[] = [
+  { label: "Dashboard", href: "/super-admin/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
+  { label: "Companies", href: "/super-admin/companies", icon: <Building2 size={18} />, section: "People" },
+  { label: "Trainers", href: "/super-admin/trainers", icon: <Dumbbell size={18} />, section: "People" },
+  { label: "Users", href: "/super-admin/users", icon: <Users size={18} />, section: "People" },
+  { label: "Analytics", href: "/super-admin/analytics", icon: <BarChart3 size={18} />, section: "Data" },
+  { label: "Revenue", href: "/super-admin/revenue", icon: <DollarSign size={18} />, section: "Data" },
+  { label: "Content", href: "/super-admin/content", icon: <FileText size={18} />, section: "Manage" },
+  { label: "References", href: "/super-admin/references", icon: <BookOpen size={18} />, section: "Manage" },
+  { label: "Settings", href: "/super-admin/settings", icon: <Settings size={18} />, section: "Manage" },
+];
+
+// Legacy aliases for backward compatibility
+export const coachNavItems = trainerNavItems;
+export const adminNavItems = superAdminNavItems;

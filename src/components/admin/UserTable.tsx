@@ -58,8 +58,9 @@ export function UserTable({
         >
           <option value="all">All Roles</option>
           <option value="client">Clients</option>
-          <option value="coach">Coaches</option>
-          <option value="admin">Admins</option>
+          <option value="trainer">Trainers</option>
+          <option value="company_admin">Company Admins</option>
+          <option value="super_admin">Super Admins</option>
         </select>
 
         {/* Status filter */}

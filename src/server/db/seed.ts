@@ -125,11 +125,11 @@ async function seedUsers() {
     const id = uuid();
     await db.insert(schema.users).values({
       id,
-      clerkId: `clerk_admin_${admin.email.split("@")[0]}`,
+      clerkId: `clerk_superadmin_${admin.email.split("@")[0]}`,
       email: admin.email,
       firstName: admin.firstName,
       lastName: admin.lastName,
-      role: "admin",
+      role: "super_admin",
       status: "active",
       createdAt: daysAgo(90),
     });
@@ -140,15 +140,15 @@ async function seedUsers() {
     const id = uuid();
     await db.insert(schema.users).values({
       id,
-      clerkId: `clerk_coach_${coach.email.split("@")[0]}`,
+      clerkId: `clerk_trainer_${coach.email.split("@")[0]}`,
       email: coach.email,
       firstName: coach.firstName,
       lastName: coach.lastName,
-      role: "coach",
+      role: "trainer",
       status: "active",
       createdAt: daysAgo(60),
     });
-    await db.insert(schema.coachProfiles).values({
+    await db.insert(schema.trainerProfiles).values({
       userId: id,
       bio: coach.bio,
       specialties: coach.specialties,
@@ -186,8 +186,8 @@ async function seedUsers() {
       onboardingStep: 5,
       onboardingCompleted: true,
     });
-    await db.insert(schema.coachClientRelationships).values({
-      coachId: userIds.coaches[client.coachIdx],
+    await db.insert(schema.trainerClientRelationships).values({
+      trainerId: userIds.coaches[client.coachIdx],
       clientId: id,
       status: "active",
       startedAt: daysAgo(signupDays - 2),
@@ -315,14 +315,14 @@ async function seedProtocols(clientIds: string[], coachIds: string[]) {
 
   for (let ci = 0; ci < clientIds.length; ci++) {
     const clientId = clientIds[ci];
-    const coachId = coachIds[CLIENTS[ci].coachIdx];
+    const trainerId = coachIds[CLIENTS[ci].coachIdx];
 
     // Create protocol
     const protocolId = uuid();
     await db.insert(schema.supplementProtocols).values({
       id: protocolId,
       clientId,
-      coachId,
+      trainerId,
       version: 1,
       status: "active",
       createdAt: daysAgo(28),
@@ -377,14 +377,14 @@ async function seedFasting(clientIds: string[], coachIds: string[]) {
 
   for (let ci = 0; ci < clientIds.length; ci++) {
     const clientId = clientIds[ci];
-    const coachId = coachIds[CLIENTS[ci].coachIdx];
+    const trainerId = coachIds[CLIENTS[ci].coachIdx];
     const fastType = pick(["16_8", "20_4", "omad"] as const, ci * 33);
     const feedingStart = fastType === "omad" ? 17 : fastType === "20_4" ? 14 : 12;
     const feedingEnd = fastType === "omad" ? 18 : fastType === "20_4" ? 18 : 20;
 
     await db.insert(schema.fastingProtocols).values({
       clientId,
-      coachId,
+      trainerId,
       type: fastType,
       feedingStartHour: feedingStart,
       feedingEndHour: feedingEnd,
@@ -527,7 +527,7 @@ async function seedLabs(clientIds: string[], coachIds: string[]) {
   // Lab orders for each client (1-2 per client)
   for (let ci = 0; ci < clientIds.length; ci++) {
     const clientId = clientIds[ci];
-    const coachId = coachIds[CLIENTS[ci].coachIdx];
+    const trainerId = coachIds[CLIENTS[ci].coachIdx];
     const numOrders = ci < 4 ? 2 : 1;
 
     for (let o = 0; o < numOrders; o++) {
@@ -536,7 +536,7 @@ async function seedLabs(clientIds: string[], coachIds: string[]) {
       await db.insert(schema.labOrders).values({
         id: orderId,
         clientId,
-        coachId,
+        trainerId,
         provider: "Quest Diagnostics",
         panelName: "Comprehensive Metabolic & Hormone Panel",
         status: o === 0 ? "results_ready" : "results_ready",

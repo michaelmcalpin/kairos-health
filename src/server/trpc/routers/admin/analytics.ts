@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { router, adminProcedure } from "@/server/trpc";
+import { router, superAdminProcedure as adminProcedure } from "@/server/trpc";
 import {
   getGrowthAnalytics,
   getEngagementAnalytics,

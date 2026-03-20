@@ -1,10 +1,10 @@
-import { router, adminProcedure } from "@/server/trpc";
-import { users, coachProfiles, coachClientRelationships, subscriptions, auditLogs } from "@/server/db/schema";
+import { router, superAdminProcedure } from "@/server/trpc";
+import { users, trainerProfiles, trainerClientRelationships, subscriptions, auditLogs } from "@/server/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 
 export const adminDashboardRouter = router({
   // Platform-wide KPIs
-  getKPIs: adminProcedure.query(async ({ ctx }) => {
+  getKPIs: superAdminProcedure.query(async ({ ctx }) => {
     // Total users by role
     const userCounts = await ctx.db
       .select({
@@ -24,36 +24,37 @@ export const adminDashboardRouter = router({
 
     return {
       totalClients: roleMap.get("client") ?? 0,
-      totalCoaches: roleMap.get("coach") ?? 0,
-      totalAdmins: roleMap.get("admin") ?? 0,
+      totalTrainers: roleMap.get("trainer") ?? 0,
+      totalCompanyAdmins: roleMap.get("company_admin") ?? 0,
+      totalSuperAdmins: roleMap.get("super_admin") ?? 0,
       totalUsers: Array.from(roleMap.values()).reduce((s, n) => s + n, 0),
       activeSubscriptions: Number(activeSubs[0]?.count ?? 0),
     };
   }),
 
-  // Coach performance table
-  getCoachPerformance: adminProcedure.query(async ({ ctx }) => {
-    const coaches = await ctx.db.query.users.findMany({
-      where: eq(users.role, "coach"),
+  // Trainer performance table
+  getTrainerPerformance: superAdminProcedure.query(async ({ ctx }) => {
+    const trainers = await ctx.db.query.users.findMany({
+      where: eq(users.role, "trainer"),
     });
 
     const performance = await Promise.all(
-      coaches.map(async (coach) => {
-        const profile = await ctx.db.query.coachProfiles.findFirst({
-          where: eq(coachProfiles.userId, coach.id),
+      trainers.map(async (trainer) => {
+        const profile = await ctx.db.query.trainerProfiles.findFirst({
+          where: eq(trainerProfiles.userId, trainer.id),
         });
 
         const clientCount = await ctx.db
           .select({ count: sql<number>`count(*)` })
-          .from(coachClientRelationships)
+          .from(trainerClientRelationships)
           .where(
-            eq(coachClientRelationships.coachId, coach.id)
+            eq(trainerClientRelationships.trainerId, trainer.id)
           );
 
         return {
-          id: coach.id,
-          name: `${coach.firstName ?? ""} ${coach.lastName ?? ""}`.trim(),
-          email: coach.email,
+          id: trainer.id,
+          name: `${trainer.firstName ?? ""} ${trainer.lastName ?? ""}`.trim(),
+          email: trainer.email,
           clientCount: Number(clientCount[0]?.count ?? 0),
           capacity: profile?.capacity ?? 25,
           rating: profile?.rating ?? 0,
@@ -67,7 +68,7 @@ export const adminDashboardRouter = router({
   }),
 
   // Recent platform activity from audit logs
-  getRecentActivity: adminProcedure.query(async ({ ctx }) => {
+  getRecentActivity: superAdminProcedure.query(async ({ ctx }) => {
     const logs = await ctx.db.query.auditLogs.findMany({
       orderBy: desc(auditLogs.createdAt),
       limit: 20,

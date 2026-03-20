@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "@/server/trpc";
-import { users, clientProfiles, coachProfiles } from "@/server/db/schema";
+import { users, clientProfiles, trainerProfiles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
 export const authRouter = router({
@@ -12,7 +12,7 @@ export const authRouter = router({
         email: z.string().email(),
         firstName: z.string().optional(),
         lastName: z.string().optional(),
-        role: z.enum(["client", "coach", "admin"]).default("client"),
+        role: z.enum(["client", "trainer", "company_admin", "super_admin"]).default("client"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -41,8 +41,8 @@ export const authRouter = router({
           userId: newUser.id,
           tier: "tier1",
         });
-      } else if (input.role === "coach") {
-        await ctx.db.insert(coachProfiles).values({
+      } else if (input.role === "trainer") {
+        await ctx.db.insert(trainerProfiles).values({
           userId: newUser.id,
         });
       }
@@ -63,9 +63,9 @@ export const authRouter = router({
       profile = await ctx.db.query.clientProfiles.findFirst({
         where: eq(clientProfiles.userId, user.id),
       });
-    } else if (user.role === "coach") {
-      profile = await ctx.db.query.coachProfiles.findFirst({
-        where: eq(coachProfiles.userId, user.id),
+    } else if (user.role === "trainer") {
+      profile = await ctx.db.query.trainerProfiles.findFirst({
+        where: eq(trainerProfiles.userId, user.id),
       });
     }
 

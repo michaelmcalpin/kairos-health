@@ -28,7 +28,7 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
   const [showSuspend, setShowSuspend] = useState(false);
 
   const isClient = user.role === "client";
-  const isCoach = user.role === "coach";
+  const isTrainer = user.role === "trainer";
   const isSuspended = user.status === "suspended";
 
   return (
@@ -85,7 +85,7 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
             </div>
           </>
         )}
-        {isCoach && user.profile && (
+        {isTrainer && user.profile && (
           <>
             <div className="bg-gray-800/30 rounded-xl p-3">
               <span className="text-xs text-gray-500">Clients</span>
@@ -107,7 +107,7 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
 
         <div className="flex flex-wrap gap-2">
           {/* Suspend / Reactivate */}
-          {!isSuspended && user.role !== "admin" && (
+          {!isSuspended && user.role !== "super_admin" && (
             <button
               onClick={() => setShowSuspend(true)}
               className="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-xs hover:bg-red-500/20 transition-colors"
@@ -187,7 +187,7 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
         {/* Role change */}
         {showRoleChange && (
           <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 mt-2 flex gap-2">
-            {(["client", "coach", "admin"] as UserRole[])
+            {(["client", "trainer", "company_admin", "super_admin"] as UserRole[])
               .filter((r) => r !== user.role)
               .map((r) => (
                 <button

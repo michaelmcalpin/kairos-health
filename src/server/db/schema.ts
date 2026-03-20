@@ -3,7 +3,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 // ======================== ENUMS ========================
-export const userRoleEnum = pgEnum("user_role", ["client", "coach", "admin"]);
+export const userRoleEnum = pgEnum("user_role", ["client", "trainer", "company_admin", "super_admin"]);
 export const userStatusEnum = pgEnum("user_status", ["active", "inactive", "suspended", "onboarding"]);
 export const tierEnum = pgEnum("tier", ["tier1", "tier2", "tier3"]);
 export const alertPriorityEnum = pgEnum("alert_priority", ["urgent", "action", "info"]);
@@ -17,6 +17,23 @@ export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "
 export const mealTypeEnum = pgEnum("meal_type", ["breakfast", "lunch", "dinner", "snack"]);
 export const fastingTypeEnum = pgEnum("fasting_type", ["16_8", "20_4", "36hr", "omad", "custom"]);
 
+// ======================== CORE: COMPANIES ========================
+export const companies = pgTable("companies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  logoUrl: text("logo_url"),
+  brandColor: varchar("brand_color", { length: 7 }),
+  emailFromName: varchar("email_from_name", { length: 255 }),
+  emailFooter: text("email_footer"),
+  website: varchar("website", { length: 500 }),
+  status: userStatusEnum("status").notNull().default("active"),
+  maxTrainers: integer("max_trainers").default(10),
+  maxClients: integer("max_clients").default(100),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("companies_slug_idx").on(t.slug)]);
+
 // ======================== CORE: USERS & ROLES ========================
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -26,10 +43,14 @@ export const users = pgTable("users", {
   lastName: varchar("last_name", { length: 100 }),
   avatarUrl: text("avatar_url"),
   role: userRoleEnum("role").notNull().default("client"),
+  companyId: uuid("company_id").references(() => companies.id),
   status: userStatusEnum("status").notNull().default("onboarding"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (t) => [index("users_clerk_idx").on(t.clerkId)]);
+}, (t) => [
+  index("users_clerk_idx").on(t.clerkId),
+  index("users_company_idx").on(t.companyId),
+]);
 
 export const clientProfiles = pgTable("client_profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -44,7 +65,7 @@ export const clientProfiles = pgTable("client_profiles", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const coachProfiles = pgTable("coach_profiles", {
+export const trainerProfiles = pgTable("trainer_profiles", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id).unique(),
   bio: text("bio"),
@@ -60,16 +81,16 @@ export const coachProfiles = pgTable("coach_profiles", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const coachClientRelationships = pgTable("coach_client_relationships", {
+export const trainerClientRelationships = pgTable("trainer_client_relationships", {
   id: uuid("id").primaryKey().defaultRandom(),
-  coachId: uuid("coach_id").notNull().references(() => users.id),
+  trainerId: uuid("trainer_id").notNull().references(() => users.id),
   clientId: uuid("client_id").notNull().references(() => users.id),
   status: varchar("status", { length: 20 }).notNull().default("active"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   transferredFrom: uuid("transferred_from"),
 }, (t) => [
-  index("ccr_coach_idx").on(t.coachId),
-  index("ccr_client_idx").on(t.clientId),
+  index("tcr_trainer_idx").on(t.trainerId),
+  index("tcr_client_idx").on(t.clientId),
 ]);
 
 // ======================== BIOMETRIC: TIMESCALEDB HYPERTABLES ========================
@@ -156,7 +177,7 @@ export const ketoneReadings = pgTable("ketone_readings", {
 export const labOrders = pgTable("lab_orders", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id").notNull().references(() => users.id),
-  coachId: uuid("coach_id").references(() => users.id),
+  trainerId: uuid("trainer_id").references(() => users.id),
   provider: varchar("provider", { length: 50 }),
   panelName: varchar("panel_name", { length: 255 }),
   status: varchar("status", { length: 50 }).default("ordered"),
@@ -198,7 +219,7 @@ export const biomarkerDefinitions = pgTable("biomarker_definitions", {
 export const supplementProtocols = pgTable("supplement_protocols", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id").notNull().references(() => users.id),
-  coachId: uuid("coach_id").references(() => users.id),
+  trainerId: uuid("trainer_id").references(() => users.id),
   isAiGenerated: boolean("is_ai_generated").default(false),
   version: integer("version").notNull().default(1),
   status: protocolStatusEnum("status").notNull().default("active"),
@@ -254,7 +275,7 @@ export const exerciseLibrary = pgTable("exercise_library", {
 
 export const workoutPrograms = pgTable("workout_programs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  coachId: uuid("coach_id").references(() => users.id),
+  trainerId: uuid("trainer_id").references(() => users.id),
   isAiGenerated: boolean("is_ai_generated").default(false),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
@@ -292,7 +313,7 @@ export const clientWorkoutAssignments = pgTable("client_workout_assignments", {
 export const fastingProtocols = pgTable("fasting_protocols", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id").notNull().references(() => users.id),
-  coachId: uuid("coach_id").references(() => users.id),
+  trainerId: uuid("trainer_id").references(() => users.id),
   isAiGenerated: boolean("is_ai_generated").default(false),
   type: fastingTypeEnum("type").notNull(),
   feedingStartHour: integer("feeding_start_hour"),
@@ -346,7 +367,7 @@ export const mealLogs = pgTable("meal_logs", {
 
 export const mealPlans = pgTable("meal_plans", {
   id: uuid("id").primaryKey().defaultRandom(),
-  coachId: uuid("coach_id").references(() => users.id),
+  trainerId: uuid("trainer_id").references(() => users.id),
   clientId: uuid("client_id").notNull().references(() => users.id),
   isAiGenerated: boolean("is_ai_generated").default(false),
   name: varchar("name", { length: 255 }).notNull(),
@@ -440,11 +461,11 @@ export const alertResponses = pgTable("alert_responses", {
 // ======================== CHAT ========================
 export const conversations = pgTable("conversations", {
   id: uuid("id").primaryKey().defaultRandom(),
-  coachId: uuid("coach_id").references(() => users.id),
+  trainerId: uuid("trainer_id").references(() => users.id),
   clientId: uuid("client_id").notNull().references(() => users.id),
-  isAiCoach: boolean("is_ai_coach").default(false),
+  isAiTrainer: boolean("is_ai_trainer").default(false),
   lastMessageAt: timestamp("last_message_at"),
-  unreadCountCoach: integer("unread_count_coach").default(0),
+  unreadCountTrainer: integer("unread_count_trainer").default(0),
   unreadCountClient: integer("unread_count_client").default(0),
 });
 
@@ -482,10 +503,10 @@ export const syncLogs = pgTable("sync_logs", {
 });
 
 // ======================== MARKETPLACE & REVENUE ========================
-export const coachReviews = pgTable("coach_reviews", {
+export const trainerReviews = pgTable("trainer_reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id").notNull().references(() => users.id),
-  coachId: uuid("coach_id").notNull().references(() => users.id),
+  trainerId: uuid("trainer_id").notNull().references(() => users.id),
   rating: integer("rating").notNull(),
   reviewText: text("review_text"),
   coachResponse: text("coach_response"),
@@ -505,8 +526,8 @@ export const subscriptions = pgTable("subscriptions", {
 
 export const clientTransfers = pgTable("client_transfers", {
   id: varchar("id", { length: 20 }).primaryKey(), // CT-XXXX format
-  fromCoachId: uuid("from_coach_id").notNull().references(() => users.id),
-  toCoachId: uuid("to_coach_id").notNull().references(() => users.id),
+  fromTrainerId: uuid("from_trainer_id").notNull().references(() => users.id),
+  toTrainerId: uuid("to_trainer_id").notNull().references(() => users.id),
   clientId: uuid("client_id").notNull().references(() => users.id),
   status: transferStatusEnum("status").notNull().default("pending"),
   revenueSharePct: real("revenue_share_pct").default(25),

@@ -3,22 +3,39 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
+import type { UserRole } from "@/lib/company-ops/types";
+import { ROLE_LABELS } from "@/lib/company-ops/types";
 
 interface RoleGuardProps {
-  allowedRole: "client" | "coach";
+  allowedRole: UserRole;
   children: React.ReactNode;
 }
+
+const ROLE_HOME: Record<UserRole, string> = {
+  super_admin: "/super-admin/dashboard",
+  company_admin: "/company/dashboard",
+  trainer: "/trainer/dashboard",
+  client: "/dashboard",
+};
 
 export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
   const router = useRouter();
   const [status, setStatus] = useState<"loading" | "allowed" | "denied">("loading");
+  const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
 
   useEffect(() => {
-    const savedRole = localStorage.getItem("kairos-role");
+    const savedRole = localStorage.getItem("kairos-role") as UserRole | null;
 
     if (!savedRole) {
-      // No role selected yet — send to role selection
       router.replace("/select-role");
+      return;
+    }
+
+    setCurrentRole(savedRole);
+
+    // Super admin can access everything
+    if (savedRole === "super_admin") {
+      setStatus("allowed");
       return;
     }
 
@@ -40,10 +57,10 @@ export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
     );
   }
 
-  if (status === "denied") {
-    const correctPortal = allowedRole === "coach" ? "/dashboard" : "/coach/dashboard";
-    const portalName = allowedRole === "coach" ? "Coach" : "Client";
-    const yourPortal = allowedRole === "coach" ? "Client" : "Coach";
+  if (status === "denied" && currentRole) {
+    const yourHome = ROLE_HOME[currentRole] ?? "/dashboard";
+    const yourLabel = ROLE_LABELS[currentRole] ?? currentRole;
+    const portalLabel = ROLE_LABELS[allowedRole] ?? allowedRole;
 
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -53,15 +70,23 @@ export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
           </div>
           <h2 className="font-heading font-bold text-xl text-white mb-2">Access Restricted</h2>
           <p className="font-body text-sm text-kairos-silver-dark mb-6">
-            You&apos;re signed in as a <span className="text-kairos-gold font-semibold">{yourPortal}</span>.
-            The {portalName} Portal is not available with your current role.
+            You&apos;re signed in as a <span className="text-kairos-gold font-semibold">{yourLabel}</span>.
+            The {portalLabel} Portal is not available with your current role.
           </p>
-          <button
-            onClick={() => router.push(correctPortal)}
-            className="kairos-btn-gold text-sm px-6 py-3"
-          >
-            Go to {yourPortal} Portal
-          </button>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => router.push(yourHome)}
+              className="kairos-btn-gold text-sm px-6 py-3"
+            >
+              Go to {yourLabel} Portal
+            </button>
+            <button
+              onClick={() => router.push("/select-role")}
+              className="kairos-btn-outline text-sm px-6 py-3"
+            >
+              Switch Role
+            </button>
+          </div>
         </div>
       </div>
     );

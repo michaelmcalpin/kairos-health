@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { router, coachProcedure } from "@/server/trpc";
-import { alerts, coachClientRelationships, users } from "@/server/db/schema";
+import { router, trainerProcedure } from "@/server/trpc";
+import { alerts, trainerClientRelationships, users } from "@/server/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
 export const coachAlertsRouter = router({
-  // List alerts for all of coach's clients
-  list: coachProcedure
+  // List alerts for all of trainer's clients
+  list: trainerProcedure
     .input(
       z.object({
         status: z.enum(["active", "acknowledged", "resolved", "dismissed", "all"]).default("all"),
@@ -15,11 +15,11 @@ export const coachAlertsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      // Get all client IDs for this coach
-      const relationships = await ctx.db.query.coachClientRelationships.findMany({
+      // Get all client IDs for this trainer
+      const relationships = await ctx.db.query.trainerClientRelationships.findMany({
         where: and(
-          eq(coachClientRelationships.coachId, ctx.dbUserId),
-          eq(coachClientRelationships.status, "active")
+          eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+          eq(trainerClientRelationships.status, "active")
         ),
       });
 
@@ -78,21 +78,21 @@ export const coachAlertsRouter = router({
     }),
 
   // Acknowledge an alert on behalf of client
-  acknowledge: coachProcedure
+  acknowledge: trainerProcedure
     .input(z.object({ alertId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      // Verify the alert belongs to one of the coach's clients
+      // Verify the alert belongs to one of the trainer's clients
       const alert = await ctx.db.query.alerts.findFirst({
         where: eq(alerts.id, input.alertId),
       });
 
       if (!alert) return { success: false };
 
-      const relationship = await ctx.db.query.coachClientRelationships.findFirst({
+      const relationship = await ctx.db.query.trainerClientRelationships.findFirst({
         where: and(
-          eq(coachClientRelationships.coachId, ctx.dbUserId),
-          eq(coachClientRelationships.clientId, alert.clientId),
-          eq(coachClientRelationships.status, "active")
+          eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+          eq(trainerClientRelationships.clientId, alert.clientId),
+          eq(trainerClientRelationships.status, "active")
         ),
       });
 
@@ -107,11 +107,11 @@ export const coachAlertsRouter = router({
     }),
 
   // Summary counts by priority
-  summary: coachProcedure.query(async ({ ctx }) => {
-    const relationships = await ctx.db.query.coachClientRelationships.findMany({
+  summary: trainerProcedure.query(async ({ ctx }) => {
+    const relationships = await ctx.db.query.trainerClientRelationships.findMany({
       where: and(
-        eq(coachClientRelationships.coachId, ctx.dbUserId),
-        eq(coachClientRelationships.status, "active")
+        eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+        eq(trainerClientRelationships.status, "active")
       ),
     });
 

@@ -5,7 +5,7 @@
  * and operational metrics for the admin dashboard.
  */
 
-import { router, adminProcedure } from "@/server/trpc";
+import { router, superAdminProcedure as adminProcedure } from "@/server/trpc";
 import { users, clientProfiles } from "@/server/db/schema";
 import { sql, gte, eq } from "drizzle-orm";
 
@@ -36,12 +36,12 @@ export const adminPlatformRouter = router({
       .where(sql`${users.role} = 'client' and ${users.status} = 'active'`);
     const activeClients = Number(activeClientsResult[0]?.count ?? 0);
 
-    // Active coaches
-    const activeCoachesResult = await ctx.db
+    // Active trainers
+    const activeTrainersResult = await ctx.db
       .select({ count: sql<number>`count(*)` })
       .from(users)
-      .where(sql`${users.role} = 'coach' and ${users.status} = 'active'`);
-    const activeCoaches = Number(activeCoachesResult[0]?.count ?? 0);
+      .where(sql`${users.role} = 'trainer' and ${users.status} = 'active'`);
+    const activeTrainers = Number(activeTrainersResult[0]?.count ?? 0);
 
     // Tier breakdown for revenue calc
     const tierBreakdown = await ctx.db
@@ -69,10 +69,10 @@ export const adminPlatformRouter = router({
       totalUsers,
       newUsersThisMonth,
       activeClients,
-      activeCoaches,
+      activeTrainers,
       mrr,
       arr: mrr * 12,
-      clientCoachRatio: activeCoaches > 0 ? Math.round(activeClients / activeCoaches) : 0,
+      clientTrainerRatio: activeTrainers > 0 ? Math.round(activeClients / activeTrainers) : 0,
     };
   }),
 

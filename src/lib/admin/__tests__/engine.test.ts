@@ -33,16 +33,16 @@ describe("createUser", () => {
   });
 
   it("creates a coach user with coach profile", () => {
-    const user = createUser("coach@test.com", "Coach", "Smith", "coach");
-    expect(user.role).toBe("coach");
+    const user = createUser("coach@test.com", "Coach", "Smith", "trainer");
+    expect(user.role).toBe("trainer");
     expect(user.profile).not.toBeNull();
     expect(user.profile!.capacity).toBe(25);
     expect(user.subscription).toBeNull();
   });
 
   it("creates an admin user", () => {
-    const user = createUser("admin@test.com", "Admin", "User", "admin");
-    expect(user.role).toBe("admin");
+    const user = createUser("admin@test.com", "Admin", "User", "super_admin");
+    expect(user.role).toBe("super_admin");
     expect(user.profile).toBeNull();
   });
 
@@ -99,8 +99,8 @@ describe("deleteUser", () => {
   });
 
   it("throws when deleting admin", () => {
-    const admin = createUser("admin@test.com", "Admin", "User", "admin");
-    expect(() => deleteUser(admin.id, "other-admin")).toThrow("Cannot delete admin users");
+    const admin = createUser("admin@test.com", "Admin", "User", "super_admin");
+    expect(() => deleteUser(admin.id, "other-admin")).toThrow("Cannot delete super admin users");
   });
 
   it("logs audit entry on deletion", () => {
@@ -116,24 +116,24 @@ describe("deleteUser", () => {
 
 describe("performUserAction", () => {
   it("suspends a user", () => {
-    const user = createUser("alice@test.com", "Alice", "Smith", "coach");
+    const user = createUser("alice@test.com", "Alice", "Smith", "trainer");
     const suspended = performUserAction(user.id, { type: "suspend", reason: "Violation" }, "admin");
     expect(suspended.status).toBe("suspended");
   });
 
   it("throws when suspending already suspended user", () => {
-    const user = createUser("alice@test.com", "Alice", "Smith", "coach");
+    const user = createUser("alice@test.com", "Alice", "Smith", "trainer");
     performUserAction(user.id, { type: "suspend" }, "admin");
     expect(() => performUserAction(user.id, { type: "suspend" }, "admin")).toThrow("already suspended");
   });
 
   it("throws when suspending admin", () => {
-    const admin = createUser("admin@test.com", "Admin", "User", "admin");
-    expect(() => performUserAction(admin.id, { type: "suspend" }, "other")).toThrow("Cannot suspend admin");
+    const admin = createUser("admin@test.com", "Admin", "User", "super_admin");
+    expect(() => performUserAction(admin.id, { type: "suspend" }, "other")).toThrow("Cannot suspend super admin");
   });
 
   it("reactivates a suspended user", () => {
-    const user = createUser("alice@test.com", "Alice", "Smith", "coach");
+    const user = createUser("alice@test.com", "Alice", "Smith", "trainer");
     performUserAction(user.id, { type: "suspend" }, "admin");
     const reactivated = performUserAction(user.id, { type: "reactivate" }, "admin");
     expect(reactivated.status).toBe("active");
@@ -141,8 +141,8 @@ describe("performUserAction", () => {
 
   it("changes user role", () => {
     const user = createUser("alice@test.com", "Alice", "Smith");
-    const updated = performUserAction(user.id, { type: "change_role", newRole: "coach" }, "admin");
-    expect(updated.role).toBe("coach");
+    const updated = performUserAction(user.id, { type: "change_role", newRole: "trainer" }, "admin");
+    expect(updated.role).toBe("trainer");
     expect(updated.profile).not.toBeNull();
     expect(updated.profile!.capacity).toBe(25);
   });
@@ -159,7 +159,7 @@ describe("performUserAction", () => {
   });
 
   it("throws when changing tier for non-client", () => {
-    const coach = createUser("coach@test.com", "Coach", "Smith", "coach");
+    const coach = createUser("coach@test.com", "Coach", "Smith", "trainer");
     expect(() => performUserAction(coach.id, { type: "change_tier", newTier: "tier1" }, "admin")).toThrow("Only clients have tiers");
   });
 
@@ -176,7 +176,7 @@ describe("performUserAction", () => {
 describe("listUsers", () => {
   beforeEach(() => {
     createUser("alice@test.com", "Alice", "Smith");
-    createUser("bob@test.com", "Bob", "Jones", "coach");
+    createUser("bob@test.com", "Bob", "Jones", "trainer");
     createUser("carol@test.com", "Carol", "Davis");
   });
 
@@ -187,9 +187,9 @@ describe("listUsers", () => {
   });
 
   it("filters by role", () => {
-    const result = listUsers({ role: "coach" });
+    const result = listUsers({ role: "trainer" });
     expect(result.total).toBe(1);
-    expect(result.users[0].role).toBe("coach");
+    expect(result.users[0].role).toBe("trainer");
   });
 
   it("searches by name", () => {
@@ -248,14 +248,14 @@ describe("audit log", () => {
 describe("getPlatformUserStats", () => {
   it("returns correct stats", () => {
     createUser("alice@test.com", "Alice", "Smith");
-    createUser("bob@test.com", "Bob", "Jones", "coach");
-    createUser("carol@test.com", "Carol", "Davis", "admin");
+    createUser("bob@test.com", "Bob", "Jones", "trainer");
+    createUser("carol@test.com", "Carol", "Davis", "super_admin");
 
     const stats = getPlatformUserStats();
     expect(stats.totalUsers).toBe(3);
     expect(stats.clientCount).toBe(1);
-    expect(stats.coachCount).toBe(1);
-    expect(stats.adminCount).toBe(1);
+    expect(stats.trainerCount).toBe(1);
+    expect(stats.superAdminCount).toBe(1);
     expect(stats.newUsersThisWeek).toBe(3);
     expect(stats.newUsersThisMonth).toBe(3);
   });

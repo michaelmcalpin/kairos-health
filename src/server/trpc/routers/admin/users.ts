@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, adminProcedure } from "@/server/trpc";
+import { router, superAdminProcedure as adminProcedure } from "@/server/trpc";
 import {
   createUser,
   getUser,
@@ -17,7 +17,7 @@ export const adminUsersRouter = router({
     .input(
       z.object({
         search: z.string().optional().default(""),
-        role: z.enum(["client", "coach", "admin", "all"]).optional().default("all"),
+        role: z.enum(["client", "trainer", "company_admin", "super_admin", "all"]).optional().default("all"),
         status: z.enum(["active", "inactive", "suspended", "onboarding", "all"]).optional().default("all"),
         tier: z.enum(["tier1", "tier2", "tier3", "all"]).optional().default("all"),
         sortBy: z.enum(["name", "email", "createdAt", "lastLogin", "status"]).optional().default("createdAt"),
@@ -46,7 +46,7 @@ export const adminUsersRouter = router({
         email: z.string().email(),
         firstName: z.string().min(1),
         lastName: z.string().min(1),
-        role: z.enum(["client", "coach", "admin"]).optional().default("client"),
+        role: z.enum(["client", "trainer", "company_admin", "super_admin"]).optional().default("client"),
       })
     )
     .mutation(async ({ input }) => {
@@ -75,7 +75,7 @@ export const adminUsersRouter = router({
         userId: z.string(),
         action: z.enum(["suspend", "reactivate", "change_role", "change_tier", "reset_onboarding", "delete"]),
         reason: z.string().optional(),
-        newRole: z.enum(["client", "coach", "admin"]).optional(),
+        newRole: z.enum(["client", "trainer", "company_admin", "super_admin"]).optional(),
         newTier: z.enum(["tier1", "tier2", "tier3"]).optional(),
       })
     )

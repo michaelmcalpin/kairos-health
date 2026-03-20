@@ -96,6 +96,19 @@ export const LAB_CATEGORIES: { id: string; label: string }[] = [
 
 export type ProductCategory = "longevity" | "metabolic" | "sleep" | "cognitive" | "immune";
 
+export const PRODUCT_CATEGORIES: Array<"All" | ProductCategory> = [
+  "All", "longevity", "metabolic", "sleep", "cognitive", "immune",
+];
+
+export const PRODUCT_CATEGORY_LABELS: Record<string, string> = {
+  All: "All",
+  longevity: "Longevity",
+  metabolic: "Metabolic",
+  sleep: "Sleep",
+  cognitive: "Cognitive",
+  immune: "Immune",
+};
+
 export interface ClientProduct {
   id: string;
   name: string;

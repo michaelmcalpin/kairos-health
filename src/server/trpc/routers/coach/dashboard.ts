@@ -1,18 +1,18 @@
-import { router, coachProcedure } from "@/server/trpc";
-import { coachClientRelationships, users, clientProfiles, alerts, sleepSessions, glucoseReadings } from "@/server/db/schema";
+import { router, trainerProcedure } from "@/server/trpc";
+import { trainerClientRelationships, users, clientProfiles, alerts, sleepSessions, glucoseReadings } from "@/server/db/schema";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
 
 export const coachDashboardRouter = router({
   // Get overview KPIs: client count, active alerts, recent metrics
-  getOverview: coachProcedure.query(async ({ ctx }) => {
+  getOverview: trainerProcedure.query(async ({ ctx }) => {
     // Active client count
     const clientCount = await ctx.db
       .select({ count: sql<number>`count(*)` })
-      .from(coachClientRelationships)
+      .from(trainerClientRelationships)
       .where(
         and(
-          eq(coachClientRelationships.coachId, ctx.dbUserId),
-          eq(coachClientRelationships.status, "active")
+          eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+          eq(trainerClientRelationships.status, "active")
         )
       );
 
@@ -21,11 +21,11 @@ export const coachDashboardRouter = router({
       .select({ count: sql<number>`count(*)` })
       .from(alerts)
       .innerJoin(
-        coachClientRelationships,
+        trainerClientRelationships,
         and(
-          eq(alerts.clientId, coachClientRelationships.clientId),
-          eq(coachClientRelationships.coachId, ctx.dbUserId),
-          eq(coachClientRelationships.status, "active")
+          eq(alerts.clientId, trainerClientRelationships.clientId),
+          eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+          eq(trainerClientRelationships.status, "active")
         )
       )
       .where(eq(alerts.status, "active"));
@@ -36,12 +36,12 @@ export const coachDashboardRouter = router({
     };
   }),
 
-  // Get list of coach's clients with basic info
-  getClientList: coachProcedure.query(async ({ ctx }) => {
-    const relationships = await ctx.db.query.coachClientRelationships.findMany({
+  // Get list of trainer's clients with basic info
+  getClientList: trainerProcedure.query(async ({ ctx }) => {
+    const relationships = await ctx.db.query.trainerClientRelationships.findMany({
       where: and(
-        eq(coachClientRelationships.coachId, ctx.dbUserId),
-        eq(coachClientRelationships.status, "active")
+        eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+        eq(trainerClientRelationships.status, "active")
       ),
     });
 
@@ -93,7 +93,7 @@ export const coachDashboardRouter = router({
   }),
 
   // Recent activity feed
-  getRecentActivity: coachProcedure.query(async ({ ctx }) => {
+  getRecentActivity: trainerProcedure.query(async ({ ctx }) => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -108,11 +108,11 @@ export const coachDashboardRouter = router({
       })
       .from(alerts)
       .innerJoin(
-        coachClientRelationships,
+        trainerClientRelationships,
         and(
-          eq(alerts.clientId, coachClientRelationships.clientId),
-          eq(coachClientRelationships.coachId, ctx.dbUserId),
-          eq(coachClientRelationships.status, "active")
+          eq(alerts.clientId, trainerClientRelationships.clientId),
+          eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+          eq(trainerClientRelationships.status, "active")
         )
       )
       .where(gte(alerts.createdAt, sevenDaysAgo))

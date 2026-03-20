@@ -49,7 +49,7 @@ export function createUser(
     subscription: role === "client" ? { tier: "tier3", status: "trialing", currentPeriodEnd: null, stripeCustomerId: null } : null,
     profile: role === "client"
       ? { goals: [], onboardingCompleted: false }
-      : role === "coach"
+      : role === "trainer"
         ? { specialties: [], capacity: 25, currentClients: 0, acceptingClients: true, rating: 0, reviewCount: 0, monthlyRate: 0 }
         : null,
   };
@@ -91,7 +91,7 @@ export function updateUser(
 export function deleteUser(userId: string, actorId: string): void {
   const user = usersStore.get(userId);
   if (!user) throw new Error("User not found");
-  if (user.role === "admin") throw new Error("Cannot delete admin users");
+  if (user.role === "super_admin") throw new Error("Cannot delete super admin users");
 
   logAudit(actorId, "Admin", "user.deleted", userId, formatUserName(user), "user", userId, `Deleted ${user.role} account: ${user.email}`);
   usersStore.delete(userId);
@@ -112,7 +112,7 @@ export function performUserAction(
   switch (action.type) {
     case "suspend": {
       if (user.status === "suspended") throw new Error("User is already suspended");
-      if (user.role === "admin") throw new Error("Cannot suspend admin users");
+      if (user.role === "super_admin") throw new Error("Cannot suspend super admin users");
       updated.status = "suspended";
       logAudit(actorId, "Admin", "user.suspended", userId, formatUserName(user), "user", userId,
         `Suspended: ${action.reason ?? "No reason provided"}`);
@@ -132,7 +132,7 @@ export function performUserAction(
       const oldRole = user.role;
       updated.role = action.newRole;
       // Reset profile for new role
-      if (action.newRole === "coach") {
+      if (action.newRole === "trainer") {
         updated.profile = { specialties: [], capacity: 25, currentClients: 0, acceptingClients: true, rating: 0, reviewCount: 0, monthlyRate: 0 };
       } else if (action.newRole === "client") {
         updated.profile = { goals: [], onboardingCompleted: false };
@@ -313,8 +313,9 @@ export function getPlatformUserStats(): PlatformUserStats {
     suspendedUsers: users.filter((u) => u.status === "suspended").length,
     onboardingUsers: users.filter((u) => u.status === "onboarding").length,
     clientCount: clients.length,
-    coachCount: users.filter((u) => u.role === "coach").length,
-    adminCount: users.filter((u) => u.role === "admin").length,
+    trainerCount: users.filter((u) => u.role === "trainer").length,
+    companyAdminCount: users.filter((u) => u.role === "company_admin").length,
+    superAdminCount: users.filter((u) => u.role === "super_admin").length,
     tier1Count: clients.filter((u) => u.subscription?.tier === "tier1").length,
     tier2Count: clients.filter((u) => u.subscription?.tier === "tier2").length,
     tier3Count: clients.filter((u) => u.subscription?.tier === "tier3").length,
@@ -330,9 +331,9 @@ export function seedDemoUsers(): void {
   if (usersStore.size > 0) return;
 
   const demoUsers: Array<{ email: string; first: string; last: string; role: UserRole; status: UserStatus; tier?: SubscriptionTier }> = [
-    { email: "admin@kairos.health", first: "Platform", last: "Admin", role: "admin", status: "active" },
-    { email: "sarah.mitchell@kairos.health", first: "Sarah", last: "Mitchell", role: "coach", status: "active" },
-    { email: "james.chen@kairos.health", first: "James", last: "Chen", role: "coach", status: "active" },
+    { email: "admin@kairos.health", first: "Platform", last: "Admin", role: "super_admin", status: "active" },
+    { email: "sarah.mitchell@kairos.health", first: "Sarah", last: "Mitchell", role: "trainer", status: "active" },
+    { email: "james.chen@kairos.health", first: "James", last: "Chen", role: "trainer", status: "active" },
     { email: "alex.thompson@gmail.com", first: "Alex", last: "Thompson", role: "client", status: "active", tier: "tier1" },
     { email: "jordan.chen@gmail.com", first: "Jordan", last: "Chen", role: "client", status: "active", tier: "tier1" },
     { email: "maria.santos@gmail.com", first: "Maria", last: "Santos", role: "client", status: "active", tier: "tier2" },
@@ -356,7 +357,7 @@ export function seedDemoUsers(): void {
         lastLoginAt: u.status === "active" ? new Date(Date.now() - Math.random() * 7 * 86400000).toISOString() : null,
       });
     }
-    if (u.role === "coach") {
+    if (u.role === "trainer") {
       usersStore.set(user.id, {
         ...usersStore.get(user.id)!,
         profile: {

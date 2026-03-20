@@ -1,5 +1,5 @@
-import { router, coachProcedure } from "@/server/trpc";
-import { coachClientRelationships, users, clientProfiles } from "@/server/db/schema";
+import { router, trainerProcedure } from "@/server/trpc";
+import { trainerClientRelationships, users, clientProfiles } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 
 // Tier pricing for revenue calculations
@@ -10,12 +10,12 @@ const tierPricing: Record<string, { coaching: number; label: string }> = {
 };
 
 export const coachRevenueRouter = router({
-  // Get revenue summary for the coach
-  getSummary: coachProcedure.query(async ({ ctx }) => {
-    const relationships = await ctx.db.query.coachClientRelationships.findMany({
+  // Get revenue summary for the trainer
+  getSummary: trainerProcedure.query(async ({ ctx }) => {
+    const relationships = await ctx.db.query.trainerClientRelationships.findMany({
       where: and(
-        eq(coachClientRelationships.coachId, ctx.dbUserId),
-        eq(coachClientRelationships.status, "active")
+        eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+        eq(trainerClientRelationships.status, "active")
       ),
     });
 
@@ -80,11 +80,11 @@ export const coachRevenueRouter = router({
   }),
 
   // Get client-level revenue breakdown
-  getClientRevenue: coachProcedure.query(async ({ ctx }) => {
-    const relationships = await ctx.db.query.coachClientRelationships.findMany({
+  getClientRevenue: trainerProcedure.query(async ({ ctx }) => {
+    const relationships = await ctx.db.query.trainerClientRelationships.findMany({
       where: and(
-        eq(coachClientRelationships.coachId, ctx.dbUserId),
-        eq(coachClientRelationships.status, "active")
+        eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+        eq(trainerClientRelationships.status, "active")
       ),
     });
 

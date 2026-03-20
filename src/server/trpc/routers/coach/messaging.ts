@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, coachProcedure } from "@/server/trpc";
+import { router, trainerProcedure as coachProcedure } from "@/server/trpc";
 import {
   getOrCreateConversation,
   listConversations,
