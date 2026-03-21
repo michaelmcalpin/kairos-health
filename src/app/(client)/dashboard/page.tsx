@@ -6,6 +6,7 @@ import { useDateRange } from "@/hooks/useDateRange";
 import { useDashboard } from "@/hooks/client/useDashboard";
 import { Droplets, Heart, Brain, Moon, Bell, CheckCircle } from "lucide-react";
 import { getDashboardProtocol } from "@/lib/client-ops/engine";
+import { useCompanyBrand } from "@/lib/company-ops";
 
 export default function ClientDashboard() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
@@ -18,18 +19,33 @@ export default function ClientDashboard() {
   const protocolItems = getDashboardProtocol();
   const doneCount = protocolItems.filter((e) => e.done).length;
 
+  // White-label branding
+  const { brand } = useCompanyBrand();
+  const isWhiteLabel = brand.id !== "kairos";
+  const accentColor = isWhiteLabel ? brand.brandColor : undefined;
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Welcome Banner */}
-      <div className="kairos-card border-kairos-gold/20">
+      <div
+        className="kairos-card"
+        style={accentColor ? { borderColor: accentColor + "30" } : { borderColor: "rgba(var(--k-accent), 0.2)" }}
+      >
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-heading font-bold text-xl text-white mb-1">Welcome back</h2>
             <p className="text-sm font-body text-kairos-silver-dark">
-              Here&apos;s your health overview for {formattedRange}
+              {isWhiteLabel
+                ? <>{brand.name} &mdash; your health overview for {formattedRange}</>
+                : <>Here&apos;s your health overview for {formattedRange}</>}
             </p>
           </div>
-          <div className="text-xs font-heading font-semibold px-3 py-1 rounded-full bg-kairos-gold/20 text-kairos-gold flex items-center gap-1">
+          <div
+            className="text-xs font-heading font-semibold px-3 py-1 rounded-full flex items-center gap-1"
+            style={accentColor
+              ? { backgroundColor: accentColor + "20", color: accentColor }
+              : { backgroundColor: "rgba(var(--k-accent), 0.2)", color: "rgb(var(--k-accent))" }}
+          >
             <CheckCircle size={12} />
             All Systems Active
           </div>
@@ -59,7 +75,7 @@ export default function ClientDashboard() {
           icon={<Droplets size={16} />}
         />
         <KPICard label="Heart Rate" value="68" unit="bpm" trend="down" trendValue="-3 from avg" icon={<Heart size={16} />} />
-        <KPICard label="HRV" value="54" unit="ms" trend="up" trendValue="+8%" icon={<Brain size={16} />} highlight />
+        <KPICard label="HRV" value="54" unit="ms" trend="up" trendValue="+8%" icon={<Brain size={16} />} highlight accentColor={accentColor} />
         <KPICard
           label="Sleep"
           value={kpis.avgSleepHrs}
@@ -75,6 +91,7 @@ export default function ClientDashboard() {
           trend="up"
           trendValue="+2 pts"
           highlight
+          accentColor={accentColor}
         />
         <KPICard label="Alerts" value="3" unit="active" icon={<Bell size={16} />} />
       </div>

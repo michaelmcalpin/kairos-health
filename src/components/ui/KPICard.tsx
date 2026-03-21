@@ -12,6 +12,8 @@ interface KPICardProps {
   icon?: React.ReactNode;
   className?: string;
   highlight?: boolean;
+  /** White-label: override accent color for highlight border */
+  accentColor?: string;
 }
 
 export function KPICard({
@@ -23,14 +25,16 @@ export function KPICard({
   icon,
   className,
   highlight = false,
+  accentColor,
 }: KPICardProps) {
   return (
     <div
       className={cn(
         "kairos-card flex flex-col gap-2",
-        highlight && "border-kairos-gold/30 shadow-gold-glow",
+        highlight && !accentColor && "border-kairos-gold/30 shadow-gold-glow",
         className
       )}
+      style={highlight && accentColor ? { borderColor: accentColor + "50" } : undefined}
     >
       <div className="flex items-center justify-between">
         <span className="kairos-label">{label}</span>
