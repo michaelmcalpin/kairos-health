@@ -8,6 +8,20 @@ export {
   getRoleLabel,
   getRolePath,
   COMPANY_STATUSES,
+  createCompany,
+  updateCompany,
+  performCompanyAction,
+  listCompanies,
+  getCompanyAuditLog,
+} from "./engine";
+
+export type {
+  CreateCompanyInput,
+  UpdateCompanyInput,
+  CompanyAction,
+  CompanyListFilters,
+  CompanyListResult,
+  CompanyAuditEntry,
 } from "./engine";
 
 export type {

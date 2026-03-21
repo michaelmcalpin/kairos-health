@@ -36,6 +36,7 @@ import { adminAnalyticsRouter } from "./admin/analytics";
 import { adminRevenueRouter } from "./admin/revenue";
 import { adminPlatformRouter } from "./admin/platform";
 import { adminUsersRouter } from "./admin/users";
+import { adminCompaniesRouter } from "./admin/companies";
 
 export const appRouter = router({
   auth: authRouter,
@@ -74,6 +75,7 @@ export const appRouter = router({
     revenue: adminRevenueRouter,
     platform: adminPlatformRouter,
     users: adminUsersRouter,
+    companies: adminCompaniesRouter,
   }),
 });
 
