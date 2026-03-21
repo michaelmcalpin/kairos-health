@@ -47,11 +47,22 @@ interface SidebarProps {
   items: NavItem[];
   userName?: string;
   userTier?: string;
+  /** White-label: company name replaces "KAIROS" */
+  companyName?: string;
+  /** White-label: company logo URL (shown instead of text brand) */
+  companyLogoUrl?: string | null;
+  /** White-label: hex brand color for accent override */
+  companyBrandColor?: string;
+  /** Show "Powered by Kairos" in footer for white-label companies */
+  showPoweredBy?: boolean;
 }
 
-export function Sidebar({ items, userName, userTier }: SidebarProps) {
+export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl, companyBrandColor, showPoweredBy }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+
+  const displayName = companyName || "KAIROS";
+  const displaySubtitle = companyName ? "Health Platform" : "Private Health";
 
   // Group items by section
   const sections: Record<string, NavItem[]> = {};
@@ -71,13 +82,32 @@ export function Sidebar({ items, userName, userTier }: SidebarProps) {
       {/* Brand Header */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-kairos-border">
         {!collapsed && (
-          <div>
-            <h1 className="font-heading font-bold text-lg text-kairos-gold tracking-wide">
-              KAIROS
-            </h1>
-            <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-widest">
-              Private Health
-            </p>
+          <div className="flex items-center gap-3 min-w-0">
+            {companyLogoUrl ? (
+              <img
+                src={companyLogoUrl}
+                alt={displayName}
+                className="h-8 w-8 rounded-kairos-sm object-contain flex-shrink-0"
+              />
+            ) : companyBrandColor ? (
+              <div
+                className="h-8 w-8 rounded-kairos-sm flex items-center justify-center text-white font-heading font-bold text-sm flex-shrink-0"
+                style={{ backgroundColor: companyBrandColor }}
+              >
+                {displayName.charAt(0)}
+              </div>
+            ) : null}
+            <div className="min-w-0">
+              <h1
+                className="font-heading font-bold text-lg tracking-wide truncate"
+                style={{ color: companyBrandColor || undefined }}
+              >
+                {companyName ? displayName : <span className="text-kairos-gold">KAIROS</span>}
+              </h1>
+              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-widest">
+                {displaySubtitle}
+              </p>
+            </div>
           </div>
         )}
         <button
@@ -140,9 +170,15 @@ export function Sidebar({ items, userName, userTier }: SidebarProps) {
       {/* Footer */}
       {!collapsed && (
         <div className="px-4 py-3 border-t border-kairos-border">
-          <p className="text-[10px] text-kairos-silver-dark font-body">
-            KAIROS v0.1.0
-          </p>
+          {showPoweredBy ? (
+            <p className="text-[10px] text-kairos-silver-dark font-body">
+              Powered by <span className="text-kairos-gold font-semibold">KAIROS</span>
+            </p>
+          ) : (
+            <p className="text-[10px] text-kairos-silver-dark font-body">
+              KAIROS v0.1.0
+            </p>
+          )}
         </div>
       )}
     </aside>

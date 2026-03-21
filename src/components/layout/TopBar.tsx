@@ -10,9 +10,11 @@ interface TopBarProps {
   alertCount?: number;
   showSearch?: boolean;
   className?: string;
+  /** White-label: company brand color for title accent */
+  brandColor?: string;
 }
 
-export function TopBar({ title, subtitle, alertCount = 0, showSearch = true, className }: TopBarProps) {
+export function TopBar({ title, subtitle, alertCount = 0, showSearch = true, className, brandColor }: TopBarProps) {
   const { signOut } = useClerk();
 
   function handleSignOut() {
@@ -30,7 +32,13 @@ export function TopBar({ title, subtitle, alertCount = 0, showSearch = true, cla
     >
       {/* Left: Title */}
       <div>
-        <h1 className="font-heading font-bold text-lg text-white">{title}</h1>
+        <h1 className="font-heading font-bold text-lg text-white">
+          {brandColor ? (
+            <span style={{ color: brandColor }}>{title}</span>
+          ) : (
+            title
+          )}
+        </h1>
         {subtitle && (
           <p className="text-xs font-body text-kairos-silver-dark">{subtitle}</p>
         )}

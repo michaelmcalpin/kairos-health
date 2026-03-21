@@ -20,3 +20,17 @@ export type {
 } from "./types";
 
 export { ROLE_OPTIONS, ROLE_LABELS } from "./types";
+
+export {
+  hexToRgb,
+  hexToRgbString,
+  darkenHex,
+  lightenHex,
+  resolveCompanyBrand,
+  brandCssVars,
+  resolveEmailBrand,
+} from "./brand";
+
+export type { CompanyBrand, EmailBrandConfig } from "./brand";
+
+export { CompanyBrandProvider, useCompanyBrand, useCompanyList } from "./CompanyBrandProvider";
