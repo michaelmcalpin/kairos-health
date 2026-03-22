@@ -38,6 +38,10 @@ import { adminPlatformRouter } from "./admin/platform";
 import { adminUsersRouter } from "./admin/users";
 import { adminCompaniesRouter } from "./admin/companies";
 
+// Company admin routers
+import { companyDashboardRouter } from "./company/dashboard";
+import { companySettingsRouter } from "./company/settings";
+
 export const appRouter = router({
   auth: authRouter,
   client: router({
@@ -68,6 +72,10 @@ export const appRouter = router({
     schedule: coachScheduleRouter,
     revenue: coachRevenueRouter,
     messaging: coachMessagingRouter,
+  }),
+  company: router({
+    dashboard: companyDashboardRouter,
+    settings: companySettingsRouter,
   }),
   admin: router({
     dashboard: adminDashboardRouter,

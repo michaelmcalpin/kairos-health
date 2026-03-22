@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Building2, Palette, Bell, Mail, Eye } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Building2, Palette, Bell, Mail, Eye, Save, Check } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
 import { useCompanyBrand, useCompanyList } from "@/lib/company-ops";
+import { updateCompany } from "@/lib/company-ops/engine";
 
 export default function CompanySettingsPage() {
   const { theme: currentTheme, setTheme } = useTheme();
@@ -17,18 +18,76 @@ export default function CompanySettingsPage() {
   const [brandColor, setBrandColor] = useState(brand.brandColor);
   const [emailFromName, setEmailFromName] = useState(brand.emailFromName);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState({
+    trainerSignups: true,
+    clientMilestones: true,
+    weeklyReports: true,
+  });
+
+  // Sync form when company changes
+  useEffect(() => {
+    setCompanyName(brand.name);
+    setWebsite(brand.website);
+    setEmailFooter(brand.emailFooter);
+    setBrandColor(brand.brandColor);
+    setEmailFromName(brand.emailFromName);
+  }, [brand]);
+
+  const isDirty = company && (
+    companyName !== company.name ||
+    website !== company.website ||
+    emailFooter !== company.emailFooter ||
+    brandColor !== company.brandColor ||
+    emailFromName !== company.emailFromName
+  );
+
+  const handleSave = useCallback(() => {
+    if (!company) return;
+    try {
+      updateCompany(company.id, {
+        name: companyName,
+        website,
+        emailFooter,
+        brandColor,
+        emailFromName,
+      });
+      setSaveMsg("Settings saved successfully");
+      setTimeout(() => setSaveMsg(null), 3000);
+    } catch (err) {
+      setSaveMsg(err instanceof Error ? err.message : "Save failed");
+    }
+  }, [company, companyName, website, emailFooter, brandColor, emailFromName]);
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8">
-        <h1 className="font-heading font-bold text-3xl text-white mb-2">Company Settings</h1>
-        <p className="font-body text-kairos-silver-dark">Manage your company profile and branding</p>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="font-heading font-bold text-3xl text-white mb-2">Company Settings</h1>
+          <p className="font-body text-kairos-silver-dark">Manage your company profile and branding</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {saveMsg && (
+            <span className={`flex items-center gap-1 text-sm font-body ${saveMsg.includes("success") ? "text-green-400" : "text-red-400"}`}>
+              {saveMsg.includes("success") && <Check size={14} />}
+              {saveMsg}
+            </span>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={!isDirty}
+            className="flex items-center gap-2 px-4 py-2.5 bg-kairos-gold text-kairos-royal-dark rounded-kairos-sm font-heading font-semibold text-sm hover:bg-kairos-gold-light transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Save size={16} />
+            Save Changes
+          </button>
+        </div>
       </div>
 
       <div className="space-y-8 max-w-3xl">
 
         {/* Company Selector (for demo: pick which company to preview) */}
-        <div className="kairos-card bg-kairos-card border border-kairos-border">
+        <div className="kairos-card">
           <div className="flex items-center gap-3 mb-4">
             <Eye className="w-5 h-5 text-kairos-gold" />
             <h2 className="font-heading font-bold text-lg text-white">Preview Company</h2>
@@ -42,11 +101,7 @@ export default function CompanySettingsPage() {
                 key={c.id}
                 onClick={() => {
                   setCompanyId(c.id);
-                  setCompanyName(c.name);
-                  setWebsite(c.website);
-                  setEmailFooter(c.emailFooter || `Powered by Kairos Health | ${c.name}`);
-                  setBrandColor(c.brandColor);
-                  setEmailFromName(c.emailFromName || c.name);
+                  // Form will sync via useEffect
                 }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-kairos-sm border transition-all ${
                   company?.id === c.id
@@ -65,7 +120,7 @@ export default function CompanySettingsPage() {
         </div>
 
         {/* Company Profile */}
-        <div className="kairos-card bg-kairos-card border border-kairos-border">
+        <div className="kairos-card">
           <div className="flex items-center gap-3 mb-6">
             <Building2 className="w-5 h-5 text-kairos-gold" />
             <h2 className="font-heading font-bold text-lg text-white">Company Profile</h2>
@@ -122,7 +177,7 @@ export default function CompanySettingsPage() {
         </div>
 
         {/* Live Brand Preview */}
-        <div className="kairos-card bg-kairos-card border border-kairos-border">
+        <div className="kairos-card">
           <div className="flex items-center gap-3 mb-6">
             <Eye className="w-5 h-5 text-kairos-gold" />
             <h2 className="font-heading font-bold text-lg text-white">Brand Preview</h2>
@@ -161,7 +216,7 @@ export default function CompanySettingsPage() {
         </div>
 
         {/* Email Branding */}
-        <div className="kairos-card bg-kairos-card border border-kairos-border">
+        <div className="kairos-card">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <Mail className="w-5 h-5 text-kairos-gold" />
@@ -232,7 +287,7 @@ export default function CompanySettingsPage() {
         </div>
 
         {/* Appearance (Theme) */}
-        <div className="kairos-card bg-kairos-card border border-kairos-border">
+        <div className="kairos-card">
           <div className="flex items-center gap-3 mb-6">
             <Palette className="w-5 h-5 text-kairos-gold" />
             <h2 className="font-heading font-bold text-lg text-white">Appearance</h2>
@@ -261,19 +316,31 @@ export default function CompanySettingsPage() {
         </div>
 
         {/* Notifications */}
-        <div className="kairos-card bg-kairos-card border border-kairos-border">
+        <div className="kairos-card">
           <div className="flex items-center gap-3 mb-6">
             <Bell className="w-5 h-5 text-kairos-gold" />
             <h2 className="font-heading font-bold text-lg text-white">Notifications</h2>
           </div>
           <div className="space-y-4">
-            {["New trainer sign-ups", "Client milestones", "Weekly reports"].map((label) => (
-              <label key={label} className="flex items-center justify-between py-2">
+            {[
+              { key: "trainerSignups" as const, label: "New trainer sign-ups" },
+              { key: "clientMilestones" as const, label: "Client milestones" },
+              { key: "weeklyReports" as const, label: "Weekly reports" },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setNotifications((n) => ({ ...n, [key]: !n[key] }))}
+                className="flex items-center justify-between w-full py-2"
+              >
                 <span className="font-body text-sm text-white">{label}</span>
-                <div className="w-10 h-6 bg-kairos-gold/30 rounded-full relative cursor-pointer">
-                  <div className="absolute top-1 left-5 w-4 h-4 bg-kairos-gold rounded-full transition-all" />
+                <div className={`w-10 h-6 rounded-full relative transition-colors ${
+                  notifications[key] ? "bg-kairos-gold/30" : "bg-gray-700"
+                }`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full transition-all ${
+                    notifications[key] ? "left-5 bg-kairos-gold" : "left-1 bg-gray-500"
+                  }`} />
                 </div>
-              </label>
+              </button>
             ))}
           </div>
         </div>
