@@ -48,7 +48,7 @@ function seedCoachAppointments() {
         coachId: COACH_ID,
         clientId: clients[seed.clientIdx].id,
         clientName: clients[seed.clientIdx].name,
-        coachName: "Coach",
+        coachName: "Trainer",
         sessionType: seed.type,
         meetingType: seed.meeting,
         date: date.toISOString().split("T")[0],

@@ -7,12 +7,18 @@ import {
   Bell,
   Palette,
   Save,
+  Check,
+  Building2,
 } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
+import { useCompanyBrand } from "@/lib/company-ops";
 
-export default function CoachSettingsPage() {
+export default function TrainerSettingsPage() {
   const { theme, setTheme } = useTheme();
+  const { brand } = useCompanyBrand();
+  const isWhiteLabel = brand.id !== "kairos";
+  const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
   const [formData, setFormData] = useState({
     displayName: "Dr. Marcus Chen",
@@ -45,21 +51,57 @@ export default function CoachSettingsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-3">
-        <Settings className="w-8 h-8 text-kairos-gold" />
-        <h1 className="font-heading text-3xl font-bold text-white">Coach Settings</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Settings className="w-8 h-8" style={{ color: accentColor || "rgb(var(--k-accent))" }} />
+          <h1 className="font-heading text-3xl font-bold text-white">Trainer Settings</h1>
+        </div>
+        <button
+          onClick={handleSaveChanges}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-kairos-sm font-heading font-semibold text-sm transition-colors"
+          style={{
+            backgroundColor: accentColor || "rgb(var(--k-accent))",
+            color: accentColor ? "#fff" : "rgb(var(--k-bg))",
+          }}
+        >
+          <Save className="w-4 h-4" />
+          Save Changes
+        </button>
       </div>
 
       {saveMessage && (
-        <div className="p-4 bg-success/15 border border-success/30 rounded-kairos-sm text-kairos-silver">
+        <div className="flex items-center gap-2 p-4 bg-green-500/15 border border-green-500/30 rounded-kairos-sm text-green-400 text-sm">
+          <Check size={16} />
           {saveMessage}
+        </div>
+      )}
+
+      {/* Company Info (when white-labeled) */}
+      {isWhiteLabel && (
+        <div className="kairos-card" style={{ borderColor: accentColor + "30" }}>
+          <div className="flex items-center gap-3 mb-3">
+            <Building2 className="w-5 h-5" style={{ color: accentColor }} />
+            <h2 className="font-heading text-lg font-semibold text-white">Company</h2>
+          </div>
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-kairos-sm flex items-center justify-center text-white font-heading font-bold"
+              style={{ backgroundColor: accentColor }}
+            >
+              {brand.name.charAt(0)}
+            </div>
+            <div>
+              <p className="font-heading font-semibold text-white">{brand.name}</p>
+              <p className="text-xs font-body text-kairos-silver-dark">{brand.website || brand.id}</p>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Profile */}
       <div className="kairos-card">
         <div className="flex items-center gap-3 mb-6">
-          <User className="w-5 h-5 text-kairos-gold" />
+          <User className="w-5 h-5" style={{ color: accentColor || "rgb(var(--k-accent))" }} />
           <h2 className="font-heading text-xl font-semibold text-white">Profile</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -94,7 +136,7 @@ export default function CoachSettingsPage() {
       {/* Notifications */}
       <div className="kairos-card">
         <div className="flex items-center gap-3 mb-6">
-          <Bell className="w-5 h-5 text-kairos-gold" />
+          <Bell className="w-5 h-5" style={{ color: accentColor || "rgb(var(--k-accent))" }} />
           <h2 className="font-heading text-xl font-semibold text-white">Notifications</h2>
         </div>
         <div className="space-y-3">
@@ -104,19 +146,20 @@ export default function CoachSettingsPage() {
             { key: "appointmentReminders" as const, label: "Appointment Reminders" },
             { key: "weeklyReports" as const, label: "Weekly Client Reports" },
           ]).map(({ key, label }) => (
-            <div key={key} className="flex items-center justify-between p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border">
+            <button
+              key={key}
+              onClick={() => handleNotificationChange(key)}
+              className="w-full flex items-center justify-between p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border hover:border-kairos-gold/30 transition-colors"
+            >
               <span className="font-body text-kairos-silver-dark">{label}</span>
-              <button
-                onClick={() => handleNotificationChange(key)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${
-                  notifications[key] ? "bg-kairos-gold" : "bg-gray-600 border border-kairos-border"
-                }`}
-              >
+              <div className={`relative w-12 h-6 rounded-full transition-colors ${
+                notifications[key] ? "" : "bg-gray-600 border border-kairos-border"
+              }`} style={notifications[key] ? { backgroundColor: (accentColor || "rgb(var(--k-accent))") } : undefined}>
                 <div className={`absolute top-1 w-4 h-4 bg-kairos-card rounded-full transition-transform ${
                   notifications[key] ? "translate-x-6" : "translate-x-1"
                 }`} />
-              </button>
-            </div>
+              </div>
+            </button>
           ))}
         </div>
       </div>
@@ -124,11 +167,11 @@ export default function CoachSettingsPage() {
       {/* Appearance */}
       <div className="kairos-card">
         <div className="flex items-center gap-3 mb-6">
-          <Palette className="w-5 h-5 text-kairos-gold" />
+          <Palette className="w-5 h-5" style={{ color: accentColor || "rgb(var(--k-accent))" }} />
           <h2 className="font-heading text-xl font-semibold text-white">Appearance</h2>
         </div>
         <p className="text-sm font-body text-kairos-silver-dark mb-4">
-          Choose your preferred visual theme for the KAIROS dashboard.
+          Choose your preferred visual theme for the {isWhiteLabel ? brand.name : "KAIROS"} dashboard.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {(Object.keys(THEMES) as ThemeId[]).map((id) => {
@@ -163,15 +206,6 @@ export default function CoachSettingsPage() {
             );
           })}
         </div>
-      </div>
-
-      {/* Save */}
-      <div className="flex justify-end gap-4">
-        <button className="kairos-btn-outline">Cancel</button>
-        <button onClick={handleSaveChanges} className="kairos-btn-gold flex items-center gap-2">
-          <Save className="w-5 h-5" />
-          Save Changes
-        </button>
       </div>
     </div>
   );

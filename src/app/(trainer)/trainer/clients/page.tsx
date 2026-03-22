@@ -137,7 +137,7 @@ export default function CoachClientsPage() {
           </div>
         ) : (
           clients.map((client) => (
-            <Link key={client.id} href={`/coach/clients/${client.id}`}>
+            <Link key={client.id} href={`/trainer/clients/${client.id}`}>
               <ClientCard client={client} />
             </Link>
           ))

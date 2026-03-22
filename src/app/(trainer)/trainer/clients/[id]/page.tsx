@@ -58,7 +58,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   if (!client) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <Link href="/coach/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
+        <Link href="/trainer/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
           <ArrowLeft size={14} /> Back to clients
         </Link>
         <div className="kairos-card p-12 text-center">
@@ -110,7 +110,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Back link */}
-      <Link href="/coach/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
+      <Link href="/trainer/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
         <ArrowLeft size={14} /> Back to clients
       </Link>
 
@@ -281,9 +281,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             </div>
           </div>
 
-          {/* Coach Notes */}
+          {/* Trainer Notes */}
           <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4">Coach Notes</h2>
+            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4">Trainer Notes</h2>
 
             {/* Add Note */}
             <div className="flex gap-2 mb-4">

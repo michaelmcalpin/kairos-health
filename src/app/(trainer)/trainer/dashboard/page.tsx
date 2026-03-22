@@ -6,6 +6,7 @@ import { KPICard } from "@/components/ui/KPICard";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { getCoachDashboard } from "@/lib/coach-dashboard/engine";
+import { useCompanyBrand } from "@/lib/company-ops";
 import { Users, Bell, Calendar, TrendingUp, DollarSign, Clock } from "lucide-react";
 
 const COACH_ID = "demo-coach";
@@ -19,7 +20,11 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   clock: <Clock size={16} />,
 };
 
-export default function CoachDashboard() {
+export default function TrainerDashboard() {
+  const { brand } = useCompanyBrand();
+  const isWhiteLabel = brand.id !== "kairos";
+  const accentColor = isWhiteLabel ? brand.brandColor : undefined;
+
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "day" });
 
@@ -56,6 +61,7 @@ export default function CoachDashboard() {
             trendValue={kpi.trendValue}
             icon={ICON_MAP[kpi.icon] ?? <TrendingUp size={16} />}
             highlight={kpi.icon === "trending"}
+            accentColor={accentColor}
           />
         ))}
       </div>
@@ -66,17 +72,24 @@ export default function CoachDashboard() {
           <h3 className="font-heading font-semibold text-white mb-4">Priority Clients</h3>
           <div className="space-y-3">
             {data.priorityClients.map((client) => (
-              <Link key={client.id} href={`/coach/clients/${client.id}`}>
+              <Link key={client.id} href={`/trainer/clients/${client.id}`}>
                 <div className="flex items-center gap-4 py-3 px-3 rounded-xl hover:bg-gray-800/50 transition-colors cursor-pointer">
-                  <div className="w-9 h-9 rounded-full bg-kairos-gold/20 flex items-center justify-center">
-                    <span className="text-xs font-heading font-bold text-kairos-gold">{client.initials}</span>
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: (accentColor || "rgb(var(--k-accent))") + "20" }}
+                  >
+                    <span className="text-xs font-heading font-bold" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
+                      {client.initials}
+                    </span>
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-heading font-semibold text-white">{client.name}</p>
                     <p className="text-xs text-gray-500">{client.status}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-heading font-bold text-kairos-gold">{client.healthScore}</p>
+                    <p className="text-sm font-heading font-bold" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
+                      {client.healthScore}
+                    </p>
                     <p className="text-[10px] text-gray-500">health score</p>
                   </div>
                   {client.alerts > 0 && (
@@ -98,7 +111,9 @@ export default function CoachDashboard() {
           <div className="space-y-3">
             {data.todaySchedule.map((session) => (
               <div key={session.id} className="flex items-center gap-3 py-2">
-                <span className="text-xs text-kairos-gold w-16 shrink-0">{session.time}</span>
+                <span className="text-xs w-16 shrink-0" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
+                  {session.time}
+                </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white truncate">{session.client}</p>
                   <p className="text-[10px] text-gray-500">{session.type}</p>
