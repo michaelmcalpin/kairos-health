@@ -18,6 +18,25 @@ const ROLE_HOME: Record<UserRole, string> = {
   client: "/dashboard",
 };
 
+/**
+ * Hierarchy check — can `currentRole` access the `targetRole` portal?
+ *
+ * - super_admin → everything
+ * - company_admin → company_admin, trainer, client
+ * - trainer → trainer, client
+ * - client → client only
+ */
+const ROLE_HIERARCHY: Record<UserRole, UserRole[]> = {
+  super_admin: ["super_admin", "company_admin", "trainer", "client"],
+  company_admin: ["company_admin", "trainer", "client"],
+  trainer: ["trainer", "client"],
+  client: ["client"],
+};
+
+function canAccess(currentRole: UserRole, targetPortal: UserRole): boolean {
+  return (ROLE_HIERARCHY[currentRole] ?? []).includes(targetPortal);
+}
+
 export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
   const router = useRouter();
   const [status, setStatus] = useState<"loading" | "allowed" | "denied">("loading");
@@ -33,16 +52,10 @@ export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
 
     setCurrentRole(savedRole);
 
-    // Super admin can access everything
-    if (savedRole === "super_admin") {
+    if (canAccess(savedRole, allowedRole)) {
       setStatus("allowed");
-      return;
-    }
-
-    if (savedRole !== allowedRole) {
-      setStatus("denied");
     } else {
-      setStatus("allowed");
+      setStatus("denied");
     }
   }, [allowedRole, router]);
 
@@ -62,6 +75,9 @@ export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
     const yourLabel = ROLE_LABELS[currentRole] ?? currentRole;
     const portalLabel = ROLE_LABELS[allowedRole] ?? allowedRole;
 
+    // Only show "Switch Role" if user has multiple accessible roles
+    const hasMultipleRoles = (ROLE_HIERARCHY[currentRole] ?? []).length > 1;
+
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center max-w-md">
@@ -80,12 +96,17 @@ export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
             >
               Go to {yourLabel} Portal
             </button>
-            <button
-              onClick={() => router.push("/select-role")}
-              className="kairos-btn-outline text-sm px-6 py-3"
-            >
-              Switch Role
-            </button>
+            {hasMultipleRoles && (
+              <button
+                onClick={() => {
+                  localStorage.removeItem("kairos-role");
+                  router.push("/select-role");
+                }}
+                className="kairos-btn-outline text-sm px-6 py-3"
+              >
+                Switch Portal
+              </button>
+            )}
           </div>
         </div>
       </div>
