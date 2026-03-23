@@ -17,6 +17,7 @@ import {
   REFERENCE_CATEGORIES,
 } from "@/lib/admin-references/engine";
 import type { ReferenceCategory, ReferenceSortBy } from "@/lib/admin-references/types";
+import { CompanySelector, useCompanyFilter } from "@/components/admin/CompanySelector";
 
 const allReferences = getReferences();
 const refStats = getReferenceStats();
@@ -28,6 +29,7 @@ const statItems = [
 ];
 
 export default function ReferencesPage() {
+  const { selectedCompany, setSelectedCompany, company } = useCompanyFilter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<"All" | ReferenceCategory>("All");
   const [sortBy, setSortBy] = useState<ReferenceSortBy>("date");
@@ -54,14 +56,30 @@ export default function ReferencesPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-8">
-        <h1 className="font-heading font-bold text-3xl text-white mb-2">
-          References &amp; Knowledge Base
-        </h1>
-        <p className="font-body text-kairos-silver-dark">
-          Searchable library of clinical resources and longevity science
-        </p>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="font-heading font-bold text-3xl text-white mb-2">
+            References &amp; Knowledge Base
+          </h1>
+          <p className="font-body text-kairos-silver-dark">
+            {company ? `${company.name} — Clinical resources` : "Searchable library of clinical resources and longevity science"}
+          </p>
+        </div>
+        <CompanySelector value={selectedCompany} onChange={setSelectedCompany} />
       </div>
+
+      {company && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-kairos-sm border mb-6"
+          style={{ borderColor: company.brandColor + "40", backgroundColor: company.brandColor + "10" }}
+        >
+          <div className="w-7 h-7 rounded flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: company.brandColor }}>
+            {company.name.charAt(0)}
+          </div>
+          <span className="font-heading font-semibold text-white text-sm">{company.name}</span>
+          <span className="text-xs text-kairos-silver-dark ml-auto">Showing company-assigned references</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {statItems.map((stat) => {

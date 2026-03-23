@@ -12,7 +12,7 @@ const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   health_alert: "Health Alerts",
   insight: "AI Insights",
   weekly_report: "Weekly Reports",
-  coach_message: "Coach Messages",
+  coach_message: "Trainer Messages",
   appointment: "Appointments",
   lab_result: "Lab Results",
   supplement: "Supplement Reminders",

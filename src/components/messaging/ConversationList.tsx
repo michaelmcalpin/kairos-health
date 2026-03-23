@@ -16,8 +16,8 @@ interface ConversationListProps {
 const FILTERS: { value: ConversationFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
-  { value: "human_coach", label: "Coach" },
-  { value: "ai_coach", label: "AI Coach" },
+  { value: "human_coach", label: "Trainer" },
+  { value: "ai_coach", label: "AI Trainer" },
 ];
 
 export function ConversationList({
