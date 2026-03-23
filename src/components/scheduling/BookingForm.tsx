@@ -243,7 +243,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
           {/* Notes */}
           <div className="mb-4">
             <label className="text-xs text-gray-400 mb-2 block">
-              Notes for your coach (optional)
+              Notes for your trainer (optional)
             </label>
             <textarea
               value={notes}
@@ -280,7 +280,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
 
           <div className="bg-gray-800/50 rounded-xl p-4 space-y-3 mb-6">
             <div className="flex justify-between">
-              <span className="text-sm text-gray-400">Coach</span>
+              <span className="text-sm text-gray-400">Trainer</span>
               <span className="text-sm text-white font-medium">{coachName}</span>
             </div>
             <div className="flex justify-between">

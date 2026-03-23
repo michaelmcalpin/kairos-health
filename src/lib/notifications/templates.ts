@@ -59,12 +59,12 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     actionLabel: "View Report",
   },
 
-  // ─── Coach Messages ────────────────────────────────────────────────────
+  // ─── Trainer Messages ──────────────────────────────────────────────────
   coach_message: {
     category: "coach_message",
     defaultPriority: "normal",
     defaultChannels: ["in_app", "push", "email"],
-    titleTemplate: "Message from {{coachName}}",
+    titleTemplate: "Message from {{trainerName}}",
     bodyTemplate: "{{preview}}",
     actionUrlTemplate: "/messages",
     actionLabel: "Read Message",
@@ -73,8 +73,8 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     category: "coach_message",
     defaultPriority: "low",
     defaultChannels: ["in_app"],
-    titleTemplate: "Coach Note Added",
-    bodyTemplate: "{{coachName}} added a note about your {{topic}}.",
+    titleTemplate: "Trainer Note Added",
+    bodyTemplate: "{{trainerName}} added a note about your {{topic}}.",
     actionUrlTemplate: "/messages",
     actionLabel: "View Note",
   },
@@ -85,7 +85,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     defaultPriority: "normal",
     defaultChannels: ["in_app", "email", "push"],
     titleTemplate: "Appointment Tomorrow",
-    bodyTemplate: "Reminder: You have a {{type}} appointment with {{coachName}} tomorrow at {{time}}.",
+    bodyTemplate: "Reminder: You have a {{type}} appointment with {{trainerName}} tomorrow at {{time}}.",
     actionUrlTemplate: "/appointments",
     actionLabel: "View Details",
   },
@@ -94,7 +94,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     defaultPriority: "high",
     defaultChannels: ["in_app", "push"],
     titleTemplate: "Appointment in 1 Hour",
-    bodyTemplate: "Your {{type}} with {{coachName}} starts at {{time}}.",
+    bodyTemplate: "Your {{type}} with {{trainerName}} starts at {{time}}.",
     actionUrlTemplate: "/appointments",
     actionLabel: "Join",
   },

@@ -31,7 +31,7 @@ export default function SettingsPage() {
 
   const [privacy, setPrivacy] = useState({
     dataSharing: true,
-    profileVisibility: "Coach Only",
+    profileVisibility: "Trainer Only",
   });
 
   const [devices, setDevices] = useState([
@@ -315,7 +315,7 @@ export default function SettingsPage() {
                 }
                 className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold focus:border-kairos-gold"
               >
-                <option value="Coach Only">Coach Only</option>
+                <option value="Trainer Only">Trainer Only</option>
                 <option value="Team">Team</option>
                 <option value="Private">Private</option>
               </select>

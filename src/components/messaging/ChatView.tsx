@@ -86,7 +86,7 @@ export function ChatView({
   };
 
   const otherName = currentUserRole === "client"
-    ? (conversation.isAiCoach ? "AI Health Coach" : conversation.coachName)
+    ? (conversation.isAiCoach ? "AI Health Trainer" : conversation.coachName)
     : conversation.clientName;
 
   // Group messages by date
@@ -130,7 +130,7 @@ export function ChatView({
         <div className="flex-1">
           <h3 className="text-sm font-semibold text-white">{otherName}</h3>
           <p className="text-xs text-gray-400">
-            {conversation.isAiCoach ? "Always available" : "Coach"}
+            {conversation.isAiCoach ? "Always available" : "Trainer"}
           </p>
         </div>
       </div>

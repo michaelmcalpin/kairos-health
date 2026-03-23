@@ -1,6 +1,6 @@
-// ─── Coach-Client Messaging Types ─────────────────────────────────────
-// Real-time messaging between coaches and clients with threads,
-// read receipts, typing indicators, and AI coach support.
+// ─── Trainer-Client Messaging Types ────────────────────────────────────
+// Real-time messaging between trainers and clients with threads,
+// read receipts, typing indicators, and AI trainer support.
 
 // ─── Core Types ────────────────────────────────────────────────────────
 
@@ -157,9 +157,9 @@ export type SystemMessageType =
   | "tier_upgraded";
 
 export const SYSTEM_MESSAGES: Record<SystemMessageType, string> = {
-  conversation_started: "Conversation started. Your coach will respond shortly.",
-  coach_assigned: "A coach has been assigned to your account.",
-  coach_changed: "Your coaching assignment has been updated.",
+  conversation_started: "Conversation started. Your trainer will respond shortly.",
+  coach_assigned: "A trainer has been assigned to your account.",
+  coach_changed: "Your training assignment has been updated.",
   goal_achieved: "Congratulations! You've achieved a health goal.",
   milestone_reached: "You've reached a new milestone on your journey!",
   tier_upgraded: "Your subscription tier has been upgraded.",

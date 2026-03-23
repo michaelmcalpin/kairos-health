@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Coach performance and payout table for admin dashboard.
+ * Trainer performance and payout table for admin dashboard.
  */
 
 interface CoachPayout {
@@ -31,7 +31,7 @@ export function CoachPerformanceTable({ coaches }: CoachPerformanceTableProps) {
     <div className="kairos-card p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-heading text-sm font-semibold text-kairos-silver">
-          Coach Performance & Payouts
+          Trainer Performance & Payouts
         </h3>
         <div className="flex items-center gap-4 text-xs">
           <span className="text-kairos-silver-dark">
@@ -45,7 +45,7 @@ export function CoachPerformanceTable({ coaches }: CoachPerformanceTableProps) {
 
       {coaches.length === 0 ? (
         <p className="text-sm text-kairos-silver-dark text-center py-8">
-          No coach data available.
+          No trainer data available.
         </p>
       ) : (
         <div className="overflow-x-auto">
@@ -53,7 +53,7 @@ export function CoachPerformanceTable({ coaches }: CoachPerformanceTableProps) {
             <thead>
               <tr className="border-b border-kairos-border">
                 <th className="text-left py-2 px-3 text-xs font-medium text-kairos-silver-dark uppercase tracking-wider">
-                  Coach
+                  Trainer
                 </th>
                 <th className="text-center py-2 px-3 text-xs font-medium text-kairos-silver-dark uppercase tracking-wider">
                   Clients

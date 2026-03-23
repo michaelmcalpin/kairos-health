@@ -96,7 +96,7 @@ export default async function HomePage() {
               { icon: <Brain size={28} />, title: "AI Insights", desc: "Personalized correlations and recommendations powered by your data" },
               { icon: <Activity size={28} />, title: "Biometric Dashboard", desc: "Real-time health score with all your vitals in one unified view" },
               { icon: <Zap size={28} />, title: "Protocol Engine", desc: "Supplements, workouts, and nutrition protocols with adherence tracking" },
-              { icon: <Shield size={28} />, title: "Coach Connection", desc: "Direct messaging with your dedicated longevity health coach" },
+              { icon: <Shield size={28} />, title: "Trainer Connection", desc: "Direct messaging with your dedicated longevity health trainer" },
             ].map((feature) => (
               <div key={feature.title} className="kairos-card p-6 group hover:border-kairos-gold/30 transition-all duration-300">
                 <div className="text-kairos-gold mb-4 group-hover:scale-110 transition-transform duration-300">{feature.icon}</div>
@@ -159,7 +159,7 @@ export default async function HomePage() {
                 </div>
               </div>
               <ul className="space-y-3 flex-1 mb-8">
-                {["Everything in AI-Guided", "Dedicated associate coach", "Bi-weekly video sessions", "Custom supplement protocol", "Priority alert response", "Quarterly lab review"].map((f) => (
+                {["Everything in AI-Guided", "Dedicated associate trainer", "Bi-weekly video sessions", "Custom supplement protocol", "Priority alert response", "Quarterly lab review"].map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm font-body text-kairos-silver">
                     <Check size={16} className="text-kairos-gold flex-shrink-0 mt-0.5" /> {f}
                   </li>

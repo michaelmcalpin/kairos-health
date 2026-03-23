@@ -60,8 +60,8 @@ export type AuditAction =
   | "subscription.created"
   | "subscription.updated"
   | "subscription.cancelled"
-  | "coach.assigned"
-  | "coach.unassigned"
+  | "trainer.assigned"
+  | "trainer.unassigned"
   | "admin.login"
   | "admin.setting_changed"
   | "system.maintenance";
@@ -192,8 +192,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "subscription.created": "Subscription Created",
   "subscription.updated": "Subscription Updated",
   "subscription.cancelled": "Subscription Cancelled",
-  "coach.assigned": "Coach Assigned",
-  "coach.unassigned": "Coach Unassigned",
+  "trainer.assigned": "Trainer Assigned",
+  "trainer.unassigned": "Trainer Unassigned",
   "admin.login": "Admin Login",
   "admin.setting_changed": "Setting Changed",
   "system.maintenance": "System Maintenance",

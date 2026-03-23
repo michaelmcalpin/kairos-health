@@ -26,26 +26,26 @@ interface MessagingDashboardProps {
 // Mock data for demo
 function seedDemoConversations(userId: string, role: "client" | "coach") {
   if (role === "client") {
-    // Create a coach conversation
+    // Create a trainer conversation
     const conv1 = getOrCreateConversation(userId, "You", "coach-1", "Dr. Sarah Mitchell", false);
-    engineSendMessage(conv1.id, "coach-1", "Dr. Sarah Mitchell", "coach", "Welcome to KAIROS! I'm Dr. Mitchell, your health optimization coach. How are you feeling today?");
+    engineSendMessage(conv1.id, "coach-1", "Dr. Sarah Mitchell", "coach", "Welcome to KAIROS! I'm Dr. Mitchell, your health optimization trainer. How are you feeling today?");
     engineSendMessage(conv1.id, userId, "You", "client", "Hi Dr. Mitchell! I'm excited to get started. My main goals are improving my sleep quality and glucose stability.");
     engineSendMessage(conv1.id, "coach-1", "Dr. Sarah Mitchell", "coach", "Those are great goals! I've reviewed your onboarding data. Your sleep score average of 68 has room for improvement. Let's start with some evening routine adjustments.");
     engineSendMessage(conv1.id, userId, "You", "client", "That sounds perfect. What changes would you recommend?");
     engineSendMessage(conv1.id, "coach-1", "Dr. Sarah Mitchell", "coach", "Three key changes: 1) No screens 30 min before bed, 2) Keep your bedroom at 65-68°F, and 3) Try magnesium glycinate 400mg about an hour before sleep. These alone can improve sleep score by 15-20 points.");
 
-    // AI coach conversation
-    const conv2 = getOrCreateConversation(userId, "You", null, "AI Health Coach", true);
-    engineSendMessage(conv2.id, null, "AI Health Coach", "ai_coach", "I've analyzed your glucose data from this week. Your time-in-range improved to 78% — that's a 5% increase from last week! Would you like me to break down what contributed to this improvement?", true);
+    // AI trainer conversation
+    const conv2 = getOrCreateConversation(userId, "You", null, "AI Health Trainer", true);
+    engineSendMessage(conv2.id, null, "AI Health Trainer", "ai_coach", "I've analyzed your glucose data from this week. Your time-in-range improved to 78% — that's a 5% increase from last week! Would you like me to break down what contributed to this improvement?", true);
   } else {
-    // Coach view with client conversations
+    // Trainer view with client conversations
     const conv1 = getOrCreateConversation("client-1", "Alex Thompson", userId, "You", false);
     engineSendMessage(conv1.id, "client-1", "Alex Thompson", "client", "My glucose spiked to 180 after dinner last night. Should I be worried?");
     engineSendMessage(conv1.id, userId, "You", "coach", "Let's take a look at what you ate. Can you share your dinner details? A single spike isn't concerning, but I want to help you understand the trigger.");
     engineSendMessage(conv1.id, "client-1", "Alex Thompson", "client", "Had pasta with garlic bread and a glass of wine. I know... probably not the best combo for glucose.");
 
     const conv2 = getOrCreateConversation("client-2", "Jordan Chen", userId, "You", false);
-    engineSendMessage(conv2.id, "client-2", "Jordan Chen", "client", "Hey coach! Just wanted to share that I hit my 7-hour sleep goal for 5 days straight!");
+    engineSendMessage(conv2.id, "client-2", "Jordan Chen", "client", "Hey! Just wanted to share that I hit my 7-hour sleep goal for 5 days straight!");
     engineSendMessage(conv2.id, userId, "You", "coach", "That's incredible progress, Jordan! Your consistency is really showing. How are you feeling energy-wise during the day?");
 
     const conv3 = getOrCreateConversation("client-3", "Maria Santos", userId, "You", false);
@@ -110,8 +110,8 @@ export function MessagingDashboard({ userId, role, userName }: MessagingDashboar
 
   const handleNewConversation = useCallback(() => {
     if (role === "client") {
-      // Start AI coach conversation
-      const conv = getOrCreateConversation(userId, userName, null, "AI Health Coach", true);
+      // Start AI trainer conversation
+      const conv = getOrCreateConversation(userId, userName, null, "AI Health Trainer", true);
       setSelectedConversation(conv);
       refresh();
     }

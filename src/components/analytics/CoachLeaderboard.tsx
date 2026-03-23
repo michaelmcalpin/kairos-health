@@ -12,7 +12,7 @@ export function CoachLeaderboard({ data }: CoachLeaderboardProps) {
   return (
     <div className="kairos-card p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="font-heading font-bold text-lg text-white">Top Performing Coaches</h3>
+        <h3 className="font-heading font-bold text-lg text-white">Top Performing Trainers</h3>
         <div className="flex gap-4 text-xs">
           <div>
             <span className="text-gray-500">Avg Utilization: </span>

@@ -19,12 +19,12 @@ import {
 const DEMO_ACTIONS = [
   { action: "user.login", actor: "Sarah Chen", resource: "auth", details: "Client portal login" },
   { action: "glucose.reading", actor: "System", resource: "dexcom_sync", details: "Batch import: 12 readings" },
-  { action: "coach.review", actor: "Dr. Williams", resource: "client/sarah-chen", details: "Reviewed sleep data" },
+  { action: "trainer.review", actor: "Dr. Williams", resource: "client/sarah-chen", details: "Reviewed sleep data" },
   { action: "alert.resolved", actor: "Dr. Martinez", resource: "alert/hrv_decline", details: "Acknowledged HRV alert for James Kim" },
   { action: "subscription.renewed", actor: "System", resource: "billing", details: "Tier 1 renewal: Emily Brooks" },
   { action: "lab.uploaded", actor: "LabCorp API", resource: "labs", details: "CMP results for Michael Torres" },
   { action: "checkin.completed", actor: "Rachel Adams", resource: "checkin", details: "Daily check-in submitted" },
-  { action: "coach.assigned", actor: "Admin", resource: "coach/dr-williams", details: "New client assignment" },
+  { action: "trainer.assigned", actor: "Admin", resource: "trainer/dr-williams", details: "New client assignment" },
   { action: "report.generated", actor: "System", resource: "analytics", details: "Weekly platform summary" },
   { action: "user.registered", actor: "System", resource: "auth", details: "New Tier 2 client onboarded" },
 ];

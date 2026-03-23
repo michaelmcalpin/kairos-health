@@ -91,7 +91,7 @@ export function WeeklyReportCard({ report }: WeeklyReportCardProps) {
       {report.coachNote && (
         <div className="mx-6 mb-4 rounded-xl bg-purple-50 border border-purple-100 p-4">
           <p className="text-xs font-semibold text-purple-700 uppercase tracking-wider mb-1">
-            Coach Note
+            Trainer Note
           </p>
           <p className="text-sm text-purple-800 leading-relaxed">{report.coachNote}</p>
         </div>
