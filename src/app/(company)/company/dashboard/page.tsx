@@ -1,10 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Users, Dumbbell, TrendingUp, Star, DollarSign, ArrowRight } from "lucide-react";
 import { useCompanyBrand } from "@/lib/company-ops";
 import { getCompanyTrainers, getCompanyClients } from "@/lib/company-ops/engine";
 
 export default function CompanyDashboardPage() {
+  const router = useRouter();
   const { company, brand } = useCompanyBrand();
   const isWhiteLabel = brand.id !== "kairos";
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
@@ -123,7 +125,11 @@ export default function CompanyDashboardPage() {
         <div className="kairos-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-heading font-semibold text-white">Trainers</h2>
-            <button className="text-xs font-heading font-semibold flex items-center gap-1 transition-colors" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
+            <button
+              onClick={() => router.push("/company/trainers")}
+              className="text-xs font-heading font-semibold flex items-center gap-1 transition-colors hover:gap-2"
+              style={{ color: accentColor || "rgb(var(--k-accent))" }}
+            >
               View All <ArrowRight size={12} />
             </button>
           </div>
@@ -157,7 +163,11 @@ export default function CompanyDashboardPage() {
         <div className="kairos-card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-heading font-semibold text-white">Recent Clients</h2>
-            <button className="text-xs font-heading font-semibold flex items-center gap-1 transition-colors" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
+            <button
+              onClick={() => router.push("/company/clients")}
+              className="text-xs font-heading font-semibold flex items-center gap-1 transition-colors hover:gap-2"
+              style={{ color: accentColor || "rgb(var(--k-accent))" }}
+            >
               View All <ArrowRight size={12} />
             </button>
           </div>

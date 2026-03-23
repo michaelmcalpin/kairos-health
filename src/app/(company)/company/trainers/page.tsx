@@ -3,10 +3,10 @@
 import { useState } from "react";
 import {
   Dumbbell, Search, Star, Users, MoreVertical, Mail, Plus,
-  ArrowUpDown, BarChart3,
+  ArrowUpDown, BarChart3, X, Copy, Check,
 } from "lucide-react";
 import { useCompanyBrand } from "@/lib/company-ops";
-import { getCompanyTrainers } from "@/lib/company-ops/engine";
+import { getCompanyTrainers, getCompanyClients } from "@/lib/company-ops/engine";
 import type { CompanyTrainer } from "@/lib/company-ops";
 
 type SortField = "name" | "clientCount" | "capacity" | "rating";
@@ -23,6 +23,8 @@ export default function CompanyTrainersPage() {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [actionMenu, setActionMenu] = useState<string | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showTrainerDetail, setShowTrainerDetail] = useState<string | null>(null);
 
   // Filter and sort
   let trainers = allTrainers.filter((t) =>
@@ -67,6 +69,7 @@ export default function CompanyTrainersPage() {
           </p>
         </div>
         <button
+          onClick={() => setShowInviteModal(true)}
           className="flex items-center gap-2 px-4 py-2.5 rounded-kairos-sm font-heading font-semibold text-sm transition-colors"
           style={{
             backgroundColor: accentColor || "rgb(var(--k-accent))",
@@ -167,6 +170,8 @@ export default function CompanyTrainersPage() {
                 accentColor={accentColor}
                 actionMenuOpen={actionMenu === t.id}
                 onToggleMenu={() => setActionMenu(actionMenu === t.id ? null : t.id)}
+                onViewClients={() => { setActionMenu(null); setShowTrainerDetail(t.id); }}
+                onViewStats={() => { setActionMenu(null); setShowTrainerDetail(t.id); }}
               />
             ))}
             {trainers.length === 0 && (
@@ -179,6 +184,25 @@ export default function CompanyTrainersPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Invite Trainer Modal */}
+      {showInviteModal && (
+        <InviteTrainerModal
+          companyName={company?.name || "your company"}
+          accentColor={accentColor}
+          onClose={() => setShowInviteModal(false)}
+        />
+      )}
+
+      {/* Trainer Detail Drawer */}
+      {showTrainerDetail && (
+        <TrainerDetailDrawer
+          trainer={allTrainers.find((t) => t.id === showTrainerDetail) || null}
+          clients={getCompanyClients(companyId).filter((c) => c.trainerId === showTrainerDetail)}
+          accentColor={accentColor}
+          onClose={() => setShowTrainerDetail(null)}
+        />
+      )}
     </div>
   );
 }
@@ -188,11 +212,15 @@ function TrainerRow({
   accentColor,
   actionMenuOpen,
   onToggleMenu,
+  onViewClients,
+  onViewStats,
 }: {
   trainer: CompanyTrainer;
   accentColor?: string;
   actionMenuOpen: boolean;
   onToggleMenu: () => void;
+  onViewClients: () => void;
+  onViewStats: () => void;
 }) {
   const usagePct = t.capacity > 0 ? Math.round((t.clientCount / t.capacity) * 100) : 0;
 
@@ -250,13 +278,13 @@ function TrainerRow({
           </button>
           {actionMenuOpen && (
             <div className="absolute right-0 top-10 w-44 bg-kairos-card border border-kairos-border rounded-kairos-sm shadow-lg z-20 py-1">
-              <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
+              <button onClick={onViewClients} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
                 <Users size={14} /> View Clients
               </button>
-              <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
+              <button onClick={onToggleMenu} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
                 <Mail size={14} /> Send Message
               </button>
-              <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
+              <button onClick={onViewStats} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
                 <BarChart3 size={14} /> View Stats
               </button>
             </div>
@@ -264,5 +292,244 @@ function TrainerRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+// ─── Invite Trainer Modal ─────────────────────────────────────────────────
+
+function InviteTrainerModal({
+  companyName,
+  accentColor,
+  onClose,
+}: {
+  companyName: string;
+  accentColor?: string;
+  onClose: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const inviteLink = `${typeof window !== "undefined" ? window.location.origin : ""}/join/${companyName.toLowerCase().replace(/\s+/g, "-")}`;
+
+  function handleSendInvite() {
+    if (!email.trim()) return;
+    setSent(true);
+    setTimeout(() => setSent(false), 3000);
+    setEmail("");
+  }
+
+  function handleCopyLink() {
+    navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-kairos-card border border-kairos-border rounded-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="font-heading font-bold text-xl text-white">Invite Trainer</h3>
+          <button onClick={onClose} className="p-1 rounded text-gray-400 hover:text-white transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Email Invite */}
+        <div className="mb-6">
+          <label className="block text-xs text-kairos-silver-dark mb-2">Send invite via email</label>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="trainer@example.com"
+              className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
+            />
+            <button
+              onClick={handleSendInvite}
+              className="px-4 py-2 rounded-lg font-heading font-semibold text-sm transition-colors"
+              style={{
+                backgroundColor: accentColor || "rgb(var(--k-accent))",
+                color: accentColor ? "#fff" : "rgb(var(--k-bg))",
+              }}
+            >
+              {sent ? "Sent!" : "Send"}
+            </button>
+          </div>
+          {sent && (
+            <p className="text-xs text-green-400 mt-2">Invitation sent successfully!</p>
+          )}
+        </div>
+
+        {/* Or separator */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="flex-1 h-px bg-gray-700" />
+          <span className="text-xs text-gray-500">or share link</span>
+          <div className="flex-1 h-px bg-gray-700" />
+        </div>
+
+        {/* Copy Link */}
+        <div>
+          <label className="block text-xs text-kairos-silver-dark mb-2">Invite link</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              readOnly
+              value={inviteLink}
+              className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400 font-mono truncate"
+            />
+            <button
+              onClick={handleCopyLink}
+              className="px-3 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors flex items-center gap-1.5 text-sm"
+            >
+              {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Trainer Detail Drawer ────────────────────────────────────────────────
+
+interface CompanyClient {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  tier: string;
+  status: string;
+  trainerId: string;
+  trainerName: string;
+}
+
+function TrainerDetailDrawer({
+  trainer,
+  clients,
+  accentColor,
+  onClose,
+}: {
+  trainer: CompanyTrainer | null;
+  clients: CompanyClient[];
+  accentColor?: string;
+  onClose: () => void;
+}) {
+  if (!trainer) return null;
+
+  const usagePct = trainer.capacity > 0 ? Math.round((trainer.clientCount / trainer.capacity) * 100) : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-lg bg-kairos-card border-l border-kairos-border h-full overflow-y-auto animate-fade-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-heading font-bold text-xl text-white">Trainer Details</h3>
+            <button onClick={onClose} className="p-1 rounded text-gray-400 hover:text-white transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Profile */}
+          <div className="flex items-center gap-4 mb-6">
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center font-heading font-bold text-lg"
+              style={{
+                backgroundColor: (accentColor || "#D4A574") + "20",
+                color: accentColor || "#D4A574",
+              }}
+            >
+              {trainer.firstName.charAt(0)}{trainer.lastName.charAt(0)}
+            </div>
+            <div>
+              <p className="font-heading font-bold text-lg text-white">{trainer.firstName} {trainer.lastName}</p>
+              <p className="text-sm text-kairos-silver-dark">{trainer.email}</p>
+              <span className={`inline-block mt-1 px-2 py-0.5 rounded-kairos-sm text-xs font-heading font-semibold ${
+                trainer.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"
+              }`}>
+                {trainer.status}
+              </span>
+            </div>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="kairos-card text-center">
+              <p className="text-2xl font-heading font-bold text-white">{trainer.clientCount}</p>
+              <p className="text-xs text-kairos-silver-dark">Clients</p>
+            </div>
+            <div className="kairos-card text-center">
+              <p className="text-2xl font-heading font-bold" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
+                {usagePct}%
+              </p>
+              <p className="text-xs text-kairos-silver-dark">Capacity</p>
+            </div>
+            <div className="kairos-card text-center">
+              <div className="flex items-center justify-center gap-1">
+                <Star size={14} className="text-kairos-gold" />
+                <p className="text-2xl font-heading font-bold text-kairos-gold">{trainer.rating}</p>
+              </div>
+              <p className="text-xs text-kairos-silver-dark">Rating</p>
+            </div>
+          </div>
+
+          {/* Capacity Bar */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-kairos-silver-dark">Client Capacity</p>
+              <p className="text-xs text-white font-heading">{trainer.clientCount}/{trainer.capacity}</p>
+            </div>
+            <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${Math.min(usagePct, 100)}%`,
+                  backgroundColor: usagePct >= 90 ? "#ef4444" : usagePct >= 70 ? "#eab308" : "#22c55e",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Client List */}
+          <div>
+            <h4 className="font-heading font-semibold text-white mb-3">
+              Assigned Clients ({clients.length})
+            </h4>
+            {clients.length === 0 ? (
+              <p className="text-sm text-kairos-silver-dark py-4 text-center">No clients assigned yet</p>
+            ) : (
+              <div className="space-y-2">
+                {clients.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-800/30 border border-gray-700/30">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 font-heading font-bold text-xs">
+                        {c.firstName.charAt(0)}{c.lastName.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm text-white">{c.firstName} {c.lastName}</p>
+                        <p className="text-xs text-gray-500">{c.email}</p>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-kairos-sm text-xs font-heading font-semibold ${
+                      c.tier === "tier1" ? "bg-kairos-gold/15 text-kairos-gold" :
+                      c.tier === "tier2" ? "bg-blue-500/15 text-blue-400" :
+                      "bg-gray-500/15 text-gray-400"
+                    }`}>
+                      {c.tier === "tier1" ? "Private" : c.tier === "tier2" ? "Associate" : "AI-Guided"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
