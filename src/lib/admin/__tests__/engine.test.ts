@@ -286,13 +286,13 @@ describe("seedDemoUsers", () => {
   it("creates demo users", () => {
     seedDemoUsers();
     const result = listUsers();
-    expect(result.total).toBe(12);
+    expect(result.total).toBe(19);
   });
 
   it("does not duplicate on second call", () => {
     seedDemoUsers();
     seedDemoUsers();
     const result = listUsers();
-    expect(result.total).toBe(12);
+    expect(result.total).toBe(19);
   });
 });

@@ -27,6 +27,8 @@ export function createUser(
   firstName: string,
   lastName: string,
   role: UserRole = "client",
+  companyId: string | null = null,
+  companyName: string | null = null,
 ): AdminUser {
   // Check for duplicate email
   const existing = Array.from(usersStore.values()).find(
@@ -43,6 +45,8 @@ export function createUser(
     role,
     status: "onboarding",
     avatarUrl: null,
+    companyId,
+    companyName,
     createdAt: now,
     updatedAt: now,
     lastLoginAt: null,
@@ -185,7 +189,7 @@ export interface PaginatedUsers {
 }
 
 export function listUsers(filters: Partial<UserListFilters> = {}): PaginatedUsers {
-  const { search = "", role = "all", status = "all", tier = "all", sortBy = "createdAt", sortOrder = "desc", page = 1, pageSize = 20 } = filters;
+  const { search = "", role = "all", status = "all", tier = "all", companyId = "all", sortBy = "createdAt", sortOrder = "desc", page = 1, pageSize = 20 } = filters;
 
   let all = Array.from(usersStore.values());
 
@@ -196,12 +200,14 @@ export function listUsers(filters: Partial<UserListFilters> = {}): PaginatedUser
       (u) =>
         u.email.toLowerCase().includes(q) ||
         u.firstName.toLowerCase().includes(q) ||
-        u.lastName.toLowerCase().includes(q)
+        u.lastName.toLowerCase().includes(q) ||
+        (u.companyName && u.companyName.toLowerCase().includes(q))
     );
   }
   if (role !== "all") all = all.filter((u) => u.role === role);
   if (status !== "all") all = all.filter((u) => u.status === status);
   if (tier !== "all") all = all.filter((u) => u.subscription?.tier === tier);
+  if (companyId !== "all") all = all.filter((u) => u.companyId === companyId);
 
   // Sort
   all.sort((a, b) => {
@@ -294,8 +300,9 @@ export function getAuditLogForUser(userId: string, limit: number = 20): AuditLog
 
 // ─── Platform Stats ─────────────────────────────────────────────────
 
-export function getPlatformUserStats(): PlatformUserStats {
-  const users = Array.from(usersStore.values());
+export function getPlatformUserStats(companyId?: string): PlatformUserStats {
+  let users = Array.from(usersStore.values());
+  if (companyId) users = users.filter((u) => u.companyId === companyId);
   const now = new Date();
   const weekAgo = new Date(now);
   weekAgo.setDate(now.getDate() - 7);
@@ -330,23 +337,35 @@ export function getPlatformUserStats(): PlatformUserStats {
 export function seedDemoUsers(): void {
   if (usersStore.size > 0) return;
 
-  const demoUsers: Array<{ email: string; first: string; last: string; role: UserRole; status: UserStatus; tier?: SubscriptionTier }> = [
+  const demoUsers: Array<{ email: string; first: string; last: string; role: UserRole; status: UserStatus; tier?: SubscriptionTier; cId?: string; cName?: string }> = [
     { email: "admin@kairos.health", first: "Platform", last: "Admin", role: "super_admin", status: "active" },
-    { email: "sarah.mitchell@kairos.health", first: "Sarah", last: "Mitchell", role: "trainer", status: "active" },
-    { email: "james.chen@kairos.health", first: "James", last: "Chen", role: "trainer", status: "active" },
-    { email: "alex.thompson@gmail.com", first: "Alex", last: "Thompson", role: "client", status: "active", tier: "tier1" },
-    { email: "jordan.chen@gmail.com", first: "Jordan", last: "Chen", role: "client", status: "active", tier: "tier1" },
-    { email: "maria.santos@gmail.com", first: "Maria", last: "Santos", role: "client", status: "active", tier: "tier2" },
-    { email: "emily.brooks@gmail.com", first: "Emily", last: "Brooks", role: "client", status: "active", tier: "tier2" },
-    { email: "david.park@gmail.com", first: "David", last: "Park", role: "client", status: "active", tier: "tier3" },
-    { email: "rachel.kim@gmail.com", first: "Rachel", last: "Kim", role: "client", status: "onboarding", tier: "tier3" },
-    { email: "michael.lee@gmail.com", first: "Michael", last: "Lee", role: "client", status: "suspended", tier: "tier2" },
-    { email: "lisa.wang@gmail.com", first: "Lisa", last: "Wang", role: "client", status: "active", tier: "tier3" },
-    { email: "robert.jones@gmail.com", first: "Robert", last: "Jones", role: "client", status: "inactive", tier: "tier3" },
+    // Peak Performance Health
+    { email: "admin@peakperformance.health", first: "Laura", last: "Chen", role: "company_admin", status: "active", cId: "company-1", cName: "Peak Performance Health" },
+    { email: "sarah.mitchell@peakperformance.health", first: "Sarah", last: "Mitchell", role: "trainer", status: "active", cId: "company-1", cName: "Peak Performance Health" },
+    { email: "james.chen@peakperformance.health", first: "James", last: "Chen", role: "trainer", status: "active", cId: "company-1", cName: "Peak Performance Health" },
+    { email: "alex.thompson@gmail.com", first: "Alex", last: "Thompson", role: "client", status: "active", tier: "tier1", cId: "company-1", cName: "Peak Performance Health" },
+    { email: "jordan.chen@gmail.com", first: "Jordan", last: "Chen", role: "client", status: "active", tier: "tier1", cId: "company-1", cName: "Peak Performance Health" },
+    { email: "maria.santos@gmail.com", first: "Maria", last: "Santos", role: "client", status: "active", tier: "tier2", cId: "company-1", cName: "Peak Performance Health" },
+    // Vitality Wellness Group
+    { email: "admin@vitalitywellness.com", first: "Daniel", last: "Wright", role: "company_admin", status: "active", cId: "company-2", cName: "Vitality Wellness Group" },
+    { email: "emma.rodriguez@vitalitywellness.com", first: "Emma", last: "Rodriguez", role: "trainer", status: "active", cId: "company-2", cName: "Vitality Wellness Group" },
+    { email: "emily.brooks@gmail.com", first: "Emily", last: "Brooks", role: "client", status: "active", tier: "tier2", cId: "company-2", cName: "Vitality Wellness Group" },
+    { email: "david.park@gmail.com", first: "David", last: "Park", role: "client", status: "active", tier: "tier3", cId: "company-2", cName: "Vitality Wellness Group" },
+    // Longevity Labs
+    { email: "admin@longevitylabs.io", first: "Natasha", last: "Patel", role: "company_admin", status: "active", cId: "company-3", cName: "Longevity Labs" },
+    { email: "marcus.thompson@longevitylabs.io", first: "Marcus", last: "Thompson", role: "trainer", status: "active", cId: "company-3", cName: "Longevity Labs" },
+    { email: "rachel.kim@gmail.com", first: "Rachel", last: "Kim", role: "client", status: "onboarding", tier: "tier3", cId: "company-3", cName: "Longevity Labs" },
+    { email: "michael.lee@gmail.com", first: "Michael", last: "Lee", role: "client", status: "suspended", tier: "tier2", cId: "company-3", cName: "Longevity Labs" },
+    // Sarah Williams Coaching (solo)
+    { email: "sarah@sarahwilliamscoaching.com", first: "Sarah", last: "Williams", role: "trainer", status: "active", cId: "company-4", cName: "Sarah Williams Coaching" },
+    { email: "lisa.wang@gmail.com", first: "Lisa", last: "Wang", role: "client", status: "active", tier: "tier3", cId: "company-4", cName: "Sarah Williams Coaching" },
+    // BioSync Health
+    { email: "admin@biosync.health", first: "Kevin", last: "Zhao", role: "company_admin", status: "active", cId: "company-5", cName: "BioSync Health" },
+    { email: "robert.jones@gmail.com", first: "Robert", last: "Jones", role: "client", status: "inactive", tier: "tier3", cId: "company-5", cName: "BioSync Health" },
   ];
 
   for (const u of demoUsers) {
-    const user = createUser(u.email, u.first, u.last, u.role);
+    const user = createUser(u.email, u.first, u.last, u.role, u.cId ?? null, u.cName ?? null);
     if (u.status !== "onboarding") {
       usersStore.set(user.id, { ...user, status: u.status });
     }

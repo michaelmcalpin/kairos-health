@@ -16,6 +16,8 @@ export interface AdminUser {
   role: UserRole;
   status: UserStatus;
   avatarUrl: string | null;
+  companyId: string | null;
+  companyName: string | null;
   createdAt: string;
   updatedAt: string;
   lastLoginAt: string | null;
@@ -86,6 +88,7 @@ export interface UserListFilters {
   role: UserRole | "all";
   status: UserStatus | "all";
   tier: SubscriptionTier | "all";
+  companyId: string | "all";
   sortBy: "name" | "email" | "createdAt" | "lastLogin" | "status";
   sortOrder: "asc" | "desc";
   page: number;
@@ -97,6 +100,7 @@ export const DEFAULT_USER_FILTERS: UserListFilters = {
   role: "all",
   status: "all",
   tier: "all",
+  companyId: "all",
   sortBy: "createdAt",
   sortOrder: "desc",
   page: 1,

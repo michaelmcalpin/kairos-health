@@ -53,6 +53,11 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_COLORS[user.status] }} />
                 <span className="text-xs text-gray-400">{STATUS_LABELS[user.status]}</span>
               </div>
+              {user.companyName && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400">
+                  {user.companyName}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -65,6 +70,12 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
 
       {/* Info Grid */}
       <div className="grid grid-cols-2 gap-4 mb-6">
+        {user.companyName && (
+          <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 col-span-2">
+            <span className="text-xs text-gray-500">Company</span>
+            <p className="text-sm text-white mt-0.5">{user.companyName}</p>
+          </div>
+        )}
         <div className="bg-gray-800/30 rounded-xl p-3">
           <span className="text-xs text-gray-500">Joined</span>
           <p className="text-sm text-white mt-0.5">{new Date(user.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>

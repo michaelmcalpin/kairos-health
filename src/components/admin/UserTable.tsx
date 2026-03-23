@@ -20,6 +20,7 @@ interface UserTableProps {
   filters: UserListFilters;
   onFiltersChange: (filters: Partial<UserListFilters>) => void;
   onUserClick: (user: AdminUser) => void;
+  showCompany?: boolean;
 }
 
 export function UserTable({
@@ -30,6 +31,7 @@ export function UserTable({
   filters,
   onFiltersChange,
   onUserClick,
+  showCompany = true,
 }: UserTableProps) {
   return (
     <div className="kairos-card overflow-hidden">
@@ -96,7 +98,7 @@ export function UserTable({
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-800">
-              {["User", "Role", "Status", "Tier", "Joined", "Last Login"].map((header) => (
+              {["User", ...(showCompany ? ["Company"] : []), "Role", "Status", "Tier", "Joined", "Last Login"].map((header) => (
                 <th key={header} className="px-4 py-3 text-left text-xs text-gray-400 font-medium uppercase tracking-wider">
                   {header}
                 </th>
@@ -106,7 +108,7 @@ export function UserTable({
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-gray-500 text-sm">
+                <td colSpan={showCompany ? 7 : 6} className="px-4 py-8 text-center text-gray-500 text-sm">
                   No users found matching your filters.
                 </td>
               </tr>
@@ -129,6 +131,17 @@ export function UserTable({
                       </div>
                     </div>
                   </td>
+
+                  {/* Company */}
+                  {showCompany && (
+                    <td className="px-4 py-3">
+                      {user.companyName ? (
+                        <span className="text-xs text-gray-300 truncate max-w-[140px] block">{user.companyName}</span>
+                      ) : (
+                        <span className="text-xs text-gray-600">—</span>
+                      )}
+                    </td>
+                  )}
 
                   {/* Role */}
                   <td className="px-4 py-3">
