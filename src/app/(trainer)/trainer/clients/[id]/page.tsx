@@ -52,6 +52,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [refreshKey, setRefreshKey] = useState(0);
   const [showProtocolModal, setShowProtocolModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [protocolNotes, setProtocolNotes] = useState("");
+  const [protocolPriority, setProtocolPriority] = useState("Normal");
+  const [protocolSaved, setProtocolSaved] = useState(false);
 
   // Seed data on first render
   useMemo(() => seedCoachClients(COACH_ID), []);
@@ -452,13 +455,18 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-kairos-silver-dark">Adjust the training and supplement protocol for <span className="text-white font-semibold">{client.name}</span>.</p>
+              {protocolSaved && (
+                <div className="p-3 rounded-kairos-sm bg-green-500/10 border border-green-500/20">
+                  <p className="text-sm text-green-400 font-medium">Protocol changes saved successfully.</p>
+                </div>
+              )}
               <div>
                 <label className="kairos-label mb-1 block">Protocol Notes</label>
-                <textarea placeholder="Describe the protocol changes..." className="kairos-input w-full h-28 resize-none" />
+                <textarea value={protocolNotes} onChange={(e) => setProtocolNotes(e.target.value)} placeholder="Describe the protocol changes..." className="kairos-input w-full h-28 resize-none" />
               </div>
               <div>
                 <label className="kairos-label mb-1 block">Priority</label>
-                <select className="kairos-input w-full">
+                <select value={protocolPriority} onChange={(e) => setProtocolPriority(e.target.value)} className="kairos-input w-full">
                   <option>Normal</option>
                   <option>High — Review within 24h</option>
                   <option>Urgent — Immediate attention</option>
@@ -466,8 +474,22 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               </div>
             </div>
             <div className="flex gap-3 p-6 border-t border-kairos-border">
-              <button onClick={() => setShowProtocolModal(false)} className="kairos-btn-outline flex-1">Cancel</button>
-              <button onClick={() => { setShowProtocolModal(false); }} className="kairos-btn-gold flex-1">Save Changes</button>
+              <button onClick={() => { setShowProtocolModal(false); setProtocolSaved(false); }} className="kairos-btn-outline flex-1">Cancel</button>
+              <button
+                onClick={() => {
+                  setProtocolSaved(true);
+                  setTimeout(() => {
+                    setShowProtocolModal(false);
+                    setProtocolNotes("");
+                    setProtocolPriority("Normal");
+                    setProtocolSaved(false);
+                  }, 1500);
+                }}
+                disabled={!protocolNotes.trim()}
+                className="kairos-btn-gold flex-1 disabled:opacity-50"
+              >
+                Save Changes
+              </button>
             </div>
           </div>
         </div>

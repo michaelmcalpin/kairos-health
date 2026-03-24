@@ -2,12 +2,13 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { KPICard } from "@/components/ui/KPICard";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { getCoachDashboard } from "@/lib/coach-dashboard/engine";
 import { useCompanyBrand } from "@/lib/company-ops";
-import { Users, Bell, Calendar, TrendingUp, DollarSign, Clock } from "lucide-react";
+import { Users, Bell, Calendar, TrendingUp, DollarSign, Clock, ArrowRight } from "lucide-react";
 
 const COACH_ID = "demo-coach";
 
@@ -21,6 +22,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 };
 
 export default function TrainerDashboard() {
+  const router = useRouter();
   const { brand } = useCompanyBrand();
   const isWhiteLabel = brand.id !== "kairos";
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
@@ -69,7 +71,12 @@ export default function TrainerDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Client Queue */}
         <div className="lg:col-span-2 kairos-card">
-          <h3 className="font-heading font-semibold text-white mb-4">Priority Clients</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-heading font-semibold text-white">Priority Clients</h3>
+            <button onClick={() => router.push("/trainer/clients")} className="flex items-center gap-1 text-xs font-heading font-semibold text-kairos-gold hover:text-kairos-gold-light transition-colors group">
+              View All <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+            </button>
+          </div>
           <div className="space-y-3">
             {data.priorityClients.map((client) => (
               <Link key={client.id} href={`/trainer/clients/${client.id}`}>
@@ -105,9 +112,14 @@ export default function TrainerDashboard() {
 
         {/* Schedule */}
         <div className="kairos-card">
-          <h3 className="font-heading font-semibold text-white mb-4">
-            {period === "day" ? "Today\u0027s Schedule" : `Schedule — ${formattedRange}`}
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-heading font-semibold text-white">
+              {period === "day" ? "Today\u0027s Schedule" : `Schedule — ${formattedRange}`}
+            </h3>
+            <button onClick={() => router.push("/trainer/schedule")} className="flex items-center gap-1 text-xs font-heading font-semibold text-kairos-gold hover:text-kairos-gold-light transition-colors group">
+              View All <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+            </button>
+          </div>
           <div className="space-y-3">
             {data.todaySchedule.map((session) => (
               <div key={session.id} className="flex items-center gap-3 py-2">

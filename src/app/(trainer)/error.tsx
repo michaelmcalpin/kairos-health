@@ -17,7 +17,7 @@ export default function CoachError({
         </div>
         <h2 className="font-heading font-bold text-xl text-white mb-2">Something Went Wrong</h2>
         <p className="font-body text-sm text-kairos-silver-dark mb-2">
-          An unexpected error occurred in the Coach Portal.
+          An unexpected error occurred in the Trainer Portal.
         </p>
         {error.digest && (
           <p className="font-body text-xs text-kairos-silver-dark mb-6">
