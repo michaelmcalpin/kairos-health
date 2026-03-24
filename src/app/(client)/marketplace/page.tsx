@@ -17,6 +17,7 @@ const CATEGORY_LABELS = PRODUCT_CATEGORY_LABELS;
 export default function Page() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showReview, setShowReview] = useState(false);
 
   const allProducts = refreshKey >= 0 ? listClientProducts(CLIENT_ID) : [];
   const filteredProducts = selectedCategory === "All"
@@ -36,7 +37,7 @@ export default function Page() {
       {/* Page Header */}
       <div>
         <h1 className="font-heading font-bold text-3xl text-white mb-1">Supplement Marketplace</h1>
-        <p className="font-body text-kairos-silver-dark">Curated by your coach</p>
+        <p className="font-body text-kairos-silver-dark">Curated by your trainer</p>
       </div>
 
       {/* Category Filters */}
@@ -95,8 +96,31 @@ export default function Page() {
         ))}
       </div>
 
+      {/* Protocol Review Panel */}
+      {showReview && cart.length > 0 && (
+        <div className="fixed bottom-20 left-0 right-0 bg-kairos-card border-t border-kairos-border px-4 py-4 z-40">
+          <div className="max-w-7xl mx-auto">
+            <h3 className="font-heading font-bold text-white mb-3">Your Protocol ({cartItems} items)</h3>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {cart.map((item) => {
+                const product = allProducts.find((p) => p.id === item.productId);
+                return (
+                  <div key={item.productId} className="flex items-center justify-between py-2 border-b border-kairos-border/50 last:border-0">
+                    <div>
+                      <p className="text-sm text-white">{product?.name || item.productId}</p>
+                      <p className="text-xs text-kairos-silver-dark">Qty: {item.quantity}</p>
+                    </div>
+                    <p className="text-sm font-heading text-kairos-gold">{product ? `$${(product.price * item.quantity).toFixed(2)}` : "—"}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Shopping Cart Summary Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-kairos-card border-t border-kairos-border px-4 py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-kairos-card border-t border-kairos-border px-4 py-4 z-50">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ShoppingCart className="w-5 h-5 text-kairos-gold" />
@@ -105,8 +129,8 @@ export default function Page() {
               <p className="font-heading font-bold text-lg text-kairos-gold">${cartTotal.toFixed(2)}</p>
             </div>
           </div>
-          <button className="bg-kairos-gold hover:opacity-90 text-gray-900 font-heading font-semibold px-6 py-2 rounded-kairos-sm transition-opacity">
-            Review Protocol
+          <button onClick={() => setShowReview(!showReview)} className="bg-kairos-gold hover:opacity-90 text-gray-900 font-heading font-semibold px-6 py-2 rounded-kairos-sm transition-opacity">
+            {showReview ? "Close Review" : "Review Protocol"}
           </button>
         </div>
       </div>

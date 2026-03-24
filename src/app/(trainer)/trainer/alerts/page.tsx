@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, CheckCircle, ChevronDown, ChevronUp, Clock, Users } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
@@ -16,6 +17,7 @@ import type { AlertStatus } from "@/lib/coach-ops/types";
 const COACH_ID = "demo-coach";
 
 export default function CoachAlertsPage() {
+  const router = useRouter();
   const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
@@ -133,7 +135,7 @@ export default function CoachAlertsPage() {
                   {alert.status === "active" && (
                     <div className="flex gap-2">
                       <button onClick={() => handleAcknowledge(alert.id)} className="kairos-btn-outline text-xs"><CheckCircle size={14} className="mr-1" /> Acknowledge</button>
-                      <button className="kairos-btn-outline text-xs border-kairos-gold/30 text-kairos-gold hover:bg-kairos-gold/10">View Client</button>
+                      <button onClick={() => router.push("/trainer/clients")} className="kairos-btn-outline text-xs border-kairos-gold/30 text-kairos-gold hover:bg-kairos-gold/10">View Client</button>
                     </div>
                   )}
                 </div>

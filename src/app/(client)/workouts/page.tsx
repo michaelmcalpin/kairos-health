@@ -22,6 +22,8 @@ export default function WorkoutsPage() {
     useDateRange({ initialPeriod: "week" });
 
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
+  const [workoutStarted, setWorkoutStarted] = useState(false);
+  const [workoutDeferred, setWorkoutDeferred] = useState(false);
 
   const { records: workouts, stats: workoutStats } = useWorkouts(dateRange);
   const stats = workoutStats;
@@ -92,8 +94,16 @@ export default function WorkoutsPage() {
           </div>
         </div>
         <div className="flex gap-3">
-          <button className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50">Start Workout</button>
-          <button className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all">Defer</button>
+          {workoutDeferred ? (
+            <span className="px-6 py-2 rounded-kairos-sm font-heading font-semibold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20">Deferred to Tomorrow</span>
+          ) : workoutStarted ? (
+            <button onClick={() => setWorkoutStarted(false)} className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all border-green-500/30 text-green-400 hover:bg-green-500/10">Complete Workout</button>
+          ) : (
+            <>
+              <button onClick={() => setWorkoutStarted(true)} className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50">Start Workout</button>
+              <button onClick={() => setWorkoutDeferred(true)} className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all">Defer</button>
+            </>
+          )}
         </div>
       </div>
 

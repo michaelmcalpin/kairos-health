@@ -147,7 +147,7 @@ export default function CheckinPage() {
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional: meals, stress, exercise, or anything your coach should know..."
+            placeholder="Optional: meals, stress, exercise, or anything your trainer should know..."
             className="kairos-input w-full h-32 resize-none"
           />
           <button onClick={() => next({ notes })} className="kairos-btn-gold w-full">
@@ -163,7 +163,7 @@ export default function CheckinPage() {
           </div>
           <h3 className="font-heading font-bold text-xl text-white mb-2">Check-in Complete!</h3>
           <p className="text-sm font-body text-kairos-silver-dark mb-6">
-            Your responses have been recorded. Your coach will be notified of any concerns.
+            Your responses have been recorded. Your trainer will be notified of any concerns.
           </p>
           <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto text-left">
             <div className="text-xs font-body text-kairos-silver-dark">Mood</div>

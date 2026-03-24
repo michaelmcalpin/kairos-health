@@ -100,7 +100,7 @@ export default function ChatPage() {
 
       {/* Input */}
       <div className="mt-4 flex items-center gap-2">
-        <button className="text-kairos-silver-dark hover:text-white transition-colors p-2">
+        <button onClick={() => alert("File upload coming soon — attach lab results, photos, and documents.")} className="text-kairos-silver-dark hover:text-white transition-colors p-2" title="Attach file">
           <Paperclip size={18} />
         </button>
         <input

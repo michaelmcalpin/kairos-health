@@ -42,6 +42,7 @@ export default function SettingsPage() {
 
   const { theme, setTheme } = useTheme();
   const [saveMessage, setSaveMessage] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -382,14 +383,23 @@ export default function SettingsPage() {
             Permanently delete your account and all associated data. This action
             cannot be undone.
           </p>
-          <button className="px-6 py-3 bg-transparent border-2 border-red-500 text-red-400 rounded-kairos-sm font-body font-medium hover:bg-red-900 transition-colors">
+          <button onClick={() => setShowDeleteConfirm(!showDeleteConfirm)} className="px-6 py-3 bg-transparent border-2 border-red-500 text-red-400 rounded-kairos-sm font-body font-medium hover:bg-red-900 transition-colors">
             Delete Account
           </button>
+          {showDeleteConfirm && (
+            <div className="mt-4 p-4 rounded-kairos-sm border border-red-500/30 bg-red-950/50">
+              <p className="text-sm text-red-300 mb-3">Are you sure? This will permanently delete your account and all data. This cannot be undone.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 bg-gray-700 text-white rounded-kairos-sm text-sm font-medium hover:bg-gray-600 transition-colors">Cancel</button>
+                <button className="px-4 py-2 bg-red-600 text-white rounded-kairos-sm text-sm font-medium hover:bg-red-700 transition-colors">Confirm Delete</button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Save Button */}
         <div className="flex justify-end gap-4">
-          <button className="px-8 py-3 bg-gray-700 border border-kairos-border text-kairos-silver-dark rounded-kairos-sm font-body font-medium hover:bg-gray-600 transition-colors">
+          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-gray-700 border border-kairos-border text-kairos-silver-dark rounded-kairos-sm font-body font-medium hover:bg-gray-600 transition-colors">
             Cancel
           </button>
           <button

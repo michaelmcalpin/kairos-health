@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { KPICard } from "@/components/ui/KPICard";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
@@ -9,6 +10,7 @@ import { getDashboardProtocol } from "@/lib/client-ops/engine";
 import { useCompanyBrand } from "@/lib/company-ops";
 
 export default function ClientDashboard() {
+  const router = useRouter();
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "day" });
 
@@ -182,7 +184,7 @@ export default function ClientDashboard() {
               </div>
             ))}
           </div>
-          <button className="mt-4 text-xs font-heading font-semibold text-kairos-gold hover:text-kairos-gold-light transition-colors">
+          <button onClick={() => router.push("/alerts")} className="mt-4 text-xs font-heading font-semibold text-kairos-gold hover:text-kairos-gold-light transition-colors">
             View All Alerts →
           </button>
         </div>

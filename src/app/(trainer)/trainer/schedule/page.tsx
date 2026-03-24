@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Calendar, Clock, Plus, Users } from 'lucide-react';
+import { Calendar, Clock, Plus, Users, X } from 'lucide-react';
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import type { Appointment } from "@/lib/scheduling/types";
@@ -68,6 +68,8 @@ export default function CoachSchedulePage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [seeded, setSeeded] = useState(false);
+  const [showNewAppt, setShowNewAppt] = useState(false);
+  const [newAppt, setNewAppt] = useState({ clientName: "", date: "", time: "09:00", type: "follow_up" as const, meeting: "video" as const });
 
   if (!seeded) {
     seedCoachAppointments();
@@ -96,7 +98,7 @@ export default function CoachSchedulePage() {
               <p className="text-kairos-silver-dark text-sm">Manage your client appointments</p>
             </div>
           </div>
-          <button className="kairos-btn-gold gap-2 flex items-center justify-center">
+          <button onClick={() => setShowNewAppt(true)} className="kairos-btn-gold gap-2 flex items-center justify-center">
             <Plus className="w-5 h-5" />
             <span>New Appointment</span>
           </button>
@@ -196,6 +198,77 @@ export default function CoachSchedulePage() {
           ))}
         </div>
       </div>
+
+      {/* New Appointment Modal */}
+      {showNewAppt && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-kairos-border">
+              <h2 className="font-heading font-bold text-lg text-white">New Appointment</h2>
+              <button onClick={() => setShowNewAppt(false)} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="kairos-label mb-1 block">Client Name</label>
+                <input value={newAppt.clientName} onChange={(e) => setNewAppt({ ...newAppt, clientName: e.target.value })} placeholder="Enter client name" className="kairos-input w-full" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="kairos-label mb-1 block">Date</label>
+                  <input type="date" value={newAppt.date} onChange={(e) => setNewAppt({ ...newAppt, date: e.target.value })} className="kairos-input w-full" />
+                </div>
+                <div>
+                  <label className="kairos-label mb-1 block">Time</label>
+                  <input type="time" value={newAppt.time} onChange={(e) => setNewAppt({ ...newAppt, time: e.target.value })} className="kairos-input w-full" />
+                </div>
+              </div>
+              <div>
+                <label className="kairos-label mb-1 block">Session Type</label>
+                <select value={newAppt.type} onChange={(e) => setNewAppt({ ...newAppt, type: e.target.value as typeof newAppt.type })} className="kairos-input w-full">
+                  {SESSION_TYPES.map((st) => <option key={st.id} value={st.id}>{st.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="kairos-label mb-1 block">Meeting Type</label>
+                <select value={newAppt.meeting} onChange={(e) => setNewAppt({ ...newAppt, meeting: e.target.value as typeof newAppt.meeting })} className="kairos-input w-full">
+                  <option value="video">Video Call</option>
+                  <option value="phone">Phone Call</option>
+                  <option value="in_person">In Person</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 p-6 border-t border-kairos-border">
+              <button onClick={() => setShowNewAppt(false)} className="kairos-btn-outline flex-1">Cancel</button>
+              <button
+                onClick={() => {
+                  if (newAppt.clientName && newAppt.date) {
+                    try {
+                      createAppointment({
+                        coachId: COACH_ID,
+                        clientId: `client-${Date.now()}`,
+                        clientName: newAppt.clientName,
+                        coachName: "Trainer",
+                        sessionType: newAppt.type,
+                        meetingType: newAppt.meeting,
+                        date: newAppt.date,
+                        startTime: newAppt.time,
+                        notes: "",
+                      });
+                      setShowNewAppt(false);
+                      setNewAppt({ clientName: "", date: "", time: "09:00", type: "follow_up", meeting: "video" });
+                      refresh();
+                    } catch { /* ignore */ }
+                  }
+                }}
+                disabled={!newAppt.clientName || !newAppt.date}
+                className="kairos-btn-gold flex-1 disabled:opacity-50"
+              >
+                Create Appointment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

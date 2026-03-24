@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Brain,
   Lightbulb,
@@ -12,6 +13,7 @@ import {
   Activity,
   Heart,
   Target,
+  Download,
 } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
@@ -43,10 +45,12 @@ const categoryGradients: Record<InsightCategory, string> = {
 };
 
 export default function InsightsPage() {
+  const router = useRouter();
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
   const [selectedCategory, setSelectedCategory] = useState<InsightCategory | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const insights = useMemo(
     () => generateClientInsights(dateRange.startDate, dateRange.endDate),
@@ -288,12 +292,17 @@ export default function InsightsPage() {
         </div>
 
         <div className="mt-8 flex flex-col sm:flex-row gap-4">
-          <button className="kairos-btn-gold px-6 py-3 rounded-kairos-sm font-semibold flex items-center justify-center gap-2 hover:brightness-110 transition-all">
+          <button onClick={() => router.push("/goals")} className="kairos-btn-gold px-6 py-3 rounded-kairos-sm font-semibold flex items-center justify-center gap-2 hover:brightness-110 transition-all">
             <Target className="w-4 h-4" />
             Create Action Plan
           </button>
-          <button className="kairos-btn-outline px-6 py-3 rounded-kairos-sm font-semibold transition-all">
-            Export Insights
+          <button
+            onClick={() => { setExporting(true); setTimeout(() => setExporting(false), 2000); }}
+            disabled={exporting}
+            className="kairos-btn-outline px-6 py-3 rounded-kairos-sm font-semibold transition-all flex items-center gap-2 disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            {exporting ? "Exporting..." : "Export Insights"}
           </button>
         </div>
       </div>

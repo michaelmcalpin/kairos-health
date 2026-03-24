@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   MessageSquare,
@@ -15,6 +16,7 @@ import {
   Trash2,
   CheckCircle,
   Send,
+  X,
 } from "lucide-react";
 import { useThemeColors } from "@/lib/theme";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
@@ -41,12 +43,15 @@ import {
 const COACH_ID = "demo-coach";
 
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
   const tc = useThemeColors();
   const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
   const [noteText, setNoteText] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showProtocolModal, setShowProtocolModal] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Seed data on first render
   useMemo(() => seedCoachClients(COACH_ID), []);
@@ -419,23 +424,79 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
       {/* Action Buttons */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <button className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
+        <button onClick={() => router.push("/trainer/messages")} className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
           <MessageSquare size={16} className="text-kairos-gold" />
           <span className="text-sm font-medium text-white">Send Message</span>
         </button>
-        <button className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
+        <button onClick={() => setShowProtocolModal(true)} className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
           <Settings size={16} className="text-kairos-gold" />
           <span className="text-sm font-medium text-white">Adjust Protocol</span>
         </button>
-        <button className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
+        <button onClick={() => router.push("/trainer/schedule")} className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
           <Calendar size={16} className="text-kairos-gold" />
           <span className="text-sm font-medium text-white">Schedule Session</span>
         </button>
-        <button className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
+        <button onClick={() => setShowHistory(!showHistory)} className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
           <Activity size={16} className="text-kairos-gold" />
-          <span className="text-sm font-medium text-white">View Full History</span>
+          <span className="text-sm font-medium text-white">{showHistory ? "Hide History" : "View Full History"}</span>
         </button>
       </div>
+
+      {/* Protocol Adjustment Modal */}
+      {showProtocolModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-kairos-border">
+              <h2 className="font-heading font-bold text-lg text-white">Adjust Protocol</h2>
+              <button onClick={() => setShowProtocolModal(false)} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-kairos-silver-dark">Adjust the training and supplement protocol for <span className="text-white font-semibold">{client.name}</span>.</p>
+              <div>
+                <label className="kairos-label mb-1 block">Protocol Notes</label>
+                <textarea placeholder="Describe the protocol changes..." className="kairos-input w-full h-28 resize-none" />
+              </div>
+              <div>
+                <label className="kairos-label mb-1 block">Priority</label>
+                <select className="kairos-input w-full">
+                  <option>Normal</option>
+                  <option>High — Review within 24h</option>
+                  <option>Urgent — Immediate attention</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 p-6 border-t border-kairos-border">
+              <button onClick={() => setShowProtocolModal(false)} className="kairos-btn-outline flex-1">Cancel</button>
+              <button onClick={() => { setShowProtocolModal(false); }} className="kairos-btn-gold flex-1">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full History Panel */}
+      {showHistory && (
+        <div className="kairos-card mt-4">
+          <h3 className="font-heading font-bold text-white mb-4">Activity History</h3>
+          <div className="space-y-3">
+            {[
+              { date: "Mar 21", action: "Completed check-in", detail: "Mood: Good, Sleep: 7.5h" },
+              { date: "Mar 20", action: "Lab results received", detail: "HbA1c: 5.2%, Vitamin D: 42 ng/mL" },
+              { date: "Mar 19", action: "Supplement adherence", detail: "92% weekly adherence" },
+              { date: "Mar 18", action: "Workout logged", detail: "Strength training — 45 min" },
+              { date: "Mar 17", action: "Session completed", detail: "Weekly review — protocol on track" },
+              { date: "Mar 15", action: "Glucose alert resolved", detail: "Spike normalized after meal adjustment" },
+            ].map((item, i) => (
+              <div key={i} className="flex items-start gap-3 py-2 border-b border-kairos-border/50 last:border-0">
+                <span className="text-xs text-kairos-silver-dark font-heading w-14 flex-shrink-0">{item.date}</span>
+                <div>
+                  <p className="text-sm text-white font-medium">{item.action}</p>
+                  <p className="text-xs text-kairos-silver-dark">{item.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

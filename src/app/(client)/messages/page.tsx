@@ -8,7 +8,7 @@ export default function MessagesPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-heading font-bold text-white">Messages</h1>
         <p className="text-gray-400 mt-1">
-          Chat with your coach or AI health assistant in real time.
+          Chat with your trainer or AI health assistant in real time.
         </p>
       </div>
 

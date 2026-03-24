@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   CreditCard,
   Receipt,
@@ -9,6 +10,7 @@ import {
   DollarSign,
   Shield,
   FileText,
+  X,
 } from "lucide-react";
 import { getClientPayments } from "@/lib/client-ops/engine";
 
@@ -17,6 +19,8 @@ const CLIENT_ID = "demo-client";
 export default function PaymentsPage() {
   const data = getClientPayments(CLIENT_ID);
   const { currentPlan, subscriptions, billingHistory, upcomingCharges } = data;
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showManageModal, setShowManageModal] = useState<string | null>(null);
 
   const getStatusBadge = (status: string) => {
     if (status === "Paid") {
@@ -103,7 +107,7 @@ export default function PaymentsPage() {
               <p className="text-white font-mono font-semibold text-lg mb-3">{currentPlan.paymentMethod}</p>
               <p className="text-kairos-silver-dark text-sm font-body">Expires 12/27</p>
             </div>
-            <button className="kairos-btn-outline w-full py-2 px-4 rounded-kairos-sm font-semibold text-sm">
+            <button onClick={() => setShowPaymentModal(true)} className="kairos-btn-outline w-full py-2 px-4 rounded-kairos-sm font-semibold text-sm">
               Update Payment Method
             </button>
           </div>
@@ -122,7 +126,7 @@ export default function PaymentsPage() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-green-900/20 text-green-300 font-medium">{sub.status}</span>
-                <button className="kairos-btn-outline px-4 py-2 rounded-kairos-sm font-semibold text-sm whitespace-nowrap">Manage</button>
+                <button onClick={() => setShowManageModal(sub.id)} className="kairos-btn-outline px-4 py-2 rounded-kairos-sm font-semibold text-sm whitespace-nowrap">Manage</button>
               </div>
             </div>
           ))}
@@ -189,6 +193,60 @@ export default function PaymentsPage() {
           </table>
         </div>
       </div>
+
+      {/* Update Payment Method Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-kairos-border">
+              <h2 className="font-heading font-bold text-lg text-white">Update Payment Method</h2>
+              <button onClick={() => setShowPaymentModal(false)} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-kairos-silver-dark">For security, payment updates are handled through our secure payment portal.</p>
+              <div className="kairos-card bg-blue-500/5 border-blue-500/20 p-4">
+                <p className="text-sm text-blue-300">You will be redirected to Stripe&apos;s secure portal to update your card details. No card information is stored on our servers.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 p-6 border-t border-kairos-border">
+              <button onClick={() => setShowPaymentModal(false)} className="kairos-btn-outline flex-1">Cancel</button>
+              <button onClick={() => setShowPaymentModal(false)} className="kairos-btn-gold flex-1">Open Payment Portal</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Subscription Modal */}
+      {showManageModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-kairos-border">
+              <h2 className="font-heading font-bold text-lg text-white">Manage Subscription</h2>
+              <button onClick={() => setShowManageModal(null)} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-kairos-silver-dark">Manage your subscription plan and billing preferences.</p>
+              <div className="space-y-2">
+                <button className="w-full text-left p-3 rounded-kairos-sm border border-kairos-border hover:border-kairos-gold/30 transition-colors">
+                  <p className="text-sm text-white font-medium">Change Plan</p>
+                  <p className="text-xs text-kairos-silver-dark">Upgrade or downgrade your subscription tier</p>
+                </button>
+                <button className="w-full text-left p-3 rounded-kairos-sm border border-kairos-border hover:border-kairos-gold/30 transition-colors">
+                  <p className="text-sm text-white font-medium">Update Billing Cycle</p>
+                  <p className="text-xs text-kairos-silver-dark">Switch between monthly and annual billing</p>
+                </button>
+                <button className="w-full text-left p-3 rounded-kairos-sm border border-red-500/20 hover:border-red-500/40 transition-colors">
+                  <p className="text-sm text-red-400 font-medium">Cancel Subscription</p>
+                  <p className="text-xs text-kairos-silver-dark">Your access will continue until the end of the current billing period</p>
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-3 p-6 border-t border-kairos-border">
+              <button onClick={() => setShowManageModal(null)} className="kairos-btn-outline flex-1">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
