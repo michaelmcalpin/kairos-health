@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, MessageSquare, User } from "lucide-react";
+import { Search, MessageSquare, User, X, Send } from "lucide-react";
 import {
   seedAdminCoaches,
   filterAdminCoaches,
@@ -16,6 +16,10 @@ export default function TrainersPage() {
   const { selectedCompany, setSelectedCompany, company } = useCompanyFilter();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<CoachStatus | "All">("All");
+  const [viewingTrainer, setViewingTrainer] = useState<{ name: string; email?: string; specialization?: string; clients: number; capacity: number; revenue?: number; score?: number } | null>(null);
+  const [messagingTrainer, setMessagingTrainer] = useState<string | null>(null);
+  const [messageText, setMessageText] = useState("");
+  const [messageSent, setMessageSent] = useState(false);
 
   // Seed platform-level data on first render
   useMemo(() => seedAdminCoaches(), []);
@@ -217,11 +221,17 @@ export default function TrainersPage() {
                       <td className="py-3 px-4 font-body text-sm text-kairos-gold text-center">{trainer.rating}</td>
                       <td className="py-3 px-4">
                         <div className="flex gap-2 justify-center">
-                          <button className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:bg-kairos-card-hover hover:border-kairos-gold transition-colors text-xs font-body">
+                          <button
+                            onClick={() => setViewingTrainer({ name: `${trainer.firstName} ${trainer.lastName}`, email: trainer.email, clients: trainer.clientCount, capacity: trainer.capacity, score: trainer.rating })}
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:bg-kairos-card-hover hover:border-kairos-gold transition-colors text-xs font-body"
+                          >
                             <User className="w-3 h-3" />
                             <span>View</span>
                           </button>
-                          <button className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:bg-kairos-card-hover hover:border-kairos-gold transition-colors text-xs font-body">
+                          <button
+                            onClick={() => setMessagingTrainer(`${trainer.firstName} ${trainer.lastName}`)}
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:bg-kairos-card-hover hover:border-kairos-gold transition-colors text-xs font-body"
+                          >
                             <MessageSquare className="w-3 h-3" />
                             <span>Message</span>
                           </button>
@@ -256,11 +266,17 @@ export default function TrainersPage() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2 justify-center">
-                        <button className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:bg-kairos-card-hover hover:border-kairos-gold transition-colors text-xs font-body" title="View Profile">
+                        <button
+                          onClick={() => setViewingTrainer({ name: coach.name, specialization: coach.specialization, clients: coach.clientsAssigned, capacity: coach.clientCapacity, revenue: coach.revenueGenerated, score: coach.avgHealthScore })}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:bg-kairos-card-hover hover:border-kairos-gold transition-colors text-xs font-body" title="View Profile"
+                        >
                           <User className="w-3 h-3" />
                           <span>View</span>
                         </button>
-                        <button className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:bg-kairos-card-hover hover:border-kairos-gold transition-colors text-xs font-body" title="Send Message">
+                        <button
+                          onClick={() => setMessagingTrainer(coach.name)}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:bg-kairos-card-hover hover:border-kairos-gold transition-colors text-xs font-body" title="Send Message"
+                        >
                           <MessageSquare className="w-3 h-3" />
                           <span>Message</span>
                         </button>
@@ -279,6 +295,113 @@ export default function TrainersPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Trainer Detail Drawer */}
+      {viewingTrainer && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-kairos-border">
+              <h2 className="font-heading font-bold text-lg text-white">Trainer Profile</h2>
+              <button onClick={() => setViewingTrainer(null)} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-kairos-gold/20 flex items-center justify-center">
+                  <span className="text-kairos-gold font-heading font-bold text-lg">{viewingTrainer.name.split(" ").map((n) => n[0]).join("")}</span>
+                </div>
+                <div>
+                  <h3 className="font-heading font-bold text-white text-lg">{viewingTrainer.name}</h3>
+                  {viewingTrainer.email && <p className="text-sm text-kairos-silver-dark">{viewingTrainer.email}</p>}
+                  {viewingTrainer.specialization && <p className="text-sm text-kairos-silver-dark">{viewingTrainer.specialization}</p>}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="kairos-card text-center">
+                  <p className="text-xl font-heading font-bold text-kairos-gold">{viewingTrainer.clients}</p>
+                  <p className="text-xs text-kairos-silver-dark">Clients</p>
+                </div>
+                <div className="kairos-card text-center">
+                  <p className="text-xl font-heading font-bold text-white">{viewingTrainer.capacity}</p>
+                  <p className="text-xs text-kairos-silver-dark">Capacity</p>
+                </div>
+                {viewingTrainer.revenue !== undefined && (
+                  <div className="kairos-card text-center">
+                    <p className="text-xl font-heading font-bold text-green-400">${viewingTrainer.revenue.toLocaleString()}</p>
+                    <p className="text-xs text-kairos-silver-dark">Revenue</p>
+                  </div>
+                )}
+                {viewingTrainer.score !== undefined && viewingTrainer.score > 0 && (
+                  <div className="kairos-card text-center">
+                    <p className="text-xl font-heading font-bold text-white">{viewingTrainer.score}</p>
+                    <p className="text-xs text-kairos-silver-dark">Score/Rating</p>
+                  </div>
+                )}
+              </div>
+              {viewingTrainer.capacity > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-kairos-silver-dark">Utilization</span>
+                    <span className="text-xs text-white font-semibold">{Math.round((viewingTrainer.clients / viewingTrainer.capacity) * 100)}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-kairos-gold transition-all" style={{ width: `${Math.min(100, Math.round((viewingTrainer.clients / viewingTrainer.capacity) * 100))}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 p-6 border-t border-kairos-border">
+              <button onClick={() => setViewingTrainer(null)} className="kairos-btn-outline flex-1">Close</button>
+              <button onClick={() => { setMessagingTrainer(viewingTrainer.name); setViewingTrainer(null); }} className="kairos-btn-gold flex-1 flex items-center justify-center gap-2"><MessageSquare className="w-4 h-4" /> Message</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message Modal */}
+      {messagingTrainer && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-kairos-border">
+              <h2 className="font-heading font-bold text-lg text-white">Message {messagingTrainer}</h2>
+              <button onClick={() => { setMessagingTrainer(null); setMessageText(""); setMessageSent(false); }} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {messageSent ? (
+                <div className="text-center py-4">
+                  <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-3">
+                    <Send className="w-5 h-5 text-green-400" />
+                  </div>
+                  <p className="text-white font-heading font-semibold">Message Sent!</p>
+                  <p className="text-sm text-kairos-silver-dark mt-1">Your message has been delivered to {messagingTrainer}.</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="kairos-label mb-1 block">Subject</label>
+                    <input placeholder="Message subject..." className="kairos-input w-full" />
+                  </div>
+                  <div>
+                    <label className="kairos-label mb-1 block">Message</label>
+                    <textarea value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="Write your message..." className="kairos-input w-full h-32 resize-none" />
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="flex gap-3 p-6 border-t border-kairos-border">
+              <button onClick={() => { setMessagingTrainer(null); setMessageText(""); setMessageSent(false); }} className="kairos-btn-outline flex-1">{messageSent ? "Close" : "Cancel"}</button>
+              {!messageSent && (
+                <button
+                  onClick={() => { setMessageSent(true); setTimeout(() => { setMessagingTrainer(null); setMessageText(""); setMessageSent(false); }, 2000); }}
+                  disabled={!messageText.trim()}
+                  className="kairos-btn-gold flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" /> Send Message
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

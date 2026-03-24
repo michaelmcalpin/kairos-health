@@ -8,6 +8,8 @@ import {
   Archive,
   Filter,
   BarChart3,
+  X,
+  Save,
 } from "lucide-react";
 import { getContentLibrary, filterContent } from "@/lib/content-management/engine";
 import type { ContentCategory } from "@/lib/content-management/types";
@@ -26,10 +28,15 @@ export default function ContentPage() {
   const { selectedCompany, setSelectedCompany, company } = useCompanyFilter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<"All" | ContentCategory>("All");
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [previewItem, setPreviewItem] = useState<string | null>(null);
+  const [archivedItems, setArchivedItems] = useState<Set<string>>(new Set());
 
   const categories: Array<"All" | ContentCategory> = ["All", "Protocols", "Articles", "Videos", "Guides"];
 
-  const filteredContent = filterContent(allContent, searchQuery, selectedCategory);
+  const filteredContent = filterContent(allContent, searchQuery, selectedCategory).filter(
+    (item) => !archivedItems.has(item.id),
+  );
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -163,15 +170,18 @@ export default function ContentPage() {
                 </div>
               </div>
               <div className="flex gap-2 pt-4 border-t border-kairos-border">
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-gold hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold">
+                <button onClick={() => setEditingItem(item.id)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-gold hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold">
                   <Edit2 className="w-4 h-4" />
                   <span className="hidden sm:inline">Edit</span>
                 </button>
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-gold hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold">
+                <button onClick={() => setPreviewItem(item.id)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-gold hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold">
                   <Eye className="w-4 h-4" />
                   <span className="hidden sm:inline">Preview</span>
                 </button>
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:text-red-400 hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold">
+                <button
+                  onClick={() => setArchivedItems((prev) => { const next = new Set(prev); next.add(item.id); return next; })}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:text-red-400 hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold"
+                >
                   <Archive className="w-4 h-4" />
                   <span className="hidden sm:inline">Archive</span>
                 </button>
@@ -184,6 +194,86 @@ export default function ContentPage() {
           </div>
         )}
       </div>
+
+      {/* Edit Modal */}
+      {editingItem && (() => {
+        const item = allContent.find((c) => c.id === editingItem);
+        if (!item) return null;
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-lg">
+              <div className="flex items-center justify-between p-6 border-b border-kairos-border">
+                <h2 className="font-heading font-bold text-lg text-white">Edit Content</h2>
+                <button onClick={() => setEditingItem(null)} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="kairos-label mb-1 block">Title</label>
+                  <input defaultValue={item.title} className="kairos-input w-full" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="kairos-label mb-1 block">Category</label>
+                    <select defaultValue={item.category} className="kairos-input w-full">
+                      <option>Protocols</option><option>Articles</option><option>Videos</option><option>Guides</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="kairos-label mb-1 block">Status</label>
+                    <select defaultValue={item.status} className="kairos-input w-full">
+                      <option>Published</option><option>Draft</option><option>Review</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="kairos-label mb-1 block">Author</label>
+                  <input defaultValue={item.author} className="kairos-input w-full" />
+                </div>
+              </div>
+              <div className="flex gap-3 p-6 border-t border-kairos-border">
+                <button onClick={() => setEditingItem(null)} className="kairos-btn-outline flex-1">Cancel</button>
+                <button onClick={() => setEditingItem(null)} className="kairos-btn-gold flex-1 flex items-center justify-center gap-2"><Save className="w-4 h-4" /> Save Changes</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Preview Modal */}
+      {previewItem && (() => {
+        const item = allContent.find((c) => c.id === previewItem);
+        if (!item) return null;
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-2xl">
+              <div className="flex items-center justify-between p-6 border-b border-kairos-border">
+                <h2 className="font-heading font-bold text-lg text-white">Content Preview</h2>
+                <button onClick={() => setPreviewItem(null)} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
+              </div>
+              <div className="p-6">
+                <div className="flex gap-2 mb-4">
+                  <span className={`px-2 py-1 rounded-kairos-sm text-xs font-body font-semibold ${getCategoryColor(item.category)}`}>{item.category}</span>
+                  <span className={`px-2 py-1 rounded-kairos-sm text-xs font-body font-semibold ${getStatusColor(item.status)}`}>{item.status}</span>
+                </div>
+                <h3 className="font-heading font-bold text-xl text-white mb-2">{item.title}</h3>
+                <p className="text-sm text-kairos-silver-dark mb-4">By {item.author} · Published {new Date(item.publishDate).toLocaleDateString()}</p>
+                <div className="w-full h-48 bg-gradient-to-br from-gray-800 to-gray-900 rounded-kairos-sm flex items-center justify-center mb-4">
+                  <p className="text-kairos-silver-dark text-sm">{item.thumbnail}</p>
+                </div>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="kairos-card"><p className="text-lg font-heading font-bold text-kairos-gold">{item.viewCount.toLocaleString()}</p><p className="text-xs text-kairos-silver-dark">Views</p></div>
+                  <div className="kairos-card"><p className="text-lg font-heading font-bold text-white">{item.category}</p><p className="text-xs text-kairos-silver-dark">Category</p></div>
+                  <div className="kairos-card"><p className="text-lg font-heading font-bold text-white">{item.status}</p><p className="text-xs text-kairos-silver-dark">Status</p></div>
+                </div>
+              </div>
+              <div className="flex gap-3 p-6 border-t border-kairos-border">
+                <button onClick={() => setPreviewItem(null)} className="kairos-btn-outline flex-1">Close</button>
+                <button onClick={() => { setPreviewItem(null); setEditingItem(item.id); }} className="kairos-btn-gold flex-1 flex items-center justify-center gap-2"><Edit2 className="w-4 h-4" /> Edit</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

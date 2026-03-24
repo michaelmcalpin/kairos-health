@@ -238,7 +238,7 @@ export default function AdminSettingsPage() {
 
       {/* Save */}
       <div className="flex justify-end gap-4">
-        <button className="kairos-btn-outline">Cancel</button>
+        <button onClick={() => window.location.reload()} className="kairos-btn-outline">Cancel</button>
         <button onClick={handleSaveChanges} className="kairos-btn-gold flex items-center gap-2">
           <Save className="w-5 h-5" />
           Save Changes

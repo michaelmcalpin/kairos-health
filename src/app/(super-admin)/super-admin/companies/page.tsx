@@ -313,7 +313,7 @@ function CompanyRow({
               <button onClick={onView} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
                 <Eye size={14} /> View Details
               </button>
-              <button onClick={onView} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
+              <button onClick={() => { onView(); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
                 <Edit2 size={14} /> Edit Company
               </button>
               <div className="border-t border-kairos-border my-1" />
