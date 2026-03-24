@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { db } from "@/server/db";
+import { users, clientProfiles, trainerProfiles } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
+
+type ValidRole = "client" | "trainer" | "company_admin" | "super_admin";
+const VALID_ROLES: ValidRole[] = ["client", "trainer", "company_admin", "super_admin"];
 
 interface ClerkUserEvent {
   data: {
@@ -8,6 +14,7 @@ interface ClerkUserEvent {
     first_name: string | null;
     last_name: string | null;
     image_url: string | null;
+    public_metadata?: Record<string, unknown>;
     created_at: number;
     updated_at: number;
   };
@@ -20,24 +27,76 @@ async function handleClerkWebhook(body: ClerkUserEvent) {
 
   switch (eventType) {
     case "user.created": {
-      // TODO: When DB is connected, insert into users table
-      console.log("[Clerk Webhook] User created:", {
-        clerkId: userData.id,
-        email: userData.email_addresses[0]?.email_address,
-        firstName: userData.first_name,
-        lastName: userData.last_name,
+      const clerkId = userData.id;
+      const email = userData.email_addresses[0]?.email_address;
+      const firstName = userData.first_name;
+      const lastName = userData.last_name;
+      const avatarUrl = userData.image_url;
+      const metaRole = userData.public_metadata?.role as string | undefined;
+      const role: ValidRole = metaRole && VALID_ROLES.includes(metaRole as ValidRole)
+        ? (metaRole as ValidRole)
+        : "client";
+      const companyId = (userData.public_metadata?.companyId as string) || null;
+
+      console.log("[Clerk Webhook] User created:", { clerkId, email, role, companyId });
+
+      // Check if user already exists (idempotent)
+      const existing = await db.query.users.findFirst({
+        where: eq(users.clerkId, clerkId),
       });
-      // Future: db.insert(users).values({ clerkId, email, name, ... })
-      // Future: db.insert(clientProfiles).values({ userId, onboardingStep: 1 })
+
+      if (!existing && email) {
+        const [newUser] = await db.insert(users).values({
+          clerkId,
+          email,
+          firstName: firstName ?? undefined,
+          lastName: lastName ?? undefined,
+          avatarUrl: avatarUrl ?? undefined,
+          role,
+          companyId: companyId ?? undefined,
+        }).returning();
+
+        // Create role-specific profile
+        if (role === "client" && newUser) {
+          await db.insert(clientProfiles).values({ userId: newUser.id, tier: "tier1" });
+        } else if (role === "trainer" && newUser) {
+          await db.insert(trainerProfiles).values({ userId: newUser.id });
+        }
+      }
+
       return { success: true, action: "user_created" };
     }
 
     case "user.updated": {
-      console.log("[Clerk Webhook] User updated:", {
-        clerkId: userData.id,
-        email: userData.email_addresses[0]?.email_address,
+      const clerkId = userData.id;
+      const email = userData.email_addresses[0]?.email_address;
+      const firstName = userData.first_name;
+      const lastName = userData.last_name;
+      const avatarUrl = userData.image_url;
+      const metaRole = userData.public_metadata?.role as string | undefined;
+
+      console.log("[Clerk Webhook] User updated:", { clerkId, email });
+
+      const existingUser = await db.query.users.findFirst({
+        where: eq(users.clerkId, clerkId),
       });
-      // Future: db.update(users).set({ name, email, avatarUrl }).where(eq(users.clerkId, clerkId))
+
+      if (existingUser) {
+        const updates: Record<string, unknown> = {
+          updatedAt: new Date(),
+        };
+        if (email) updates.email = email;
+        if (firstName !== null) updates.firstName = firstName;
+        if (lastName !== null) updates.lastName = lastName;
+        if (avatarUrl !== null) updates.avatarUrl = avatarUrl;
+        // Only update role if explicitly set in metadata
+        if (metaRole && VALID_ROLES.includes(metaRole as ValidRole)) {
+          updates.role = metaRole;
+        }
+
+        await db.update(users).set(updates).where(eq(users.clerkId, clerkId));
+      }
+
       return { success: true, action: "user_updated" };
     }
 

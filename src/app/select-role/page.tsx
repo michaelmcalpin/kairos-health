@@ -79,15 +79,29 @@ function getAllowedRoles(dbRole: UserRole): UserRole[] {
 function SelectRoleContent() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+  const [synced, setSynced] = useState(false);
   const { brand, setCompanyId } = useCompanyBrand();
   const companies = useCompanyList();
   const isWhiteLabel = brand.id !== "kairos";
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
-  // Fetch the user's actual role from the database
+  // Step 1: Ensure the DB user exists (creates on first sign-in)
+  const ensureUser = trpc.auth.ensureUser.useMutation({
+    onSettled: () => setSynced(true),
+  });
+
+  useEffect(() => {
+    if (!synced) {
+      ensureUser.mutate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Step 2: Fetch the user's actual role from the database (after sync completes)
   const { data: me, isLoading: meLoading } = trpc.auth.me.useQuery(undefined, {
     retry: false,
     staleTime: 60_000,
+    enabled: synced, // Only query after ensureUser has completed
   });
 
   const dbRole: UserRole = (me?.role as UserRole) ?? "client";
@@ -126,7 +140,7 @@ function SelectRoleContent() {
     router.push(ROLE_HOME[role]);
   }
 
-  if (checking || meLoading) {
+  if (checking || meLoading || !synced) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-kairos-royal-dark to-kairos-royal flex items-center justify-center">
         <div className="text-center">

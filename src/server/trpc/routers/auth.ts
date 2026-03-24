@@ -2,8 +2,65 @@ import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "@/server/trpc";
 import { users, clientProfiles, trainerProfiles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
+import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server";
 
 export const authRouter = router({
+  /**
+   * Ensures a DB user record exists for the currently signed-in Clerk user.
+   * Called from /select-role on first load to handle cases where the Clerk
+   * webhook hasn't fired yet (common in dev) or webhook delivery failed.
+   *
+   * Reads role and companyId from Clerk publicMetadata if set
+   * (e.g. by seed script or admin assignment).
+   */
+  ensureUser: publicProcedure.mutation(async ({ ctx }) => {
+    const { userId: clerkId } = await clerkAuth();
+    if (!clerkId) return { user: null, created: false };
+
+    // Already in our DB?
+    const existing = await ctx.db.query.users.findFirst({
+      where: eq(users.clerkId, clerkId),
+    });
+    if (existing) return { user: existing, created: false };
+
+    // Fetch full Clerk user to get email + metadata
+    const clerkUser = await currentUser();
+    if (!clerkUser) return { user: null, created: false };
+
+    const email = clerkUser.emailAddresses[0]?.emailAddress;
+    if (!email) return { user: null, created: false };
+
+    const validRoles = ["client", "trainer", "company_admin", "super_admin"] as const;
+    type ValidRole = (typeof validRoles)[number];
+    const metaRole = clerkUser.publicMetadata?.role as string | undefined;
+    const role: ValidRole = metaRole && (validRoles as readonly string[]).includes(metaRole)
+      ? (metaRole as ValidRole)
+      : "client";
+    const companyId = (clerkUser.publicMetadata?.companyId as string) || null;
+
+    const [newUser] = await ctx.db
+      .insert(users)
+      .values({
+        clerkId,
+        email,
+        firstName: clerkUser.firstName ?? undefined,
+        lastName: clerkUser.lastName ?? undefined,
+        avatarUrl: clerkUser.imageUrl ?? undefined,
+        role,
+        companyId: companyId ?? undefined,
+      })
+      .returning();
+
+    // Create role-specific profile
+    if (role === "client" && newUser) {
+      await ctx.db.insert(clientProfiles).values({ userId: newUser.id, tier: "tier1" });
+    } else if (role === "trainer" && newUser) {
+      await ctx.db.insert(trainerProfiles).values({ userId: newUser.id });
+    }
+
+    return { user: newUser, created: true };
+  }),
+
   // Called after Clerk sign-up to create our DB user record
   syncUser: publicProcedure
     .input(
@@ -50,10 +107,14 @@ export const authRouter = router({
       return { user: newUser, created: true };
     }),
 
-  // Get current user profile
-  me: protectedProcedure.query(async ({ ctx }) => {
+  // Get current user profile (uses publicProcedure so new users without
+  // a DB record don't get UNAUTHORIZED — they just get null back)
+  me: publicProcedure.query(async ({ ctx }) => {
+    const { userId: clerkId } = await clerkAuth();
+    if (!clerkId) return null;
+
     const user = await ctx.db.query.users.findFirst({
-      where: eq(users.clerkId, ctx.userId),
+      where: eq(users.clerkId, clerkId),
     });
 
     if (!user) return null;
