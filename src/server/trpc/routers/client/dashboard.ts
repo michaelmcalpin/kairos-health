@@ -12,7 +12,7 @@ import {
   protocolItems,
   adherenceLogs,
 } from "@/server/db/schema";
-import { eq, desc, and, gte, sql } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 
 export const clientDashboardRouter = router({
   // Get dashboard overview KPIs
@@ -151,5 +151,159 @@ export const clientDashboardRouter = router({
         completed: todayAdherence.filter((a) => !a.skipped).length,
       },
     };
+  }),
+
+  // Get daily summaries for a date range (glucose, sleep, adherence per day)
+  getDailySummaries: clientProcedure
+    .input(
+      z.object({
+        startDate: z.string(), // YYYY-MM-DD
+        endDate: z.string(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { startDate, endDate } = input;
+
+      // Glucose daily averages + time-in-range
+      const glucoseDaily = await ctx.db
+        .select({
+          date: sql<string>`DATE(${glucoseReadings.timestamp})`.as("date"),
+          avg: sql<number>`ROUND(AVG(${glucoseReadings.valueMgdl}))`.as("avg"),
+          min: sql<number>`MIN(${glucoseReadings.valueMgdl})`.as("min"),
+          max: sql<number>`MAX(${glucoseReadings.valueMgdl})`.as("max"),
+          count: sql<number>`COUNT(*)`.as("count"),
+          inRangeCount: sql<number>`COUNT(*) FILTER (WHERE ${glucoseReadings.valueMgdl} BETWEEN 70 AND 140)`.as("in_range"),
+        })
+        .from(glucoseReadings)
+        .where(
+          and(
+            eq(glucoseReadings.clientId, ctx.dbUserId),
+            gte(glucoseReadings.timestamp, new Date(startDate)),
+            lte(glucoseReadings.timestamp, new Date(endDate + "T23:59:59"))
+          )
+        )
+        .groupBy(sql`DATE(${glucoseReadings.timestamp})`)
+        .orderBy(sql`DATE(${glucoseReadings.timestamp})`);
+
+      // Sleep per day
+      const sleepDaily = await ctx.db.query.sleepSessions.findMany({
+        where: and(
+          eq(sleepSessions.clientId, ctx.dbUserId),
+          gte(sleepSessions.date, startDate),
+          lte(sleepSessions.date, endDate)
+        ),
+        orderBy: sleepSessions.date,
+      });
+
+      // Adherence per day: count logged vs total protocol items
+      const protocol = await ctx.db.query.supplementProtocols.findFirst({
+        where: and(
+          eq(supplementProtocols.clientId, ctx.dbUserId),
+          eq(supplementProtocols.status, "active")
+        ),
+        orderBy: desc(supplementProtocols.createdAt),
+      });
+
+      let adherenceDaily: { date: string; taken: number; total: number }[] = [];
+      if (protocol) {
+        const items = await ctx.db.query.protocolItems.findMany({
+          where: eq(protocolItems.protocolId, protocol.id),
+        });
+        const totalItems = items.length;
+
+        const adherenceRows = await ctx.db
+          .select({
+            date: adherenceLogs.date,
+            taken: sql<number>`COUNT(*) FILTER (WHERE ${adherenceLogs.skipped} = false)`.as("taken"),
+          })
+          .from(adherenceLogs)
+          .where(
+            and(
+              eq(adherenceLogs.clientId, ctx.dbUserId),
+              gte(adherenceLogs.date, startDate),
+              lte(adherenceLogs.date, endDate)
+            )
+          )
+          .groupBy(adherenceLogs.date)
+          .orderBy(adherenceLogs.date);
+
+        adherenceDaily = adherenceRows.map((r) => ({
+          date: r.date,
+          taken: Number(r.taken),
+          total: totalItems,
+        }));
+      }
+
+      // Build date map
+      const sleepMap = new Map(sleepDaily.map((s) => [s.date, s]));
+      const adherenceMap = new Map(adherenceDaily.map((a) => [a.date, a]));
+
+      const summaries = glucoseDaily.map((g) => {
+        const dateStr = String(g.date);
+        const sleep = sleepMap.get(dateStr);
+        const adh = adherenceMap.get(dateStr);
+        const timeInRange = g.count > 0 ? Math.round((Number(g.inRangeCount) / Number(g.count)) * 100) : 0;
+
+        return {
+          date: dateStr,
+          dateLabel: new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" }),
+          glucose: { avg: Number(g.avg), min: Number(g.min), max: Number(g.max), timeInRange },
+          sleep: sleep?.totalMinutes
+            ? { totalHrs: parseFloat((sleep.totalMinutes / 60).toFixed(1)), score: sleep.score }
+            : null,
+          adherence: adh
+            ? Math.round((adh.taken / Math.max(adh.total, 1)) * 100)
+            : null,
+        };
+      });
+
+      return summaries;
+    }),
+
+  // Get computed health score
+  getHealthScore: clientProcedure.query(async ({ ctx }) => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysStr = sevenDaysAgo.toISOString().split("T")[0];
+
+    const [avgGlucoseResult, avgSleepResult, latestHrv] = await Promise.all([
+      ctx.db
+        .select({ avg: sql<number>`ROUND(AVG(${glucoseReadings.valueMgdl}))` })
+        .from(glucoseReadings)
+        .where(
+          and(
+            eq(glucoseReadings.clientId, ctx.dbUserId),
+            gte(glucoseReadings.timestamp, sevenDaysAgo)
+          )
+        ),
+      ctx.db
+        .select({ avg: sql<number>`ROUND(AVG(${sleepSessions.score}))` })
+        .from(sleepSessions)
+        .where(
+          and(
+            eq(sleepSessions.clientId, ctx.dbUserId),
+            gte(sleepSessions.date, sevenDaysStr)
+          )
+        ),
+      ctx.db.query.hrvReadings.findFirst({
+        where: eq(hrvReadings.clientId, ctx.dbUserId),
+        orderBy: desc(hrvReadings.timestamp),
+      }),
+    ]);
+
+    // Derive health score: baseline 75, +/- based on sleep, glucose, HRV
+    let score = 75;
+    const avgGlucose = Number(avgGlucoseResult[0]?.avg ?? 95);
+    const avgSleep = Number(avgSleepResult[0]?.avg ?? 70);
+    const hrv = latestHrv?.rmssd ?? 40;
+
+    // Sleep contribution: score 80+ adds up to +8, below 60 subtracts up to -10
+    score += avgSleep >= 80 ? 8 : avgSleep >= 70 ? 4 : avgSleep >= 60 ? 0 : -10;
+    // Glucose contribution: 70-100 optimal (+5), 100-120 ok (0), >120 bad (-8)
+    score += avgGlucose >= 70 && avgGlucose <= 100 ? 5 : avgGlucose <= 120 ? 0 : -8;
+    // HRV contribution: >50 good (+7), 30-50 ok (+2), <30 poor (-5)
+    score += hrv > 50 ? 7 : hrv >= 30 ? 2 : -5;
+
+    return { score: Math.min(100, Math.max(0, score)), avgGlucose, avgSleep, hrv };
   }),
 });
