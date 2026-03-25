@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -22,15 +22,6 @@ import { useThemeColors } from "@/lib/theme";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import {
-  seedCoachClients,
-  getCoachClient,
-  resolveAlert,
-  addCoachNote,
-  getCoachNotes,
-  pinNote,
-  deleteNote,
-} from "@/lib/coach-clients/engine";
-import {
   TIER_LABELS,
   TIER_BADGE_COLORS,
   STATUS_LABELS,
@@ -39,8 +30,7 @@ import {
   ALERT_PRIORITY_COLORS,
   formatRelativeTime,
 } from "@/lib/coach-clients/types";
-
-const COACH_ID = "demo-coach";
+import { trpc } from "@/lib/trpc";
 
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -49,19 +39,78 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     useDateRange({ initialPeriod: "week" });
 
   const [noteText, setNoteText] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
   const [showProtocolModal, setShowProtocolModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [protocolNotes, setProtocolNotes] = useState("");
   const [protocolPriority, setProtocolPriority] = useState("Normal");
   const [protocolSaved, setProtocolSaved] = useState(false);
 
-  // Seed data on first render
-  useMemo(() => seedCoachClients(COACH_ID), []);
+  // ── tRPC queries — real DB data ──────────────────────────────
+  const detailQuery = trpc.coach.clients.getDetail.useQuery(
+    { clientId: params.id },
+    { staleTime: 15_000, refetchOnWindowFocus: false }
+  );
+  const client = detailQuery.data;
+  const isLoading = detailQuery.isLoading;
 
-  // refreshKey is intentionally used to re-fetch after mutations
-  const client = refreshKey >= 0 ? getCoachClient(params.id) : null;
-  const notes = refreshKey >= 0 ? getCoachNotes(params.id) : [];
+  const notesQuery = trpc.coach.clients.getNotes.useQuery(
+    { clientId: params.id },
+    { staleTime: 10_000, refetchOnWindowFocus: false }
+  );
+  const notes = notesQuery.data ?? [];
+
+  // ── tRPC mutations ───────────────────────────────────────────
+  const resolveAlertMutation = trpc.coach.clients.resolveAlert.useMutation({
+    onSuccess: () => {
+      detailQuery.refetch();
+    },
+  });
+
+  const addNoteMutation = trpc.coach.clients.addNote.useMutation({
+    onSuccess: () => {
+      notesQuery.refetch();
+      setNoteText("");
+    },
+  });
+
+  const pinNoteMutation = trpc.coach.clients.pinNote.useMutation({
+    onSuccess: () => {
+      notesQuery.refetch();
+    },
+  });
+
+  const deleteNoteMutation = trpc.coach.clients.deleteNote.useMutation({
+    onSuccess: () => {
+      notesQuery.refetch();
+    },
+  });
+
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Link href="/trainer/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
+          <ArrowLeft size={14} /> Back to clients
+        </Link>
+        <div className="kairos-card h-28 animate-pulse bg-gray-800/50" />
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="kairos-card p-3 h-16 animate-pulse bg-gray-800/50" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="kairos-card h-48 animate-pulse bg-gray-800/50" />
+            <div className="kairos-card h-32 animate-pulse bg-gray-800/50" />
+          </div>
+          <div className="space-y-6">
+            <div className="kairos-card h-40 animate-pulse bg-gray-800/50" />
+            <div className="kairos-card h-40 animate-pulse bg-gray-800/50" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!client) {
     return (
@@ -81,25 +130,20 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const trendColor = client.scoreTrend === "up" ? "text-green-400" : client.scoreTrend === "down" ? "text-red-400" : "text-gray-400";
 
   function handleResolveAlert(alertId: string) {
-    resolveAlert(params.id, alertId);
-    setRefreshKey((k) => k + 1);
+    resolveAlertMutation.mutate({ clientId: params.id, alertId });
   }
 
   function handleAddNote() {
     if (!noteText.trim()) return;
-    addCoachNote(params.id, COACH_ID, noteText.trim());
-    setNoteText("");
-    setRefreshKey((k) => k + 1);
+    addNoteMutation.mutate({ clientId: params.id, content: noteText.trim() });
   }
 
   function handlePinNote(noteId: string) {
-    pinNote(params.id, noteId);
-    setRefreshKey((k) => k + 1);
+    pinNoteMutation.mutate({ clientId: params.id, noteId });
   }
 
   function handleDeleteNote(noteId: string) {
-    deleteNote(params.id, noteId);
-    setRefreshKey((k) => k + 1);
+    deleteNoteMutation.mutate({ clientId: params.id, noteId });
   }
 
   // SVG chart helper
@@ -141,9 +185,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                   <div className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[client.status]}`} />
                   <span className={STATUS_COLORS[client.status]}>{STATUS_LABELS[client.status]}</span>
                 </div>
-                <span className="text-gray-600">•</span>
+                <span className="text-gray-600">&bull;</span>
                 <span className="text-gray-500">{client.email}</span>
-                <span className="text-gray-600">•</span>
+                <span className="text-gray-600">&bull;</span>
                 <span className="text-gray-500">Member since {client.memberSince}</span>
               </div>
             </div>
@@ -241,17 +285,19 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             </div>
 
             {/* Goals */}
-            <div>
-              <p className="text-[10px] text-gray-500 uppercase mb-2">Goals</p>
-              <ul className="space-y-1.5">
-                {client.protocol.goals.map((goal, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
-                    <span className="text-kairos-gold mt-0.5">•</span>
-                    {goal}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {client.protocol.goals.length > 0 && (
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase mb-2">Goals</p>
+                <ul className="space-y-1.5">
+                  {client.protocol.goals.map((goal, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
+                      <span className="text-kairos-gold mt-0.5">&bull;</span>
+                      {goal}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* Biometric Charts */}
@@ -281,7 +327,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               {/* Weight */}
               <div>
                 <p className="text-xs font-semibold text-gray-300 mb-2">Weight (4w)</p>
-                {renderSparkLine(client.metrics.weightData, Math.max(...client.metrics.weightData) + 10, "rgb(167, 139, 250)")}
+                {renderSparkLine(client.metrics.weightData, Math.max(...(client.metrics.weightData.length > 0 ? client.metrics.weightData : [0])) + 10, "rgb(167, 139, 250)")}
                 <p className="text-[10px] text-gray-500 text-center mt-1">
                   Current: {client.metrics.weight ?? "—"} lbs
                 </p>
@@ -305,7 +351,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               />
               <button
                 onClick={handleAddNote}
-                disabled={!noteText.trim()}
+                disabled={!noteText.trim() || addNoteMutation.isPending}
                 className="px-3 py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 text-kairos-gold border border-kairos-gold/30 bg-kairos-gold/10 hover:bg-kairos-gold/20"
               >
                 <Send size={14} />
@@ -355,7 +401,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-1">
                           <span className="text-[10px] text-gray-500 uppercase">{alert.category}</span>
-                          <span className="text-[10px] text-gray-600">•</span>
+                          <span className="text-[10px] text-gray-600">&bull;</span>
                           <span className="text-[10px] text-gray-500">{alert.priority}</span>
                         </div>
                         <p className="text-sm text-gray-300">{alert.message}</p>
@@ -363,6 +409,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                       </div>
                       <button
                         onClick={() => handleResolveAlert(alert.id)}
+                        disabled={resolveAlertMutation.isPending}
                         className="p-1.5 text-gray-500 hover:text-green-400 transition-colors shrink-0"
                         title="Resolve"
                       >
@@ -380,24 +427,24 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4 flex items-center gap-2">
               <Clock size={18} /> Recent Activity
             </h2>
-            <div className="space-y-2 max-h-72 overflow-y-auto">
-              {client.recentActivity.map((activity) => (
-                <div key={activity.id} className="flex gap-3 pb-2 border-b border-gray-800 last:border-b-0">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-kairos-gold text-[10px] font-bold shrink-0 mt-0.5" style={{ backgroundColor: tc.accent + "10" }}>
-                    {activity.type === "check-in" ? "✓" :
-                     activity.type === "workout" ? "💪" :
-                     activity.type === "supplement" ? "💊" :
-                     activity.type === "message" ? "💬" :
-                     activity.type === "lab" ? "🔬" :
-                     activity.type === "goal" ? "🎯" : "📅"}
+            {client.recentActivity.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">No recent activity.</p>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {client.recentActivity.map((activity) => (
+                  <div key={activity.id} className="flex gap-3 pb-2 border-b border-gray-800 last:border-b-0">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-kairos-gold text-[10px] font-bold shrink-0 mt-0.5" style={{ backgroundColor: tc.accent + "10" }}>
+                      {activity.type === "check-in" ? "✓" :
+                       activity.type === "alert" ? "⚠" : "📋"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-300">{activity.label}</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">{formatRelativeTime(activity.timestamp)}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-300">{activity.label}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">{formatRelativeTime(activity.timestamp)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Client Info */}
@@ -499,24 +546,23 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       {showHistory && (
         <div className="kairos-card mt-4">
           <h3 className="font-heading font-bold text-white mb-4">Activity History</h3>
-          <div className="space-y-3">
-            {[
-              { date: "Mar 21", action: "Completed check-in", detail: "Mood: Good, Sleep: 7.5h" },
-              { date: "Mar 20", action: "Lab results received", detail: "HbA1c: 5.2%, Vitamin D: 42 ng/mL" },
-              { date: "Mar 19", action: "Supplement adherence", detail: "92% weekly adherence" },
-              { date: "Mar 18", action: "Workout logged", detail: "Strength training — 45 min" },
-              { date: "Mar 17", action: "Session completed", detail: "Weekly review — protocol on track" },
-              { date: "Mar 15", action: "Glucose alert resolved", detail: "Spike normalized after meal adjustment" },
-            ].map((item, i) => (
-              <div key={i} className="flex items-start gap-3 py-2 border-b border-kairos-border/50 last:border-0">
-                <span className="text-xs text-kairos-silver-dark font-heading w-14 flex-shrink-0">{item.date}</span>
-                <div>
-                  <p className="text-sm text-white font-medium">{item.action}</p>
-                  <p className="text-xs text-kairos-silver-dark">{item.detail}</p>
+          {client.recentActivity.length > 0 ? (
+            <div className="space-y-3">
+              {client.recentActivity.map((item) => (
+                <div key={item.id} className="flex items-start gap-3 py-2 border-b border-kairos-border/50 last:border-0">
+                  <span className="text-xs text-kairos-silver-dark font-heading w-14 flex-shrink-0">
+                    {new Date(item.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                  <div>
+                    <p className="text-sm text-white font-medium">{item.label}</p>
+                    <p className="text-xs text-kairos-silver-dark">{item.type}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 text-center py-4">No activity history available.</p>
+          )}
         </div>
       )}
     </div>

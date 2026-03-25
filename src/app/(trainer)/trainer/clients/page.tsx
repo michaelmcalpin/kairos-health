@@ -1,16 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Search, Users } from "lucide-react";
-import { filterCoachClients, getRosterStats, seedCoachClients } from "@/lib/coach-clients/engine";
 import { TIER_LABELS, STATUS_LABELS } from "@/lib/coach-clients/types";
 import type { ClientTier, ClientStatus } from "@/lib/coach-clients/types";
 import { ClientCard } from "@/components/coach/ClientCard";
+import { trpc } from "@/lib/trpc";
 
 type SortField = "name" | "healthScore" | "alerts" | "adherence";
-
-const COACH_ID = "demo-coach";
 
 export default function CoachClientsPage() {
   const [search, setSearch] = useState("");
@@ -19,15 +17,22 @@ export default function CoachClientsPage() {
   const [sortBy, setSortBy] = useState<SortField>("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  // Seed data on first render
-  useMemo(() => seedCoachClients(COACH_ID), []);
-
-  const clients = useMemo(
-    () => filterCoachClients(COACH_ID, { search, tier: tierFilter, status: statusFilter, sortBy, sortOrder }),
-    [search, tierFilter, statusFilter, sortBy, sortOrder]
+  // ── tRPC queries — real DB data ──────────────────────────────
+  const { data: clients = [], isLoading } = trpc.coach.clients.list.useQuery(
+    {
+      search: search || undefined,
+      tier: tierFilter,
+      status: statusFilter,
+      sortBy,
+      sortOrder,
+    },
+    { staleTime: 15_000, refetchOnWindowFocus: false }
   );
 
-  const stats = useMemo(() => getRosterStats(COACH_ID), []);
+  const { data: stats } = trpc.coach.clients.getStats.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
 
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
@@ -37,6 +42,30 @@ export default function CoachClientsPage() {
       setSortOrder(field === "name" ? "asc" : "desc");
     }
   };
+
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-heading font-bold text-white mb-1">My Clients</h1>
+            <p className="text-gray-400 text-sm">Manage your client roster, track progress, and prioritize attention</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="kairos-card p-3 h-20 animate-pulse bg-gray-800/50" />
+          ))}
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="kairos-card h-24 animate-pulse bg-gray-800/50" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -48,30 +77,30 @@ export default function CoachClientsPage() {
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <Users size={14} />
-          {stats.totalClients} clients
+          {stats?.totalClients ?? clients.length} clients
         </div>
       </div>
 
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="kairos-card p-3 text-center">
-          <p className="text-2xl font-heading font-bold text-kairos-gold">{stats.totalClients}</p>
+          <p className="text-2xl font-heading font-bold text-kairos-gold">{stats?.totalClients ?? clients.length}</p>
           <p className="text-[10px] text-gray-500 uppercase">Total</p>
         </div>
         <div className="kairos-card p-3 text-center">
-          <p className="text-2xl font-heading font-bold text-white">{stats.avgHealthScore}</p>
+          <p className="text-2xl font-heading font-bold text-white">{stats?.avgHealthScore ?? 0}</p>
           <p className="text-[10px] text-gray-500 uppercase">Avg Score</p>
         </div>
         <div className="kairos-card p-3 text-center">
-          <p className="text-2xl font-heading font-bold text-green-400">{stats.stableCount}</p>
+          <p className="text-2xl font-heading font-bold text-green-400">{stats?.stableCount ?? 0}</p>
           <p className="text-[10px] text-gray-500 uppercase">Stable</p>
         </div>
         <div className="kairos-card p-3 text-center">
-          <p className="text-2xl font-heading font-bold text-yellow-400">{stats.attentionCount}</p>
+          <p className="text-2xl font-heading font-bold text-yellow-400">{stats?.attentionCount ?? 0}</p>
           <p className="text-[10px] text-gray-500 uppercase">Attention</p>
         </div>
         <div className="kairos-card p-3 text-center">
-          <p className="text-2xl font-heading font-bold text-red-400">{stats.criticalCount}</p>
+          <p className="text-2xl font-heading font-bold text-red-400">{stats?.criticalCount ?? 0}</p>
           <p className="text-[10px] text-gray-500 uppercase">Critical</p>
         </div>
       </div>
@@ -133,7 +162,13 @@ export default function CoachClientsPage() {
       <div className="space-y-2">
         {clients.length === 0 ? (
           <div className="kairos-card p-12 text-center">
-            <p className="text-gray-500">No clients match the current filters.</p>
+            <Users size={48} className="mx-auto mb-4 text-gray-600" />
+            <h3 className="font-heading font-semibold text-white mb-2">No clients found</h3>
+            <p className="text-sm text-gray-400">
+              {search || tierFilter !== "all" || statusFilter !== "all"
+                ? "No clients match the current filters."
+                : "Your client roster will populate once clients are assigned to you."}
+            </p>
           </div>
         ) : (
           clients.map((client) => (
