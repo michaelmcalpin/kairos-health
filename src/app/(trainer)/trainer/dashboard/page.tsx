@@ -6,11 +6,9 @@ import { useRouter } from "next/navigation";
 import { KPICard } from "@/components/ui/KPICard";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
-import { getCoachDashboard } from "@/lib/coach-dashboard/engine";
 import { useCompanyBrand } from "@/lib/company-ops";
+import { trpc } from "@/lib/trpc";
 import { Users, Bell, Calendar, TrendingUp, DollarSign, Clock, ArrowRight } from "lucide-react";
-
-const COACH_ID = "demo-coach";
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   users: <Users size={16} />,
@@ -35,7 +33,69 @@ export default function TrainerDashboard() {
     endDate: dateRange.endDate.toISOString().split("T")[0],
   }), [dateRange]);
 
-  const data = useMemo(() => getCoachDashboard(COACH_ID, range), [range]);
+  // ── tRPC query — real DB data ──────────────────────────────
+  const { data, isLoading, error } = trpc.coach.dashboard.getDashboard.useQuery(range, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <DateRangeNavigator
+          availablePeriods={["day", "week", "month"]}
+          selectedPeriod={period}
+          onPeriodChange={setPeriod}
+          formattedRange={formattedRange}
+          isCurrent={isCurrent}
+          canForward={canForward}
+          onBack={goBack}
+          onForward={goForward}
+          onToday={goToToday}
+        />
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="kairos-card h-24 animate-pulse bg-gray-800/50" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 kairos-card h-64 animate-pulse bg-gray-800/50" />
+          <div className="kairos-card h-64 animate-pulse bg-gray-800/50" />
+        </div>
+      </div>
+    );
+  }
+
+  // Error or no data — show empty state
+  if (error || !data) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <DateRangeNavigator
+          availablePeriods={["day", "week", "month"]}
+          selectedPeriod={period}
+          onPeriodChange={setPeriod}
+          formattedRange={formattedRange}
+          isCurrent={isCurrent}
+          canForward={canForward}
+          onBack={goBack}
+          onForward={goForward}
+          onToday={goToToday}
+        />
+        <div className="kairos-card p-12 text-center">
+          <Users size={48} className="mx-auto mb-4 text-gray-600" />
+          <h3 className="font-heading font-semibold text-white mb-2">
+            {error ? "Unable to load dashboard" : "No data yet"}
+          </h3>
+          <p className="text-sm text-gray-400">
+            {error
+              ? "There was an error loading your dashboard. Please try refreshing."
+              : "Your dashboard will populate once you have active clients."}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -77,37 +137,41 @@ export default function TrainerDashboard() {
               View All <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
             </button>
           </div>
-          <div className="space-y-3">
-            {data.priorityClients.map((client) => (
-              <Link key={client.id} href={`/trainer/clients/${client.id}`}>
-                <div className="flex items-center gap-4 py-3 px-3 rounded-xl hover:bg-gray-800/50 transition-colors cursor-pointer">
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: (accentColor || "rgb(var(--k-accent))") + "20" }}
-                  >
-                    <span className="text-xs font-heading font-bold" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
-                      {client.initials}
-                    </span>
+          {data.priorityClients.length === 0 ? (
+            <p className="text-sm text-gray-500 py-4">No clients assigned yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {data.priorityClients.map((client) => (
+                <Link key={client.id} href={`/trainer/clients/${client.id}`}>
+                  <div className="flex items-center gap-4 py-3 px-3 rounded-xl hover:bg-gray-800/50 transition-colors cursor-pointer">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: (accentColor || "rgb(var(--k-accent))") + "20" }}
+                    >
+                      <span className="text-xs font-heading font-bold" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
+                        {client.initials}
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-heading font-semibold text-white">{client.name}</p>
+                      <p className="text-xs text-gray-500">{client.status}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-heading font-bold" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
+                        {client.healthScore}
+                      </p>
+                      <p className="text-[10px] text-gray-500">health score</p>
+                    </div>
+                    {client.alerts > 0 && (
+                      <span className="bg-red-500/15 text-red-400 text-[10px] font-heading font-bold rounded-full px-2 py-0.5">
+                        {client.alerts}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-heading font-semibold text-white">{client.name}</p>
-                    <p className="text-xs text-gray-500">{client.status}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-heading font-bold" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
-                      {client.healthScore}
-                    </p>
-                    <p className="text-[10px] text-gray-500">health score</p>
-                  </div>
-                  {client.alerts > 0 && (
-                    <span className="bg-red-500/15 text-red-400 text-[10px] font-heading font-bold rounded-full px-2 py-0.5">
-                      {client.alerts}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Schedule */}
@@ -120,19 +184,23 @@ export default function TrainerDashboard() {
               View All <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
             </button>
           </div>
-          <div className="space-y-3">
-            {data.todaySchedule.map((session) => (
-              <div key={session.id} className="flex items-center gap-3 py-2">
-                <span className="text-xs w-16 shrink-0" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
-                  {session.time}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{session.client}</p>
-                  <p className="text-[10px] text-gray-500">{session.type}</p>
+          {data.todaySchedule.length === 0 ? (
+            <p className="text-sm text-gray-500 py-4">No sessions scheduled.</p>
+          ) : (
+            <div className="space-y-3">
+              {data.todaySchedule.map((session) => (
+                <div key={session.id} className="flex items-center gap-3 py-2">
+                  <span className="text-xs w-16 shrink-0" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
+                    {session.time}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white truncate">{session.client}</p>
+                    <p className="text-[10px] text-gray-500">{session.type}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
