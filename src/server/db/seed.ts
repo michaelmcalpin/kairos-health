@@ -691,6 +691,44 @@ async function seedNotifications(clientIds: string[], coachIds: string[], adminI
   }
 }
 
+async function seedCoachNotes(clientIds: string[], coachIds: string[]) {
+  console.log("  Seeding coach notes...");
+
+  const noteTemplates = [
+    "Client reported improved energy levels after protocol adjustment. Continue monitoring glucose trends.",
+    "Discussed sleep optimization strategies. Recommended cutting screen time 1hr before bed.",
+    "Lab results show improved Vitamin D levels. Maintaining current supplementation dose.",
+    "Client struggling with evening fasting window. Adjusted feeding window by 1 hour.",
+    "Great progress on strength training goals. Increased protein target to 160g/day.",
+    "Follow up on stress management techniques. Client reports work-related stress affecting sleep.",
+    "Reviewed glucose data — postprandial spikes improving with meal timing changes.",
+    "Client mentioned interest in adding creatine to protocol. Will review at next check-in.",
+    "Adherence has been excellent this month. Client is highly motivated and engaged.",
+    "Need to order new labs before next month. Focus on inflammation markers and thyroid panel.",
+  ];
+
+  for (let ci = 0; ci < clientIds.length; ci++) {
+    const clientId = clientIds[ci];
+    const coachId = coachIds[CLIENTS[ci].coachIdx];
+    const numNotes = 2 + Math.floor(seededRandom(ci * 8000) * 4);
+
+    const rows = [];
+    for (let n = 0; n < numNotes; n++) {
+      const tmpl = noteTemplates[Math.floor(seededRandom(ci * 8100 + n) * noteTemplates.length)];
+      const dAgo = Math.floor(seededRandom(ci * 8200 + n) * 21);
+      rows.push({
+        clientId,
+        coachId,
+        content: tmpl,
+        pinned: n === 0 && seededRandom(ci * 8300) > 0.5,
+        createdAt: daysAgo(dAgo),
+        updatedAt: daysAgo(dAgo),
+      });
+    }
+    await db.insert(schema.coachNotes).values(rows);
+  }
+}
+
 async function seedAuditLog(adminIds: string[], coachIds: string[]) {
   console.log("  Seeding audit logs...");
   const actions = [
@@ -746,6 +784,9 @@ async function main() {
     await seedNotifications(userIds.clients, userIds.coaches, userIds.admins);
     console.log("  ✓ Notifications & preferences");
 
+    await seedCoachNotes(userIds.clients, userIds.coaches);
+    console.log("  ✓ Coach notes");
+
     await seedAuditLog(userIds.admins, userIds.coaches);
     console.log("  ✓ Audit logs");
 
@@ -767,6 +808,7 @@ async function main() {
     console.log(`   • Alerts: ~20`);
     console.log(`   • Notifications: ~40+ (clients) + 3 (coaches)`);
     console.log(`   • Notification preferences: 13 (all users)`);
+    console.log(`   • Coach notes: ~30 (2-5 per client)`);
     console.log(`   • Audit logs: 50`);
   } catch (error) {
     console.error("\n❌ Seed failed:", error);

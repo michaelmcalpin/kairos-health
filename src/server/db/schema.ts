@@ -596,3 +596,17 @@ export const notificationPreferences = pgTable("notification_preferences", {
   categories: jsonb("categories").$type<Record<string, { in_app: boolean; email: boolean; push: boolean; sms: boolean }>>(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// ─── Coach Notes ──────────────────────────────────────────────────
+export const coachNotes = pgTable("coach_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  coachId: uuid("coach_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  pinned: boolean("pinned").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("coach_notes_client_idx").on(t.clientId, t.createdAt),
+  index("coach_notes_coach_idx").on(t.coachId),
+]);

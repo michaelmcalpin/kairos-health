@@ -12,6 +12,7 @@ import {
   supplementProtocols,
   adherenceLogs,
   dailyCheckins,
+  coachNotes,
 } from "@/server/db/schema";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
 
@@ -384,61 +385,53 @@ export const coachClientsRouter = router({
       return updated ?? null;
     }),
 
-  // Note mutations — in-memory for now (no notes table yet)
+  // Note mutations — persisted to coach_notes table
   addNote: trainerProcedure
     .input(z.object({ clientId: z.string(), content: z.string().min(1) }))
-    .mutation(({ ctx, input }) => {
-      // In-memory note store until notes table is added
-      const note = {
-        id: `note_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
-        clientId: input.clientId,
-        coachId: ctx.dbUserId,
-        content: input.content,
-        pinned: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      if (!noteStore.has(input.clientId)) noteStore.set(input.clientId, []);
-      noteStore.get(input.clientId)!.unshift(note);
+    .mutation(async ({ ctx, input }) => {
+      const [note] = await ctx.db
+        .insert(coachNotes)
+        .values({
+          clientId: input.clientId,
+          coachId: ctx.dbUserId,
+          content: input.content,
+        })
+        .returning();
       return note;
     }),
 
   getNotes: trainerProcedure
     .input(z.object({ clientId: z.string() }))
-    .query(({ input }) => {
-      return noteStore.get(input.clientId) ?? [];
+    .query(async ({ ctx, input }) => {
+      return ctx.db.query.coachNotes.findMany({
+        where: eq(coachNotes.clientId, input.clientId),
+        orderBy: [desc(coachNotes.pinned), desc(coachNotes.createdAt)],
+      });
     }),
 
   pinNote: trainerProcedure
     .input(z.object({ clientId: z.string(), noteId: z.string() }))
-    .mutation(({ input }) => {
-      const notes = noteStore.get(input.clientId) ?? [];
-      const note = notes.find((n) => n.id === input.noteId);
-      if (!note) return null;
-      note.pinned = !note.pinned;
-      note.updatedAt = new Date().toISOString();
-      return note;
+    .mutation(async ({ ctx, input }) => {
+      // Toggle pin status
+      const existing = await ctx.db.query.coachNotes.findFirst({
+        where: and(eq(coachNotes.id, input.noteId), eq(coachNotes.clientId, input.clientId)),
+      });
+      if (!existing) return null;
+      const [updated] = await ctx.db
+        .update(coachNotes)
+        .set({ pinned: !existing.pinned, updatedAt: new Date() })
+        .where(eq(coachNotes.id, input.noteId))
+        .returning();
+      return updated;
     }),
 
   deleteNote: trainerProcedure
     .input(z.object({ clientId: z.string(), noteId: z.string() }))
-    .mutation(({ input }) => {
-      const notes = noteStore.get(input.clientId) ?? [];
-      const filtered = notes.filter((n) => n.id !== input.noteId);
-      if (filtered.length === notes.length) return false;
-      noteStore.set(input.clientId, filtered);
-      return true;
+    .mutation(async ({ ctx, input }) => {
+      const deleted = await ctx.db
+        .delete(coachNotes)
+        .where(and(eq(coachNotes.id, input.noteId), eq(coachNotes.clientId, input.clientId)))
+        .returning();
+      return deleted.length > 0;
     }),
 });
-
-// ─── In-memory note store (until notes table is added) ────────
-interface CoachNote {
-  id: string;
-  clientId: string;
-  coachId: string;
-  content: string;
-  pinned: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-const noteStore = new Map<string, CoachNote[]>();
