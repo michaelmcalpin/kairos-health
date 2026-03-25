@@ -601,6 +601,96 @@ async function seedAlerts(clientIds: string[]) {
   }
 }
 
+async function seedNotifications(clientIds: string[], coachIds: string[], adminIds: string[]) {
+  console.log("  Seeding notifications & preferences...");
+
+  const allUserIds = [...adminIds, ...coachIds, ...clientIds];
+
+  // Notification templates by category
+  const templates: { category: "health_alert" | "insight" | "weekly_report" | "coach_message" | "appointment" | "lab_result" | "supplement" | "fasting" | "streak" | "billing" | "system" | "onboarding"; priority: "low" | "normal" | "high" | "urgent"; title: string; body: string; actionUrl?: string }[] = [
+    { category: "health_alert", priority: "urgent", title: "Glucose spike detected", body: "Your glucose exceeded 180 mg/dL for over 30 minutes. Review your recent meals and activity.", actionUrl: "/glucose" },
+    { category: "health_alert", priority: "high", title: "Low sleep score", body: "Your sleep score was 42 last night, well below your 7-day average of 72.", actionUrl: "/sleep" },
+    { category: "insight", priority: "normal", title: "Weekly health insight", body: "Your average HRV improved by 12% this week. Keep up the great work with your recovery routine.", actionUrl: "/dashboard" },
+    { category: "weekly_report", priority: "normal", title: "Your weekly report is ready", body: "Review your health metrics summary for the past 7 days.", actionUrl: "/dashboard" },
+    { category: "coach_message", priority: "normal", title: "Message from your coach", body: "Your coach has shared updated supplement recommendations. Check your protocol page.", actionUrl: "/supplements" },
+    { category: "lab_result", priority: "high", title: "Lab results available", body: "Your comprehensive metabolic panel results are ready for review.", actionUrl: "/labs" },
+    { category: "supplement", priority: "low", title: "Supplement reminder", body: "Don't forget your evening supplements: Magnesium Glycinate, Ashwagandha.", actionUrl: "/supplements" },
+    { category: "fasting", priority: "low", title: "Fasting window starting", body: "Your 16:8 fasting window begins now. Stay hydrated!", actionUrl: "/fasting" },
+    { category: "streak", priority: "normal", title: "7-day check-in streak!", body: "Congratulations! You've completed daily check-ins for 7 consecutive days.", actionUrl: "/dashboard" },
+    { category: "billing", priority: "normal", title: "Subscription renewed", body: "Your Tier 1 subscription has been successfully renewed.", actionUrl: "/settings" },
+    { category: "system", priority: "low", title: "New feature available", body: "Dark mode is now available! Enable it in your settings.", actionUrl: "/settings" },
+    { category: "onboarding", priority: "normal", title: "Complete your profile", body: "You're 80% done with onboarding. Add your health goals to get personalized recommendations.", actionUrl: "/onboarding" },
+  ];
+
+  // Seed 3-6 notifications per client
+  for (let ci = 0; ci < clientIds.length; ci++) {
+    const numNotifs = 3 + Math.floor(seededRandom(ci * 6000) * 4);
+    const rows = [];
+    for (let n = 0; n < numNotifs; n++) {
+      const tmpl = templates[Math.floor(seededRandom(ci * 6100 + n) * templates.length)];
+      const dAgo = Math.floor(seededRandom(ci * 6200 + n) * 14);
+      const isRead = seededRandom(ci * 6300 + n) > 0.4;
+      const createdAt = daysAgo(dAgo);
+      rows.push({
+        userId: clientIds[ci],
+        category: tmpl.category,
+        priority: tmpl.priority,
+        title: tmpl.title,
+        body: tmpl.body,
+        actionUrl: tmpl.actionUrl || null,
+        channels: ["in_app", "email"] as string[],
+        deliveryStatus: { in_app: "delivered", email: "sent" } as Record<string, string>,
+        read: isRead,
+        readAt: isRead ? new Date(createdAt.getTime() + 3600000 * (1 + seededRandom(ci * 6400 + n) * 12)) : null,
+        archived: dAgo > 10 && seededRandom(ci * 6500 + n) > 0.7,
+        createdAt,
+      });
+    }
+    await db.insert(schema.notifications).values(rows);
+  }
+
+  // Seed 1-2 notifications for coaches (system/billing)
+  for (let i = 0; i < coachIds.length; i++) {
+    await db.insert(schema.notifications).values({
+      userId: coachIds[i],
+      category: "system",
+      priority: "normal",
+      title: "New client assigned",
+      body: "A new client has been assigned to your roster. Review their profile and health goals.",
+      actionUrl: "/trainer/clients",
+      channels: ["in_app"],
+      deliveryStatus: { in_app: "delivered" },
+      read: i === 0,
+      readAt: i === 0 ? daysAgo(2) : null,
+      createdAt: daysAgo(3),
+    });
+  }
+
+  // Notification preferences for all users
+  for (const userId of allUserIds) {
+    await db.insert(schema.notificationPreferences).values({
+      userId,
+      enabled: true,
+      quietHoursStart: "22:00",
+      quietHoursEnd: "07:00",
+      categories: {
+        health_alert: { in_app: true, email: true, push: true, sms: false },
+        insight: { in_app: true, email: true, push: false, sms: false },
+        weekly_report: { in_app: true, email: true, push: false, sms: false },
+        coach_message: { in_app: true, email: true, push: true, sms: false },
+        appointment: { in_app: true, email: true, push: true, sms: true },
+        lab_result: { in_app: true, email: true, push: true, sms: false },
+        supplement: { in_app: true, email: false, push: false, sms: false },
+        fasting: { in_app: true, email: false, push: false, sms: false },
+        streak: { in_app: true, email: false, push: false, sms: false },
+        billing: { in_app: true, email: true, push: false, sms: false },
+        system: { in_app: true, email: false, push: false, sms: false },
+        onboarding: { in_app: true, email: true, push: false, sms: false },
+      },
+    });
+  }
+}
+
 async function seedAuditLog(adminIds: string[], coachIds: string[]) {
   console.log("  Seeding audit logs...");
   const actions = [
@@ -653,6 +743,9 @@ async function main() {
     await seedAlerts(userIds.clients);
     console.log("  ✓ Health alerts");
 
+    await seedNotifications(userIds.clients, userIds.coaches, userIds.admins);
+    console.log("  ✓ Notifications & preferences");
+
     await seedAuditLog(userIds.admins, userIds.coaches);
     console.log("  ✓ Audit logs");
 
@@ -672,6 +765,8 @@ async function main() {
     console.log(`   • Daily check-ins: ~204`);
     console.log(`   • Lab results: ~192 biomarker values`);
     console.log(`   • Alerts: ~20`);
+    console.log(`   • Notifications: ~40+ (clients) + 3 (coaches)`);
+    console.log(`   • Notification preferences: 13 (all users)`);
     console.log(`   • Audit logs: 50`);
   } catch (error) {
     console.error("\n❌ Seed failed:", error);

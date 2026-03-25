@@ -46,6 +46,10 @@ export const env = {
   STRIPE_SECRET_KEY: getEnvVar("STRIPE_SECRET_KEY", ""),
   STRIPE_WEBHOOK_SECRET: getEnvVar("STRIPE_WEBHOOK_SECRET", ""),
 
+  // Email (Resend)
+  RESEND_API_KEY: getEnvVar("RESEND_API_KEY", ""),
+  EMAIL_FROM: getEnvVar("EMAIL_FROM", "KAIROS Health <noreply@kairos.health>"),
+
   // Logging
   LOG_LEVEL: getEnvVar("LOG_LEVEL", "info") as "debug" | "info" | "warn" | "error",
 
