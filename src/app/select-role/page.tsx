@@ -6,13 +6,7 @@ import { Heart, Dumbbell, Building2, Shield, ArrowRight } from "lucide-react";
 import type { UserRole } from "@/lib/company-ops/types";
 import { useCompanyBrand, useCompanyList, CompanyBrandProvider } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
-
-const ROLE_HOME: Record<UserRole, string> = {
-  super_admin: "/super-admin/dashboard",
-  company_admin: "/company/dashboard",
-  trainer: "/trainer/dashboard",
-  client: "/dashboard",
-};
+import { ROLE_HOME } from "@/lib/hooks/useAuthRole";
 
 const ROLE_META: Record<
   UserRole,

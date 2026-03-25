@@ -5,78 +5,68 @@ import { useRouter } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
 import type { UserRole } from "@/lib/company-ops/types";
 import { ROLE_LABELS } from "@/lib/company-ops/types";
+import { useAuthRole, canAccess, ROLE_HOME } from "@/lib/hooks/useAuthRole";
 
 interface RoleGuardProps {
   allowedRole: UserRole;
   children: React.ReactNode;
 }
 
-const ROLE_HOME: Record<UserRole, string> = {
-  super_admin: "/super-admin/dashboard",
-  company_admin: "/company/dashboard",
-  trainer: "/trainer/dashboard",
-  client: "/dashboard",
-};
-
 /**
- * Hierarchy check — can `currentRole` access the `targetRole` portal?
+ * RoleGuard — server-validated portal access gate.
  *
- * - super_admin → everything
- * - company_admin → company_admin, trainer, client
- * - trainer → trainer, client
- * - client → client only
+ * Uses the `useAuthRole` hook to verify the user's role from the
+ * database (via tRPC auth.me), NOT just localStorage. If someone
+ * tampers with localStorage, the DB check catches it and denies access.
+ *
+ * Flow:
+ * 1. Show loading spinner while auth.me is in flight
+ * 2. If no DB user → redirect to /select-role
+ * 3. If DB role can't access this portal → show "Access Restricted"
+ * 4. If authorized → render children
  */
-const ROLE_HIERARCHY: Record<UserRole, UserRole[]> = {
-  super_admin: ["super_admin", "company_admin", "trainer", "client"],
-  company_admin: ["company_admin", "trainer", "client"],
-  trainer: ["trainer", "client"],
-  client: ["client"],
-};
-
-function canAccess(currentRole: UserRole, targetPortal: UserRole): boolean {
-  return (ROLE_HIERARCHY[currentRole] ?? []).includes(targetPortal);
-}
-
 export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
   const router = useRouter();
-  const [status, setStatus] = useState<"loading" | "allowed" | "denied">("loading");
-  const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
+  const { dbRole, activeRole, isLoading, isAuthorized, clearRole } = useAuthRole();
+  const [redirecting, setRedirecting] = useState(false);
 
+  // Once DB role loads, check access
   useEffect(() => {
-    const savedRole = localStorage.getItem("kairos-role") as UserRole | null;
+    if (isLoading || redirecting) return;
 
-    if (!savedRole) {
+    // No DB role = not authenticated → go to role selection
+    if (!dbRole) {
+      setRedirecting(true);
       router.replace("/select-role");
       return;
     }
 
-    setCurrentRole(savedRole);
-
-    if (canAccess(savedRole, allowedRole)) {
-      setStatus("allowed");
-    } else {
-      setStatus("denied");
+    // If no active portal role is set in localStorage, redirect to pick one
+    if (!activeRole) {
+      setRedirecting(true);
+      router.replace("/select-role");
+      return;
     }
-  }, [allowedRole, router]);
+  }, [dbRole, activeRole, isLoading, router, redirecting]);
 
-  if (status === "loading") {
+  // Loading state — waiting for DB role check
+  if (isLoading || redirecting) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-kairos-gold border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-xs font-body text-kairos-silver-dark">Loading...</p>
+          <p className="text-xs font-body text-kairos-silver-dark">Verifying access...</p>
         </div>
       </div>
     );
   }
 
-  if (status === "denied" && currentRole) {
-    const yourHome = ROLE_HOME[currentRole] ?? "/dashboard";
-    const yourLabel = ROLE_LABELS[currentRole] ?? currentRole;
+  // If DB role is loaded but can't access this portal → denied
+  if (dbRole && !isAuthorized(allowedRole)) {
+    const yourHome = ROLE_HOME[dbRole] ?? "/dashboard";
+    const yourLabel = ROLE_LABELS[dbRole] ?? dbRole;
     const portalLabel = ROLE_LABELS[allowedRole] ?? allowedRole;
-
-    // Only show "Switch Role" if user has multiple accessible roles
-    const hasMultipleRoles = (ROLE_HIERARCHY[currentRole] ?? []).length > 1;
+    const hasMultipleRoles = canAccess(dbRole, "client") && dbRole !== "client";
 
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -99,7 +89,7 @@ export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
             {hasMultipleRoles && (
               <button
                 onClick={() => {
-                  localStorage.removeItem("kairos-role");
+                  clearRole();
                   router.push("/select-role");
                 }}
                 className="kairos-btn-outline text-sm px-6 py-3"
