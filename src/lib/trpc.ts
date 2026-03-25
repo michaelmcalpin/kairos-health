@@ -26,3 +26,19 @@ export function getTRPCClient() {
     ],
   });
 }
+
+/**
+ * Default React Query options for tRPC.
+ * Limits retries to prevent infinite request storms when the
+ * server is unreachable (e.g. missing DATABASE_URL on Vercel).
+ */
+export const defaultQueryClientOptions = {
+  queries: {
+    retry: 2,
+    retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 10000),
+    staleTime: 10_000,
+  },
+  mutations: {
+    retry: 1,
+  },
+};

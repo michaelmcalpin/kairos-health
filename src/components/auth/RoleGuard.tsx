@@ -27,7 +27,7 @@ interface RoleGuardProps {
  */
 export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
   const router = useRouter();
-  const { dbRole, activeRole, isLoading, isAuthorized, clearRole } = useAuthRole();
+  const { dbRole, activeRole, isLoading, isError, isAuthorized, clearRole } = useAuthRole();
   const [redirecting, setRedirecting] = useState(false);
 
   // Once DB role loads, check access
@@ -56,6 +56,30 @@ export function RoleGuard({ allowedRole, children }: RoleGuardProps) {
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-kairos-gold border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <p className="text-xs font-body text-kairos-silver-dark">Verifying access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // DB connection failed — show a helpful error instead of spinning forever
+  if (isError && !dbRole) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 rounded-full bg-yellow-500/15 flex items-center justify-center mx-auto mb-6">
+            <ShieldAlert size={32} className="text-yellow-400" />
+          </div>
+          <h2 className="font-heading font-bold text-xl text-white mb-2">Service Temporarily Unavailable</h2>
+          <p className="font-body text-sm text-kairos-silver-dark mb-6">
+            We&apos;re unable to verify your access right now. This usually means the database
+            is temporarily unreachable. Please try again in a moment.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="kairos-btn-gold text-sm px-6 py-3"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

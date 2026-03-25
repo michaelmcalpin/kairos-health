@@ -32,6 +32,8 @@ interface UseAuthRoleResult {
   activeRole: UserRole | null;
   /** True while the DB role is being fetched */
   isLoading: boolean;
+  /** True if the DB role query failed after all retries */
+  isError: boolean;
   /** True once we have a confirmed DB role */
   isAuthenticated: boolean;
   /** Whether the active portal role is allowed by the DB role */
@@ -57,8 +59,8 @@ export function useAuthRole(): UseAuthRoleResult {
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
 
   // Fetch verified role from DB
-  const { data: me, isLoading } = trpc.auth.me.useQuery(undefined, {
-    retry: 1,
+  const { data: me, isLoading, isError } = trpc.auth.me.useQuery(undefined, {
+    retry: 2,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
@@ -113,6 +115,7 @@ export function useAuthRole(): UseAuthRoleResult {
     dbRole,
     activeRole,
     isLoading,
+    isError,
     isAuthenticated: !!dbRole,
     isAuthorized,
     switchRole,

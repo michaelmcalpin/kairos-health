@@ -12,6 +12,11 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 5 * 60 * 1000, // 5 minutes
             refetchOnWindowFocus: false,
+            retry: 2,                  // max 2 retries (prevents infinite request storm)
+            retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 10000),
+          },
+          mutations: {
+            retry: 1,                  // mutations retry once at most
           },
         },
       })

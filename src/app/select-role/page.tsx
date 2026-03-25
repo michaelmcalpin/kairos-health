@@ -81,11 +81,17 @@ function SelectRoleContent() {
 
   // Step 1: Ensure the DB user exists (creates on first sign-in)
   const ensureUser = trpc.auth.ensureUser.useMutation({
-    onSettled: () => setSynced(true),
+    onSuccess: () => setSynced(true),
+    onError: () => {
+      // DB may be unreachable — still allow the page to proceed
+      // so the user isn't stuck on a spinner forever
+      console.error("[select-role] ensureUser failed — DB may be unreachable");
+      setSynced(true);
+    },
   });
 
   useEffect(() => {
-    if (!synced) {
+    if (!synced && !ensureUser.isPending) {
       ensureUser.mutate();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
