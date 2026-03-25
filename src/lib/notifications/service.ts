@@ -20,8 +20,10 @@ import type { Database } from "@/server/db";
 import {
   notifications as notificationsTable,
   notificationPreferences as prefsTable,
+  users,
 } from "@/server/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
+import { sendNotificationEmail } from "@/lib/email/sender";
 
 // ─── Core Service ────────────────────────────────────────────────────────────
 
@@ -328,12 +330,50 @@ function buildDeliveryStatus(channels: DeliveryChannel[]): Record<DeliveryChanne
 }
 
 function deliverToChannel(db: Database, notification: Notification, channel: DeliveryChannel): void {
-  // In production, call actual delivery providers (Resend, FCM, Twilio, etc.)
-  // For now, update delivery status to "sent" after short delay
-  setTimeout(async () => {
+  // Fire-and-forget delivery — errors are logged but don't block the caller
+  (async () => {
+    let status: DeliveryStatus = "sent";
+
+    try {
+      if (channel === "email") {
+        // Look up user email
+        const user = await db.query.users.findFirst({
+          where: eq(users.id, notification.userId),
+          columns: { email: true, firstName: true },
+        });
+
+        if (user?.email) {
+          const result = await sendNotificationEmail({
+            to: user.email,
+            subject: notification.title,
+            title: notification.title,
+            body: notification.body,
+            actionUrl: notification.actionUrl,
+            actionLabel: notification.actionLabel,
+          });
+          status = result.success ? "sent" : "failed";
+        } else {
+          status = "failed";
+        }
+      } else if (channel === "push") {
+        // TODO: Integrate FCM / APNs push provider
+        status = "sent";
+      } else if (channel === "sms") {
+        // TODO: Integrate Twilio SMS provider
+        status = "sent";
+      } else {
+        // in_app — already persisted in DB, no external delivery needed
+        status = "delivered";
+      }
+    } catch (err) {
+      console.error(`[NOTIFY] Delivery to ${channel} failed for ${notification.id}:`, err);
+      status = "failed";
+    }
+
+    // Update delivery status in DB
     try {
       const currentStatus = { ...(notification.deliveryStatus ?? {}) };
-      currentStatus[channel] = "sent";
+      currentStatus[channel] = status;
       await db
         .update(notificationsTable)
         .set({ deliveryStatus: currentStatus as Record<string, string> })
@@ -341,7 +381,7 @@ function deliverToChannel(db: Database, notification: Notification, channel: Del
     } catch {
       // Non-critical — delivery status update failure is logged but not thrown
     }
-  }, 100);
+  })();
 }
 
 // ─── Clear Store (for testing — noop with DB, tests use transactions) ────────
