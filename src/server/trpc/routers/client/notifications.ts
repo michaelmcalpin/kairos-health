@@ -2,7 +2,7 @@
  * KAIROS Client Notifications Router
  *
  * tRPC endpoints for notification listing, read/archive,
- * and user preference management.
+ * and user preference management. All backed by real DB queries.
  */
 
 import { z } from "zod";
@@ -28,8 +28,7 @@ export const clientNotificationsRouter = router({
       limit: z.number().min(1).max(100).optional(),
     }).optional())
     .query(async ({ ctx, input }) => {
-      const userId = ctx.dbUserId;
-      return getUserNotifications(userId, {
+      return getUserNotifications(ctx.db, ctx.dbUserId, {
         unreadOnly: input?.unreadOnly,
         category: input?.category,
         limit: input?.limit ?? 50,
@@ -40,7 +39,8 @@ export const clientNotificationsRouter = router({
    * Get unread count
    */
   unreadCount: clientProcedure.query(async ({ ctx }) => {
-    return { count: getUnreadCount(ctx.dbUserId) };
+    const count = await getUnreadCount(ctx.db, ctx.dbUserId);
+    return { count };
   }),
 
   /**
@@ -49,14 +49,15 @@ export const clientNotificationsRouter = router({
   markRead: clientProcedure
     .input(z.object({ notificationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return { success: markAsRead(ctx.dbUserId, input.notificationId) };
+      const success = await markAsRead(ctx.db, ctx.dbUserId, input.notificationId);
+      return { success };
     }),
 
   /**
    * Mark all notifications as read
    */
   markAllRead: clientProcedure.mutation(async ({ ctx }) => {
-    const count = markAllAsRead(ctx.dbUserId);
+    const count = await markAllAsRead(ctx.db, ctx.dbUserId);
     return { count };
   }),
 
@@ -66,14 +67,15 @@ export const clientNotificationsRouter = router({
   archive: clientProcedure
     .input(z.object({ notificationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return { success: archiveNotification(ctx.dbUserId, input.notificationId) };
+      const success = await archiveNotification(ctx.db, ctx.dbUserId, input.notificationId);
+      return { success };
     }),
 
   /**
    * Get notification preferences
    */
   getPreferences: clientProcedure.query(async ({ ctx }) => {
-    return getUserPreferences(ctx.dbUserId);
+    return getUserPreferences(ctx.db, ctx.dbUserId);
   }),
 
   /**
@@ -86,6 +88,6 @@ export const clientNotificationsRouter = router({
       quietHoursEnd: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      return updateUserPreferences(ctx.dbUserId, input);
+      return updateUserPreferences(ctx.db, ctx.dbUserId, input);
     }),
 });

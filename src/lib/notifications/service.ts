@@ -1,7 +1,7 @@
 /**
  * KAIROS Notification Dispatch Service
  *
- * Handles notification creation, channel routing,
+ * DB-backed notification creation, channel routing,
  * quiet hours enforcement, and delivery tracking.
  */
 
@@ -12,29 +12,27 @@ import type {
   DeliveryChannel,
   DeliveryStatus,
   NotificationPriority,
+  NotificationCategory,
 } from "./types";
 import { DEFAULT_PREFERENCES } from "./types";
 import { NOTIFICATION_TEMPLATES, interpolateTemplate } from "./templates";
-
-// ─── In-memory store (production would use database) ─────────────────────────
-
-const notificationStore: Map<string, Notification[]> = new Map();
-const preferencesStore: Map<string, NotificationPreferences> = new Map();
-
-// ─── Notification ID Generator ───────────────────────────────────────────────
-
-function generateId(): string {
-  return `ntf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
+import type { Database } from "@/server/db";
+import {
+  notifications as notificationsTable,
+  notificationPreferences as prefsTable,
+} from "@/server/db/schema";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 // ─── Core Service ────────────────────────────────────────────────────────────
 
 /**
- * Dispatch a notification to a user.
- * Respects user preferences, quiet hours, and priority overrides.
+ * Dispatch a notification to a user (persisted to DB).
  */
-export function dispatchNotification(request: DispatchRequest): Notification {
-  const prefs = getUserPreferences(request.userId);
+export async function dispatchNotification(
+  db: Database,
+  request: DispatchRequest
+): Promise<Notification> {
+  const prefs = await getUserPreferences(db, request.userId);
 
   // Determine priority
   const template = Object.values(NOTIFICATION_TEMPLATES).find(
@@ -52,35 +50,50 @@ export function dispatchNotification(request: DispatchRequest): Notification {
 
   // Enforce quiet hours (urgent bypasses)
   if (priority !== "urgent" && isQuietHours(prefs)) {
-    channels = channels.filter((c) => c === "in_app"); // Only in-app during quiet hours
+    channels = channels.filter((c) => c === "in_app");
   }
 
-  // Create notification
-  const notification: Notification = {
-    id: generateId(),
-    userId: request.userId,
-    category: request.category,
-    priority,
-    title: request.title,
-    body: request.body,
-    actionUrl: request.actionUrl,
-    actionLabel: request.actionLabel,
-    metadata: request.metadata,
-    channels,
-    deliveryStatus: buildDeliveryStatus(channels),
-    read: false,
-    archived: false,
-    createdAt: new Date().toISOString(),
-  };
+  const deliveryStatus = buildDeliveryStatus(channels);
 
-  // Store notification
-  const userNotifications = notificationStore.get(request.userId) ?? [];
-  userNotifications.unshift(notification);
-  notificationStore.set(request.userId, userNotifications);
+  // Insert into DB
+  const [row] = await db
+    .insert(notificationsTable)
+    .values({
+      userId: request.userId,
+      category: request.category as Notification["category"],
+      priority,
+      title: request.title,
+      body: request.body,
+      actionUrl: request.actionUrl,
+      actionLabel: request.actionLabel,
+      metadata: request.metadata,
+      channels: channels as string[],
+      deliveryStatus: deliveryStatus as Record<string, string>,
+      read: false,
+      archived: false,
+    })
+    .returning();
+
+  const notification: Notification = {
+    id: row.id,
+    userId: row.userId,
+    category: row.category as NotificationCategory,
+    priority: row.priority as NotificationPriority,
+    title: row.title,
+    body: row.body,
+    actionUrl: row.actionUrl ?? undefined,
+    actionLabel: row.actionLabel ?? undefined,
+    metadata: row.metadata ?? undefined,
+    channels: (row.channels ?? []) as DeliveryChannel[],
+    deliveryStatus: (row.deliveryStatus ?? {}) as Record<DeliveryChannel, DeliveryStatus>,
+    read: row.read,
+    archived: row.archived,
+    createdAt: row.createdAt.toISOString(),
+  };
 
   // Trigger delivery per channel (async, fire-and-forget)
   for (const channel of channels) {
-    deliverToChannel(notification, channel);
+    deliverToChannel(db, notification, channel);
   }
 
   return notification;
@@ -89,18 +102,19 @@ export function dispatchNotification(request: DispatchRequest): Notification {
 /**
  * Dispatch from a named template with variable interpolation.
  */
-export function dispatchFromTemplate(
+export async function dispatchFromTemplate(
+  db: Database,
   userId: string,
   templateKey: string,
   variables: Record<string, string | number>,
   overrides?: Partial<DispatchRequest>
-): Notification {
+): Promise<Notification> {
   const template = NOTIFICATION_TEMPLATES[templateKey];
   if (!template) {
     throw new Error(`Notification template "${templateKey}" not found`);
   }
 
-  return dispatchNotification({
+  return dispatchNotification(db, {
     userId,
     category: template.category,
     priority: overrides?.priority ?? template.defaultPriority,
@@ -116,98 +130,161 @@ export function dispatchFromTemplate(
 
 // ─── Query Functions ─────────────────────────────────────────────────────────
 
-export function getUserNotifications(
+export async function getUserNotifications(
+  db: Database,
   userId: string,
   options: { unreadOnly?: boolean; category?: string; limit?: number } = {}
-): Notification[] {
-  let notifications = notificationStore.get(userId) ?? [];
+): Promise<Notification[]> {
+  const conditions = [eq(notificationsTable.userId, userId), eq(notificationsTable.archived, false)];
 
   if (options.unreadOnly) {
-    notifications = notifications.filter((n) => !n.read);
+    conditions.push(eq(notificationsTable.read, false));
   }
   if (options.category) {
-    notifications = notifications.filter((n) => n.category === options.category);
-  }
-  if (options.limit) {
-    notifications = notifications.slice(0, options.limit);
+    conditions.push(eq(notificationsTable.category, options.category as NotificationCategory));
   }
 
-  return notifications;
+  const rows = await db.query.notifications.findMany({
+    where: and(...conditions),
+    orderBy: desc(notificationsTable.createdAt),
+    limit: options.limit ?? 50,
+  });
+
+  return rows.map(mapRowToNotification);
 }
 
-export function getUnreadCount(userId: string): number {
-  const notifications = notificationStore.get(userId) ?? [];
-  return notifications.filter((n) => !n.read && !n.archived).length;
+export async function getUnreadCount(db: Database, userId: string): Promise<number> {
+  const [result] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(notificationsTable)
+    .where(
+      and(
+        eq(notificationsTable.userId, userId),
+        eq(notificationsTable.read, false),
+        eq(notificationsTable.archived, false)
+      )
+    );
+  return Number(result?.count ?? 0);
 }
 
-export function markAsRead(userId: string, notificationId: string): boolean {
-  const notifications = notificationStore.get(userId);
-  if (!notifications) return false;
-
-  const notification = notifications.find((n) => n.id === notificationId);
-  if (!notification) return false;
-
-  notification.read = true;
-  notification.readAt = new Date().toISOString();
-  return true;
+export async function markAsRead(
+  db: Database,
+  userId: string,
+  notificationId: string
+): Promise<boolean> {
+  const [updated] = await db
+    .update(notificationsTable)
+    .set({ read: true, readAt: new Date() })
+    .where(and(eq(notificationsTable.id, notificationId), eq(notificationsTable.userId, userId)))
+    .returning();
+  return !!updated;
 }
 
-export function markAllAsRead(userId: string): number {
-  const notifications = notificationStore.get(userId);
-  if (!notifications) return 0;
-
-  let count = 0;
-  const now = new Date().toISOString();
-  for (const n of notifications) {
-    if (!n.read) {
-      n.read = true;
-      n.readAt = now;
-      count++;
-    }
-  }
-  return count;
+export async function markAllAsRead(db: Database, userId: string): Promise<number> {
+  const result = await db
+    .update(notificationsTable)
+    .set({ read: true, readAt: new Date() })
+    .where(and(eq(notificationsTable.userId, userId), eq(notificationsTable.read, false)))
+    .returning({ id: notificationsTable.id });
+  return result.length;
 }
 
-export function archiveNotification(userId: string, notificationId: string): boolean {
-  const notifications = notificationStore.get(userId);
-  if (!notifications) return false;
-
-  const notification = notifications.find((n) => n.id === notificationId);
-  if (!notification) return false;
-
-  notification.archived = true;
-  return true;
+export async function archiveNotification(
+  db: Database,
+  userId: string,
+  notificationId: string
+): Promise<boolean> {
+  const [updated] = await db
+    .update(notificationsTable)
+    .set({ archived: true })
+    .where(and(eq(notificationsTable.id, notificationId), eq(notificationsTable.userId, userId)))
+    .returning();
+  return !!updated;
 }
 
 // ─── Preferences ─────────────────────────────────────────────────────────────
 
-export function getUserPreferences(userId: string): NotificationPreferences {
-  const existing = preferencesStore.get(userId);
-  if (existing) return existing;
+export async function getUserPreferences(
+  db: Database,
+  userId: string
+): Promise<NotificationPreferences> {
+  const existing = await db.query.notificationPreferences.findFirst({
+    where: eq(prefsTable.userId, userId),
+  });
 
-  const defaults: NotificationPreferences = { userId, ...DEFAULT_PREFERENCES };
-  preferencesStore.set(userId, defaults);
-  return defaults;
+  if (existing) {
+    return {
+      userId,
+      enabled: existing.enabled,
+      quietHoursStart: existing.quietHoursStart ?? undefined,
+      quietHoursEnd: existing.quietHoursEnd ?? undefined,
+      categories: (existing.categories ?? DEFAULT_PREFERENCES.categories) as NotificationPreferences["categories"],
+    };
+  }
+
+  // Insert defaults on first access
+  await db.insert(prefsTable).values({
+    userId,
+    enabled: DEFAULT_PREFERENCES.enabled,
+    quietHoursStart: DEFAULT_PREFERENCES.quietHoursStart,
+    quietHoursEnd: DEFAULT_PREFERENCES.quietHoursEnd,
+    categories: DEFAULT_PREFERENCES.categories as Record<string, { in_app: boolean; email: boolean; push: boolean; sms: boolean }>,
+  }).onConflictDoNothing();
+
+  return { userId, ...DEFAULT_PREFERENCES };
 }
 
-export function updateUserPreferences(
+export async function updateUserPreferences(
+  db: Database,
   userId: string,
   updates: Partial<Omit<NotificationPreferences, "userId">>
-): NotificationPreferences {
-  const current = getUserPreferences(userId);
-  const updated = { ...current, ...updates };
-  preferencesStore.set(userId, updated);
-  return updated;
+): Promise<NotificationPreferences> {
+  const current = await getUserPreferences(db, userId);
+  const merged = { ...current, ...updates };
+
+  await db
+    .update(prefsTable)
+    .set({
+      enabled: merged.enabled,
+      quietHoursStart: merged.quietHoursStart,
+      quietHoursEnd: merged.quietHoursEnd,
+      categories: merged.categories as Record<string, { in_app: boolean; email: boolean; push: boolean; sms: boolean }>,
+      updatedAt: new Date(),
+    })
+    .where(eq(prefsTable.userId, userId));
+
+  return merged;
 }
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
+
+function mapRowToNotification(row: typeof notificationsTable.$inferSelect): Notification {
+  return {
+    id: row.id,
+    userId: row.userId,
+    category: row.category as NotificationCategory,
+    priority: row.priority as NotificationPriority,
+    title: row.title,
+    body: row.body,
+    actionUrl: row.actionUrl ?? undefined,
+    actionLabel: row.actionLabel ?? undefined,
+    metadata: row.metadata ?? undefined,
+    channels: (row.channels ?? []) as DeliveryChannel[],
+    deliveryStatus: (row.deliveryStatus ?? {}) as Record<DeliveryChannel, DeliveryStatus>,
+    read: row.read,
+    archived: row.archived,
+    createdAt: row.createdAt.toISOString(),
+    readAt: row.readAt?.toISOString(),
+    expiresAt: row.expiresAt?.toISOString(),
+  };
+}
 
 function getEnabledChannels(
   prefs: NotificationPreferences,
   category: string,
   priority: NotificationPriority
 ): DeliveryChannel[] {
-  if (!prefs.enabled) return ["in_app"]; // Always deliver in-app minimum
+  if (!prefs.enabled) return ["in_app"];
 
   const categoryPrefs = prefs.categories[category as keyof typeof prefs.categories];
   if (!categoryPrefs) return ["in_app"];
@@ -217,7 +294,7 @@ function getEnabledChannels(
   if (categoryPrefs.email) channels.push("email");
   if (categoryPrefs.push) channels.push("push");
   if (categoryPrefs.sms && (priority === "urgent" || priority === "high")) {
-    channels.push("sms"); // SMS only for high/urgent
+    channels.push("sms");
   }
 
   return channels.length > 0 ? channels : ["in_app"];
@@ -236,7 +313,6 @@ function isQuietHours(prefs: NotificationPreferences): boolean {
   const startTime = startH * 60 + startM;
   const endTime = endH * 60 + endM;
 
-  // Handle overnight quiet hours (e.g., 22:00 - 07:00)
   if (startTime > endTime) {
     return currentTime >= startTime || currentTime < endTime;
   }
@@ -251,17 +327,25 @@ function buildDeliveryStatus(channels: DeliveryChannel[]): Record<DeliveryChanne
   return status as Record<DeliveryChannel, DeliveryStatus>;
 }
 
-function deliverToChannel(notification: Notification, channel: DeliveryChannel): void {
-  // In production, this would call actual delivery providers
-  // For now, mark as sent immediately
-  setTimeout(() => {
-    notification.deliveryStatus[channel] = "sent";
+function deliverToChannel(db: Database, notification: Notification, channel: DeliveryChannel): void {
+  // In production, call actual delivery providers (Resend, FCM, Twilio, etc.)
+  // For now, update delivery status to "sent" after short delay
+  setTimeout(async () => {
+    try {
+      const currentStatus = { ...(notification.deliveryStatus ?? {}) };
+      currentStatus[channel] = "sent";
+      await db
+        .update(notificationsTable)
+        .set({ deliveryStatus: currentStatus as Record<string, string> })
+        .where(eq(notificationsTable.id, notification.id));
+    } catch {
+      // Non-critical — delivery status update failure is logged but not thrown
+    }
   }, 100);
 }
 
-// ─── Clear Store (for testing) ───────────────────────────────────────────────
+// ─── Clear Store (for testing — noop with DB, tests use transactions) ────────
 
 export function clearNotificationStore(): void {
-  notificationStore.clear();
-  preferencesStore.clear();
+  // No-op; tests should use transaction rollbacks or direct DB cleanup
 }

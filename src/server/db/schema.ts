@@ -14,6 +14,11 @@ export const deviceProviderEnum = pgEnum("device_provider", ["oura", "apple_heal
 export const deviceStatusEnum = pgEnum("device_status", ["connected", "disconnected", "error", "syncing"]);
 export const transferStatusEnum = pgEnum("transfer_status", ["pending", "accepted", "declined", "completed"]);
 export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "past_due", "canceled", "trialing"]);
+export const notifCategoryEnum = pgEnum("notif_category", [
+  "health_alert", "insight", "weekly_report", "coach_message", "appointment",
+  "lab_result", "supplement", "fasting", "streak", "billing", "system", "onboarding",
+]);
+export const notifPriorityEnum = pgEnum("notif_priority", ["low", "normal", "high", "urgent"]);
 export const mealTypeEnum = pgEnum("meal_type", ["breakfast", "lunch", "dinner", "snack"]);
 export const fastingTypeEnum = pgEnum("fasting_type", ["16_8", "20_4", "36hr", "omad", "custom"]);
 
@@ -558,3 +563,36 @@ export const auditLogs = pgTable("audit_logs", {
   ipAddress: varchar("ip_address", { length: 45 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [index("audit_user_idx").on(t.userId, t.createdAt)]);
+
+// ======================== NOTIFICATIONS ========================
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  category: notifCategoryEnum("category").notNull(),
+  priority: notifPriorityEnum("priority").notNull().default("normal"),
+  title: varchar("title", { length: 500 }).notNull(),
+  body: text("body").notNull(),
+  actionUrl: varchar("action_url", { length: 500 }),
+  actionLabel: varchar("action_label", { length: 100 }),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  channels: jsonb("channels").$type<string[]>().default([]),
+  deliveryStatus: jsonb("delivery_status").$type<Record<string, string>>().default({}),
+  read: boolean("read").notNull().default(false),
+  readAt: timestamp("read_at"),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
+}, (t) => [
+  index("notif_user_created_idx").on(t.userId, t.createdAt),
+  index("notif_user_read_idx").on(t.userId, t.read),
+]);
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id).unique(),
+  enabled: boolean("enabled").notNull().default(true),
+  quietHoursStart: varchar("quiet_hours_start", { length: 5 }), // "22:00"
+  quietHoursEnd: varchar("quiet_hours_end", { length: 5 }),     // "07:00"
+  categories: jsonb("categories").$type<Record<string, { in_app: boolean; email: boolean; push: boolean; sms: boolean }>>(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
