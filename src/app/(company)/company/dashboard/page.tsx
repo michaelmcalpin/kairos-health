@@ -3,23 +3,58 @@
 import { useRouter } from "next/navigation";
 import { Users, Dumbbell, TrendingUp, Star, DollarSign, ArrowRight } from "lucide-react";
 import { useCompanyBrand } from "@/lib/company-ops";
-import { getCompanyTrainers, getCompanyClients } from "@/lib/company-ops/engine";
+import { trpc } from "@/lib/trpc";
 
 export default function CompanyDashboardPage() {
   const router = useRouter();
-  const { company, brand } = useCompanyBrand();
+  const { brand } = useCompanyBrand();
   const isWhiteLabel = brand.id !== "kairos";
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
-  // Use the selected company from brand context (or fallback to first company)
-  const companyId = company?.id || "company-1";
-  const companyData = company;
-  const trainers = getCompanyTrainers(companyId);
-  const clients = getCompanyClients(companyId);
+  // ── tRPC query — real DB data ──────────────────────────────
+  const { data, isLoading, error } = trpc.company.dashboard.getDashboard.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
 
-  const trainerPct = companyData ? Math.round((trainers.length / companyData.maxTrainers) * 100) : 0;
-  const clientPct = companyData ? Math.round((clients.length / companyData.maxClients) * 100) : 0;
-  const estMrr = clients.length * 200;
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <div className="animate-fade-in">
+        <div className="kairos-card mb-6 h-20 animate-pulse bg-gray-800/50" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="kairos-card h-24 animate-pulse bg-gray-800/50" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="kairos-card h-64 animate-pulse bg-gray-800/50" />
+          <div className="kairos-card h-64 animate-pulse bg-gray-800/50" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="animate-fade-in">
+        <div className="kairos-card p-12 text-center">
+          <Dumbbell size={48} className="mx-auto mb-4 text-gray-600" />
+          <h3 className="font-heading font-semibold text-white mb-2">
+            {error ? "Unable to load dashboard" : "No data yet"}
+          </h3>
+          <p className="text-sm text-gray-400">
+            {error ? "There was an error loading your company dashboard." : "Your dashboard will populate once trainers and clients are added."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const { company: companyData, stats, trainers, clients } = data;
+
+  const trainerPct = companyData ? Math.round((stats.trainerCount / companyData.maxTrainers) * 100) : 0;
+  const clientPct = companyData ? Math.round((stats.clientCount / companyData.maxClients) * 100) : 0;
 
   return (
     <div className="animate-fade-in">
@@ -65,7 +100,7 @@ export default function CompanyDashboardPage() {
             <Dumbbell size={16} className="text-blue-400/50" />
           </div>
           <p className="font-heading font-bold text-2xl text-white">
-            {trainers.length}
+            {stats.trainerCount}
             {companyData && <span className="text-sm text-kairos-silver-dark font-normal">/{companyData.maxTrainers}</span>}
           </p>
           <div className="mt-2 w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
@@ -85,7 +120,7 @@ export default function CompanyDashboardPage() {
             <Users size={16} className="text-purple-400/50" />
           </div>
           <p className="font-heading font-bold text-2xl text-white">
-            {clients.length}
+            {stats.clientCount}
             {companyData && <span className="text-sm text-kairos-silver-dark font-normal">/{companyData.maxClients}</span>}
           </p>
           <div className="mt-2 w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
@@ -105,7 +140,7 @@ export default function CompanyDashboardPage() {
             <TrendingUp size={16} className="text-kairos-gold/50" />
           </div>
           <p className="font-heading font-bold text-2xl" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
-            {Math.max(trainerPct, clientPct)}%
+            {stats.utilization}%
           </p>
           <p className="text-xs font-body text-kairos-silver-dark mt-1">Overall utilization</p>
         </div>
@@ -115,8 +150,8 @@ export default function CompanyDashboardPage() {
             <p className="kairos-label">Est. MRR</p>
             <DollarSign size={16} className="text-emerald-400/50" />
           </div>
-          <p className="font-heading font-bold text-2xl text-emerald-400">${estMrr.toLocaleString()}</p>
-          <p className="text-xs font-body text-kairos-silver-dark mt-1">${(estMrr * 12).toLocaleString()} ARR</p>
+          <p className="font-heading font-bold text-2xl text-emerald-400">${stats.estMrr.toLocaleString()}</p>
+          <p className="text-xs font-body text-kairos-silver-dark mt-1">${(stats.estMrr * 12).toLocaleString()} ARR</p>
         </div>
       </div>
 
@@ -133,30 +168,34 @@ export default function CompanyDashboardPage() {
               View All <ArrowRight size={12} />
             </button>
           </div>
-          <div className="space-y-3">
-            {trainers.slice(0, 5).map((t) => (
-              <div key={t.id} className="flex items-center justify-between py-2 border-b border-kairos-border/50 last:border-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-heading font-bold text-xs">
-                    {t.firstName.charAt(0)}{t.lastName.charAt(0)}
+          {trainers.length === 0 ? (
+            <p className="text-sm text-gray-500 py-4">No trainers assigned to this company yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {trainers.slice(0, 5).map((t) => (
+                <div key={t.id} className="flex items-center justify-between py-2 border-b border-kairos-border/50 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-heading font-bold text-xs">
+                      {t.firstName.charAt(0)}{t.lastName.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-body text-white text-sm">{t.firstName} {t.lastName}</p>
+                      <p className="font-body text-kairos-silver-dark text-xs">{t.email}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-body text-white text-sm">{t.firstName} {t.lastName}</p>
-                    <p className="font-body text-kairos-silver-dark text-xs">{t.email}</p>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-xs font-heading text-white">{t.clientCount}<span className="text-kairos-silver-dark">/{t.capacity}</span></p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Star size={12} className="text-kairos-gold" />
+                      <span className="text-xs font-heading text-kairos-gold">{t.rating}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-xs font-heading text-white">{t.clientCount}<span className="text-kairos-silver-dark">/{t.capacity}</span></p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Star size={12} className="text-kairos-gold" />
-                    <span className="text-xs font-heading text-kairos-gold">{t.rating}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Recent Clients */}
@@ -171,28 +210,32 @@ export default function CompanyDashboardPage() {
               View All <ArrowRight size={12} />
             </button>
           </div>
-          <div className="space-y-3">
-            {clients.slice(0, 5).map((c) => (
-              <div key={c.id} className="flex items-center justify-between py-2 border-b border-kairos-border/50 last:border-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 font-heading font-bold text-xs">
-                    {c.firstName.charAt(0)}{c.lastName.charAt(0)}
+          {clients.length === 0 ? (
+            <p className="text-sm text-gray-500 py-4">No clients in this company yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {clients.slice(0, 5).map((c) => (
+                <div key={c.id} className="flex items-center justify-between py-2 border-b border-kairos-border/50 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 font-heading font-bold text-xs">
+                      {c.firstName.charAt(0)}{c.lastName.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-body text-white text-sm">{c.firstName} {c.lastName}</p>
+                      <p className="font-body text-kairos-silver-dark text-xs">{c.trainerName}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-body text-white text-sm">{c.firstName} {c.lastName}</p>
-                    <p className="font-body text-kairos-silver-dark text-xs">{c.trainerName}</p>
-                  </div>
+                  <span className={`px-2 py-0.5 rounded-kairos-sm font-heading text-xs font-semibold ${
+                    c.tier === "tier1" ? "bg-kairos-gold/15 text-kairos-gold" :
+                    c.tier === "tier2" ? "bg-blue-500/15 text-blue-400" :
+                    "bg-gray-500/15 text-gray-400"
+                  }`}>
+                    {c.tier === "tier1" ? "Private" : c.tier === "tier2" ? "Associate" : "AI-Guided"}
+                  </span>
                 </div>
-                <span className={`px-2 py-0.5 rounded-kairos-sm font-heading text-xs font-semibold ${
-                  c.tier === "tier1" ? "bg-kairos-gold/15 text-kairos-gold" :
-                  c.tier === "tier2" ? "bg-blue-500/15 text-blue-400" :
-                  "bg-gray-500/15 text-gray-400"
-                }`}>
-                  {c.tier === "tier1" ? "Private" : c.tier === "tier2" ? "Associate" : "AI-Guided"}
-                </span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
