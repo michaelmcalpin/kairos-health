@@ -1,6 +1,8 @@
 "use client";
 
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { useEffect } from "react";
+import Link from "next/link";
+import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 
 export default function CoachError({
   error,
@@ -9,6 +11,10 @@ export default function CoachError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error("[KAIROS] Trainer portal error:", error);
+  }, [error]);
+
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <div className="text-center max-w-md">
@@ -24,12 +30,17 @@ export default function CoachError({
             Error ID: {error.digest}
           </p>
         )}
-        <button
-          onClick={reset}
-          className="kairos-btn-gold text-sm px-6 py-3 inline-flex items-center gap-2"
-        >
-          <RefreshCw size={16} /> Try Again
-        </button>
+        <div className="flex items-center justify-center gap-3 mt-6">
+          <button
+            onClick={reset}
+            className="kairos-btn-gold text-sm px-6 py-3 inline-flex items-center gap-2"
+          >
+            <RefreshCw size={16} /> Try Again
+          </button>
+          <Link href="/trainer/dashboard" className="kairos-btn-outline text-sm px-6 py-3 inline-flex items-center gap-2">
+            <Home size={16} /> Dashboard
+          </Link>
+        </div>
       </div>
     </div>
   );
