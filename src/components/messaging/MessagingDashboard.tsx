@@ -3,17 +3,8 @@
 import { useState, useCallback } from "react";
 import type { Conversation, ConversationFilter } from "@/lib/messaging/types";
 import { CLIENT_QUICK_REPLIES, COACH_QUICK_REPLIES } from "@/lib/messaging/types";
-import {
-  listConversations,
-  getOrCreateConversation,
-  sendMessage as engineSendMessage,
-  getMessages,
-  markAsRead,
-  getTypingUsers,
-  setTyping,
-  getMessagingStats,
-  getConversationForUser,
-} from "@/lib/messaging/engine";
+import { getTypingUsers, setTyping } from "@/lib/messaging/engine";
+import { trpc } from "@/lib/trpc";
 import { ConversationList } from "./ConversationList";
 import { ChatView } from "./ChatView";
 
@@ -23,54 +14,86 @@ interface MessagingDashboardProps {
   userName: string;
 }
 
-// Mock data for demo
-function seedDemoConversations(userId: string, role: "client" | "coach") {
-  if (role === "client") {
-    // Create a trainer conversation
-    const conv1 = getOrCreateConversation(userId, "You", "coach-1", "Dr. Sarah Mitchell", false);
-    engineSendMessage(conv1.id, "coach-1", "Dr. Sarah Mitchell", "coach", "Welcome to KAIROS! I'm Dr. Mitchell, your health optimization trainer. How are you feeling today?");
-    engineSendMessage(conv1.id, userId, "You", "client", "Hi Dr. Mitchell! I'm excited to get started. My main goals are improving my sleep quality and glucose stability.");
-    engineSendMessage(conv1.id, "coach-1", "Dr. Sarah Mitchell", "coach", "Those are great goals! I've reviewed your onboarding data. Your sleep score average of 68 has room for improvement. Let's start with some evening routine adjustments.");
-    engineSendMessage(conv1.id, userId, "You", "client", "That sounds perfect. What changes would you recommend?");
-    engineSendMessage(conv1.id, "coach-1", "Dr. Sarah Mitchell", "coach", "Three key changes: 1) No screens 30 min before bed, 2) Keep your bedroom at 65-68°F, and 3) Try magnesium glycinate 400mg about an hour before sleep. These alone can improve sleep score by 15-20 points.");
-
-    // AI trainer conversation
-    const conv2 = getOrCreateConversation(userId, "You", null, "AI Health Trainer", true);
-    engineSendMessage(conv2.id, null, "AI Health Trainer", "ai_coach", "I've analyzed your glucose data from this week. Your time-in-range improved to 78% — that's a 5% increase from last week! Would you like me to break down what contributed to this improvement?", true);
-  } else {
-    // Trainer view with client conversations
-    const conv1 = getOrCreateConversation("client-1", "Alex Thompson", userId, "You", false);
-    engineSendMessage(conv1.id, "client-1", "Alex Thompson", "client", "My glucose spiked to 180 after dinner last night. Should I be worried?");
-    engineSendMessage(conv1.id, userId, "You", "coach", "Let's take a look at what you ate. Can you share your dinner details? A single spike isn't concerning, but I want to help you understand the trigger.");
-    engineSendMessage(conv1.id, "client-1", "Alex Thompson", "client", "Had pasta with garlic bread and a glass of wine. I know... probably not the best combo for glucose.");
-
-    const conv2 = getOrCreateConversation("client-2", "Jordan Chen", userId, "You", false);
-    engineSendMessage(conv2.id, "client-2", "Jordan Chen", "client", "Hey! Just wanted to share that I hit my 7-hour sleep goal for 5 days straight!");
-    engineSendMessage(conv2.id, userId, "You", "coach", "That's incredible progress, Jordan! Your consistency is really showing. How are you feeling energy-wise during the day?");
-
-    const conv3 = getOrCreateConversation("client-3", "Maria Santos", userId, "You", false);
-    engineSendMessage(conv3.id, "client-3", "Maria Santos", "client", "I'm struggling with supplement adherence. It's hard to remember everything.");
-  }
-}
-
 export function MessagingDashboard({ userId, role, userName }: MessagingDashboardProps) {
   const [filter, setFilter] = useState<ConversationFilter>("all");
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [seeded, setSeeded] = useState(false);
+  const utils = trpc.useUtils();
 
-  // Seed demo data once
-  if (!seeded) {
-    seedDemoConversations(userId, role);
-    setSeeded(true);
+  // ── tRPC queries (role-based) ─────────────────────────────────
+
+  const conversationsQuery = role === "client"
+    ? trpc.clientPortal.messaging.listConversations.useQuery({ filter })
+    : trpc.coach.messaging.listConversations.useQuery({ filter });
+
+  const statsQuery = role === "client"
+    ? trpc.clientPortal.messaging.getStats.useQuery()
+    : trpc.coach.messaging.getStats.useQuery();
+
+  const messagesQuery = selectedConversation
+    ? (role === "client"
+        ? trpc.clientPortal.messaging.getMessages.useQuery({ conversationId: selectedConversation.id })
+        : trpc.coach.messaging.getMessages.useQuery({ conversationId: selectedConversation.id }))
+    : { data: undefined };
+
+  // ── tRPC mutations ────────────────────────────────────────────
+
+  const sendMessageMutation = role === "client"
+    ? trpc.clientPortal.messaging.sendMessage.useMutation({
+        onSuccess: () => invalidateAll(),
+      })
+    : trpc.coach.messaging.sendMessage.useMutation({
+        onSuccess: () => invalidateAll(),
+      });
+
+  const markAsReadMutation = role === "client"
+    ? trpc.clientPortal.messaging.markAsRead.useMutation({
+        onSuccess: () => invalidateAll(),
+      })
+    : trpc.coach.messaging.markAsRead.useMutation({
+        onSuccess: () => invalidateAll(),
+      });
+
+  const clientStartConv = trpc.clientPortal.messaging.startConversation.useMutation({
+    onSuccess: (conv) => {
+      setSelectedConversation(conv);
+      invalidateAll();
+    },
+  });
+  const coachStartConv = trpc.coach.messaging.startConversation.useMutation({
+    onSuccess: (conv) => {
+      setSelectedConversation(conv);
+      invalidateAll();
+    },
+  });
+
+  function invalidateAll() {
+    if (role === "client") {
+      utils.clientPortal.messaging.listConversations.invalidate();
+      utils.clientPortal.messaging.getStats.invalidate();
+      if (selectedConversation) {
+        utils.clientPortal.messaging.getMessages.invalidate({ conversationId: selectedConversation.id });
+      }
+    } else {
+      utils.coach.messaging.listConversations.invalidate();
+      utils.coach.messaging.getStats.invalidate();
+      if (selectedConversation) {
+        utils.coach.messaging.getMessages.invalidate({ conversationId: selectedConversation.id });
+      }
+    }
   }
 
-  const conversations = listConversations(userId, role, filter);
-  const stats = getMessagingStats(userId, role);
+  // ── Derived data ──────────────────────────────────────────────
 
-  const currentMessages = selectedConversation
-    ? getMessages(selectedConversation.id)
-    : [];
+  const conversations = conversationsQuery.data ?? [];
+  const stats = statsQuery.data ?? {
+    totalConversations: 0,
+    activeConversations: 0,
+    totalMessages: 0,
+    unreadMessages: 0,
+    avgResponseTimeMinutes: 0,
+    messagesThisWeek: 0,
+  };
+  const currentMessages = messagesQuery.data ?? [];
 
   const typingUsers = selectedConversation
     ? getTypingUsers(selectedConversation.id, userId)
@@ -78,23 +101,18 @@ export function MessagingDashboard({ userId, role, userName }: MessagingDashboar
 
   const quickReplies = role === "coach" ? COACH_QUICK_REPLIES : CLIENT_QUICK_REPLIES;
 
-  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  // ── Handlers ──────────────────────────────────────────────────
 
   const handleSendMessage = useCallback(
     (body: string, replyTo?: string | null) => {
       if (!selectedConversation) return;
-      engineSendMessage(
-        selectedConversation.id,
-        userId,
-        userName,
-        role,
+      sendMessageMutation.mutate({
+        conversationId: selectedConversation.id,
         body,
-        false,
-        replyTo ?? null,
-      );
-      refresh();
+        replyTo: replyTo ?? null,
+      });
     },
-    [selectedConversation, userId, userName, role, refresh],
+    [selectedConversation, sendMessageMutation],
   );
 
   const handleTyping = useCallback(() => {
@@ -104,30 +122,28 @@ export function MessagingDashboard({ userId, role, userName }: MessagingDashboar
 
   const handleMarkAsRead = useCallback(() => {
     if (!selectedConversation) return;
-    markAsRead(selectedConversation.id, userId);
-    refresh();
-  }, [selectedConversation, userId, refresh]);
+    markAsReadMutation.mutate({ conversationId: selectedConversation.id });
+  }, [selectedConversation, markAsReadMutation]);
 
   const handleNewConversation = useCallback(() => {
     if (role === "client") {
-      // Start AI trainer conversation
-      const conv = getOrCreateConversation(userId, userName, null, "AI Health Trainer", true);
-      setSelectedConversation(conv);
-      refresh();
+      clientStartConv.mutate({
+        coachId: null,
+        coachName: "AI Health Coach",
+        isAiCoach: true,
+      });
     }
-  }, [userId, userName, role, refresh]);
+  }, [role, clientStartConv]);
 
   const handleSelectConversation = useCallback(
     (conv: Conversation) => {
-      // Get fresh version with unread count
-      const fresh = getConversationForUser(conv.id, userId);
-      setSelectedConversation(fresh ?? conv);
+      setSelectedConversation(conv);
     },
-    [userId],
+    [],
   );
 
   return (
-    <div className="h-[calc(100vh-120px)] flex flex-col" key={refreshKey}>
+    <div className="h-[calc(100vh-120px)] flex flex-col">
       {/* Stats Bar */}
       <div className="grid grid-cols-4 gap-4 mb-4">
         <div className="kairos-card p-3">

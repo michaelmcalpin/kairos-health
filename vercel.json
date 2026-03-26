@@ -1,0 +1,4 @@
+{
+  "buildCommand": "drizzle-kit push --force && next build",
+  "framework": "nextjs"
+}

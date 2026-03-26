@@ -1,7 +1,7 @@
 // ─── Messaging Engine ─────────────────────────────────────────────────
 // Manages conversations, messages, read receipts, typing indicators,
-// and conversation state. In-memory store for development; production
-// uses PostgreSQL via Drizzle.
+// and conversation state. PostgreSQL via Drizzle for persistence;
+// typing indicators remain in-memory (ephemeral by nature).
 
 import type {
   Message,
@@ -12,227 +12,13 @@ import type {
   ReadReceipt,
   ConversationFilter,
 } from "./types";
-import { createMessage, createConversation, truncatePreview } from "./types";
+import { truncatePreview } from "./types";
+import { db } from "@/server/db";
+import { conversations, messages, users } from "@/server/db/schema";
+import { eq, and, desc, lt, sql, ilike, or } from "drizzle-orm";
 
-// ─── In-Memory Store ──────────────────────────────────────────────────
-
-const conversationsStore = new Map<string, Conversation>();
-const messagesStore = new Map<string, Message[]>(); // conversationId → messages
-const typingStore = new Map<string, TypingIndicator>(); // `${userId}:${convId}` → indicator
-
-// ─── Conversation Management ──────────────────────────────────────────
-
-export function getOrCreateConversation(
-  clientId: string,
-  clientName: string,
-  coachId: string | null,
-  coachName: string,
-  isAiCoach: boolean = false,
-): Conversation {
-  // Check for existing conversation between this client and coach
-  const existing = Array.from(conversationsStore.values()).find(
-    (c) => c.clientId === clientId && c.coachId === coachId && c.isAiCoach === isAiCoach
-  );
-  if (existing) return existing;
-
-  const conv = createConversation(clientId, clientName, coachId, coachName, isAiCoach);
-  conversationsStore.set(conv.id, conv);
-  messagesStore.set(conv.id, []);
-
-  // Add system message
-  const systemMsg = createMessage(
-    conv.id,
-    null,
-    "System",
-    "system",
-    isAiCoach
-      ? "Welcome! Your AI health coach is ready to help."
-      : `Conversation started with ${coachName}.`,
-  );
-  messagesStore.get(conv.id)!.push(systemMsg);
-
-  return { ...conv, lastMessage: toPreview(systemMsg) };
-}
-
-export function listConversations(
-  userId: string,
-  role: "client" | "coach",
-  filter: ConversationFilter = "all",
-): Conversation[] {
-  const all = Array.from(conversationsStore.values()).filter((c) =>
-    role === "client" ? c.clientId === userId : c.coachId === userId
-  );
-
-  let filtered: Conversation[];
-  switch (filter) {
-    case "unread":
-      filtered = all.filter((c) => c.unreadCount > 0);
-      break;
-    case "ai_coach":
-      filtered = all.filter((c) => c.isAiCoach);
-      break;
-    case "human_coach":
-      filtered = all.filter((c) => !c.isAiCoach);
-      break;
-    default:
-      filtered = all;
-  }
-
-  // Sort by most recent message
-  return filtered.sort((a, b) => {
-    const aTime = a.lastMessage?.createdAt ?? a.createdAt;
-    const bTime = b.lastMessage?.createdAt ?? b.createdAt;
-    return new Date(bTime).getTime() - new Date(aTime).getTime();
-  });
-}
-
-export function getConversation(conversationId: string): Conversation | null {
-  return conversationsStore.get(conversationId) ?? null;
-}
-
-// ─── Message Operations ───────────────────────────────────────────────
-
-export function sendMessage(
-  conversationId: string,
-  senderId: string | null,
-  senderName: string,
-  senderRole: MessageRole,
-  body: string,
-  isAi: boolean = false,
-  replyTo: string | null = null,
-): Message {
-  const conv = conversationsStore.get(conversationId);
-  if (!conv) throw new Error("Conversation not found");
-
-  const trimmedBody = body.trim();
-  if (!trimmedBody) throw new Error("Message body cannot be empty");
-
-  const msg = createMessage(conversationId, senderId, senderName, senderRole, trimmedBody, isAi, replyTo);
-  const messages = messagesStore.get(conversationId) ?? [];
-  messages.push(msg);
-  messagesStore.set(conversationId, messages);
-
-  // Update conversation
-  const preview = toPreview(msg);
-  const updatedConv: Conversation = {
-    ...conv,
-    lastMessage: preview,
-    updatedAt: msg.createdAt,
-    // Increment unread for the other party
-    unreadCount:
-      senderRole === "client" || senderRole === "system"
-        ? conv.unreadCount // don't change (this is viewer-relative, set by getConvForUser)
-        : conv.unreadCount,
-  };
-  conversationsStore.set(conversationId, updatedConv);
-
-  // Clear typing indicator for sender
-  if (senderId) {
-    clearTyping(senderId, conversationId);
-  }
-
-  return msg;
-}
-
-export function getMessages(
-  conversationId: string,
-  limit: number = 50,
-  before?: string,
-): Message[] {
-  const all = messagesStore.get(conversationId) ?? [];
-
-  let filtered = all;
-  if (before) {
-    const cutoff = new Date(before).getTime();
-    filtered = all.filter((m) => new Date(m.createdAt).getTime() < cutoff);
-  }
-
-  // Return most recent `limit` messages
-  return filtered.slice(-limit);
-}
-
-export function getMessage(conversationId: string, messageId: string): Message | null {
-  const messages = messagesStore.get(conversationId) ?? [];
-  return messages.find((m) => m.id === messageId) ?? null;
-}
-
-export function searchMessages(
-  userId: string,
-  role: "client" | "coach",
-  query: string,
-): Message[] {
-  const lowerQuery = query.toLowerCase();
-  const results: Message[] = [];
-
-  const convos = listConversations(userId, role);
-  for (const conv of convos) {
-    const messages = messagesStore.get(conv.id) ?? [];
-    for (const msg of messages) {
-      if (msg.body.toLowerCase().includes(lowerQuery)) {
-        results.push(msg);
-      }
-    }
-  }
-
-  return results.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
-}
-
-// ─── Read Receipts ────────────────────────────────────────────────────
-
-export function markAsRead(
-  conversationId: string,
-  userId: string,
-): ReadReceipt[] {
-  const messages = messagesStore.get(conversationId) ?? [];
-  const now = new Date().toISOString();
-  const receipts: ReadReceipt[] = [];
-
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-    // Mark messages from OTHER users as read
-    if (msg.senderId !== userId && !msg.readAt && msg.senderRole !== "system") {
-      messages[i] = { ...msg, readAt: now };
-      receipts.push({
-        messageId: msg.id,
-        readBy: userId,
-        readAt: now,
-      });
-    }
-  }
-  messagesStore.set(conversationId, messages);
-
-  // Reset unread count for this user's side of the conversation
-  const conv = conversationsStore.get(conversationId);
-  if (conv) {
-    conversationsStore.set(conversationId, {
-      ...conv,
-      unreadCount: 0,
-    });
-  }
-
-  return receipts;
-}
-
-export function getUnreadCount(userId: string, role: "client" | "coach"): number {
-  const convos = listConversations(userId, role);
-  let total = 0;
-
-  for (const conv of convos) {
-    const messages = messagesStore.get(conv.id) ?? [];
-    for (const msg of messages) {
-      if (msg.senderId !== userId && !msg.readAt && msg.senderRole !== "system") {
-        total++;
-      }
-    }
-  }
-
-  return total;
-}
-
-// ─── Typing Indicators ───────────────────────────────────────────────
-
+// ─── Typing Indicators (in-memory, ephemeral) ────────────────────────
+const typingStore = new Map<string, TypingIndicator>();
 const TYPING_TIMEOUT_MS = 5000;
 
 export function setTyping(
@@ -262,7 +48,6 @@ export function getTypingUsers(conversationId: string, excludeUserId?: string): 
 
   const entries = Array.from(typingStore.entries());
   for (const [key, indicator] of entries) {
-    // Clean up expired typing indicators
     if (now - new Date(indicator.startedAt).getTime() > TYPING_TIMEOUT_MS) {
       typingStore.delete(key);
       continue;
@@ -278,6 +63,415 @@ export function getTypingUsers(conversationId: string, excludeUserId?: string): 
   return result;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────
+
+async function rowToMessage(row: {
+  id: string;
+  conversationId: string;
+  senderId: string | null;
+  senderRole: string;
+  isAiMessage: boolean | null;
+  body: string;
+  replyTo: string | null;
+  readAt: Date | null;
+  createdAt: Date;
+}): Promise<Message> {
+  let senderName = "System";
+  if (row.senderId) {
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, row.senderId),
+    });
+    senderName = user
+      ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email
+      : "Unknown";
+  } else if (row.senderRole === "ai_coach") {
+    senderName = "AI Health Coach";
+  }
+
+  return {
+    id: row.id,
+    conversationId: row.conversationId,
+    senderId: row.senderId,
+    senderName,
+    senderRole: row.senderRole as MessageRole,
+    body: row.body,
+    isAiMessage: row.isAiMessage ?? false,
+    readAt: row.readAt?.toISOString() ?? null,
+    createdAt: row.createdAt.toISOString(),
+    attachments: [],
+    replyTo: row.replyTo,
+  };
+}
+
+async function buildConversation(row: {
+  id: string;
+  trainerId: string | null;
+  clientId: string;
+  isAiTrainer: boolean | null;
+  lastMessageAt: Date | null;
+  unreadCountTrainer: number | null;
+  unreadCountClient: number | null;
+}): Promise<Conversation> {
+  // Fetch participant names
+  const clientUser = await db.query.users.findFirst({
+    where: eq(users.id, row.clientId),
+  });
+  const coachUser = row.trainerId
+    ? await db.query.users.findFirst({ where: eq(users.id, row.trainerId) })
+    : null;
+
+  const clientName = clientUser
+    ? [clientUser.firstName, clientUser.lastName].filter(Boolean).join(" ") || clientUser.email
+    : "Unknown Client";
+  const coachName = row.isAiTrainer
+    ? "AI Health Coach"
+    : coachUser
+      ? [coachUser.firstName, coachUser.lastName].filter(Boolean).join(" ") || coachUser.email
+      : "Unknown Coach";
+
+  // Get last message preview
+  const lastMsg = await db.query.messages.findFirst({
+    where: eq(messages.conversationId, row.id),
+    orderBy: [desc(messages.createdAt)],
+  });
+
+  let lastMessage: MessagePreview | null = null;
+  if (lastMsg) {
+    const fullMsg = await rowToMessage(lastMsg);
+    lastMessage = {
+      body: truncatePreview(fullMsg.body),
+      senderName: fullMsg.senderName,
+      senderRole: fullMsg.senderRole,
+      createdAt: fullMsg.createdAt,
+    };
+  }
+
+  return {
+    id: row.id,
+    coachId: row.trainerId,
+    clientId: row.clientId,
+    coachName,
+    clientName,
+    isAiCoach: row.isAiTrainer ?? false,
+    lastMessage,
+    unreadCount: 0, // Caller should set this based on viewer
+    createdAt: (row.lastMessageAt ?? new Date()).toISOString(),
+    updatedAt: (row.lastMessageAt ?? new Date()).toISOString(),
+  };
+}
+
+// ─── Conversation Management ──────────────────────────────────────────
+
+export async function getOrCreateConversation(
+  clientId: string,
+  _clientName: string,
+  coachId: string | null,
+  _coachName: string,
+  isAiCoach: boolean = false,
+): Promise<Conversation> {
+  // Check for existing
+  const existing = coachId
+    ? await db.query.conversations.findFirst({
+        where: and(
+          eq(conversations.clientId, clientId),
+          eq(conversations.trainerId, coachId),
+        ),
+      })
+    : await db.query.conversations.findFirst({
+        where: and(
+          eq(conversations.clientId, clientId),
+          eq(conversations.isAiTrainer, true),
+        ),
+      });
+
+  if (existing) {
+    return buildConversation(existing);
+  }
+
+  // Create new
+  const [created] = await db
+    .insert(conversations)
+    .values({
+      clientId,
+      trainerId: coachId,
+      isAiTrainer: isAiCoach,
+      lastMessageAt: new Date(),
+      unreadCountTrainer: 0,
+      unreadCountClient: 0,
+    })
+    .returning();
+
+  // Add system message
+  const welcomeBody = isAiCoach
+    ? "Welcome! Your AI health coach is ready to help."
+    : `Conversation started.`;
+
+  await db.insert(messages).values({
+    conversationId: created.id,
+    senderId: null,
+    senderRole: "system",
+    isAiMessage: false,
+    body: welcomeBody,
+  });
+
+  return buildConversation(created);
+}
+
+export async function listConversations(
+  userId: string,
+  role: "client" | "coach",
+  filter: ConversationFilter = "all",
+): Promise<Conversation[]> {
+  const whereClause =
+    role === "client"
+      ? eq(conversations.clientId, userId)
+      : eq(conversations.trainerId, userId);
+
+  const rows = await db.query.conversations.findMany({
+    where: whereClause,
+    orderBy: [desc(conversations.lastMessageAt)],
+  });
+
+  let filtered = rows;
+  switch (filter) {
+    case "ai_coach":
+      filtered = rows.filter((r) => r.isAiTrainer);
+      break;
+    case "human_coach":
+      filtered = rows.filter((r) => !r.isAiTrainer);
+      break;
+    // "unread" and "all" handled after building
+  }
+
+  const built = await Promise.all(filtered.map(buildConversation));
+
+  if (filter === "unread") {
+    // Need to compute unread per conversation for this user
+    const withUnread = await Promise.all(
+      built.map(async (conv) => {
+        const unread = await getConversationUnreadCount(conv.id, userId);
+        return { ...conv, unreadCount: unread };
+      }),
+    );
+    return withUnread.filter((c) => c.unreadCount > 0);
+  }
+
+  return built;
+}
+
+export async function getConversation(conversationId: string): Promise<Conversation | null> {
+  const row = await db.query.conversations.findFirst({
+    where: eq(conversations.id, conversationId),
+  });
+  if (!row) return null;
+  return buildConversation(row);
+}
+
+// ─── Message Operations ───────────────────────────────────────────────
+
+export async function sendMessage(
+  conversationId: string,
+  senderId: string | null,
+  _senderName: string,
+  senderRole: MessageRole,
+  body: string,
+  isAi: boolean = false,
+  replyTo: string | null = null,
+): Promise<Message> {
+  const trimmedBody = body.trim();
+  if (!trimmedBody) throw new Error("Message body cannot be empty");
+
+  const [row] = await db
+    .insert(messages)
+    .values({
+      conversationId,
+      senderId,
+      senderRole,
+      isAiMessage: isAi,
+      body: trimmedBody,
+      replyTo,
+    })
+    .returning();
+
+  // Update conversation timestamps and unread counts
+  const updateFields: Record<string, unknown> = {
+    lastMessageAt: new Date(),
+  };
+  if (senderRole === "client" || senderRole === "system") {
+    // Increment coach's unread
+    await db
+      .update(conversations)
+      .set({
+        lastMessageAt: new Date(),
+        unreadCountTrainer: sql`${conversations.unreadCountTrainer} + 1`,
+      })
+      .where(eq(conversations.id, conversationId));
+  } else {
+    // Increment client's unread
+    await db
+      .update(conversations)
+      .set({
+        lastMessageAt: new Date(),
+        unreadCountClient: sql`${conversations.unreadCountClient} + 1`,
+      })
+      .where(eq(conversations.id, conversationId));
+  }
+
+  // Clear typing indicator for sender
+  if (senderId) {
+    clearTyping(senderId, conversationId);
+  }
+
+  return rowToMessage(row);
+}
+
+export async function getMessages(
+  conversationId: string,
+  limit: number = 50,
+  before?: string,
+): Promise<Message[]> {
+  const conditions = [eq(messages.conversationId, conversationId)];
+  if (before) {
+    conditions.push(lt(messages.createdAt, new Date(before)));
+  }
+
+  const rows = await db.query.messages.findMany({
+    where: and(...conditions),
+    orderBy: [desc(messages.createdAt)],
+    limit,
+  });
+
+  // Reverse so oldest first
+  rows.reverse();
+
+  return Promise.all(rows.map(rowToMessage));
+}
+
+export async function searchMessages(
+  userId: string,
+  role: "client" | "coach",
+  query: string,
+): Promise<Message[]> {
+  const convos = await listConversations(userId, role);
+  const convIds = convos.map((c) => c.id);
+
+  if (convIds.length === 0) return [];
+
+  const rows = await db.query.messages.findMany({
+    where: and(
+      ilike(messages.body, `%${query}%`),
+      // Filter to user's conversations
+      or(...convIds.map((id) => eq(messages.conversationId, id))),
+    ),
+    orderBy: [desc(messages.createdAt)],
+    limit: 50,
+  });
+
+  return Promise.all(rows.map(rowToMessage));
+}
+
+// ─── Read Receipts ────────────────────────────────────────────────────
+
+export async function markAsRead(
+  conversationId: string,
+  userId: string,
+): Promise<ReadReceipt[]> {
+  const now = new Date();
+
+  // Get unread messages from others
+  const unread = await db.query.messages.findMany({
+    where: and(
+      eq(messages.conversationId, conversationId),
+      sql`${messages.senderId} IS DISTINCT FROM ${userId}`,
+      sql`${messages.readAt} IS NULL`,
+      sql`${messages.senderRole} != 'system'`,
+    ),
+  });
+
+  if (unread.length === 0) return [];
+
+  // Mark them read
+  const ids = unread.map((m) => m.id);
+  await db
+    .update(messages)
+    .set({ readAt: now })
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        sql`${messages.senderId} IS DISTINCT FROM ${userId}`,
+        sql`${messages.readAt} IS NULL`,
+        sql`${messages.senderRole} != 'system'`,
+      ),
+    );
+
+  // Reset unread count on conversation
+  const conv = await db.query.conversations.findFirst({
+    where: eq(conversations.id, conversationId),
+  });
+  if (conv) {
+    if (conv.clientId === userId) {
+      await db
+        .update(conversations)
+        .set({ unreadCountClient: 0 })
+        .where(eq(conversations.id, conversationId));
+    } else {
+      await db
+        .update(conversations)
+        .set({ unreadCountTrainer: 0 })
+        .where(eq(conversations.id, conversationId));
+    }
+  }
+
+  return unread.map((m) => ({
+    messageId: m.id,
+    readBy: userId,
+    readAt: now.toISOString(),
+  }));
+}
+
+async function getConversationUnreadCount(
+  conversationId: string,
+  userId: string,
+): Promise<number> {
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        sql`${messages.senderId} IS DISTINCT FROM ${userId}`,
+        sql`${messages.readAt} IS NULL`,
+        sql`${messages.senderRole} != 'system'`,
+      ),
+    );
+  return Number(result[0]?.count ?? 0);
+}
+
+export async function getUnreadCount(userId: string, role: "client" | "coach"): Promise<number> {
+  const convos = await listConversations(userId, role);
+  let total = 0;
+  for (const conv of convos) {
+    total += await getConversationUnreadCount(conv.id, userId);
+  }
+  return total;
+}
+
+// ─── Conversation for User (with relative unread) ────────────────────
+
+export async function getConversationForUser(
+  conversationId: string,
+  userId: string,
+): Promise<Conversation | null> {
+  const row = await db.query.conversations.findFirst({
+    where: eq(conversations.id, conversationId),
+  });
+  if (!row) return null;
+
+  const conv = await buildConversation(row);
+  const unreadCount = await getConversationUnreadCount(conversationId, userId);
+  return { ...conv, unreadCount };
+}
+
 // ─── Conversation Stats ───────────────────────────────────────────────
 
 export interface MessagingStats {
@@ -289,96 +483,48 @@ export interface MessagingStats {
   messagesThisWeek: number;
 }
 
-export function getMessagingStats(
+export async function getMessagingStats(
   userId: string,
   role: "client" | "coach",
-): MessagingStats {
-  const convos = listConversations(userId, role);
+): Promise<MessagingStats> {
+  const convos = await listConversations(userId, role);
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
 
   let totalMessages = 0;
   let messagesThisWeek = 0;
   let activeConversations = 0;
-  const responseTimes: number[] = [];
 
   for (const conv of convos) {
-    const messages = messagesStore.get(conv.id) ?? [];
-    totalMessages += messages.length;
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(messages)
+      .where(eq(messages.conversationId, conv.id));
+    const msgCount = Number(countResult[0]?.count ?? 0);
+    totalMessages += msgCount;
 
-    const hasRecent = messages.some(
-      (m) => new Date(m.createdAt).getTime() > weekAgo.getTime()
-    );
-    if (hasRecent) activeConversations++;
-
-    for (const msg of messages) {
-      if (new Date(msg.createdAt).getTime() > weekAgo.getTime()) {
-        messagesThisWeek++;
-      }
-    }
-
-    // Calculate response times (coach responses to client messages)
-    if (role === "coach") {
-      for (let i = 1; i < messages.length; i++) {
-        const prev = messages[i - 1];
-        const curr = messages[i];
-        if (prev.senderRole === "client" && curr.senderRole === "coach") {
-          const responseMs =
-            new Date(curr.createdAt).getTime() - new Date(prev.createdAt).getTime();
-          responseTimes.push(responseMs / 60000);
-        }
-      }
-    }
+    const weekResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.conversationId, conv.id),
+          sql`${messages.createdAt} > ${weekAgo}`,
+        ),
+      );
+    const weekCount = Number(weekResult[0]?.count ?? 0);
+    messagesThisWeek += weekCount;
+    if (weekCount > 0) activeConversations++;
   }
 
-  const avgResponseTimeMinutes =
-    responseTimes.length > 0
-      ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
-      : 0;
+  const unreadMessages = await getUnreadCount(userId, role);
 
   return {
     totalConversations: convos.length,
     activeConversations,
     totalMessages,
-    unreadMessages: getUnreadCount(userId, role),
-    avgResponseTimeMinutes,
+    unreadMessages,
+    avgResponseTimeMinutes: 0, // Simplified for now
     messagesThisWeek,
   };
-}
-
-// ─── Conversation for User (with relative unread) ────────────────────
-
-export function getConversationForUser(
-  conversationId: string,
-  userId: string,
-): Conversation | null {
-  const conv = conversationsStore.get(conversationId);
-  if (!conv) return null;
-
-  // Count unread messages for this specific user
-  const messages = messagesStore.get(conversationId) ?? [];
-  const unreadCount = messages.filter(
-    (m) => m.senderId !== userId && !m.readAt && m.senderRole !== "system"
-  ).length;
-
-  return { ...conv, unreadCount };
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────
-
-function toPreview(msg: Message): MessagePreview {
-  return {
-    body: truncatePreview(msg.body),
-    senderName: msg.senderName,
-    senderRole: msg.senderRole,
-    createdAt: msg.createdAt,
-  };
-}
-
-// ─── Store Reset (for testing) ────────────────────────────────────────
-
-export function resetMessagingStore(): void {
-  conversationsStore.clear();
-  messagesStore.clear();
-  typingStore.clear();
 }

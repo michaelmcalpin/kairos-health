@@ -25,14 +25,14 @@ export const coachMessagingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const filter = input?.filter ?? "all";
-      return listConversations(ctx.dbUserId, "coach", filter);
+      return await listConversations(ctx.dbUserId, "coach", filter);
     }),
 
   // Get a specific conversation
   getConversation: coachProcedure
     .input(z.object({ conversationId: z.string() }))
     .query(async ({ ctx, input }) => {
-      return getConversationForUser(input.conversationId, ctx.dbUserId);
+      return await getConversationForUser(input.conversationId, ctx.dbUserId);
     }),
 
   // Start conversation with a client
@@ -44,12 +44,11 @@ export const coachMessagingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // In production, verify coach-client relationship exists
-      return getOrCreateConversation(
+      return await getOrCreateConversation(
         input.clientId,
         input.clientName,
         ctx.dbUserId,
-        "Coach", // In production, fetch from profile
+        "Coach",
         false,
       );
     }),
@@ -64,11 +63,11 @@ export const coachMessagingRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const conv = getConversationForUser(input.conversationId, ctx.dbUserId);
+      const conv = await getConversationForUser(input.conversationId, ctx.dbUserId);
       if (!conv || conv.coachId !== ctx.dbUserId) {
         throw new Error("Conversation not found");
       }
-      return getMessages(input.conversationId, input.limit, input.before);
+      return await getMessages(input.conversationId, input.limit, input.before);
     }),
 
   // Send a message
@@ -81,11 +80,11 @@ export const coachMessagingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const conv = getConversationForUser(input.conversationId, ctx.dbUserId);
+      const conv = await getConversationForUser(input.conversationId, ctx.dbUserId);
       if (!conv || conv.coachId !== ctx.dbUserId) {
         throw new Error("Conversation not found");
       }
-      return sendMessage(
+      return await sendMessage(
         input.conversationId,
         ctx.dbUserId,
         "Coach",
@@ -100,13 +99,13 @@ export const coachMessagingRouter = router({
   markAsRead: coachProcedure
     .input(z.object({ conversationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return markAsRead(input.conversationId, ctx.dbUserId);
+      return await markAsRead(input.conversationId, ctx.dbUserId);
     }),
 
   // Get total unread count
   getUnreadCount: coachProcedure
     .query(async ({ ctx }) => {
-      return { count: getUnreadCount(ctx.dbUserId, "coach") };
+      return { count: await getUnreadCount(ctx.dbUserId, "coach") };
     }),
 
   // Typing indicators
@@ -133,12 +132,12 @@ export const coachMessagingRouter = router({
   search: coachProcedure
     .input(z.object({ query: z.string().min(1).max(200) }))
     .query(async ({ ctx, input }) => {
-      return searchMessages(ctx.dbUserId, "coach", input.query);
+      return await searchMessages(ctx.dbUserId, "coach", input.query);
     }),
 
   // Messaging stats
   getStats: coachProcedure
     .query(async ({ ctx }) => {
-      return getMessagingStats(ctx.dbUserId, "coach");
+      return await getMessagingStats(ctx.dbUserId, "coach");
     }),
 });

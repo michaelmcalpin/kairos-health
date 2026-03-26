@@ -44,7 +44,7 @@ import { companySettingsRouter } from "./company/settings";
 
 export const appRouter = router({
   auth: authRouter,
-  client: router({
+  clientPortal: router({
     dashboard: clientDashboardRouter,
     alerts: clientAlertsRouter,
     glucose: clientGlucoseRouter,

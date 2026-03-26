@@ -11,17 +11,17 @@ export default function OnboardingPage() {
   const router = useRouter();
 
   // ── Load saved onboarding state from DB ──────────────────────
-  const { data: savedState, isLoading } = trpc.client.onboarding.getState.useQuery(undefined, {
+  const { data: savedState, isLoading } = trpc.clientPortal.onboarding.getState.useQuery(undefined, {
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
 
   // ── Mutations for persisting each step ───────────────────────
-  const saveProfile = trpc.client.onboarding.saveProfile.useMutation();
-  const saveGoals = trpc.client.onboarding.saveGoals.useMutation();
-  const saveTier = trpc.client.onboarding.saveTier.useMutation();
-  const completeOnboarding = trpc.client.onboarding.complete.useMutation();
-  const updateStep = trpc.client.onboarding.updateStep.useMutation();
+  const saveProfile = trpc.clientPortal.onboarding.saveProfile.useMutation();
+  const saveGoals = trpc.clientPortal.onboarding.saveGoals.useMutation();
+  const saveTier = trpc.clientPortal.onboarding.saveTier.useMutation();
+  const completeOnboarding = trpc.clientPortal.onboarding.complete.useMutation();
+  const updateStep = trpc.clientPortal.onboarding.updateStep.useMutation();
 
   // ── Persist state on each step change ────────────────────────
   function handleStepChange(state: OnboardingState) {

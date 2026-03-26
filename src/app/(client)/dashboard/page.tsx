@@ -14,29 +14,29 @@ export default function ClientDashboard() {
     useDateRange({ initialPeriod: "day" });
 
   // Real tRPC queries
-  const { data: overview, isLoading: overviewLoading } = trpc.client.dashboard.getOverview.useQuery(
+  const { data: overview, isLoading: overviewLoading } = trpc.clientPortal.dashboard.getOverview.useQuery(
     undefined,
     { staleTime: 30_000, refetchOnWindowFocus: false }
   );
 
-  const { data: healthScore } = trpc.client.dashboard.getHealthScore.useQuery(
+  const { data: healthScore } = trpc.clientPortal.dashboard.getHealthScore.useQuery(
     undefined,
     { staleTime: 60_000, refetchOnWindowFocus: false }
   );
 
-  const { data: recentAlerts = [] } = trpc.client.dashboard.getRecentActivity.useQuery(
+  const { data: recentAlerts = [] } = trpc.clientPortal.dashboard.getRecentActivity.useQuery(
     { limit: 5 },
     { staleTime: 30_000, refetchOnWindowFocus: false }
   );
 
-  const { data: protocol } = trpc.client.dashboard.getActiveProtocol.useQuery(
+  const { data: protocol } = trpc.clientPortal.dashboard.getActiveProtocol.useQuery(
     undefined,
     { staleTime: 30_000, refetchOnWindowFocus: false }
   );
 
   const startStr = dateRange.startDate.toISOString().split("T")[0];
   const endStr = dateRange.endDate.toISOString().split("T")[0];
-  const { data: dailySummaries = [] } = trpc.client.dashboard.getDailySummaries.useQuery(
+  const { data: dailySummaries = [] } = trpc.clientPortal.dashboard.getDailySummaries.useQuery(
     { startDate: startStr, endDate: endStr },
     { staleTime: 30_000, refetchOnWindowFocus: false, enabled: period !== "day" }
   );

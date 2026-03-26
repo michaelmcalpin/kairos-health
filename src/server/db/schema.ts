@@ -19,6 +19,7 @@ export const notifCategoryEnum = pgEnum("notif_category", [
   "lab_result", "supplement", "fasting", "streak", "billing", "system", "onboarding",
 ]);
 export const notifPriorityEnum = pgEnum("notif_priority", ["low", "normal", "high", "urgent"]);
+export const messageRoleEnum = pgEnum("message_role", ["client", "coach", "ai_coach", "system"]);
 export const mealTypeEnum = pgEnum("meal_type", ["breakfast", "lunch", "dinner", "snack"]);
 export const fastingTypeEnum = pgEnum("fasting_type", ["16_8", "20_4", "36hr", "omad", "custom"]);
 
@@ -478,8 +479,10 @@ export const messages = pgTable("messages", {
   id: uuid("id").primaryKey().defaultRandom(),
   conversationId: uuid("conversation_id").notNull().references(() => conversations.id),
   senderId: uuid("sender_id").references(() => users.id),
+  senderRole: messageRoleEnum("sender_role").notNull().default("client"),
   isAiMessage: boolean("is_ai_message").default(false),
   body: text("body").notNull(),
+  replyTo: uuid("reply_to"),
   readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [index("msg_conv_idx").on(t.conversationId, t.createdAt)]);

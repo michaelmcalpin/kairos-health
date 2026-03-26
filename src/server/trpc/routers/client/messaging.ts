@@ -25,14 +25,14 @@ export const clientMessagingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const filter = input?.filter ?? "all";
-      return listConversations(ctx.dbUserId, "client", filter);
+      return await listConversations(ctx.dbUserId, "client", filter);
     }),
 
   // Get a specific conversation
   getConversation: clientProcedure
     .input(z.object({ conversationId: z.string() }))
     .query(async ({ ctx, input }) => {
-      return getConversationForUser(input.conversationId, ctx.dbUserId);
+      return await getConversationForUser(input.conversationId, ctx.dbUserId);
     }),
 
   // Start or get existing conversation with coach
@@ -45,10 +45,9 @@ export const clientMessagingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // In production, verify coach-client relationship
-      return getOrCreateConversation(
+      return await getOrCreateConversation(
         ctx.dbUserId,
-        "You", // Client's own name — in production, fetch from profile
+        "You",
         input.coachId,
         input.coachName,
         input.isAiCoach,
@@ -65,12 +64,11 @@ export const clientMessagingRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      // Verify client is part of this conversation
-      const conv = getConversationForUser(input.conversationId, ctx.dbUserId);
+      const conv = await getConversationForUser(input.conversationId, ctx.dbUserId);
       if (!conv || conv.clientId !== ctx.dbUserId) {
         throw new Error("Conversation not found");
       }
-      return getMessages(input.conversationId, input.limit, input.before);
+      return await getMessages(input.conversationId, input.limit, input.before);
     }),
 
   // Send a message
@@ -83,11 +81,11 @@ export const clientMessagingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const conv = getConversationForUser(input.conversationId, ctx.dbUserId);
+      const conv = await getConversationForUser(input.conversationId, ctx.dbUserId);
       if (!conv || conv.clientId !== ctx.dbUserId) {
         throw new Error("Conversation not found");
       }
-      return sendMessage(
+      return await sendMessage(
         input.conversationId,
         ctx.dbUserId,
         "You",
@@ -102,13 +100,13 @@ export const clientMessagingRouter = router({
   markAsRead: clientProcedure
     .input(z.object({ conversationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return markAsRead(input.conversationId, ctx.dbUserId);
+      return await markAsRead(input.conversationId, ctx.dbUserId);
     }),
 
   // Get total unread count across all conversations
   getUnreadCount: clientProcedure
     .query(async ({ ctx }) => {
-      return { count: getUnreadCount(ctx.dbUserId, "client") };
+      return { count: await getUnreadCount(ctx.dbUserId, "client") };
     }),
 
   // Set typing indicator
@@ -137,12 +135,12 @@ export const clientMessagingRouter = router({
   search: clientProcedure
     .input(z.object({ query: z.string().min(1).max(200) }))
     .query(async ({ ctx, input }) => {
-      return searchMessages(ctx.dbUserId, "client", input.query);
+      return await searchMessages(ctx.dbUserId, "client", input.query);
     }),
 
   // Get messaging stats
   getStats: clientProcedure
     .query(async ({ ctx }) => {
-      return getMessagingStats(ctx.dbUserId, "client");
+      return await getMessagingStats(ctx.dbUserId, "client");
     }),
 });
