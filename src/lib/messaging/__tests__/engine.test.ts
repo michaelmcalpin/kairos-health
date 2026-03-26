@@ -3,7 +3,7 @@ import {
   setTyping,
   clearTyping,
   getTypingUsers,
-} from "../engine";
+} from "../typing";
 
 // ─── Typing Indicators (in-memory, testable without DB) ───────────
 

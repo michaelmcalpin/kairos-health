@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import type { Conversation, ConversationFilter } from "@/lib/messaging/types";
 import { CLIENT_QUICK_REPLIES, COACH_QUICK_REPLIES } from "@/lib/messaging/types";
-import { getTypingUsers, setTyping } from "@/lib/messaging/engine";
+import { getTypingUsers, setTyping } from "@/lib/messaging/typing";
 import { trpc } from "@/lib/trpc";
 import { ConversationList } from "./ConversationList";
 import { ChatView } from "./ChatView";

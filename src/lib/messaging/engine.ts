@@ -17,51 +17,10 @@ import { db } from "@/server/db";
 import { conversations, messages, users } from "@/server/db/schema";
 import { eq, and, desc, lt, sql, ilike, or } from "drizzle-orm";
 
-// ─── Typing Indicators (in-memory, ephemeral) ────────────────────────
-const typingStore = new Map<string, TypingIndicator>();
-const TYPING_TIMEOUT_MS = 5000;
-
-export function setTyping(
-  userId: string,
-  userName: string,
-  conversationId: string,
-): TypingIndicator {
-  const key = `${userId}:${conversationId}`;
-  const indicator: TypingIndicator = {
-    userId,
-    userName,
-    conversationId,
-    startedAt: new Date().toISOString(),
-  };
-  typingStore.set(key, indicator);
-  return indicator;
-}
-
-export function clearTyping(userId: string, conversationId: string): void {
-  const key = `${userId}:${conversationId}`;
-  typingStore.delete(key);
-}
-
-export function getTypingUsers(conversationId: string, excludeUserId?: string): TypingIndicator[] {
-  const now = Date.now();
-  const result: TypingIndicator[] = [];
-
-  const entries = Array.from(typingStore.entries());
-  for (const [key, indicator] of entries) {
-    if (now - new Date(indicator.startedAt).getTime() > TYPING_TIMEOUT_MS) {
-      typingStore.delete(key);
-      continue;
-    }
-    if (
-      indicator.conversationId === conversationId &&
-      indicator.userId !== excludeUserId
-    ) {
-      result.push(indicator);
-    }
-  }
-
-  return result;
-}
+// ─── Typing Indicators (re-exported from typing.ts) ──────────────────
+// Typing indicators are in a separate file so client components
+// can import them without pulling in server-only DB deps.
+export { setTyping, clearTyping, getTypingUsers } from "./typing";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
