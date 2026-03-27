@@ -77,8 +77,8 @@ export default function CheckinPage() {
       const { id, clientId, submittedAt, ...rest } = formData;
       await submitMutation.mutateAsync({
         date: selectedDate.toISOString().split("T")[0],
-        ...rest,
-      });
+        ...(rest as Record<string, unknown>),
+      } as Parameters<typeof submitMutation.mutateAsync>[0]);
       setIsDirty(false);
     } finally {
       setIsSaving(false);
@@ -218,24 +218,23 @@ export default function CheckinPage() {
         )}
         {activeTab === "supplements" && (
           <SupplementsTab
-            items={formData.supplements || []}
-            onToggle={(id: string) =>
-              handleFieldChange("supplements", {
-                ...formData.supplements,
-                [id]: !formData.supplements?.[id],
-              })
-            }
+            items={(Array.isArray(formData.supplements) ? formData.supplements : []) as { id: string; name: string; dosage: string; timing: string; checked: boolean }[]}
+            onToggle={(id: string) => {
+              const current = (Array.isArray(formData.supplements) ? formData.supplements : []) as Record<string, unknown>[];
+              const updated = current.map((s) =>
+                (s as Record<string, unknown>).id === id ? { ...s, checked: !(s as Record<string, unknown>).checked } : s
+              );
+              handleFieldChange("supplements", updated);
+            }}
           />
         )}
         {activeTab === "bloodsugar" && (
           <BloodSugarTab
-            readings={formData.bloodSugarReadings || []}
-            onAdd={(reading: unknown) =>
-              handleFieldChange("bloodSugarReadings", [
-                ...(formData.bloodSugarReadings || []),
-                reading,
-              ])
-            }
+            readings={(Array.isArray(formData.bloodSugarReadings) ? formData.bloodSugarReadings : []) as { id: string; timing: string; valueMgdl: number; mealDescription?: string; createdAt: string }[]}
+            onAdd={(reading: { timing: string; valueMgdl: number; mealDescription?: string; notes?: string }) => {
+              const current = (Array.isArray(formData.bloodSugarReadings) ? formData.bloodSugarReadings : []) as unknown[];
+              handleFieldChange("bloodSugarReadings", [...current, reading]);
+            }}
           />
         )}
         {activeTab === "measurements" && (
