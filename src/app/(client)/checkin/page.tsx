@@ -73,7 +73,8 @@ export default function CheckinPage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const { id: _id, clientId: _clientId, submittedAt: _submittedAt, ...rest } = formData;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, clientId, submittedAt, ...rest } = formData;
       await submitMutation.mutateAsync({
         date: selectedDate.toISOString().split("T")[0],
         ...rest,
