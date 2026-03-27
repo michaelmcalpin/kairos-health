@@ -19,6 +19,7 @@ import { eq, and, desc, lt, sql, ilike, or } from "drizzle-orm";
 // ─── Typing Indicators (re-exported from typing.ts) ──────────────────
 // Typing indicators are in a separate file so client components
 // can import them without pulling in server-only DB deps.
+import { clearTyping } from "./typing";
 export { setTyping, clearTyping, getTypingUsers } from "./typing";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
