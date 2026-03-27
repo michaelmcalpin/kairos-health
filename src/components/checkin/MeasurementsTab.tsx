@@ -4,8 +4,8 @@ import React from 'react';
 import { Ruler } from 'lucide-react';
 
 interface MeasurementsTabProps {
-  data: Record<string, any>;
-  onChange: (field: string, value: any) => void;
+  data: Record<string, unknown>;
+  onChange: (field: string, value: unknown) => void;
 }
 
 export const MeasurementsTab: React.FC<MeasurementsTabProps> = ({ data, onChange }) => {
@@ -150,9 +150,9 @@ export const MeasurementsTab: React.FC<MeasurementsTabProps> = ({ data, onChange
               {data.progressPhotos.length} photo{data.progressPhotos.length !== 1 ? 's' : ''} selected
             </p>
             <ul className="space-y-1">
-              {data.progressPhotos.map((photo: any, idx: number) => (
+              {data.progressPhotos.map((photo: unknown, idx: number) => (
                 <li key={idx} className="text-xs font-body text-kairos-silver-dark">
-                  • {typeof photo === 'string' ? photo : photo.name}
+                  • {typeof photo === 'string' ? photo : (photo as { name?: string }).name}
                 </li>
               ))}
             </ul>

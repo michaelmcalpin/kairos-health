@@ -4,15 +4,15 @@ import React from 'react';
 import { Apple } from 'lucide-react';
 
 interface NutritionTabProps {
-  data: Record<string, any>;
-  onChange: (field: string, value: any) => void;
+  data: Record<string, unknown>;
+  onChange: (field: string, value: unknown) => void;
 }
 
 export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) => {
   const protein = data.protein ?? 0;
   const carbs = data.carbs ?? 0;
   const fat = data.fat ?? 0;
-  const totalCalories = data.totalCalories ?? 0;
+  const _totalCalories = data.totalCalories ?? 0;
 
   const macroTotal = protein * 4 + carbs * 4 + fat * 9;
 

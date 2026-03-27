@@ -4,8 +4,8 @@ import React from 'react';
 import { Activity } from 'lucide-react';
 
 interface VitalsTabProps {
-  data: Record<string, any>;
-  onChange: (field: string, value: any) => void;
+  data: Record<string, unknown>;
+  onChange: (field: string, value: unknown) => void;
   dataSources?: Record<string, string>;
 }
 
@@ -136,7 +136,7 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
       </div>
 
       <div className="text-xs font-body text-kairos-silver-dark">
-        Data auto-populated from connected devices will be marked "Auto".
+        Data auto-populated from connected devices will be marked &quot;Auto&quot;.
       </div>
     </div>
   );

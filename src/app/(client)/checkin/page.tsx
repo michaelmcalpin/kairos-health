@@ -37,7 +37,7 @@ const tabs: TabConfig[] = [
 export default function CheckinPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [activeTab, setActiveTab] = useState<string>("vitals");
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -61,7 +61,7 @@ export default function CheckinPage() {
   }, [checkinData]);
 
   // Handle field changes
-  const handleFieldChange = useCallback((field: string, value: any) => {
+  const handleFieldChange = useCallback((field: string, value: unknown) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -73,7 +73,7 @@ export default function CheckinPage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const { id, clientId, submittedAt, ...rest } = formData;
+      const { id: _id, clientId: _clientId, submittedAt: _submittedAt, ...rest } = formData;
       await submitMutation.mutateAsync({
         date: selectedDate.toISOString().split("T")[0],
         ...rest,
@@ -229,7 +229,7 @@ export default function CheckinPage() {
         {activeTab === "bloodsugar" && (
           <BloodSugarTab
             readings={formData.bloodSugarReadings || []}
-            onAdd={(reading: any) =>
+            onAdd={(reading: unknown) =>
               handleFieldChange("bloodSugarReadings", [
                 ...(formData.bloodSugarReadings || []),
                 reading,

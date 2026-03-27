@@ -4,8 +4,8 @@ import React from 'react';
 import { Heart } from 'lucide-react';
 
 interface WellnessTabProps {
-  data: Record<string, any>;
-  onChange: (field: string, value: any) => void;
+  data: Record<string, unknown>;
+  onChange: (field: string, value: unknown) => void;
 }
 
 export const WellnessTab: React.FC<WellnessTabProps> = ({ data, onChange }) => {

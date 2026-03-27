@@ -104,7 +104,7 @@ export const clientBloodSugarRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const updateData: Record<string, any> = {};
+      const updateData: Record<string, unknown> = {};
 
       if (input.timing !== undefined) updateData.timing = input.timing;
       if (input.valueMgdl !== undefined) updateData.valueMgdl = input.valueMgdl;

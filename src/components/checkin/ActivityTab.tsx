@@ -4,8 +4,8 @@ import React from 'react';
 import { Zap } from 'lucide-react';
 
 interface ActivityTabProps {
-  data: Record<string, any>;
-  onChange: (field: string, value: any) => void;
+  data: Record<string, unknown>;
+  onChange: (field: string, value: unknown) => void;
 }
 
 export const ActivityTab: React.FC<ActivityTabProps> = ({ data, onChange }) => {
