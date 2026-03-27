@@ -8,7 +8,6 @@ import type {
   Conversation,
   MessagePreview,
   MessageRole,
-  TypingIndicator,
   ReadReceipt,
   ConversationFilter,
 } from "./types";
@@ -253,9 +252,6 @@ export async function sendMessage(
     .returning();
 
   // Update conversation timestamps and unread counts
-  const updateFields: Record<string, unknown> = {
-    lastMessageAt: new Date(),
-  };
   if (senderRole === "client" || senderRole === "system") {
     // Increment coach's unread
     await db
@@ -350,7 +346,6 @@ export async function markAsRead(
   if (unread.length === 0) return [];
 
   // Mark them read
-  const ids = unread.map((m) => m.id);
   await db
     .update(messages)
     .set({ readAt: now })

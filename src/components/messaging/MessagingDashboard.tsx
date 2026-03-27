@@ -59,7 +59,7 @@ export function MessagingDashboard({ userId, role, userName }: MessagingDashboar
       invalidateAll();
     },
   });
-  const coachStartConv = trpc.coach.messaging.startConversation.useMutation({
+  const _coachStartConv = trpc.coach.messaging.startConversation.useMutation({
     onSuccess: (conv) => {
       setSelectedConversation(conv);
       invalidateAll();
