@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useMeasurements } from "@/hooks/client/useMeasurements";
@@ -12,6 +13,8 @@ import {
   Heart,
   Activity,
   Target,
+  Plus,
+  X,
 } from "lucide-react";
 
 interface VitalCardProps {
@@ -53,10 +56,58 @@ function VitalCard({ label, value, unit, icon, trend, change, targetRange }: Vit
 }
 
 export default function MeasurementsPage() {
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    weight: "",
+    bodyFat: "",
+    waistCircumference: "",
+    systolic: "",
+    diastolic: "",
+    restingHR: "",
+    notes: "",
+  });
+
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "month" });
 
   const { records: measurements } = useMeasurements(dateRange);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = () => {
+    // UI-only, no tRPC calls
+    console.log("Save measurement:", formData);
+    // Reset form and hide
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      weight: "",
+      bodyFat: "",
+      waistCircumference: "",
+      systolic: "",
+      diastolic: "",
+      restingHR: "",
+      notes: "",
+    });
+    setShowForm(false);
+  };
+
+  const handleCancel = () => {
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      weight: "",
+      bodyFat: "",
+      waistCircumference: "",
+      systolic: "",
+      diastolic: "",
+      restingHR: "",
+      notes: "",
+    });
+    setShowForm(false);
+  };
 
   const current = measurements[0];
   const previous = measurements.length > 1 ? measurements[1] : measurements[0];
@@ -108,10 +159,157 @@ export default function MeasurementsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-3xl font-bold font-heading text-white mb-1">Body Measurements</h1>
-        <p className="text-sm font-body text-kairos-silver-dark">Track your body composition &amp; vitals over time</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold font-heading text-white mb-1">Body Measurements</h1>
+          <p className="text-sm font-body text-kairos-silver-dark">Track your body composition &amp; vitals over time</p>
+        </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="kairos-btn-gold flex items-center gap-2 px-4 py-2 rounded-kairos-sm font-body text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          Add Measurement
+        </button>
       </div>
+
+      {/* Add Measurement Form */}
+      {showForm && (
+        <div className="kairos-card p-6 rounded-kairos-sm border border-kairos-border">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold font-heading text-white">New Measurement</h2>
+            <button
+              onClick={() => setShowForm(false)}
+              className="text-kairos-silver-dark hover:text-white transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {/* Date */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Date</label>
+              <input
+                type="date"
+                name="date"
+                value={formData.date}
+                onChange={handleInputChange}
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+              />
+            </div>
+
+            {/* Weight */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Weight (lbs)</label>
+              <input
+                type="number"
+                name="weight"
+                value={formData.weight}
+                onChange={handleInputChange}
+                placeholder="0"
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+              />
+            </div>
+
+            {/* Body Fat % */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Body Fat (%)</label>
+              <input
+                type="number"
+                name="bodyFat"
+                value={formData.bodyFat}
+                onChange={handleInputChange}
+                placeholder="0"
+                step="0.1"
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+              />
+            </div>
+
+            {/* Waist Circumference */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Waist Circumference (in)</label>
+              <input
+                type="number"
+                name="waistCircumference"
+                value={formData.waistCircumference}
+                onChange={handleInputChange}
+                placeholder="0"
+                step="0.1"
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+              />
+            </div>
+
+            {/* Blood Pressure Systolic */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Blood Pressure Systolic</label>
+              <input
+                type="number"
+                name="systolic"
+                value={formData.systolic}
+                onChange={handleInputChange}
+                placeholder="0"
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+              />
+            </div>
+
+            {/* Blood Pressure Diastolic */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Blood Pressure Diastolic</label>
+              <input
+                type="number"
+                name="diastolic"
+                value={formData.diastolic}
+                onChange={handleInputChange}
+                placeholder="0"
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+              />
+            </div>
+
+            {/* Resting Heart Rate */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Resting Heart Rate (bpm)</label>
+              <input
+                type="number"
+                name="restingHR"
+                value={formData.restingHR}
+                onChange={handleInputChange}
+                placeholder="0"
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+              />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="mb-4">
+            <label className="block text-sm font-body text-kairos-silver-dark mb-2">Notes (Optional)</label>
+            <textarea
+              name="notes"
+              value={formData.notes}
+              onChange={handleInputChange}
+              placeholder="Add any notes about this measurement..."
+              rows={3}
+              className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full resize-none"
+            />
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={handleCancel}
+              className="kairos-btn-outline px-4 py-2 rounded-kairos-sm font-body text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="kairos-btn-gold px-4 py-2 rounded-kairos-sm font-body text-sm"
+            >
+              Save Measurement
+            </button>
+          </div>
+        </div>
+      )}
 
       <DateRangeNavigator
         availablePeriods={["month", "quarter", "year"]}

@@ -27,6 +27,7 @@ import { clientSymptomsRouter } from "./client/symptoms";
 import { clientMealsRouter } from "./client/meals";
 import { clientProgressPhotosRouter } from "./client/progressphotos";
 import { clientProtocolRouter } from "./client/protocol";
+import { clientGeneticsRouter } from "./client/genetics";
 
 // Coach routers
 import { coachDashboardRouter } from "./coach/dashboard";
@@ -76,6 +77,7 @@ export const appRouter = router({
     meals: clientMealsRouter,
     progressPhotos: clientProgressPhotosRouter,
     protocol: clientProtocolRouter,
+    genetics: clientGeneticsRouter,
   }),
   coach: router({
     dashboard: coachDashboardRouter,

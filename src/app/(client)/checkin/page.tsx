@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Activity, UtensilsCrossed, Apple, Dumbbell, Smile, Pill, Droplet, Ruler, Save, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Activity, UtensilsCrossed, Dumbbell, Smile, Droplet, Ruler, Save, Loader2 } from "lucide-react";
 import { VitalsTab } from "@/components/checkin/VitalsTab";
 import { MealsTab } from "@/components/checkin/MealsTab";
-import { NutritionTab } from "@/components/checkin/NutritionTab";
 import { ActivityTab } from "@/components/checkin/ActivityTab";
 import { WellnessTab } from "@/components/checkin/WellnessTab";
-import { SupplementsTab } from "@/components/checkin/SupplementsTab";
 import { BloodSugarTab } from "@/components/checkin/BloodSugarTab";
 import { MeasurementsTab } from "@/components/checkin/MeasurementsTab";
 import { trpc } from "@/lib/trpc";
@@ -28,10 +26,8 @@ interface TabConfig {
 const tabs: TabConfig[] = [
   { id: "vitals", label: "Vitals", icon: <Activity size={16} /> },
   { id: "meals", label: "Meals", icon: <UtensilsCrossed size={16} /> },
-  { id: "nutrition", label: "Nutrition", icon: <Apple size={16} /> },
   { id: "activity", label: "Activity", icon: <Dumbbell size={16} /> },
   { id: "wellness", label: "Wellness", icon: <Smile size={16} /> },
-  { id: "supplements", label: "Supplements", icon: <Pill size={16} /> },
   { id: "bloodsugar", label: "Blood Sugar", icon: <Droplet size={16} /> },
   { id: "measurements", label: "Measurements", icon: <Ruler size={16} /> },
 ];
@@ -206,12 +202,6 @@ export default function CheckinPage() {
             onChange={handleFieldChange}
           />
         )}
-        {activeTab === "nutrition" && (
-          <NutritionTab
-            data={formData}
-            onChange={handleFieldChange}
-          />
-        )}
         {activeTab === "activity" && (
           <ActivityTab
             data={formData}
@@ -220,12 +210,6 @@ export default function CheckinPage() {
         )}
         {activeTab === "wellness" && (
           <WellnessTab
-            data={formData}
-            onChange={handleFieldChange}
-          />
-        )}
-        {activeTab === "supplements" && (
-          <SupplementsTab
             data={formData}
             onChange={handleFieldChange}
           />

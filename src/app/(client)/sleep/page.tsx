@@ -1,10 +1,11 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import { KPICard } from "@/components/ui/KPICard";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useSleep } from "@/hooks/client/useSleep";
-import { Moon, Clock, Zap, Brain, TrendingUp, Sun } from "lucide-react";
+import { Moon, Clock, Zap, Brain, TrendingUp, Sun, Plus, X } from "lucide-react";
 import { generateSleepStages } from "@/lib/client-ops";
 
 const stageColors: Record<string, string> = {
@@ -22,12 +23,240 @@ export default function SleepPage() {
 
   const displayRecord = lastRecord || { score: 0, total: 0, deep: 0, rem: 0, light: 0, awake: 0, bedtime: "--", wake: "--" };
 
+  // Manual sleep entry state
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    bedtime: "22:00",
+    wakeTime: "06:00",
+    totalSleep: "",
+    deepSleep: "",
+    remSleep: "",
+    sleepQuality: 75,
+    notes: "",
+  });
+
+  // Auto-calculate total sleep hours when bedtime/wake time changes
+  const calculatedTotalSleep = useMemo(() => {
+    if (!formData.bedtime || !formData.wakeTime) return "";
+    const [bedHour, bedMin] = formData.bedtime.split(":").map(Number);
+    const [wakeHour, wakeMin] = formData.wakeTime.split(":").map(Number);
+
+    let bedTimeInMin = bedHour * 60 + bedMin;
+    let wakeTimeInMin = wakeHour * 60 + wakeMin;
+
+    if (wakeTimeInMin <= bedTimeInMin) {
+      wakeTimeInMin += 24 * 60;
+    }
+
+    const diffMin = wakeTimeInMin - bedTimeInMin;
+    return (diffMin / 60).toFixed(1);
+  }, [formData.bedtime, formData.wakeTime]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, sleepQuality: parseInt(e.target.value) }));
+  };
+
+  const handleSaveEntry = () => {
+    // Placeholder for save logic - currently UI only
+    console.log("Sleep entry saved:", {
+      ...formData,
+      totalSleep: formData.totalSleep || calculatedTotalSleep,
+    });
+    setShowManualEntry(false);
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      bedtime: "22:00",
+      wakeTime: "06:00",
+      totalSleep: "",
+      deepSleep: "",
+      remSleep: "",
+      sleepQuality: 75,
+      notes: "",
+    });
+  };
+
+  const handleCancel = () => {
+    setShowManualEntry(false);
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      bedtime: "22:00",
+      wakeTime: "06:00",
+      totalSleep: "",
+      deepSleep: "",
+      remSleep: "",
+      sleepQuality: 75,
+      notes: "",
+    });
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h2 className="font-heading font-bold text-xl text-white">Sleep Analysis</h2>
-        <p className="text-sm font-body text-kairos-silver-dark">Sleep stages, quality scoring &amp; trends</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-heading font-bold text-xl text-white">Sleep Analysis</h2>
+          <p className="text-sm font-body text-kairos-silver-dark">Sleep stages, quality scoring &amp; trends</p>
+        </div>
+        <button
+          onClick={() => setShowManualEntry(!showManualEntry)}
+          className="kairos-btn-gold flex items-center gap-2"
+        >
+          <Plus size={18} />
+          Add Sleep Entry
+        </button>
       </div>
+
+      {/* Manual Sleep Entry Form */}
+      {showManualEntry && (
+        <div className="kairos-card border border-kairos-gold/50">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-heading font-semibold text-white">Add Sleep Entry</h3>
+            <button onClick={handleCancel} className="text-kairos-silver-dark hover:text-white transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Date and Times Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-body text-kairos-silver-dark mb-2">Date</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={formData.date}
+                  onChange={handleInputChange}
+                  className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-body text-kairos-silver-dark mb-2">Bedtime</label>
+                <input
+                  type="time"
+                  name="bedtime"
+                  value={formData.bedtime}
+                  onChange={handleInputChange}
+                  className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-body text-kairos-silver-dark mb-2">Wake Time</label>
+                <input
+                  type="time"
+                  name="wakeTime"
+                  value={formData.wakeTime}
+                  onChange={handleInputChange}
+                  className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Sleep Hours Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-body text-kairos-silver-dark mb-2">
+                  Total Sleep Hours
+                  {calculatedTotalSleep && <span className="text-kairos-gold text-xs ml-1">(calculated: {calculatedTotalSleep}h)</span>}
+                </label>
+                <input
+                  type="number"
+                  name="totalSleep"
+                  placeholder={calculatedTotalSleep || "0.0"}
+                  value={formData.totalSleep}
+                  onChange={handleInputChange}
+                  step="0.1"
+                  min="0"
+                  max="24"
+                  className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-body text-kairos-silver-dark mb-2">Deep Sleep Hours</label>
+                <input
+                  type="number"
+                  name="deepSleep"
+                  placeholder="0.0"
+                  value={formData.deepSleep}
+                  onChange={handleInputChange}
+                  step="0.1"
+                  min="0"
+                  max="24"
+                  className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-body text-kairos-silver-dark mb-2">REM Sleep Hours</label>
+                <input
+                  type="number"
+                  name="remSleep"
+                  placeholder="0.0"
+                  value={formData.remSleep}
+                  onChange={handleInputChange}
+                  step="0.1"
+                  min="0"
+                  max="24"
+                  className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Sleep Quality Slider */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">
+                Sleep Quality Score: <span className="text-kairos-gold font-semibold">{formData.sleepQuality}/100</span>
+              </label>
+              <input
+                type="range"
+                name="sleepQuality"
+                min="1"
+                max="100"
+                value={formData.sleepQuality}
+                onChange={handleSliderChange}
+                className="w-full cursor-pointer accent-kairos-gold"
+              />
+              <div className="flex justify-between text-xs font-body text-kairos-silver-dark mt-1">
+                <span>Poor</span>
+                <span>Good</span>
+                <span>Excellent</span>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Notes</label>
+              <textarea
+                name="notes"
+                value={formData.notes}
+                onChange={handleInputChange}
+                placeholder="Add any notes about your sleep (e.g., stress level, environment, supplements taken)..."
+                rows={3}
+                className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none resize-none"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleSaveEntry}
+                className="kairos-btn-gold flex-1"
+              >
+                Save Entry
+              </button>
+              <button
+                onClick={handleCancel}
+                className="kairos-btn-outline flex-1"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <DateRangeNavigator
         availablePeriods={["day", "week", "month"]}

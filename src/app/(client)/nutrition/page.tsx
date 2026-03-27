@@ -9,11 +9,32 @@ import {
   TrendingUp,
   CheckCircle,
   UtensilsCrossed,
+  Plus,
+  X,
+  Camera,
 } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useNutrition } from "@/hooks/client/useNutrition";
 import { generateMeals } from "@/lib/client-ops";
+
+interface FoodItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+interface MealFormState {
+  mealType: "breakfast" | "lunch" | "dinner" | "snack";
+  photo: File | null;
+  foodItems: FoodItem[];
+  notes: string;
+}
 
 export default function NutritionPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
@@ -21,6 +42,14 @@ export default function NutritionPage() {
 
   const [waterGlasses, setWaterGlasses] = useState(6);
   const waterTarget = 8;
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formState, setFormState] = useState<MealFormState>({
+    mealType: "breakfast",
+    photo: null,
+    foodItems: [{ id: "1", name: "", quantity: 1, unit: "g", calories: 0, protein: 0, carbs: 0, fat: 0 }],
+    notes: "",
+  });
 
   const { records: nutritionData, stats: nutritionStats } = useNutrition(dateRange);
   const stats = nutritionStats;
@@ -35,6 +64,68 @@ export default function NutritionPage() {
   const meals = generateMeals(dateRange.startDate);
 
   const calculatePercentage = (actual: number, target: number) => Math.min((actual / target) * 100, 100);
+
+  const handleAddMeal = () => {
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setFormState({
+      mealType: "breakfast",
+      photo: null,
+      foodItems: [{ id: "1", name: "", quantity: 1, unit: "g", calories: 0, protein: 0, carbs: 0, fat: 0 }],
+      notes: "",
+    });
+  };
+
+  const handleAddFoodItem = () => {
+    const newItem: FoodItem = {
+      id: Date.now().toString(),
+      name: "",
+      quantity: 1,
+      unit: "g",
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+    };
+    setFormState({
+      ...formState,
+      foodItems: [...formState.foodItems, newItem],
+    });
+  };
+
+  const handleRemoveFoodItem = (id: string) => {
+    setFormState({
+      ...formState,
+      foodItems: formState.foodItems.filter((item) => item.id !== id),
+    });
+  };
+
+  const handleFoodItemChange = (id: string, field: keyof FoodItem, value: any) => {
+    setFormState({
+      ...formState,
+      foodItems: formState.foodItems.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item
+      ),
+    });
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFormState({
+        ...formState,
+        photo: e.target.files[0],
+      });
+    }
+  };
+
+  const handleSaveMeal = () => {
+    // UI-only for now, no tRPC calls needed
+    console.log("Meal saved:", formState);
+    handleCloseModal();
+  };
 
   const renderCircularProgress = (percentage: number, label: string, value: string) => {
     const circumference = 2 * Math.PI * 45;
@@ -104,9 +195,18 @@ export default function NutritionPage() {
       {/* DAY VIEW: Meal log */}
       {period === "day" && (
         <div className="kairos-card">
-          <div className="flex items-center gap-2 mb-6">
-            <UtensilsCrossed className="w-5 h-5 text-kairos-gold" />
-            <h2 className="font-heading font-bold text-lg text-white">Meal Log</h2>
+          <div className="flex items-center justify-between gap-2 mb-6">
+            <div className="flex items-center gap-2">
+              <UtensilsCrossed className="w-5 h-5 text-kairos-gold" />
+              <h2 className="font-heading font-bold text-lg text-white">Meal Log</h2>
+            </div>
+            <button
+              onClick={handleAddMeal}
+              className="kairos-btn-gold flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Meal
+            </button>
           </div>
           <div className="space-y-4">
             {meals.map((meal, idx) => (
@@ -237,6 +337,221 @@ export default function NutritionPage() {
           </div>
         </div>
       </div>
+
+      {/* Add Meal Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-kairos-royal-surface border border-kairos-border rounded-kairos-sm max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-kairos-border sticky top-0 bg-kairos-royal-surface">
+              <h3 className="font-heading font-bold text-xl text-white">Add Meal</h3>
+              <button
+                onClick={handleCloseModal}
+                className="text-kairos-silver-dark hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Meal Type */}
+              <div>
+                <label className="block text-sm font-heading font-semibold text-white mb-2">
+                  Meal Type
+                </label>
+                <select
+                  value={formState.mealType}
+                  onChange={(e) =>
+                    setFormState({
+                      ...formState,
+                      mealType: e.target.value as "breakfast" | "lunch" | "dinner" | "snack",
+                    })
+                  }
+                  className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                >
+                  <option value="breakfast">Breakfast</option>
+                  <option value="lunch">Lunch</option>
+                  <option value="dinner">Dinner</option>
+                  <option value="snack">Snack</option>
+                </select>
+              </div>
+
+              {/* Photo Upload */}
+              <div>
+                <label className="block text-sm font-heading font-semibold text-white mb-2">
+                  Photo
+                </label>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="border-2 border-dashed border-kairos-border rounded-kairos-sm p-6 text-center hover:border-kairos-gold transition-colors cursor-pointer">
+                    <Camera className="w-8 h-8 text-kairos-gold mx-auto mb-2" />
+                    <p className="text-sm text-white font-body">
+                      {formState.photo ? formState.photo.name : "Click to upload photo"}
+                    </p>
+                    <p className="text-xs text-kairos-silver-dark font-body">or drag and drop</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Food Items */}
+              <div>
+                <label className="block text-sm font-heading font-semibold text-white mb-3">
+                  Food Items
+                </label>
+                <div className="space-y-4">
+                  {formState.foodItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="border border-kairos-border rounded-kairos-sm p-4 bg-kairos-royal-surface/50"
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        {/* Food Name */}
+                        <input
+                          type="text"
+                          placeholder="Food name"
+                          value={item.name}
+                          onChange={(e) =>
+                            handleFoodItemChange(item.id, "name", e.target.value)
+                          }
+                          className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                        />
+
+                        {/* Quantity + Unit */}
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            placeholder="Qty"
+                            value={item.quantity}
+                            onChange={(e) =>
+                              handleFoodItemChange(item.id, "quantity", parseFloat(e.target.value))
+                            }
+                            className="flex-1 bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                          />
+                          <select
+                            value={item.unit}
+                            onChange={(e) =>
+                              handleFoodItemChange(item.id, "unit", e.target.value)
+                            }
+                            className="w-16 bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-2 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                          >
+                            <option value="g">g</option>
+                            <option value="oz">oz</option>
+                            <option value="ml">ml</option>
+                            <option value="cup">cup</option>
+                            <option value="tbsp">tbsp</option>
+                            <option value="tsp">tsp</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Macros */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                        <input
+                          type="number"
+                          placeholder="Calories"
+                          value={item.calories}
+                          onChange={(e) =>
+                            handleFoodItemChange(item.id, "calories", parseFloat(e.target.value))
+                          }
+                          className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Protein (g)"
+                          value={item.protein}
+                          onChange={(e) =>
+                            handleFoodItemChange(item.id, "protein", parseFloat(e.target.value))
+                          }
+                          className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Carbs (g)"
+                          value={item.carbs}
+                          onChange={(e) =>
+                            handleFoodItemChange(item.id, "carbs", parseFloat(e.target.value))
+                          }
+                          className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Fat (g)"
+                          value={item.fat}
+                          onChange={(e) =>
+                            handleFoodItemChange(item.id, "fat", parseFloat(e.target.value))
+                          }
+                          className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Remove Button */}
+                      {formState.foodItems.length > 1 && (
+                        <button
+                          onClick={() => handleRemoveFoodItem(item.id)}
+                          className="w-full kairos-btn-outline flex items-center justify-center gap-2 text-xs"
+                        >
+                          <X className="w-3 h-3" />
+                          Remove Item
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add Food Item Button */}
+                <button
+                  onClick={handleAddFoodItem}
+                  className="w-full kairos-btn-outline flex items-center justify-center gap-2 text-sm mt-4"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Food Item
+                </button>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-heading font-semibold text-white mb-2">
+                  Notes
+                </label>
+                <textarea
+                  value={formState.notes}
+                  onChange={(e) =>
+                    setFormState({
+                      ...formState,
+                      notes: e.target.value,
+                    })
+                  }
+                  placeholder="Add notes about this meal..."
+                  rows={3}
+                  className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex gap-3 p-6 border-t border-kairos-border bg-kairos-royal-surface sticky bottom-0">
+              <button
+                onClick={handleCloseModal}
+                className="flex-1 kairos-btn-outline"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveMeal}
+                className="flex-1 kairos-btn-gold"
+              >
+                Save Meal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

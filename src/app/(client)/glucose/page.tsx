@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { KPICard } from "@/components/ui/KPICard";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useGlucose } from "@/hooks/client/useGlucose";
 import { useThemeColors } from "@/lib/theme";
-import { Droplets, TrendingDown, TrendingUp, Clock, Target, AlertTriangle } from "lucide-react";
+import { Droplets, TrendingDown, TrendingUp, Clock, Target, AlertTriangle, Plus, X } from "lucide-react";
 
 export default function GlucosePage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
@@ -13,6 +14,49 @@ export default function GlucosePage() {
 
   const { readings: rawReadings, dailySummaries, weeklySummaries, stats } = useGlucose(dateRange);
   const themeColors = useThemeColors();
+
+  // Manual entry form state
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split("T")[0],
+    time: new Date().toTimeString().slice(0, 5),
+    glucose: "",
+    timing: "random",
+    mealDescription: "",
+    notes: "",
+  });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = () => {
+    // Form submission - no tRPC call, just UI feedback for now
+    console.log("Saving glucose reading:", formData);
+    setShowManualEntry(false);
+    // Reset form
+    setFormData({
+      date: new Date().toISOString().split("T")[0],
+      time: new Date().toTimeString().slice(0, 5),
+      glucose: "",
+      timing: "random",
+      mealDescription: "",
+      notes: "",
+    });
+  };
+
+  const handleCancel = () => {
+    setShowManualEntry(false);
+    setFormData({
+      date: new Date().toISOString().split("T")[0],
+      time: new Date().toTimeString().slice(0, 5),
+      glucose: "",
+      timing: "random",
+      mealDescription: "",
+      notes: "",
+    });
+  };
 
   // Chart dimensions
   const chartWidth = 800;
@@ -28,10 +72,133 @@ export default function GlucosePage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h2 className="font-heading font-bold text-xl text-white">Glucose Monitoring</h2>
-        <p className="text-sm font-body text-kairos-silver-dark">Continuous glucose tracking &amp; analysis</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-heading font-bold text-xl text-white">Glucose Monitoring</h2>
+          <p className="text-sm font-body text-kairos-silver-dark">Continuous glucose tracking &amp; analysis</p>
+        </div>
+        <button
+          onClick={() => setShowManualEntry(!showManualEntry)}
+          className="kairos-btn-gold flex items-center gap-2"
+        >
+          <Plus size={18} />
+          Add Reading
+        </button>
       </div>
+
+      {/* Manual Entry Form */}
+      {showManualEntry && (
+        <div className="kairos-card border border-kairos-border">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-heading font-semibold text-white">Add Glucose Reading</h3>
+            <button
+              onClick={handleCancel}
+              className="text-kairos-silver-dark hover:text-white transition"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Date and Time Row */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-body text-kairos-silver-dark mb-2">Date</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={formData.date}
+                  onChange={handleInputChange}
+                  className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-body text-kairos-silver-dark mb-2">Time</label>
+                <input
+                  type="time"
+                  name="time"
+                  value={formData.time}
+                  onChange={handleInputChange}
+                  className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+                />
+              </div>
+            </div>
+
+            {/* Glucose Value */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Glucose Value (mg/dL)</label>
+              <input
+                type="number"
+                name="glucose"
+                value={formData.glucose}
+                onChange={handleInputChange}
+                placeholder="120"
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+              />
+            </div>
+
+            {/* Timing Context */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Timing Context</label>
+              <select
+                name="timing"
+                value={formData.timing}
+                onChange={handleInputChange}
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+              >
+                <option value="fasting">Fasting</option>
+                <option value="pre-meal">Pre-meal</option>
+                <option value="post-meal-1hr">Post-meal (1 hour)</option>
+                <option value="post-meal-2hr">Post-meal (2 hours)</option>
+                <option value="bedtime">Bedtime</option>
+                <option value="random">Random</option>
+              </select>
+            </div>
+
+            {/* Meal Description */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Meal Description (optional)</label>
+              <input
+                type="text"
+                name="mealDescription"
+                value={formData.mealDescription}
+                onChange={handleInputChange}
+                placeholder="e.g., Breakfast with eggs and toast"
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+              />
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-sm font-body text-kairos-silver-dark mb-2">Notes (optional)</label>
+              <textarea
+                name="notes"
+                value={formData.notes}
+                onChange={handleInputChange}
+                placeholder="Add any additional context..."
+                rows={3}
+                className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full resize-none"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-4">
+              <button
+                onClick={handleSave}
+                className="kairos-btn-gold flex-1"
+              >
+                Save Reading
+              </button>
+              <button
+                onClick={handleCancel}
+                className="kairos-btn-outline flex-1"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <DateRangeNavigator
         availablePeriods={["day", "week", "month"]}

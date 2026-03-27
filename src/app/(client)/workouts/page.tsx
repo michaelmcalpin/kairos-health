@@ -11,6 +11,8 @@ import {
   CheckCircle,
   Activity,
   Zap,
+  Plus,
+  X,
 } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
@@ -24,6 +26,15 @@ export default function WorkoutsPage() {
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
   const [workoutStarted, setWorkoutStarted] = useState(false);
   const [workoutDeferred, setWorkoutDeferred] = useState(false);
+  const [showLogForm, setShowLogForm] = useState(false);
+  const [formData, setFormData] = useState({
+    type: "",
+    duration: "",
+    calories: "",
+    avgHeartRate: "",
+    maxHeartRate: "",
+    notes: "",
+  });
 
   const { records: workouts, stats: workoutStats } = useWorkouts(dateRange);
   const stats = workoutStats;
@@ -31,6 +42,32 @@ export default function WorkoutsPage() {
   const todaysWorkout = getTodaysWorkout(new Date());
   const weeklySchedule = getWeeklySchedule();
   const heartRateZones = getHeartRateZones();
+
+  const handleSaveWorkout = () => {
+    // TODO: Save workout to database
+    console.log("Saving workout:", formData);
+    setFormData({
+      type: "",
+      duration: "",
+      calories: "",
+      avgHeartRate: "",
+      maxHeartRate: "",
+      notes: "",
+    });
+    setShowLogForm(false);
+  };
+
+  const handleCancelForm = () => {
+    setFormData({
+      type: "",
+      duration: "",
+      calories: "",
+      avgHeartRate: "",
+      maxHeartRate: "",
+      notes: "",
+    });
+    setShowLogForm(false);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -124,7 +161,16 @@ export default function WorkoutsPage() {
 
       {/* Workout Log */}
       <div className="bg-kairos-card border border-kairos-border rounded-kairos-sm p-6">
-        <h2 className="font-heading text-xl font-bold text-white mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-kairos-gold" /> Workout Log — {formattedRange}</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-heading text-xl font-bold text-white flex items-center gap-2"><Activity className="w-5 h-5 text-kairos-gold" /> Workout Log — {formattedRange}</h2>
+          <button
+            onClick={() => setShowLogForm(true)}
+            className="kairos-btn-gold px-4 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50 flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Log Workout
+          </button>
+        </div>
         <div className="space-y-3">
           {workouts.length === 0 ? (
             <p className="text-kairos-silver-dark font-body text-sm text-center py-4">No workouts logged for this period.</p>
@@ -198,6 +244,113 @@ export default function WorkoutsPage() {
           </div>
         ))}
       </div>
+
+      {/* Log Workout Modal */}
+      {showLogForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-kairos-card border border-kairos-border rounded-kairos-sm p-8 max-w-lg w-full animate-fade-in">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-heading text-2xl font-bold text-white">Log Workout</h3>
+              <button
+                onClick={handleCancelForm}
+                className="text-kairos-silver-dark hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Workout Type */}
+              <div>
+                <label className="block text-sm font-heading text-kairos-silver-dark mb-2">Workout Type</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Zone 2 Run, Strength Training"
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+                />
+              </div>
+
+              {/* Duration */}
+              <div>
+                <label className="block text-sm font-heading text-kairos-silver-dark mb-2">Duration (minutes)</label>
+                <input
+                  type="number"
+                  placeholder="45"
+                  value={formData.duration}
+                  onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                  className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+                />
+              </div>
+
+              {/* Calories */}
+              <div>
+                <label className="block text-sm font-heading text-kairos-silver-dark mb-2">Calories Burned</label>
+                <input
+                  type="number"
+                  placeholder="350"
+                  value={formData.calories}
+                  onChange={(e) => setFormData({ ...formData, calories: e.target.value })}
+                  className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+                />
+              </div>
+
+              {/* Average Heart Rate */}
+              <div>
+                <label className="block text-sm font-heading text-kairos-silver-dark mb-2">Average Heart Rate (bpm)</label>
+                <input
+                  type="number"
+                  placeholder="125"
+                  value={formData.avgHeartRate}
+                  onChange={(e) => setFormData({ ...formData, avgHeartRate: e.target.value })}
+                  className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+                />
+              </div>
+
+              {/* Max Heart Rate */}
+              <div>
+                <label className="block text-sm font-heading text-kairos-silver-dark mb-2">Max Heart Rate (bpm)</label>
+                <input
+                  type="number"
+                  placeholder="155"
+                  value={formData.maxHeartRate}
+                  onChange={(e) => setFormData({ ...formData, maxHeartRate: e.target.value })}
+                  className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-heading text-kairos-silver-dark mb-2">Notes</label>
+                <textarea
+                  placeholder="How did you feel during this workout?"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  rows={3}
+                  className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full resize-none"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleSaveWorkout}
+                  className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50 flex-1"
+                >
+                  Save Workout
+                </button>
+                <button
+                  onClick={handleCancelForm}
+                  className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all flex-1"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -33,6 +33,7 @@ import {
   ClipboardCheck,
   Building2,
   BookOpen,
+  Dna,
 } from "lucide-react";
 
 export type NavItem = {
@@ -195,6 +196,7 @@ export const clientNavItems: NavItem[] = [
   { label: "Sleep", href: "/sleep", icon: <Moon size={18} />, section: "Biometrics" },
   { label: "Labs", href: "/labs", icon: <FlaskConical size={18} />, section: "Biometrics" },
   { label: "Measurements", href: "/measurements", icon: <Ruler size={18} />, section: "Biometrics" },
+  { label: "Genetics", href: "/genetics", icon: <Dna size={18} />, section: "Biometrics" },
   { label: "Supplements", href: "/supplements", icon: <Pill size={18} />, section: "Protocols" },
   { label: "Workouts", href: "/workouts", icon: <Dumbbell size={18} />, section: "Protocols" },
   { label: "Fasting", href: "/fasting", icon: <Timer size={18} />, section: "Protocols" },

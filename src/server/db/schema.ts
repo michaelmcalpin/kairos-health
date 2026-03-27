@@ -721,3 +721,57 @@ export const mealPhotos = pgTable("meal_photos", {
 }, (t) => [
   index("meal_photo_client_idx").on(t.clientId, t.createdAt),
 ]);
+
+// ======================== GENETICS ========================
+export const geneticProfiles = pgTable("genetic_profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  uploadType: varchar("upload_type", { length: 50 }),
+  sourceUrl: text("source_url"),
+  sourceFileName: varchar("source_file_name", { length: 255 }),
+  rawData: jsonb("raw_data").$type<Record<string, unknown>>(),
+  status: varchar("status", { length: 50 }).notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("genetic_profiles_client_idx").on(t.clientId),
+]);
+
+export const geneticMarkers = pgTable("genetic_markers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id").notNull().references(() => geneticProfiles.id),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  section: varchar("section", { length: 100 }),
+  gene: varchar("gene", { length: 50 }).notNull(),
+  rsId: varchar("rs_id", { length: 50 }),
+  pathway: text("pathway"),
+  function: text("function"),
+  mutation: text("mutation"),
+  symptoms: text("symptoms"),
+  supplementProtocol: text("supplement_protocol"),
+  peptideSupport: text("peptide_support"),
+  dietStrategy: text("diet_strategy"),
+  lifestyleStrategy: text("lifestyle_strategy"),
+  labTests: text("lab_tests"),
+  clinicalPriority: varchar("clinical_priority", { length: 20 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("genetic_markers_profile_idx").on(t.profileId),
+  index("genetic_markers_client_idx").on(t.clientId),
+]);
+
+export const geneticPathwayScores = pgTable("genetic_pathway_scores", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id").notNull().references(() => geneticProfiles.id),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  pathway: varchar("pathway", { length: 100 }).notNull(),
+  genesInPathway: text("genes_in_pathway"),
+  genesAffected: integer("genes_affected").default(0),
+  homozygousCount: integer("homozygous_count").default(0),
+  heterozygousCount: integer("heterozygous_count").default(0),
+  priorityLevel: varchar("priority_level", { length: 20 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("genetic_pathway_scores_profile_idx").on(t.profileId),
+  index("genetic_pathway_scores_client_idx").on(t.clientId),
+]);
