@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Activity, Apple, Dumbbell, Smile, Pill, Droplet, Ruler, Save, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Activity, UtensilsCrossed, Apple, Dumbbell, Smile, Pill, Droplet, Ruler, Save, Loader2 } from "lucide-react";
 import { VitalsTab } from "@/components/checkin/VitalsTab";
+import { MealsTab } from "@/components/checkin/MealsTab";
 import { NutritionTab } from "@/components/checkin/NutritionTab";
 import { ActivityTab } from "@/components/checkin/ActivityTab";
 import { WellnessTab } from "@/components/checkin/WellnessTab";
@@ -26,6 +27,7 @@ interface TabConfig {
 
 const tabs: TabConfig[] = [
   { id: "vitals", label: "Vitals", icon: <Activity size={16} /> },
+  { id: "meals", label: "Meals", icon: <UtensilsCrossed size={16} /> },
   { id: "nutrition", label: "Nutrition", icon: <Apple size={16} /> },
   { id: "activity", label: "Activity", icon: <Dumbbell size={16} /> },
   { id: "wellness", label: "Wellness", icon: <Smile size={16} /> },
@@ -198,6 +200,12 @@ export default function CheckinPage() {
             dataSources={{}}
           />
         )}
+        {activeTab === "meals" && (
+          <MealsTab
+            data={formData}
+            onChange={handleFieldChange}
+          />
+        )}
         {activeTab === "nutrition" && (
           <NutritionTab
             data={formData}
@@ -218,14 +226,8 @@ export default function CheckinPage() {
         )}
         {activeTab === "supplements" && (
           <SupplementsTab
-            items={(Array.isArray(formData.supplements) ? formData.supplements : []) as { id: string; name: string; dosage: string; timing: string; checked: boolean }[]}
-            onToggle={(id: string) => {
-              const current = (Array.isArray(formData.supplements) ? formData.supplements : []) as Record<string, unknown>[];
-              const updated = current.map((s) =>
-                (s as Record<string, unknown>).id === id ? { ...s, checked: !(s as Record<string, unknown>).checked } : s
-              );
-              handleFieldChange("supplements", updated);
-            }}
+            data={formData}
+            onChange={handleFieldChange}
           />
         )}
         {activeTab === "bloodsugar" && (
