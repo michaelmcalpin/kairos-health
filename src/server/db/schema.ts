@@ -22,6 +22,7 @@ export const notifPriorityEnum = pgEnum("notif_priority", ["low", "normal", "hig
 export const messageRoleEnum = pgEnum("message_role", ["client", "coach", "ai_coach", "system"]);
 export const mealTypeEnum = pgEnum("meal_type", ["breakfast", "lunch", "dinner", "snack"]);
 export const fastingTypeEnum = pgEnum("fasting_type", ["16_8", "20_4", "36hr", "omad", "custom"]);
+export const bloodSugarTimingEnum = pgEnum("blood_sugar_timing", ["fasted", "1hr", "2hr", "3hr", "4hr"]);
 
 // ======================== CORE: COMPANIES ========================
 export const companies = pgTable("companies", {
@@ -160,6 +161,9 @@ export const bodyMeasurements = pgTable("body_measurements", {
   bodyFatPct: real("body_fat_pct"),
   waistInches: real("waist_inches"),
   chestInches: real("chest_inches"),
+  hipsInches: real("hips_inches"),
+  rightBicepInches: real("right_bicep_inches"),
+  rightThighInches: real("right_thigh_inches"),
   source: varchar("source", { length: 50 }),
 });
 
@@ -405,30 +409,64 @@ export const dailyCheckins = pgTable("daily_checkins", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id").notNull().references(() => users.id),
   date: date("date").notNull(),
+  // ── Vitals / Biofeedback ──
   weight: real("weight"),
+  sleepHours: real("sleep_hours"),
+  sleepQuality: integer("sleep_quality"),
+  hrvScore: real("hrv_score"),
+  readinessScore: integer("readiness_score"),
+  steps: integer("steps"),
+  // ── Nutrition ──
+  plan: varchar("plan", { length: 100 }),
   proteinG: real("protein_g"),
   carbsG: real("carbs_g"),
   fatG: real("fat_g"),
   fiberG: real("fiber_g"),
+  totalCalories: real("total_calories"),
   waterOz: real("water_oz"),
+  electrolytes: boolean("electrolytes"),
+  // ── Activity ──
+  cardioMinutes: integer("cardio_minutes"),
   trainingType: varchar("training_type", { length: 50 }),
+  trainingDescription: text("training_description"),
+  // ── Wellness Scores (1-10) ──
   stress: integer("stress"),
   hunger: integer("hunger"),
   energy: integer("energy"),
-  sleepQuality: integer("sleep_quality"),
+  mood: integer("mood"),
+  // ── GI / Bowel ──
   bmCount: integer("bm_count"),
+  // ── Notes ──
   deviations: text("deviations"),
   notes: text("notes"),
+  // ── Data sources ──
+  dataSources: jsonb("data_sources").$type<Record<string, string>>().default({}),
   submittedAt: timestamp("submitted_at").defaultNow(),
 }, (t) => [index("checkin_client_date_idx").on(t.clientId, t.date)]);
 
+// Symptom Assessment — weekly, scored 0/1/4/8 per symptom across 11 categories
+// Categories: Digestive, Joint, Mood, Adrenal, Skin, Eyes, Nose, Heart, Head, Weight/Food, Energy/Sleep, Mouth/Throat
 export const symptomAssessments = pgTable("symptom_assessments", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id").notNull().references(() => users.id),
   weekStart: date("week_start").notNull(),
-  responses: jsonb("responses").$type<Record<string, number>>(),
+  // Each category stores { symptomName: score } where score is 0, 1, 4, or 8
+  digestive: jsonb("digestive").$type<Record<string, number>>().default({}),
+  joint: jsonb("joint").$type<Record<string, number>>().default({}),
+  mood: jsonb("mood_symptoms").$type<Record<string, number>>().default({}),
+  adrenal: jsonb("adrenal").$type<Record<string, number>>().default({}),
+  skin: jsonb("skin").$type<Record<string, number>>().default({}),
+  eyes: jsonb("eyes").$type<Record<string, number>>().default({}),
+  nose: jsonb("nose").$type<Record<string, number>>().default({}),
+  heart: jsonb("heart").$type<Record<string, number>>().default({}),
+  head: jsonb("head").$type<Record<string, number>>().default({}),
+  weightFood: jsonb("weight_food").$type<Record<string, number>>().default({}),
+  energySleep: jsonb("energy_sleep").$type<Record<string, number>>().default({}),
+  mouthThroat: jsonb("mouth_throat").$type<Record<string, number>>().default({}),
+  totalScore: integer("total_score"),
+  notes: text("notes"),
   submittedAt: timestamp("submitted_at").defaultNow(),
-});
+}, (t) => [index("symptom_client_week_idx").on(t.clientId, t.weekStart)]);
 
 export const progressPhotos = pgTable("progress_photos", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -612,4 +650,74 @@ export const coachNotes = pgTable("coach_notes", {
 }, (t) => [
   index("coach_notes_client_idx").on(t.clientId, t.createdAt),
   index("coach_notes_coach_idx").on(t.coachId),
+]);
+
+// ======================== DAILY CHECK-IN: BLOOD SUGAR ========================
+export const bloodSugarReadings = pgTable("blood_sugar_readings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  date: date("date").notNull(),
+  timing: bloodSugarTimingEnum("timing").notNull(),
+  valueMgdl: real("value_mgdl").notNull(),
+  mealDescription: text("meal_description"),     // what was eaten before measurement
+  mealLogId: uuid("meal_log_id").references(() => mealLogs.id),
+  source: varchar("source", { length: 50 }).default("manual"),  // manual | dexcom
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("bs_client_date_idx").on(t.clientId, t.date),
+]);
+
+// ======================== DAILY CHECK-IN: CYCLE DATA ========================
+export const cycleData = pgTable("cycle_data", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  startDate: date("start_date").notNull(),
+  cycleLength: integer("cycle_length"),           // in days
+  periodLength: integer("period_length"),         // in days
+  flowIntensity: varchar("flow_intensity", { length: 20 }),  // light | moderate | heavy
+  symptoms: jsonb("symptoms").$type<string[]>().default([]),  // cramps, bloating, etc.
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("cycle_client_date_idx").on(t.clientId, t.startDate),
+]);
+
+// ======================== TRAINER: CHECK-IN PRIORITIES ========================
+// Trainers can configure which check-in sections a client sees first and which are enabled
+export const checkinPriorities = pgTable("checkin_priorities", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  trainerId: uuid("trainer_id").notNull().references(() => users.id),
+  // Ordered array of section keys that should appear first / highlighted
+  prioritySections: jsonb("priority_sections").$type<string[]>().default([]),
+  // Which sections are enabled for this client (null = all enabled)
+  enabledSections: jsonb("enabled_sections").$type<string[]>(),
+  // Custom prompts the trainer wants the client to answer
+  customPrompts: jsonb("custom_prompts").$type<{ label: string; type: "text" | "number" | "boolean" }[]>().default([]),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("checkin_prio_client_idx").on(t.clientId),
+]);
+
+// ======================== DAILY CHECK-IN: MEAL PHOTOS ========================
+export const mealPhotos = pgTable("meal_photos", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  mealLogId: uuid("meal_log_id").references(() => mealLogs.id),
+  checkinId: uuid("checkin_id").references(() => dailyCheckins.id),
+  photoUrl: text("photo_url").notNull(),
+  mealType: mealTypeEnum("meal_type"),
+  aiAnalysis: jsonb("ai_analysis").$type<{
+    estimatedCalories?: number;
+    estimatedProtein?: number;
+    estimatedCarbs?: number;
+    estimatedFat?: number;
+    foodItems?: string[];
+    confidence?: number;
+  }>(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("meal_photo_client_idx").on(t.clientId, t.createdAt),
 ]);

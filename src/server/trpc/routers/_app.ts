@@ -21,6 +21,9 @@ import { clientImportsRouter } from "./client/imports";
 import { clientGoalsRouter } from "./client/goals";
 import { clientMessagingRouter } from "./client/messaging";
 import { clientSchedulingRouter } from "./client/scheduling";
+import { clientBloodSugarRouter } from "./client/bloodsugar";
+import { clientCycleDataRouter } from "./client/cycledata";
+import { clientSymptomsRouter } from "./client/symptoms";
 
 // Coach routers
 import { coachDashboardRouter } from "./coach/dashboard";
@@ -64,6 +67,9 @@ export const appRouter = router({
     goals: clientGoalsRouter,
     messaging: clientMessagingRouter,
     scheduling: clientSchedulingRouter,
+    bloodSugar: clientBloodSugarRouter,
+    cycleData: clientCycleDataRouter,
+    symptoms: clientSymptomsRouter,
   }),
   coach: router({
     dashboard: coachDashboardRouter,
