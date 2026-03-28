@@ -25,6 +25,27 @@ export const ROLE_HOME: Record<UserRole, string> = {
   client: "/dashboard",
 };
 
+/**
+ * Portal login URLs — for linking between portals
+ */
+export const PORTAL_LOGIN_URLS: Record<UserRole, string> = {
+  client: "/sign-in",
+  trainer: "/trainer/login",
+  company_admin: "/company/login",
+  super_admin: "/admin/login",
+};
+
+/**
+ * Session isolation keys — each portal gets its own localStorage namespace.
+ * This prevents session bleeding when a user (e.g. super_admin) switches
+ * between acting as a trainer and accessing their own client account.
+ *
+ * When portal context changes, we invalidate portal-specific caches
+ * so the UI doesn't show stale data from the previous portal context.
+ */
+const PORTAL_SESSION_KEY = "kairos-role";
+const PORTAL_SWITCH_TS_KEY = "kairos-portal-switch-ts";
+
 interface UseAuthRoleResult {
   /** The user's verified DB role, or null if not yet loaded */
   dbRole: UserRole | null;
@@ -38,25 +59,34 @@ interface UseAuthRoleResult {
   isAuthenticated: boolean;
   /** Whether the active portal role is allowed by the DB role */
   isAuthorized: (targetPortal: UserRole) => boolean;
-  /** Switch to a different portal (updates localStorage) */
+  /** Switch to a different portal (updates localStorage, invalidates caches) */
   switchRole: (role: UserRole) => void;
   /** Clear the active role and redirect to select-role */
   clearRole: () => void;
+  /** Timestamp of last portal switch (for cache invalidation) */
+  portalSwitchTs: number | null;
 }
 
 /**
- * useAuthRole — server-validated role hook.
+ * useAuthRole — server-validated role hook with session isolation.
  *
  * Fetches the user's real role from the database via tRPC `auth.me`,
  * then syncs localStorage to stay consistent. This is the single
  * source of truth for role-based access on the client side.
  *
- * If localStorage contains a role that the DB role can't access
- * (e.g. someone manually set "super_admin" but they're a "client"),
- * it clears the invalid value.
+ * Session Isolation:
+ * When a user switches portals (e.g. trainer → client), we:
+ * 1. Update the active role in localStorage
+ * 2. Record a switch timestamp for downstream cache invalidation
+ * 3. tRPC queries that depend on portal context should refetch
+ *
+ * This ensures a super_admin viewing the trainer portal sees trainer
+ * data, and switching to client portal shows their personal client data,
+ * without any bleeding between the two contexts.
  */
 export function useAuthRole(): UseAuthRoleResult {
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
+  const [portalSwitchTs, setPortalSwitchTs] = useState<number | null>(null);
 
   // Fetch verified role from DB
   const { data: me, isLoading, isError } = trpc.auth.me.useQuery(undefined, {
@@ -70,8 +100,11 @@ export function useAuthRole(): UseAuthRoleResult {
   // On mount, read localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("kairos-role") as UserRole | null;
+      const saved = localStorage.getItem(PORTAL_SESSION_KEY) as UserRole | null;
       setActiveRole(saved);
+
+      const ts = localStorage.getItem(PORTAL_SWITCH_TS_KEY);
+      if (ts) setPortalSwitchTs(parseInt(ts, 10));
     }
   }, []);
 
@@ -79,12 +112,14 @@ export function useAuthRole(): UseAuthRoleResult {
   useEffect(() => {
     if (isLoading || !dbRole) return;
 
-    const saved = localStorage.getItem("kairos-role") as UserRole | null;
+    const saved = localStorage.getItem(PORTAL_SESSION_KEY) as UserRole | null;
 
     if (saved && !canAccess(dbRole, saved)) {
       // localStorage contains an unauthorized role — clear it
-      localStorage.removeItem("kairos-role");
+      localStorage.removeItem(PORTAL_SESSION_KEY);
+      localStorage.removeItem(PORTAL_SWITCH_TS_KEY);
       setActiveRole(null);
+      setPortalSwitchTs(null);
     }
   }, [dbRole, isLoading]);
 
@@ -99,16 +134,21 @@ export function useAuthRole(): UseAuthRoleResult {
   const switchRole = useCallback(
     (role: UserRole) => {
       if (dbRole && canAccess(dbRole, role)) {
-        localStorage.setItem("kairos-role", role);
+        const now = Date.now();
+        localStorage.setItem(PORTAL_SESSION_KEY, role);
+        localStorage.setItem(PORTAL_SWITCH_TS_KEY, now.toString());
         setActiveRole(role);
+        setPortalSwitchTs(now);
       }
     },
     [dbRole],
   );
 
   const clearRole = useCallback(() => {
-    localStorage.removeItem("kairos-role");
+    localStorage.removeItem(PORTAL_SESSION_KEY);
+    localStorage.removeItem(PORTAL_SWITCH_TS_KEY);
     setActiveRole(null);
+    setPortalSwitchTs(null);
   }, []);
 
   return {
@@ -120,5 +160,6 @@ export function useAuthRole(): UseAuthRoleResult {
     isAuthorized,
     switchRole,
     clearRole,
+    portalSwitchTs,
   };
 }

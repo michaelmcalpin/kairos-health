@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Heart, Dumbbell, Building2, Shield, ArrowRight } from "lucide-react";
 import type { UserRole } from "@/lib/company-ops/types";
 import { useCompanyBrand, useCompanyList, CompanyBrandProvider } from "@/lib/company-ops";
@@ -72,6 +72,7 @@ function getAllowedRoles(dbRole: UserRole): UserRole[] {
 
 function SelectRoleContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [checking, setChecking] = useState(true);
   const [synced, setSynced] = useState(false);
   const { brand, setCompanyId } = useCompanyBrand();
@@ -111,10 +112,21 @@ function SelectRoleContent() {
     // Wait for the DB role query to resolve
     if (meLoading) return;
 
+    // Check if a specific portal was requested via login URL (e.g. /trainer/login → ?portal=trainer)
+    const requestedPortal = searchParams.get("portal") as UserRole | null;
+
+    // If a portal was requested via login URL and the user has access, go directly there
+    if (requestedPortal && allowedRoles.includes(requestedPortal) && ROLE_HOME[requestedPortal]) {
+      localStorage.setItem("kairos-role", requestedPortal);
+      router.replace(ROLE_HOME[requestedPortal]);
+      return;
+    }
+
     const savedRole = localStorage.getItem("kairos-role") as UserRole | null;
 
     // If user has a saved role AND it's one they're actually allowed to use → go directly
-    if (savedRole && allowedRoles.includes(savedRole) && ROLE_HOME[savedRole]) {
+    // But only if no specific portal was requested (or if the requested one failed)
+    if (!requestedPortal && savedRole && allowedRoles.includes(savedRole) && ROLE_HOME[savedRole]) {
       router.replace(ROLE_HOME[savedRole]);
       return;
     }
@@ -133,7 +145,7 @@ function SelectRoleContent() {
     }
 
     setChecking(false);
-  }, [router, meLoading, allowedRoles]);
+  }, [router, meLoading, allowedRoles, searchParams]);
 
   function selectRole(role: UserRole) {
     localStorage.setItem("kairos-role", role);
