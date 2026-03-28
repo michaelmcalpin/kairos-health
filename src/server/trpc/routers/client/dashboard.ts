@@ -60,7 +60,13 @@ export const clientDashboardRouter = router({
         )
       );
 
-    // Today's check-in
+    // Latest check-in (for weight, calories, steps)
+    const latestCheckin = await ctx.db.query.dailyCheckins.findFirst({
+      where: eq(dailyCheckins.clientId, ctx.dbUserId),
+      orderBy: desc(dailyCheckins.date),
+    });
+
+    // Today's check-in specifically
     const todayCheckin = await ctx.db.query.dailyCheckins.findFirst({
       where: and(
         eq(dailyCheckins.clientId, ctx.dbUserId),
@@ -72,14 +78,8 @@ export const clientDashboardRouter = router({
     return {
       profile,
       kpis: {
-        glucose: latestGlucose
-          ? { value: latestGlucose.valueMgdl, unit: "mg/dL", timestamp: latestGlucose.timestamp }
-          : null,
-        heartRate: latestHR
-          ? { value: latestHR.bpm, timestamp: latestHR.timestamp }
-          : null,
-        hrv: latestHRV
-          ? { value: latestHRV.rmssd, timestamp: latestHRV.timestamp }
+        weight: latestCheckin?.weight
+          ? { value: latestCheckin.weight, date: latestCheckin.date }
           : null,
         sleep: latestSleep
           ? {
@@ -87,6 +87,21 @@ export const clientDashboardRouter = router({
               quality: latestSleep.score,
               timestamp: latestSleep.date,
             }
+          : null,
+        calories: latestCheckin?.totalCalories
+          ? { value: latestCheckin.totalCalories, date: latestCheckin.date }
+          : null,
+        heartRate: latestHR
+          ? { value: latestHR.bpm, timestamp: latestHR.timestamp }
+          : null,
+        glucose: latestGlucose
+          ? { value: latestGlucose.valueMgdl, unit: "mg/dL", timestamp: latestGlucose.timestamp }
+          : null,
+        hrv: latestHRV
+          ? { value: latestHRV.rmssd, timestamp: latestHRV.timestamp }
+          : null,
+        steps: latestCheckin?.steps
+          ? { value: latestCheckin.steps, date: latestCheckin.date }
           : null,
         unreadAlerts: Number(unreadAlerts[0]?.count ?? 0),
         checkedInToday: !!todayCheckin,

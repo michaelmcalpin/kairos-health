@@ -5,7 +5,7 @@ import { KPICard } from "@/components/ui/KPICard";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
-import { Droplets, Heart, Brain, Moon, Bell, CheckCircle, Loader2 } from "lucide-react";
+import { Droplets, Heart, Brain, Moon, Bell, CheckCircle, Loader2, Scale, Flame, Footprints } from "lucide-react";
 import { useCompanyBrand } from "@/lib/company-ops";
 
 export default function ClientDashboard() {
@@ -117,31 +117,15 @@ export default function ClientDashboard() {
         onToday={goToToday}
       />
 
-      {/* KPI Row */}
+      {/* Primary KPIs — most controllable items first */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <KPICard
-          label="Glucose"
-          value={kpis?.glucose?.value ?? "—"}
-          unit="mg/dL"
-          trend={kpis?.glucose && kpis.glucose.value <= 100 ? "flat" : "up"}
-          trendValue={kpis?.glucose && kpis.glucose.value <= 100 ? "Stable" : "Elevated"}
-          icon={<Droplets size={16} />}
-        />
-        <KPICard
-          label="Heart Rate"
-          value={kpis?.heartRate?.value ?? "—"}
-          unit="bpm"
+          label="Weight"
+          value={kpis?.weight?.value ?? "—"}
+          unit="lbs"
           trend="flat"
           trendValue="Latest"
-          icon={<Heart size={16} />}
-        />
-        <KPICard
-          label="HRV"
-          value={kpis?.hrv?.value ? Math.round(kpis.hrv.value) : "—"}
-          unit="ms"
-          trend={kpis?.hrv && kpis.hrv.value > 50 ? "up" : "flat"}
-          trendValue={kpis?.hrv && kpis.hrv.value > 50 ? "Good" : "Average"}
-          icon={<Brain size={16} />}
+          icon={<Scale size={16} />}
           highlight
           accentColor={accentColor}
         />
@@ -161,6 +145,57 @@ export default function ClientDashboard() {
           trendValue={healthScore ? `7-day avg` : ""}
           highlight
           accentColor={accentColor}
+        />
+        <KPICard
+          label="Calories"
+          value={kpis?.calories?.value ? Math.round(kpis.calories.value) : "—"}
+          unit="kcal"
+          trend="flat"
+          trendValue="Today"
+          icon={<Flame size={16} />}
+        />
+        <KPICard
+          label="Heart Rate"
+          value={kpis?.heartRate?.value ?? "—"}
+          unit="bpm"
+          trend="flat"
+          trendValue="Latest"
+          icon={<Heart size={16} />}
+        />
+        <KPICard
+          label="Glucose"
+          value={kpis?.glucose?.value ?? "—"}
+          unit="mg/dL"
+          trend={kpis?.glucose && kpis.glucose.value <= 100 ? "flat" : "up"}
+          trendValue={kpis?.glucose && kpis.glucose.value <= 100 ? "Stable" : "Elevated"}
+          icon={<Droplets size={16} />}
+        />
+      </div>
+
+      {/* Secondary KPIs — monitoring & awareness */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPICard
+          label="Steps"
+          value={kpis?.steps?.value ?? "—"}
+          unit="steps"
+          trend="flat"
+          trendValue="Today"
+          icon={<Footprints size={16} />}
+        />
+        <KPICard
+          label="HRV"
+          value={kpis?.hrv?.value ? Math.round(kpis.hrv.value) : "—"}
+          unit="ms"
+          trend={kpis?.hrv && kpis.hrv.value > 50 ? "up" : "flat"}
+          trendValue={kpis?.hrv && kpis.hrv.value > 50 ? "Good" : "Average"}
+          icon={<Brain size={16} />}
+        />
+        <KPICard
+          label="Checked In"
+          value={kpis?.checkedInToday ? "Yes" : "No"}
+          trend={kpis?.checkedInToday ? "up" : "down"}
+          trendValue={kpis?.checkedInToday ? "Complete" : "Pending"}
+          icon={<CheckCircle size={16} />}
         />
         <KPICard
           label="Alerts"
