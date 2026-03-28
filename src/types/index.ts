@@ -1,5 +1,5 @@
 // ─── User & Auth Types ───
-export type UserRole = "client" | "coach" | "admin";
+export type UserRole = "client" | "trainer" | "company_admin" | "super_admin";
 export type ClientTier = "tier1" | "tier2" | "tier3";
 
 export type UserProfile = {

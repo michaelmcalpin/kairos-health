@@ -87,7 +87,7 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
           </label>
           <input
             type="number"
-            value={data.weight ?? ''}
+            value={(data.weight as number) || 0}
             onChange={(e) => onChange('weight', e.target.value ? parseFloat(e.target.value) : null)}
             placeholder="180"
             className="kairos-input w-full"
@@ -104,7 +104,7 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
             <input
               type="number"
               step="0.5"
-              value={data.sleepHours ?? ''}
+              value={(data.sleepHours as number) || 0}
               onChange={(e) => onChange('sleepHours', e.target.value ? parseFloat(e.target.value) : null)}
               placeholder="7.5"
               className="kairos-input w-full"
@@ -113,16 +113,16 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
           <div className="space-y-2">
             <label className="text-sm font-body text-kairos-silver">
               Sleep Quality
-              <span className="ml-2 text-kairos-gold font-semibold">{data.sleepQuality ?? 0}/10</span>
+              <span className="ml-2 text-kairos-gold font-semibold">{(data.sleepQuality as number) || 0}/10</span>
             </label>
             <input
               type="range"
               min="1"
               max="10"
-              value={data.sleepQuality ?? 5}
+              value={(data.sleepQuality as number) || 5}
               onChange={(e) => onChange('sleepQuality', parseInt(e.target.value))}
               className={`w-full h-2 bg-kairos-border rounded-lg appearance-none cursor-pointer ${getSliderColor(
-                data.sleepQuality ?? 5
+                (data.sleepQuality as number) || 5
               )}`}
             />
           </div>
@@ -137,7 +137,7 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
             </label>
             <input
               type="number"
-              value={data.hrv ?? ''}
+              value={(data.hrv as number) || 0}
               onChange={(e) => onChange('hrv', e.target.value ? parseInt(e.target.value) : null)}
               placeholder="45"
               className="kairos-input w-full"
@@ -152,7 +152,7 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
               type="number"
               min="0"
               max="100"
-              value={data.readiness ?? ''}
+              value={(data.readiness as number) || 0}
               onChange={(e) => onChange('readiness', e.target.value ? parseInt(e.target.value) : null)}
               placeholder="78"
               className="kairos-input w-full"
@@ -168,7 +168,7 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
           </label>
           <input
             type="number"
-            value={data.steps ?? ''}
+            value={(data.steps as number) || 0}
             onChange={(e) => onChange('steps', e.target.value ? parseInt(e.target.value) : null)}
             placeholder="8500"
             className="kairos-input w-full"

@@ -23,7 +23,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ data, onChange }) => {
         <label className="text-sm font-body text-kairos-silver">Cardio Minutes</label>
         <input
           type="number"
-          value={data.cardioMinutes ?? ''}
+          value={(data.cardioMinutes as number) || 0}
           onChange={(e) => onChange('cardioMinutes', e.target.value ? parseInt(e.target.value) : 0)}
           placeholder="30"
           className="kairos-input w-full"
@@ -34,7 +34,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ data, onChange }) => {
       <div className="space-y-2">
         <label className="text-sm font-body text-kairos-silver">Training Type</label>
         <select
-          value={data.trainingType ?? ''}
+          value={(data.trainingType as string) || ''}
           onChange={(e) => onChange('trainingType', e.target.value)}
           className="kairos-input w-full appearance-none bg-right pr-10"
           style={{
@@ -56,7 +56,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ data, onChange }) => {
       <div className="space-y-2">
         <label className="text-sm font-body text-kairos-silver">Training Description</label>
         <textarea
-          value={data.trainingDescription ?? ''}
+          value={(data.trainingDescription as string) || ''}
           onChange={(e) => onChange('trainingDescription', e.target.value)}
           placeholder="e.g., Upper body focus, 3 sets of squats, 20 min run"
           rows={4}
@@ -69,7 +69,7 @@ export const ActivityTab: React.FC<ActivityTabProps> = ({ data, onChange }) => {
         <label className="text-sm font-body text-kairos-silver">Steps (if manual entry)</label>
         <input
           type="number"
-          value={data.steps ?? ''}
+          value={(data.steps as number) || 0}
           onChange={(e) => onChange('steps', e.target.value ? parseInt(e.target.value) : null)}
           placeholder="8500"
           className="kairos-input w-full"

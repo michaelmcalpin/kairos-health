@@ -9,9 +9,9 @@ interface NutritionTabProps {
 }
 
 export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) => {
-  const protein = data.protein ?? 0;
-  const carbs = data.carbs ?? 0;
-  const fat = data.fat ?? 0;
+  const protein = (data.protein as number) || 0;
+  const carbs = (data.carbs as number) || 0;
+  const fat = (data.fat as number) || 0;
 
   const macroTotal = protein * 4 + carbs * 4 + fat * 9;
 
@@ -32,7 +32,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
         <label className="text-sm font-body text-kairos-silver">Nutrition Plan</label>
         <input
           type="text"
-          value={data.plan ?? ''}
+          value={(data.plan as string) || ''}
           onChange={(e) => onChange('plan', e.target.value)}
           placeholder="e.g., Low carb, Maintenance, Keto"
           className="kairos-input w-full"
@@ -45,7 +45,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <label className="text-sm font-body text-kairos-silver">Protein (g)</label>
           <input
             type="number"
-            value={data.protein ?? ''}
+            value={(data.protein as number) || 0}
             onChange={(e) => onChange('protein', e.target.value ? parseFloat(e.target.value) : 0)}
             placeholder="150"
             className="kairos-input w-full"
@@ -55,7 +55,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <label className="text-sm font-body text-kairos-silver">Carbs (g)</label>
           <input
             type="number"
-            value={data.carbs ?? ''}
+            value={(data.carbs as number) || 0}
             onChange={(e) => onChange('carbs', e.target.value ? parseFloat(e.target.value) : 0)}
             placeholder="180"
             className="kairos-input w-full"
@@ -68,7 +68,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <label className="text-sm font-body text-kairos-silver">Fat (g)</label>
           <input
             type="number"
-            value={data.fat ?? ''}
+            value={(data.fat as number) || 0}
             onChange={(e) => onChange('fat', e.target.value ? parseFloat(e.target.value) : 0)}
             placeholder="60"
             className="kairos-input w-full"
@@ -78,7 +78,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <label className="text-sm font-body text-kairos-silver">Fiber (g)</label>
           <input
             type="number"
-            value={data.fiber ?? ''}
+            value={(data.fiber as number) || 0}
             onChange={(e) => onChange('fiber', e.target.value ? parseFloat(e.target.value) : 0)}
             placeholder="35"
             className="kairos-input w-full"
@@ -99,7 +99,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <div className="flex-1 flex flex-col items-center gap-1">
             <div className="w-12 h-12 rounded-full border-2 border-kairos-gold/50 bg-kairos-gold/10 flex items-center justify-center">
               <span className="text-xs font-semibold text-kairos-gold">
-                {getPercentage(protein).toFixed(0)}%
+                {getPercentage((data.protein as number) || 0).toFixed(0)}%
               </span>
             </div>
             <span className="text-xs font-body text-kairos-silver-dark">Protein</span>
@@ -109,7 +109,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <div className="flex-1 flex flex-col items-center gap-1">
             <div className="w-12 h-12 rounded-full border-2 border-blue-500/50 bg-blue-500/10 flex items-center justify-center">
               <span className="text-xs font-semibold text-blue-400">
-                {getPercentage(carbs).toFixed(0)}%
+                {getPercentage((data.carbs as number) || 0).toFixed(0)}%
               </span>
             </div>
             <span className="text-xs font-body text-kairos-silver-dark">Carbs</span>
@@ -119,7 +119,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <div className="flex-1 flex flex-col items-center gap-1">
             <div className="w-12 h-12 rounded-full border-2 border-green-500/50 bg-green-500/10 flex items-center justify-center">
               <span className="text-xs font-semibold text-green-400">
-                {getPercentage(fat).toFixed(0)}%
+                {getPercentage((data.fat as number) || 0).toFixed(0)}%
               </span>
             </div>
             <span className="text-xs font-body text-kairos-silver-dark">Fat</span>
@@ -133,7 +133,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <label className="text-sm font-body text-kairos-silver">Total Calories</label>
           <input
             type="number"
-            value={data.totalCalories ?? ''}
+            value={(data.totalCalories as number) || 0}
             onChange={(e) => onChange('totalCalories', e.target.value ? parseInt(e.target.value) : 0)}
             placeholder="2100"
             className="kairos-input w-full"
@@ -143,7 +143,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <label className="text-sm font-body text-kairos-silver">Water (oz)</label>
           <input
             type="number"
-            value={data.water ?? ''}
+            value={(data.water as number) || 0}
             onChange={(e) => onChange('water', e.target.value ? parseFloat(e.target.value) : 0)}
             placeholder="64"
             className="kairos-input w-full"
@@ -155,14 +155,14 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
       <div className="space-y-2">
         <label className="text-sm font-body text-kairos-silver">Electrolytes</label>
         <button
-          onClick={() => onChange('electrolytes', !data.electrolytes)}
+          onClick={() => onChange('electrolytes', !(data.electrolytes as boolean))}
           className={`w-full py-2 px-4 rounded border font-body text-sm transition-colors ${
-            data.electrolytes
+            (data.electrolytes as boolean)
               ? 'border-kairos-gold bg-kairos-gold/10 text-kairos-gold'
               : 'border-kairos-border text-kairos-silver hover:border-kairos-gold/30'
           }`}
         >
-          {data.electrolytes ? '✓ Electrolytes Taken' : 'Not Taken'}
+          {(data.electrolytes as boolean) ? '✓ Electrolytes Taken' : 'Not Taken'}
         </button>
       </div>
 
@@ -172,7 +172,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
         <input
           type="number"
           min="0"
-          value={data.bmCount ?? ''}
+          value={(data.bmCount as number) || 0}
           onChange={(e) => onChange('bmCount', e.target.value ? parseInt(e.target.value) : 0)}
           placeholder="1"
           className="kairos-input w-full"

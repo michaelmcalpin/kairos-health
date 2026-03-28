@@ -10,7 +10,7 @@ export default function CoachLayout({
   children: React.ReactNode;
 }) {
   return (
-    <RoleGuard allowedRole="coach">
+    <RoleGuard allowedRole="trainer">
       <div className="flex min-h-screen">
         <Sidebar items={coachNavItems} userName="Coach Portal" />
         <div className="flex-1 ml-64">

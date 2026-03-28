@@ -34,7 +34,7 @@ export const MeasurementsTab: React.FC<MeasurementsTabProps> = ({ data, onChange
             <input
               type="number"
               step="0.1"
-              value={data.chest ?? ''}
+              value={(data.chest as number) || 0}
               onChange={(e) => onChange('chest', e.target.value ? parseFloat(e.target.value) : null)}
               placeholder="40.0"
               className="kairos-input w-full"
@@ -45,7 +45,7 @@ export const MeasurementsTab: React.FC<MeasurementsTabProps> = ({ data, onChange
             <input
               type="number"
               step="0.1"
-              value={data.waist ?? ''}
+              value={(data.waist as number) || 0}
               onChange={(e) => onChange('waist', e.target.value ? parseFloat(e.target.value) : null)}
               placeholder="32.0"
               className="kairos-input w-full"
@@ -59,7 +59,7 @@ export const MeasurementsTab: React.FC<MeasurementsTabProps> = ({ data, onChange
             <input
               type="number"
               step="0.1"
-              value={data.hips ?? ''}
+              value={(data.hips as number) || 0}
               onChange={(e) => onChange('hips', e.target.value ? parseFloat(e.target.value) : null)}
               placeholder="38.5"
               className="kairos-input w-full"
@@ -70,7 +70,7 @@ export const MeasurementsTab: React.FC<MeasurementsTabProps> = ({ data, onChange
             <input
               type="number"
               step="0.1"
-              value={data.rightThigh ?? ''}
+              value={(data.rightThigh as number) || 0}
               onChange={(e) => onChange('rightThigh', e.target.value ? parseFloat(e.target.value) : null)}
               placeholder="22.5"
               className="kairos-input w-full"
@@ -83,7 +83,7 @@ export const MeasurementsTab: React.FC<MeasurementsTabProps> = ({ data, onChange
           <input
             type="number"
             step="0.1"
-            value={data.rightBicep ?? ''}
+            value={(data.rightBicep as number) || 0}
             onChange={(e) => onChange('rightBicep', e.target.value ? parseFloat(e.target.value) : null)}
             placeholder="14.5"
             className="kairos-input w-full"
@@ -144,13 +144,13 @@ export const MeasurementsTab: React.FC<MeasurementsTabProps> = ({ data, onChange
           />
         </div>
 
-        {data.progressPhotos && Array.isArray(data.progressPhotos) && data.progressPhotos.length > 0 && (
+        {(data.progressPhotos as unknown[]) && Array.isArray(data.progressPhotos) && (data.progressPhotos as unknown[]).length > 0 && (
           <div className="mt-3 space-y-2">
             <p className="text-xs font-body text-kairos-silver-dark">
-              {data.progressPhotos.length} photo{data.progressPhotos.length !== 1 ? 's' : ''} selected
+              {(data.progressPhotos as unknown[]).length} photo{(data.progressPhotos as unknown[]).length !== 1 ? 's' : ''} selected
             </p>
             <ul className="space-y-1">
-              {data.progressPhotos.map((photo: unknown, idx: number) => (
+              {(data.progressPhotos as unknown[]).map((photo: unknown, idx: number) => (
                 <li key={idx} className="text-xs font-body text-kairos-silver-dark">
                   • {typeof photo === 'string' ? photo : (photo as { name?: string }).name}
                 </li>

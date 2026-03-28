@@ -72,7 +72,7 @@ export const clientGeneticsRouter = router({
         uploadType: z.enum(["pdf", "url", "manual"]),
         sourceUrl: z.string().optional(),
         sourceFileName: z.string().optional(),
-        rawData: z.record(z.unknown()).optional(),
+        rawData: z.record(z.string(), z.unknown()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

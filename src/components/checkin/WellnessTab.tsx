@@ -77,22 +77,22 @@ export const WellnessTab: React.FC<WellnessTabProps> = ({ data, onChange }) => {
       </div>
 
       {/* Stress Level */}
-      <SliderField label="Stress Level" field="stress" value={data.stress ?? 5} />
+      <SliderField label="Stress Level" field="stress" value={(data.stress as number) || 5} />
 
       {/* Hunger Level */}
-      <SliderField label="Hunger Level" field="hunger" value={data.hunger ?? 5} />
+      <SliderField label="Hunger Level" field="hunger" value={(data.hunger as number) || 5} />
 
       {/* Energy Level */}
-      <SliderField label="Energy Level" field="energy" value={data.energy ?? 7} />
+      <SliderField label="Energy Level" field="energy" value={(data.energy as number) || 7} />
 
       {/* Mood */}
-      <SliderField label="Mood" field="mood" value={data.mood ?? 7} />
+      <SliderField label="Mood" field="mood" value={(data.mood as number) || 7} />
 
       {/* Deviations */}
       <div className="space-y-2">
         <label className="text-sm font-body text-kairos-silver">Deviations</label>
         <textarea
-          value={data.deviations ?? ''}
+          value={(data.deviations as string) || ''}
           onChange={(e) => onChange('deviations', e.target.value)}
           placeholder="Note any unusual circumstances or deviations from plan..."
           rows={3}
@@ -107,7 +107,7 @@ export const WellnessTab: React.FC<WellnessTabProps> = ({ data, onChange }) => {
       <div className="space-y-2">
         <label className="text-sm font-body text-kairos-silver">General Notes</label>
         <textarea
-          value={data.notes ?? ''}
+          value={(data.notes as string) || ''}
           onChange={(e) => onChange('notes', e.target.value)}
           placeholder="Any additional observations or comments about the day..."
           rows={3}
