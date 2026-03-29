@@ -2,7 +2,7 @@ import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "@/server/trpc";
 import { users, clientProfiles, trainerProfiles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server";
+import { auth as clerkAuth, currentUser, clerkClient } from "@clerk/nextjs/server";
 
 export const authRouter = router({
   /**
@@ -25,11 +25,14 @@ export const authRouter = router({
     if (existing) {
       // Sync role from Clerk publicMetadata in case it was updated
       // (e.g. admin promoted user via Clerk dashboard)
-      const clerkUser = await currentUser();
-      if (clerkUser) {
+      // Use clerkClient() Backend API for FRESH data — currentUser() can
+      // return stale session-token data if the JWT hasn't refreshed yet.
+      try {
+        const client = await clerkClient();
+        const freshUser = await client.users.getUser(clerkId);
         const validRoles = ["client", "trainer", "company_admin", "super_admin"] as const;
         type ValidRole = (typeof validRoles)[number];
-        const metaRole = clerkUser.publicMetadata?.role as string | undefined;
+        const metaRole = freshUser.publicMetadata?.role as string | undefined;
         if (metaRole && (validRoles as readonly string[]).includes(metaRole) && metaRole !== existing.role) {
           const [updated] = await ctx.db
             .update(users)
@@ -38,6 +41,8 @@ export const authRouter = router({
             .returning();
           return { user: updated, created: false };
         }
+      } catch (e) {
+        console.error("[ensureUser] Failed to sync role from Clerk:", e);
       }
       return { user: existing, created: false };
     }

@@ -80,6 +80,9 @@ function SelectRoleContent() {
   const isWhiteLabel = brand.id !== "kairos";
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
+  // Declare utils before any hooks that reference it in callbacks
+  const utils = trpc.useUtils();
+
   // Step 1: Ensure the DB user exists (creates on first sign-in)
   const ensureUser = trpc.auth.ensureUser.useMutation({
     onSuccess: () => {
@@ -104,7 +107,6 @@ function SelectRoleContent() {
 
   // Step 2: Fetch the user's actual role from the database (after sync completes)
   // staleTime: 0 ensures we always get fresh data after ensureUser may have updated the role
-  const utils = trpc.useUtils();
   const { data: me, isLoading: meLoading } = trpc.auth.me.useQuery(undefined, {
     retry: false,
     staleTime: 0,
