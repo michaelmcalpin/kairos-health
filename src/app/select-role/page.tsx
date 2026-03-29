@@ -117,8 +117,10 @@ function SelectRoleContent() {
   const allowedRoles = getAllowedRoles(dbRole);
 
   useEffect(() => {
-    // Wait for the DB role query to resolve
-    if (meLoading) return;
+    // Wait for ensureUser to sync the role AND the me query to resolve.
+    // CRITICAL: When a React Query is disabled (enabled: false), isLoading
+    // is false — so we must also gate on `synced` and `me` being present.
+    if (!synced || meLoading || !me) return;
 
     // Check if a specific portal was requested via login URL (e.g. /trainer/login → ?portal=trainer)
     const requestedPortal = searchParams.get("portal") as UserRole | null;
@@ -153,7 +155,7 @@ function SelectRoleContent() {
     }
 
     setChecking(false);
-  }, [router, meLoading, allowedRoles, searchParams]);
+  }, [router, synced, meLoading, me, allowedRoles, searchParams]);
 
   function selectRole(role: UserRole) {
     localStorage.setItem("kairos-role", role);
