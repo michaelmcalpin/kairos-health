@@ -8,75 +8,17 @@ import type { Appointment } from "@/lib/scheduling/types";
 import {
   SESSION_TYPES,
 } from "@/lib/scheduling/types";
-import {
-  createAppointment,
-  getCalendarWeek,
-  getSchedulingStats,
-  updateAppointmentStatus,
-  saveSessionNotes,
-  getSessionNotes,
-} from "@/lib/scheduling/engine";
+import { trpc } from "@/lib/trpc";
 import { WeeklyCalendar } from "@/components/scheduling/WeeklyCalendar";
 import { AppointmentDetail } from "@/components/scheduling/AppointmentDetail";
-
-const COACH_ID = "demo-coach";
-
-function seedCoachAppointments() {
-  const today = new Date();
-  const clients = [
-    { id: "client-1", name: "Alex Thompson" },
-    { id: "client-2", name: "Jordan Chen" },
-    { id: "client-3", name: "Maria Santos" },
-    { id: "client-4", name: "Emily Brooks" },
-  ];
-
-  const seeds = [
-    { clientIdx: 0, dayOffset: 0, time: "09:00", type: "follow_up" as const, meeting: "video" as const },
-    { clientIdx: 1, dayOffset: 0, time: "10:30", type: "weekly_review" as const, meeting: "phone" as const },
-    { clientIdx: 2, dayOffset: 1, time: "14:00", type: "lab_review" as const, meeting: "video" as const },
-    { clientIdx: 3, dayOffset: 2, time: "09:00", type: "initial_consult" as const, meeting: "video" as const },
-    { clientIdx: 0, dayOffset: 2, time: "11:00", type: "protocol_adjustment" as const, meeting: "in_person" as const },
-    { clientIdx: 1, dayOffset: 3, time: "13:00", type: "follow_up" as const, meeting: "phone" as const },
-    { clientIdx: 2, dayOffset: 4, time: "10:00", type: "onboarding" as const, meeting: "video" as const },
-  ];
-
-  for (const seed of seeds) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + seed.dayOffset);
-    try {
-      createAppointment({
-        coachId: COACH_ID,
-        clientId: clients[seed.clientIdx].id,
-        clientName: clients[seed.clientIdx].name,
-        coachName: "Trainer",
-        sessionType: seed.type,
-        meetingType: seed.meeting,
-        date: date.toISOString().split("T")[0],
-        startTime: seed.time,
-        notes: "",
-      });
-    } catch {
-      // Ignore duplicates
-    }
-  }
-}
 
 export default function CoachSchedulePage() {
   const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [seeded, setSeeded] = useState(false);
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [newAppt, setNewAppt] = useState({ clientName: "", date: "", time: "09:00", type: "follow_up" as const, meeting: "video" as const });
-
-  if (!seeded) {
-    seedCoachAppointments();
-    setSeeded(true);
-  }
-
-  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   // Get current Monday for week view
   const now = new Date();
@@ -84,11 +26,24 @@ export default function CoachSchedulePage() {
   monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
   const weekStart = monday.toISOString().split("T")[0];
 
-  const calendarDays = getCalendarWeek(COACH_ID, weekStart);
-  const stats = getSchedulingStats(COACH_ID);
+  // Fetch calendar and stats data
+  const { data: calendarData, isLoading: isCalendarLoading } = trpc.coach.schedule.getCalendarWeek.useQuery({ weekStart });
+  const { data: statsData, isLoading: isStatsLoading } = trpc.coach.schedule.getStats.useQuery();
+
+  // Mutations
+  const createMutation = trpc.coach.schedule.createAppointment.useMutation();
+  const updateStatusMutation = trpc.coach.schedule.updateStatus.useMutation();
+
+  const calendarDays = calendarData || [];
+  const stats = statsData || {
+    upcomingAppointments: 0,
+    todayAppointments: 0,
+    hoursBookedThisWeek: 0,
+    completedThisWeek: 0,
+  };
 
   return (
-    <div className="animate-fade-in" key={refreshKey}>
+    <div className="animate-fade-in">
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -110,7 +65,7 @@ export default function CoachSchedulePage() {
               <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">This Week</p>
               <Calendar className="w-5 h-5 text-kairos-gold" />
             </div>
-            <p className="font-heading font-bold text-2xl text-white">{stats.upcomingAppointments}</p>
+            <p className="font-heading font-bold text-2xl text-white">{isStatsLoading ? "-" : stats.upcomingAppointments}</p>
             <p className="text-xs text-kairos-silver-dark mt-1">Upcoming sessions</p>
           </div>
 
@@ -119,7 +74,7 @@ export default function CoachSchedulePage() {
               <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Today</p>
               <Clock className="w-5 h-5 text-kairos-gold" />
             </div>
-            <p className="font-heading font-bold text-2xl text-white">{stats.todayAppointments}</p>
+            <p className="font-heading font-bold text-2xl text-white">{isStatsLoading ? "-" : stats.todayAppointments}</p>
             <p className="text-xs text-kairos-silver-dark mt-1">Sessions today</p>
           </div>
 
@@ -128,7 +83,7 @@ export default function CoachSchedulePage() {
               <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Hours Booked</p>
               <Clock className="w-5 h-5 text-kairos-gold" />
             </div>
-            <p className="font-heading font-bold text-2xl text-white">{stats.hoursBookedThisWeek}h</p>
+            <p className="font-heading font-bold text-2xl text-white">{isStatsLoading ? "-" : stats.hoursBookedThisWeek}h</p>
             <p className="text-xs text-kairos-silver-dark mt-1">This week</p>
           </div>
 
@@ -137,7 +92,7 @@ export default function CoachSchedulePage() {
               <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Completed</p>
               <Users className="w-5 h-5 text-kairos-gold" />
             </div>
-            <p className="font-heading font-bold text-2xl text-white">{stats.completedThisWeek}</p>
+            <p className="font-heading font-bold text-2xl text-white">{isStatsLoading ? "-" : stats.completedThisWeek}</p>
             <p className="text-xs text-kairos-silver-dark mt-1">This week</p>
           </div>
         </div>
@@ -160,17 +115,21 @@ export default function CoachSchedulePage() {
         <div className="mb-6">
           <AppointmentDetail
             appointment={selectedAppointment}
-            sessionNotes={getSessionNotes(selectedAppointment.id)}
+            sessionNotes={null}
             role="coach"
             onUpdateStatus={(status, reason) => {
-              updateAppointmentStatus(selectedAppointment.id, status, reason);
-              setSelectedAppointment(null);
-              refresh();
+              updateStatusMutation.mutate(
+                { appointmentId: selectedAppointment.id, status, reason },
+                {
+                  onSuccess: () => {
+                    setSelectedAppointment(null);
+                  },
+                }
+              );
             }}
             onSaveNotes={(notes) => {
-              saveSessionNotes(selectedAppointment.id, COACH_ID, notes);
+              // TODO: Implement notes saving via tRPC if available
               setSelectedAppointment(null);
-              refresh();
             }}
             onClose={() => setSelectedAppointment(null)}
           />
@@ -178,10 +137,16 @@ export default function CoachSchedulePage() {
       )}
 
       {/* Calendar */}
-      <WeeklyCalendar
-        days={calendarDays}
-        onAppointmentClick={setSelectedAppointment}
-      />
+      {isCalendarLoading ? (
+        <div className="kairos-card p-12 text-center">
+          <p className="text-kairos-silver-dark">Loading calendar...</p>
+        </div>
+      ) : (
+        <WeeklyCalendar
+          days={calendarDays}
+          onAppointmentClick={setSelectedAppointment}
+        />
+      )}
 
       {/* Session Legend */}
       <div className="mt-8 kairos-card p-6">
@@ -242,28 +207,29 @@ export default function CoachSchedulePage() {
               <button
                 onClick={() => {
                   if (newAppt.clientName && newAppt.date) {
-                    try {
-                      createAppointment({
-                        coachId: COACH_ID,
-                        clientId: `client-${Date.now()}`,
+                    createMutation.mutate(
+                      {
+                        clientId: "", // TODO: Add client selector to resolve ID
                         clientName: newAppt.clientName,
-                        coachName: "Trainer",
                         sessionType: newAppt.type,
                         meetingType: newAppt.meeting,
                         date: newAppt.date,
                         startTime: newAppt.time,
                         notes: "",
-                      });
-                      setShowNewAppt(false);
-                      setNewAppt({ clientName: "", date: "", time: "09:00", type: "follow_up", meeting: "video" });
-                      refresh();
-                    } catch { /* ignore */ }
+                      },
+                      {
+                        onSuccess: () => {
+                          setShowNewAppt(false);
+                          setNewAppt({ clientName: "", date: "", time: "09:00", type: "follow_up", meeting: "video" });
+                        },
+                      }
+                    );
                   }
                 }}
-                disabled={!newAppt.clientName || !newAppt.date}
+                disabled={!newAppt.clientName || !newAppt.date || createMutation.isPending}
                 className="kairos-btn-gold flex-1 disabled:opacity-50"
               >
-                Create Appointment
+                {createMutation.isPending ? "Creating..." : "Create Appointment"}
               </button>
             </div>
           </div>

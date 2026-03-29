@@ -11,20 +11,36 @@ import {
   Settings,
   Edit,
 } from "lucide-react";
-import {
-  getCoachProfile,
-  updateCoachProfile,
-  updateNotificationPreferences,
-} from "@/lib/coach-ops/engine";
-
-const COACH_ID = "demo-coach";
+import { trpc } from "@/lib/trpc";
 
 export default function CoachProfilePage() {
-  const [refreshKey, setRefreshKey] = useState(0);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
-  const coach = refreshKey >= 0 ? getCoachProfile(COACH_ID) : getCoachProfile(COACH_ID);
+  // Fetch user data
+  const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
+
+  // Fetch coach profile data
+  const { data: profile, isLoading: profileLoading } = trpc.coach.schedule.getProfile.useQuery();
+
+  // Fetch client stats
+  const { data: stats, isLoading: statsLoading } = trpc.coach.clients.getStats.useQuery();
+
+  // Fetch revenue data
+  const { data: revenue, isLoading: revenueLoading } = trpc.coach.revenue.getSummary.useQuery();
+
+  const isLoading = userLoading || profileLoading || statsLoading || revenueLoading;
+
+  // Create initials from user name
+  const getInitials = (name?: string) => {
+    if (!name) return "C";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   const startEditing = (field: string, value: string) => {
     setEditingField(field);
@@ -34,18 +50,43 @@ export default function CoachProfilePage() {
   const saveEdit = (field: string) => {
     const value = editValues[field];
     if (value) {
-      updateCoachProfile(COACH_ID, {
-        [field]: isNaN(Number(value)) ? value : Number(value),
-      });
+      // TODO: Implement tRPC mutation for updateCoachProfile
+      // await trpc.coach.schedule.updateProfile.mutate({
+      //   [field]: isNaN(Number(value)) ? value : Number(value),
+      // });
       setEditingField(null);
-      setRefreshKey((k) => k + 1);
     }
   };
 
   const toggleNotification = (type: "email" | "sms" | "inApp") => {
-    updateNotificationPreferences(COACH_ID, type, !coach.notificationPreferences[type]);
-    setRefreshKey((k) => k + 1);
+    // TODO: Implement tRPC mutation for updateNotificationPreferences
+    // await trpc.coach.settings.updateNotificationPreferences.mutate({
+    //   type,
+    //   enabled: !currentPreferences[type],
+    // });
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="kairos-card h-48 bg-kairos-card/50 animate-pulse" />
+        <div className="kairos-card h-64 bg-kairos-card/50 animate-pulse" />
+        <div className="kairos-card h-48 bg-kairos-card/50 animate-pulse" />
+      </div>
+    );
+  }
+
+  // Show error state if critical data is missing
+  if (!user) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="kairos-card border border-red-500/20 bg-red-500/5">
+          <p className="text-red-400">Error loading profile. Please try refreshing.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -54,22 +95,15 @@ export default function CoachProfilePage() {
         <div className="flex items-center gap-6 mb-6">
           <div className="w-24 h-24 rounded-kairos-sm bg-gradient-to-br from-kairos-gold/30 to-kairos-gold/10 border border-kairos-gold/20 flex items-center justify-center">
             <span className="text-3xl font-heading font-bold text-kairos-gold">
-              {coach.initials}
+              {getInitials(`${user.firstName || ""} ${user.lastName || ""}`.trim())}
             </span>
           </div>
           <div className="flex-1">
             <h1 className="text-3xl font-heading font-bold text-white mb-2">
-              {coach.name}
+              {`${user.firstName || ""} ${user.lastName || ""}`.trim()}
             </h1>
-            <div className="flex gap-2 mb-3">
-              {coach.credentials.map((cred) => (
-                <span key={cred} className="kairos-badge-gold text-sm font-body">
-                  {cred}
-                </span>
-              ))}
-            </div>
             <p className="text-kairos-silver-dark font-body text-sm">
-              {coach.specializations.join(" • ")}
+              {user.email}
             </p>
           </div>
         </div>
@@ -77,20 +111,28 @@ export default function CoachProfilePage() {
         {/* Quick Stats */}
         <div className="grid grid-cols-4 gap-4 pt-6 border-t border-kairos-border">
           <div className="text-center">
-            <p className="text-2xl font-heading font-bold text-kairos-gold mb-1">{coach.totalClients}</p>
+            <p className="text-2xl font-heading font-bold text-kairos-gold mb-1">
+              {stats?.totalClients ?? 0}
+            </p>
             <p className="text-xs font-body text-kairos-silver-dark uppercase tracking-wide">Total Clients</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-heading font-bold text-kairos-gold mb-1">{coach.activeProtocols}</p>
-            <p className="text-xs font-body text-kairos-silver-dark uppercase tracking-wide">Active Protocols</p>
+            <p className="text-2xl font-heading font-bold text-kairos-gold mb-1">
+              {stats?.avgAdherence ? `${Math.round(stats.avgAdherence)}%` : "—"}
+            </p>
+            <p className="text-xs font-body text-kairos-silver-dark uppercase tracking-wide">Avg Adherence</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-heading font-bold text-kairos-gold mb-1">{coach.avgRating}</p>
-            <p className="text-xs font-body text-kairos-silver-dark uppercase tracking-wide">Avg Rating</p>
+            <p className="text-2xl font-heading font-bold text-kairos-gold mb-1">
+              {stats?.avgHealthScore ? `${Math.round(stats.avgHealthScore * 10) / 10}` : "—"}
+            </p>
+            <p className="text-xs font-body text-kairos-silver-dark uppercase tracking-wide">Avg Health Score</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-heading font-bold text-kairos-gold mb-1">{coach.yearsOnPlatform}</p>
-            <p className="text-xs font-body text-kairos-silver-dark uppercase tracking-wide">Years on Platform</p>
+            <p className="text-2xl font-heading font-bold text-kairos-gold mb-1">
+              {profile?.acceptingClients ? "Yes" : "No"}
+            </p>
+            <p className="text-xs font-body text-kairos-silver-dark uppercase tracking-wide">Accepting Clients</p>
           </div>
         </div>
       </div>
@@ -103,60 +145,39 @@ export default function CoachProfilePage() {
         </h2>
 
         <div className="space-y-4">
-          {/* Bio */}
+          {/* User Role */}
           <div>
-            <label className="kairos-label mb-2 block">Bio</label>
-            {editingField === "bio" ? (
-              <div className="flex gap-2">
-                <textarea
-                  className="kairos-input flex-1"
-                  rows={3}
-                  value={editValues.bio}
-                  onChange={(e) => setEditValues({ ...editValues, bio: e.target.value })}
-                />
-                <button onClick={() => saveEdit("bio")} className="kairos-btn-gold px-4 h-fit">Save</button>
+            <label className="kairos-label mb-2 block">Role</label>
+            <p className="text-kairos-silver-dark font-body text-sm capitalize">{user.role}</p>
+          </div>
+
+          {/* Capacity Information */}
+          {profile && (
+            <>
+              <div>
+                <label className="kairos-label mb-2 block">Client Capacity</label>
+                <p className="text-kairos-silver-dark font-body text-sm">
+                  {profile.capacity} maximum clients
+                </p>
               </div>
-            ) : (
-              <div className="flex gap-2 items-start">
-                <p className="text-kairos-silver-dark font-body text-sm flex-1">{coach.bio}</p>
-                <button onClick={() => startEditing("bio", coach.bio)} className="text-kairos-gold hover:text-kairos-gold/80 transition mt-1">
-                  <Edit className="w-4 h-4" />
-                </button>
+
+              <div>
+                <label className="kairos-label mb-2 block">Package Options</label>
+                {profile.packages && profile.packages.length > 0 ? (
+                  <ul className="space-y-2">
+                    {profile.packages.map((pkg: { name: string; price: number; description: string }, idx: number) => (
+                      <li key={idx} className="text-kairos-silver-dark font-body text-sm flex items-start gap-2">
+                        <span className="text-kairos-gold mt-1">•</span>
+                        <span>{pkg.name} — ${pkg.price}/mo{pkg.description ? ` (${pkg.description})` : ""}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-kairos-silver-dark/60 font-body text-sm">No packages configured</p>
+                )}
               </div>
-            )}
-          </div>
-
-          {/* Education */}
-          <div>
-            <label className="kairos-label mb-2 block">Education</label>
-            <ul className="space-y-2">
-              {coach.education.map((edu, idx) => (
-                <li key={idx} className="text-kairos-silver-dark font-body text-sm flex items-start gap-2">
-                  <span className="text-kairos-gold mt-1">•</span>
-                  {edu}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Certifications */}
-          <div>
-            <label className="kairos-label mb-2 block">Certifications</label>
-            <ul className="space-y-2">
-              {coach.certifications.map((cert, idx) => (
-                <li key={idx} className="text-kairos-silver-dark font-body text-sm flex items-start gap-2">
-                  <span className="text-kairos-gold mt-1">•</span>
-                  {cert}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Years of Experience */}
-          <div>
-            <label className="kairos-label mb-2 block">Years of Experience</label>
-            <p className="text-kairos-silver-dark font-body text-sm">{coach.yearsExperience} years</p>
-          </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -168,85 +189,48 @@ export default function CoachProfilePage() {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Available Hours */}
-          <div>
-            <label className="kairos-label mb-2 block flex items-center gap-2">
-              <Clock className="w-4 h-4" />
-              Available Hours
-            </label>
-            {editingField === "availableHours" ? (
-              <div className="flex gap-2">
-                <input type="text" className="kairos-input flex-1" value={editValues.availableHours} onChange={(e) => setEditValues({ ...editValues, availableHours: e.target.value })} />
-                <button onClick={() => saveEdit("availableHours")} className="kairos-btn-gold px-4">Save</button>
-              </div>
-            ) : (
-              <div className="flex gap-2 items-center">
-                <p className="text-kairos-silver-dark font-body text-sm flex-1">{coach.availableHours}</p>
-                <button onClick={() => startEditing("availableHours", coach.availableHours)} className="text-kairos-gold hover:text-kairos-gold/80 transition">
-                  <Edit className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Session Duration */}
-          <div>
-            <label className="kairos-label mb-2 block flex items-center gap-2">
-              <Clock className="w-4 h-4" />
-              Session Duration (minutes)
-            </label>
-            {editingField === "sessionDuration" ? (
-              <div className="flex gap-2">
-                <input type="number" className="kairos-input flex-1" value={editValues.sessionDuration} onChange={(e) => setEditValues({ ...editValues, sessionDuration: e.target.value })} />
-                <button onClick={() => saveEdit("sessionDuration")} className="kairos-btn-gold px-4">Save</button>
-              </div>
-            ) : (
-              <div className="flex gap-2 items-center">
-                <p className="text-kairos-silver-dark font-body text-sm flex-1">{coach.sessionDuration} minutes</p>
-                <button onClick={() => startEditing("sessionDuration", coach.sessionDuration.toString())} className="text-kairos-gold hover:text-kairos-gold/80 transition">
-                  <Edit className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Max Client Capacity */}
-          <div>
-            <label className="kairos-label mb-2 block flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              Max Client Capacity
-            </label>
-            {editingField === "maxClientCapacity" ? (
-              <div className="flex gap-2">
-                <input type="number" className="kairos-input flex-1" value={editValues.maxClientCapacity} onChange={(e) => setEditValues({ ...editValues, maxClientCapacity: e.target.value })} />
-                <button onClick={() => saveEdit("maxClientCapacity")} className="kairos-btn-gold px-4">Save</button>
-              </div>
-            ) : (
-              <div className="flex gap-2 items-center">
-                <p className="text-kairos-silver-dark font-body text-sm flex-1">{coach.maxClientCapacity} clients</p>
-                <button onClick={() => startEditing("maxClientCapacity", coach.maxClientCapacity.toString())} className="text-kairos-gold hover:text-kairos-gold/80 transition">
-                  <Edit className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
           {/* Contact Info */}
           <div>
             <label className="kairos-label mb-2 block flex items-center gap-2">
               <Mail className="w-4 h-4" />
               Email
             </label>
-            <p className="text-kairos-silver-dark font-body text-sm">{coach.email}</p>
+            <p className="text-kairos-silver-dark font-body text-sm">{user.email}</p>
           </div>
 
-          <div className="md:col-span-2">
-            <label className="kairos-label mb-2 block flex items-center gap-2">
-              <Phone className="w-4 h-4" />
-              Phone
-            </label>
-            <p className="text-kairos-silver-dark font-body text-sm">{coach.phone}</p>
-          </div>
+          {profile && (
+            <div>
+              <label className="kairos-label mb-2 block flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                Max Client Capacity
+              </label>
+              <p className="text-kairos-silver-dark font-body text-sm">{profile.capacity} clients</p>
+            </div>
+          )}
+
+          {revenue && (
+            <>
+              <div>
+                <label className="kairos-label mb-2 block flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Total Revenue
+                </label>
+                <p className="text-kairos-silver-dark font-body text-sm">
+                  ${revenue.totalMonthlyRevenue?.toFixed(2) ?? "0.00"}
+                </p>
+              </div>
+
+              <div>
+                <label className="kairos-label mb-2 block flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  This Month
+                </label>
+                <p className="text-kairos-silver-dark font-body text-sm">
+                  ${revenue.totalMonthlyRevenue?.toFixed(2) ?? "0.00"}
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -257,13 +241,16 @@ export default function CoachProfilePage() {
           Notification Preferences
         </h2>
 
+        <p className="text-kairos-silver-dark font-body text-sm mb-4">
+          Manage how you receive notifications about your coaching practice.
+        </p>
+
         <div className="space-y-4">
           {(["email", "sms", "inApp"] as const).map((type) => {
             const icons = { email: Mail, sms: Phone, inApp: Bell };
             const labels = { email: "Email", sms: "SMS", inApp: "In-App" };
             const descs = { email: "Receive email notifications", sms: "Receive SMS notifications", inApp: "Receive in-app notifications" };
             const Icon = icons[type];
-            const isOn = coach.notificationPreferences[type];
 
             return (
               <div key={type} className="flex items-center justify-between p-4 rounded-kairos-sm bg-kairos-card border border-kairos-border/50">
@@ -276,14 +263,20 @@ export default function CoachProfilePage() {
                 </div>
                 <button
                   onClick={() => toggleNotification(type)}
-                  className={`relative w-12 h-6 rounded-full transition ${isOn ? "bg-kairos-gold" : "bg-kairos-silver-dark/20"}`}
+                  className={`relative w-12 h-6 rounded-full transition disabled:opacity-50`}
+                  disabled={true}
+                  title="Notification preferences can be updated via tRPC mutation"
                 >
-                  <div className={`absolute w-5 h-5 bg-white rounded-full transition ${isOn ? "right-0.5" : "left-0.5"}`} />
+                  <div className="absolute w-5 h-5 bg-white rounded-full transition left-0.5" />
                 </button>
               </div>
             );
           })}
         </div>
+
+        <p className="text-xs text-kairos-silver-dark mt-4 italic">
+          Note: Notification preferences are ready for tRPC mutation implementation
+        </p>
       </div>
     </div>
   );

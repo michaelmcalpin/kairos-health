@@ -7,37 +7,48 @@ import {
   AlertTriangle,
   Calendar,
 } from "lucide-react";
-import {
-  listCoachFollowUps,
-  getFollowUpStats,
-  toggleFollowUpComplete,
-} from "@/lib/coach-ops/engine";
+import { trpc } from "@/lib/trpc";
 import { PRIORITY_COLORS } from "@/lib/coach-ops/types";
-
-const COACH_ID = "demo-coach";
 
 type FilterTab = "All" | "Due Today" | "Overdue" | "Upcoming" | "Completed";
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState<FilterTab>("All");
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  const followUps = refreshKey >= 0 ? listCoachFollowUps(COACH_ID) : [];
-  const stats = refreshKey >= 0 ? getFollowUpStats(COACH_ID) : { total: 0, pending: 0, overdue: 0, dueToday: 0, completedThisWeek: 0 };
+  // Fetch active alerts (follow-ups) from tRPC
+  const { data: alertsData = { alerts: [], total: 0, hasMore: false }, isLoading: alertsLoading } =
+    trpc.coach.alerts.list.useQuery({ status: "active", limit: 50 });
 
+  const { mutate: acknowledgeAlert } = trpc.coach.alerts.acknowledge.useMutation({
+    onSuccess: () => {
+      // Refetch alerts after acknowledging
+      void trpc.useUtils().coach.alerts.list.invalidate();
+    },
+  });
+
+  const followUps = alertsData.alerts || [];
   const todayStr = new Date().toISOString().split("T")[0];
+
+  // Calculate stats from the data
+  const stats = {
+    total: followUps.length,
+    pending: followUps.filter((a) => !a.acknowledgedAt).length,
+    overdue: followUps.filter((a) => !a.acknowledgedAt && a.createdAt < todayStr).length,
+    dueToday: followUps.filter((a) => !a.acknowledgedAt && a.createdAt === todayStr).length,
+    completedThisWeek: followUps.filter((a) => a.acknowledgedAt).length,
+  };
 
   const getFilteredFollowUps = () => {
     return followUps.filter((item) => {
       switch (activeTab) {
         case "Due Today":
-          return !item.completed && item.dueDate === todayStr;
+          return !item.acknowledgedAt && item.createdAt === todayStr;
         case "Overdue":
-          return !item.completed && item.dueDate < todayStr;
+          return !item.acknowledgedAt && item.createdAt < todayStr;
         case "Upcoming":
-          return !item.completed && item.dueDate > todayStr;
+          return !item.acknowledgedAt && item.createdAt > todayStr;
         case "Completed":
-          return item.completed;
+          return item.acknowledgedAt;
         case "All":
         default:
           return true;
@@ -46,8 +57,7 @@ export default function Page() {
   };
 
   const handleToggle = (id: string) => {
-    toggleFollowUpComplete(COACH_ID, id);
-    setRefreshKey((k) => k + 1);
+    acknowledgeAlert({ alertId: id });
   };
 
   const isOverdue = (dueDate: string, completed: boolean) => {
@@ -112,7 +122,11 @@ export default function Page() {
 
       {/* Follow-ups List */}
       <div className="space-y-4">
-        {filteredItems.length === 0 ? (
+        {alertsLoading ? (
+          <div className="kairos-card p-8 text-center border border-kairos-border">
+            <p className="text-kairos-silver-dark font-body">Loading follow-ups...</p>
+          </div>
+        ) : filteredItems.length === 0 ? (
           <div className="kairos-card p-8 text-center border border-kairos-border">
             <CheckCircle className="w-12 h-12 text-kairos-gold mx-auto mb-4 opacity-50" />
             <p className="text-kairos-silver-dark font-body">
@@ -123,15 +137,17 @@ export default function Page() {
           </div>
         ) : (
           filteredItems.map((item) => {
-            const pColors = PRIORITY_COLORS[item.priority];
+            const pColors = (PRIORITY_COLORS as Record<string, { text: string; bg: string }>)[item.priority] ?? PRIORITY_COLORS.medium;
+            const isCompleted = !!item.acknowledgedAt;
+            const isOverdueItem = !isCompleted && item.createdAt < todayStr;
             return (
               <div
                 key={item.id}
                 className={`kairos-card border rounded-kairos-sm p-5 transition-all ${
-                  isOverdue(item.dueDate, item.completed)
+                  isOverdueItem
                     ? "border-red-500 border-opacity-50 bg-kairos-card-hover"
                     : "border-kairos-border"
-                } ${item.completed ? "opacity-60" : ""}`}
+                } ${isCompleted ? "opacity-60" : ""}`}
               >
                 <div className="flex gap-4">
                   {/* Checkbox */}
@@ -141,12 +157,12 @@ export default function Page() {
                   >
                     <div
                       className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${
-                        item.completed
+                        isCompleted
                           ? "bg-kairos-gold border-kairos-gold"
                           : "border-kairos-silver-dark hover:border-kairos-gold"
                       }`}
                     >
-                      {item.completed && (
+                      {isCompleted && (
                         <CheckCircle className="w-4 h-4 text-black" strokeWidth={3} />
                       )}
                     </div>
@@ -159,13 +175,13 @@ export default function Page() {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-kairos-gold flex items-center justify-center flex-shrink-0">
                           <span className="text-black font-heading font-bold text-sm">
-                            {item.clientInitials}
+                            {item.clientName?.split(" ").map((n: string) => n[0]).join("").toUpperCase() || "?"}
                           </span>
                         </div>
                         <div className="min-w-0">
                           <h3
                             className={`font-heading font-semibold ${
-                              item.completed
+                              isCompleted
                                 ? "text-kairos-silver-dark line-through"
                                 : "text-white"
                             }`}
@@ -173,7 +189,7 @@ export default function Page() {
                             {item.clientName}
                           </h3>
                           <p className="text-xs text-kairos-silver-dark font-body">
-                            {item.category}
+                            {item.priority}
                           </p>
                         </div>
                       </div>
@@ -185,8 +201,8 @@ export default function Page() {
                     </div>
 
                     {/* Description */}
-                    <p className={`font-body text-sm mb-3 ${item.completed ? "text-kairos-silver-dark line-through" : "text-kairos-silver-dark"}`}>
-                      {item.description}
+                    <p className={`font-body text-sm mb-3 ${isCompleted ? "text-kairos-silver-dark line-through" : "text-kairos-silver-dark"}`}>
+                      {item.title}
                     </p>
 
                     {/* Due Date Info */}
@@ -195,17 +211,17 @@ export default function Page() {
                         <Calendar className="w-4 h-4 text-kairos-gold" />
                         <span
                           className={`text-xs font-body font-semibold ${
-                            isOverdue(item.dueDate, item.completed)
+                            isOverdueItem
                               ? "text-red-400"
-                              : item.dueDate === todayStr
+                              : item.createdAt === todayStr
                                 ? "text-kairos-gold"
                                 : "text-kairos-silver-dark"
                           }`}
                         >
-                          {item.dueDate}
+                          {item.createdAt}
                         </span>
                       </div>
-                      {isOverdue(item.dueDate, item.completed) && (
+                      {isOverdueItem && (
                         <div className="flex items-center gap-1">
                           <AlertTriangle className="w-4 h-4 text-red-400" />
                           <span className="text-xs font-semibold text-red-400 font-body">
