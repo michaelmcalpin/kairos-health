@@ -88,6 +88,47 @@ export const clientWorkoutsRouter = router({
       return result[0];
     }),
 
+  // Quick log a workout (simplified for UI modal without structured exercise data)
+  quickLog: clientProcedure
+    .input(
+      z.object({
+        date: z.string().optional(),
+        workoutType: z.enum(["strength", "cardio", "hiit", "yoga", "stretching", "sports", "other"]),
+        durationMinutes: z.number().min(1).max(600),
+        caloriesBurned: z.number().optional(),
+        avgHeartRate: z.number().optional(),
+        maxHeartRate: z.number().optional(),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await ctx.db
+        .insert(workoutLogs)
+        .values({
+          clientId: ctx.dbUserId,
+          sessionId: null,
+          date: input.date ?? new Date().toISOString().split("T")[0],
+          // Store quick log data as JSON in exercisesCompleted field
+          // Cast needed: quick_log entries use a different shape than structured exercises
+          exercisesCompleted: [
+            {
+              exerciseId: `quick_log:${input.workoutType}`,
+              sets: [{
+                weight: input.durationMinutes,
+                reps: input.caloriesBurned ?? 0,
+                rpe: input.avgHeartRate ?? 0,
+              }],
+              // Extra metadata stored in jsonb but typed loosely
+              ...(({ workoutType: input.workoutType, durationMinutes: input.durationMinutes, caloriesBurned: input.caloriesBurned ?? null, avgHeartRate: input.avgHeartRate ?? null, maxHeartRate: input.maxHeartRate ?? null }) as Record<string, unknown>),
+            },
+          ] as typeof workoutLogs.$inferInsert["exercisesCompleted"],
+          notes: input.notes ?? null,
+        })
+        .returning();
+
+      return result[0];
+    }),
+
   // Get active workout program assignment
   getActiveProgram: clientProcedure.query(async ({ ctx }) => {
     const assignment = await ctx.db.query.clientWorkoutAssignments.findFirst({

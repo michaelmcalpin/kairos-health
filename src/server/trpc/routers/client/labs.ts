@@ -136,4 +136,207 @@ export const clientLabsRouter = router({
       totalResults: Number(resultCount[0]?.count ?? 0),
     };
   }),
+
+  // Upload a PDF and create lab order + result
+  uploadPdf: clientProcedure
+    .input(
+      z.object({
+        panelName: z.string(),
+        provider: z.string().optional(),
+        pdfUrl: z.string().url(),
+        receivedDate: z.string().datetime().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const orderId = crypto.randomUUID();
+      const resultId = crypto.randomUUID();
+      const now = new Date();
+      const receivedAt = input.receivedDate
+        ? new Date(input.receivedDate)
+        : now;
+
+      // Create lab order
+      await ctx.db.insert(labOrders).values({
+        id: orderId,
+        clientId: ctx.dbUserId,
+        panelName: input.panelName,
+        provider: input.provider,
+        status: "results_received",
+        orderedAt: now,
+      });
+
+      // Create lab result
+      await ctx.db.insert(labResults).values({
+        id: resultId,
+        orderId: orderId,
+        clientId: ctx.dbUserId,
+        receivedAt: receivedAt,
+        pdfUrl: input.pdfUrl,
+        ocrStatus: "pending",
+      });
+
+      return {
+        order: {
+          id: orderId,
+          panelName: input.panelName,
+          provider: input.provider,
+          status: "results_received",
+          orderedAt: now,
+        },
+        result: {
+          id: resultId,
+          orderId: orderId,
+          receivedAt: receivedAt,
+          pdfUrl: input.pdfUrl,
+          ocrStatus: "pending",
+        },
+      };
+    }),
+
+  // Import results from a URL source
+  importUrl: clientProcedure
+    .input(
+      z.object({
+        panelName: z.string(),
+        provider: z.string().optional(),
+        sourceUrl: z.string().url(),
+        receivedDate: z.string().datetime().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const orderId = crypto.randomUUID();
+      const resultId = crypto.randomUUID();
+      const now = new Date();
+      const receivedAt = input.receivedDate
+        ? new Date(input.receivedDate)
+        : now;
+
+      // Create lab order
+      await ctx.db.insert(labOrders).values({
+        id: orderId,
+        clientId: ctx.dbUserId,
+        panelName: input.panelName,
+        provider: input.provider,
+        status: "results_received",
+        orderedAt: now,
+      });
+
+      // Create lab result
+      await ctx.db.insert(labResults).values({
+        id: resultId,
+        orderId: orderId,
+        clientId: ctx.dbUserId,
+        receivedAt: receivedAt,
+        pdfUrl: input.sourceUrl,
+        ocrStatus: "url_imported",
+      });
+
+      return {
+        order: {
+          id: orderId,
+          panelName: input.panelName,
+          provider: input.provider,
+          status: "results_received",
+          orderedAt: now,
+        },
+        result: {
+          id: resultId,
+          orderId: orderId,
+          receivedAt: receivedAt,
+          pdfUrl: input.sourceUrl,
+          ocrStatus: "url_imported",
+        },
+      };
+    }),
+
+  // Add manually entered results with biomarker values
+  addManualResults: clientProcedure
+    .input(
+      z.object({
+        panelName: z.string(),
+        provider: z.string().optional(),
+        receivedDate: z.string().datetime().optional(),
+        biomarkers: z.array(
+          z.object({
+            code: z.string(),
+            name: z.string(),
+            value: z.number(),
+            unit: z.string().optional(),
+            refLow: z.number().optional(),
+            refHigh: z.number().optional(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const orderId = crypto.randomUUID();
+      const resultId = crypto.randomUUID();
+      const now = new Date();
+      const receivedAt = input.receivedDate
+        ? new Date(input.receivedDate)
+        : now;
+
+      // Create lab order
+      await ctx.db.insert(labOrders).values({
+        id: orderId,
+        clientId: ctx.dbUserId,
+        panelName: input.panelName,
+        provider: input.provider,
+        status: "results_received",
+        orderedAt: now,
+      });
+
+      // Create lab result
+      await ctx.db.insert(labResults).values({
+        id: resultId,
+        orderId: orderId,
+        clientId: ctx.dbUserId,
+        receivedAt: receivedAt,
+        pdfUrl: null,
+        ocrStatus: "manual",
+      });
+
+      // Insert biomarker values
+      const biomarkerRows = input.biomarkers.map((bm) => {
+        let status = "normal";
+        if (bm.refLow !== undefined && bm.value < bm.refLow) {
+          status = "low";
+        } else if (bm.refHigh !== undefined && bm.value > bm.refHigh) {
+          status = "high";
+        }
+
+        return {
+          id: crypto.randomUUID(),
+          resultId: resultId,
+          biomarkerCode: bm.code,
+          value: bm.value,
+          unit: bm.unit,
+          refLow: bm.refLow,
+          refHigh: bm.refHigh,
+          status: status,
+        };
+      });
+
+      if (biomarkerRows.length > 0) {
+        await ctx.db.insert(biomarkerValues).values(biomarkerRows);
+      }
+
+      return {
+        order: {
+          id: orderId,
+          panelName: input.panelName,
+          provider: input.provider,
+          status: "results_received",
+          orderedAt: now,
+        },
+        result: {
+          id: resultId,
+          orderId: orderId,
+          receivedAt: receivedAt,
+          pdfUrl: null,
+          ocrStatus: "manual",
+        },
+        biomarkerCount: input.biomarkers.length,
+      };
+    }),
 });

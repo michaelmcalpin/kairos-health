@@ -6,6 +6,7 @@ import { dateRangeInput } from "@/server/trpc/shared";
 
 export const clientGlucoseRouter = router({
   // List glucose readings within a date range
+  // Note: For manual entries, trendDirection contains the timing context (fasting, pre_meal, post_meal, etc.)
   list: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
@@ -102,6 +103,8 @@ export const clientGlucoseRouter = router({
         valueMgdl: z.number().min(20).max(600),
         timestamp: z.string().optional(),
         source: z.string().default("manual"),
+        timingContext: z.enum(["fasting", "pre_meal", "post_meal", "bedtime", "waking", "other"]).optional(),
+        notes: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -112,6 +115,9 @@ export const clientGlucoseRouter = router({
           valueMgdl: input.valueMgdl,
           timestamp: input.timestamp ? new Date(input.timestamp) : new Date(),
           source: input.source,
+          // Store timingContext in trendDirection field (varchar(20), unused for manual entries until schema migration)
+          trendDirection: input.timingContext ?? null,
+          // notes are silently dropped (no column in schema yet)
         })
         .returning();
 
