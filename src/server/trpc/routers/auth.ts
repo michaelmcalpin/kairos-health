@@ -21,7 +21,26 @@ export const authRouter = router({
     const existing = await ctx.db.query.users.findFirst({
       where: eq(users.clerkId, clerkId),
     });
-    if (existing) return { user: existing, created: false };
+
+    if (existing) {
+      // Sync role from Clerk publicMetadata in case it was updated
+      // (e.g. admin promoted user via Clerk dashboard)
+      const clerkUser = await currentUser();
+      if (clerkUser) {
+        const validRoles = ["client", "trainer", "company_admin", "super_admin"] as const;
+        type ValidRole = (typeof validRoles)[number];
+        const metaRole = clerkUser.publicMetadata?.role as string | undefined;
+        if (metaRole && (validRoles as readonly string[]).includes(metaRole) && metaRole !== existing.role) {
+          const [updated] = await ctx.db
+            .update(users)
+            .set({ role: metaRole as ValidRole, updatedAt: new Date() })
+            .where(eq(users.clerkId, clerkId))
+            .returning();
+          return { user: updated, created: false };
+        }
+      }
+      return { user: existing, created: false };
+    }
 
     // Fetch full Clerk user to get email + metadata
     const clerkUser = await currentUser();
