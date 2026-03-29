@@ -85,8 +85,22 @@ interface UseAuthRoleResult {
  * without any bleeding between the two contexts.
  */
 export function useAuthRole(): UseAuthRoleResult {
-  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
-  const [portalSwitchTs, setPortalSwitchTs] = useState<number | null>(null);
+  // Read localStorage synchronously during state init so activeRole is
+  // available on the very first render — prevents RoleGuard from seeing
+  // null and redirecting to /select-role before the useEffect fires.
+  const [activeRole, setActiveRole] = useState<UserRole | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(PORTAL_SESSION_KEY) as UserRole | null;
+    }
+    return null;
+  });
+  const [portalSwitchTs, setPortalSwitchTs] = useState<number | null>(() => {
+    if (typeof window !== "undefined") {
+      const ts = localStorage.getItem(PORTAL_SWITCH_TS_KEY);
+      return ts ? parseInt(ts, 10) : null;
+    }
+    return null;
+  });
 
   // Fetch verified role from DB
   const { data: me, isLoading, isError } = trpc.auth.me.useQuery(undefined, {
@@ -96,17 +110,6 @@ export function useAuthRole(): UseAuthRoleResult {
   });
 
   const dbRole: UserRole | null = (me?.role as UserRole) ?? null;
-
-  // On mount, read localStorage
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(PORTAL_SESSION_KEY) as UserRole | null;
-      setActiveRole(saved);
-
-      const ts = localStorage.getItem(PORTAL_SWITCH_TS_KEY);
-      if (ts) setPortalSwitchTs(parseInt(ts, 10));
-    }
-  }, []);
 
   // When DB role arrives, validate localStorage
   useEffect(() => {
