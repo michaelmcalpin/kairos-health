@@ -18,6 +18,7 @@ import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useWorkouts } from "@/hooks/client/useWorkouts";
 import { getTodaysWorkout, getWeeklySchedule, getHeartRateZones } from "@/lib/client-ops";
+import { trpc } from "@/lib/trpc";
 
 export default function WorkoutsPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
@@ -43,18 +44,43 @@ export default function WorkoutsPage() {
   const weeklySchedule = getWeeklySchedule();
   const heartRateZones = getHeartRateZones();
 
+  // tRPC mutation for saving workouts
+  const saveWorkoutMutation = trpc.clientPortal.workouts.quickLog.useMutation({
+    onSuccess: () => {
+      // Reset form and close modal
+      setFormData({
+        type: "",
+        duration: "",
+        calories: "",
+        avgHeartRate: "",
+        maxHeartRate: "",
+        notes: "",
+      });
+      setShowLogForm(false);
+    },
+    onError: (error) => {
+      console.error("Failed to save workout:", error);
+    },
+  });
+
   const handleSaveWorkout = () => {
-    // TODO: Save workout to database
-    console.log("Saving workout:", formData);
-    setFormData({
-      type: "",
-      duration: "",
-      calories: "",
-      avgHeartRate: "",
-      maxHeartRate: "",
-      notes: "",
+    // Map form data to mutation input
+    const workoutType = (formData.type.toLowerCase().includes("strength") ? "strength" :
+      formData.type.toLowerCase().includes("cardio") ? "cardio" :
+      formData.type.toLowerCase().includes("hiit") ? "hiit" :
+      formData.type.toLowerCase().includes("yoga") ? "yoga" :
+      formData.type.toLowerCase().includes("stretch") ? "stretching" :
+      formData.type.toLowerCase().includes("sport") ? "sports" : "other") as
+      "strength" | "cardio" | "hiit" | "yoga" | "stretching" | "sports" | "other";
+
+    saveWorkoutMutation.mutate({
+      workoutType,
+      durationMinutes: parseInt(formData.duration) || 0,
+      caloriesBurned: formData.calories ? parseInt(formData.calories) : undefined,
+      avgHeartRate: formData.avgHeartRate ? parseInt(formData.avgHeartRate) : undefined,
+      maxHeartRate: formData.maxHeartRate ? parseInt(formData.maxHeartRate) : undefined,
+      notes: formData.notes || undefined,
     });
-    setShowLogForm(false);
   };
 
   const handleCancelForm = () => {
@@ -336,13 +362,15 @@ export default function WorkoutsPage() {
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={handleSaveWorkout}
-                  className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50 flex-1"
+                  disabled={saveWorkoutMutation.isPending}
+                  className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50 flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Save Workout
+                  {saveWorkoutMutation.isPending ? "Saving..." : "Save Workout"}
                 </button>
                 <button
                   onClick={handleCancelForm}
-                  className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all flex-1"
+                  disabled={saveWorkoutMutation.isPending}
+                  className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>

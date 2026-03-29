@@ -17,6 +17,7 @@ import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useNutrition } from "@/hooks/client/useNutrition";
 import { generateMeals } from "@/lib/client-ops";
+import { trpc } from "@/lib/trpc";
 
 interface FoodItem {
   id: string;
@@ -64,6 +65,16 @@ export default function NutritionPage() {
   const meals = generateMeals(dateRange.startDate);
 
   const calculatePercentage = (actual: number, target: number) => Math.min((actual / target) * 100, 100);
+
+  // tRPC mutation for saving meals
+  const saveMealMutation = trpc.clientPortal.meals.add.useMutation({
+    onSuccess: () => {
+      handleCloseModal();
+    },
+    onError: (error) => {
+      console.error("Failed to save meal:", error);
+    },
+  });
 
   const handleAddMeal = () => {
     setIsModalOpen(true);
@@ -121,10 +132,33 @@ export default function NutritionPage() {
     }
   };
 
-  const handleSaveMeal = () => {
-    // UI-only for now, no tRPC calls needed
-    console.log("Meal saved:", formState);
-    handleCloseModal();
+  const handleSaveMeal = async () => {
+    // Calculate totals
+    const totalCalories = formState.foodItems.reduce((sum, item) => sum + item.calories, 0);
+    const totalProtein = formState.foodItems.reduce((sum, item) => sum + item.protein, 0);
+    const totalCarbs = formState.foodItems.reduce((sum, item) => sum + item.carbs, 0);
+    const totalFat = formState.foodItems.reduce((sum, item) => sum + item.fat, 0);
+
+    // Convert form state to mutation input
+    saveMealMutation.mutate({
+      date: dateRange.startDate instanceof Date ? dateRange.startDate.toISOString().split("T")[0] : String(dateRange.startDate),
+      mealType: formState.mealType,
+      items: formState.foodItems.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fat: item.fat,
+      })),
+      photoUrl: formState.photo ? URL.createObjectURL(formState.photo) : undefined,
+      totalCalories,
+      totalProtein,
+      totalCarbs,
+      totalFat,
+      totalFiber: 0, // Could be enhanced to calculate from items
+    });
   };
 
   const renderCircularProgress = (percentage: number, label: string, value: string) => {
@@ -538,15 +572,17 @@ export default function NutritionPage() {
             <div className="flex gap-3 p-6 border-t border-kairos-border bg-kairos-royal-surface sticky bottom-0">
               <button
                 onClick={handleCloseModal}
-                className="flex-1 kairos-btn-outline"
+                disabled={saveMealMutation.isPending}
+                className="flex-1 kairos-btn-outline disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveMeal}
-                className="flex-1 kairos-btn-gold"
+                disabled={saveMealMutation.isPending}
+                className="flex-1 kairos-btn-gold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save Meal
+                {saveMealMutation.isPending ? "Saving..." : "Save Meal"}
               </button>
             </div>
           </div>

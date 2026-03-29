@@ -6,6 +6,7 @@ import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useGlucose } from "@/hooks/client/useGlucose";
 import { useThemeColors } from "@/lib/theme";
+import { trpc } from "@/lib/trpc";
 import { Droplets, TrendingDown, TrendingUp, Clock, Target, AlertTriangle, Plus, X } from "lucide-react";
 
 export default function GlucosePage() {
@@ -15,13 +16,16 @@ export default function GlucosePage() {
   const { readings: rawReadings, dailySummaries, weeklySummaries, stats } = useGlucose(dateRange);
   const themeColors = useThemeColors();
 
+  // tRPC mutation
+  const createGlucose = trpc.clientPortal.glucose.create.useMutation();
+
   // Manual entry form state
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     time: new Date().toTimeString().slice(0, 5),
     glucose: "",
-    timing: "random",
+    timing: "fasting",
     mealDescription: "",
     notes: "",
   });
@@ -31,19 +35,54 @@ export default function GlucosePage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = () => {
-    // Form submission - no tRPC call, just UI feedback for now
-    console.log("Saving glucose reading:", formData);
-    setShowManualEntry(false);
-    // Reset form
-    setFormData({
-      date: new Date().toISOString().split("T")[0],
-      time: new Date().toTimeString().slice(0, 5),
-      glucose: "",
-      timing: "random",
-      mealDescription: "",
-      notes: "",
-    });
+  const handleSave = async () => {
+    // Validate required fields
+    if (!formData.glucose) {
+      alert("Please enter a glucose value");
+      return;
+    }
+
+    const glucoseValue = parseFloat(formData.glucose);
+    if (isNaN(glucoseValue)) {
+      alert("Please enter a valid glucose value");
+      return;
+    }
+
+    // Combine date and time into ISO timestamp
+    const dateTimeString = `${formData.date}T${formData.time}:00`;
+    const timestamp = new Date(dateTimeString).toISOString();
+
+    // Map timing context: convert form values to tRPC mutation values
+    let timingContext: "fasting" | "pre_meal" | "post_meal" | "bedtime" | "waking" | "other" = "other";
+    if (formData.timing === "fasting") timingContext = "fasting";
+    else if (formData.timing === "pre-meal") timingContext = "pre_meal";
+    else if (formData.timing === "post-meal-1hr" || formData.timing === "post-meal-2hr") timingContext = "post_meal";
+    else if (formData.timing === "bedtime") timingContext = "bedtime";
+    else timingContext = "other";
+
+    try {
+      await createGlucose.mutateAsync({
+        valueMgdl: glucoseValue,
+        timestamp,
+        timingContext,
+        notes: formData.notes || undefined,
+        source: formData.mealDescription || undefined,
+      });
+
+      // Close modal and reset form on success
+      setShowManualEntry(false);
+      setFormData({
+        date: new Date().toISOString().split("T")[0],
+        time: new Date().toTimeString().slice(0, 5),
+        glucose: "",
+        timing: "fasting",
+        mealDescription: "",
+        notes: "",
+      });
+    } catch (error) {
+      console.error("Error saving glucose reading:", error);
+      alert("Failed to save glucose reading. Please try again.");
+    }
   };
 
   const handleCancel = () => {
@@ -52,7 +91,7 @@ export default function GlucosePage() {
       date: new Date().toISOString().split("T")[0],
       time: new Date().toTimeString().slice(0, 5),
       glucose: "",
-      timing: "random",
+      timing: "fasting",
       mealDescription: "",
       notes: "",
     });
@@ -185,13 +224,15 @@ export default function GlucosePage() {
             <div className="flex gap-3 pt-4">
               <button
                 onClick={handleSave}
-                className="kairos-btn-gold flex-1"
+                disabled={createGlucose.isPending}
+                className="kairos-btn-gold flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save Reading
+                {createGlucose.isPending ? "Saving..." : "Save Reading"}
               </button>
               <button
                 onClick={handleCancel}
-                className="kairos-btn-outline flex-1"
+                disabled={createGlucose.isPending}
+                className="kairos-btn-outline flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>

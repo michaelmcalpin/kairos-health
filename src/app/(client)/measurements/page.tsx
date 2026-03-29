@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useMeasurements } from "@/hooks/client/useMeasurements";
+import { trpc } from "@/lib/trpc";
 import {
   Scale,
   TrendingUp,
@@ -73,26 +74,45 @@ export default function MeasurementsPage() {
 
   const { records: measurements } = useMeasurements(dateRange);
 
+  const createMeasurement = trpc.clientPortal.measurements.createWithVitals.useMutation();
+  const { isPending } = createMeasurement;
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = () => {
-    // UI-only, no tRPC calls
-    console.log("Save measurement:", formData);
-    // Reset form and hide
-    setFormData({
-      date: new Date().toISOString().split('T')[0],
-      weight: "",
-      bodyFat: "",
-      waistCircumference: "",
-      systolic: "",
-      diastolic: "",
-      restingHR: "",
-      notes: "",
-    });
-    setShowForm(false);
+  const handleSave = async () => {
+    try {
+      // Parse numeric values and map form fields to mutation input
+      const measurementInput = {
+        date: formData.date || undefined,
+        weightLbs: formData.weight ? parseFloat(formData.weight) : undefined,
+        bodyFatPct: formData.bodyFat ? parseFloat(formData.bodyFat) : undefined,
+        waistInches: formData.waistCircumference ? parseFloat(formData.waistCircumference) : undefined,
+        systolicBP: formData.systolic ? parseFloat(formData.systolic) : undefined,
+        diastolicBP: formData.diastolic ? parseFloat(formData.diastolic) : undefined,
+        restingHR: formData.restingHR ? parseFloat(formData.restingHR) : undefined,
+        source: formData.notes || undefined,
+      };
+
+      await createMeasurement.mutateAsync(measurementInput);
+
+      // Reset form and hide
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        weight: "",
+        bodyFat: "",
+        waistCircumference: "",
+        systolic: "",
+        diastolic: "",
+        restingHR: "",
+        notes: "",
+      });
+      setShowForm(false);
+    } catch (error) {
+      console.error("Failed to save measurement:", error);
+    }
   };
 
   const handleCancel = () => {
@@ -297,15 +317,17 @@ export default function MeasurementsPage() {
           <div className="flex gap-3 justify-end">
             <button
               onClick={handleCancel}
-              className="kairos-btn-outline px-4 py-2 rounded-kairos-sm font-body text-sm"
+              disabled={isPending}
+              className="kairos-btn-outline px-4 py-2 rounded-kairos-sm font-body text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="kairos-btn-gold px-4 py-2 rounded-kairos-sm font-body text-sm"
+              disabled={isPending}
+              className="kairos-btn-gold px-4 py-2 rounded-kairos-sm font-body text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Save Measurement
+              {isPending ? "Saving..." : "Save Measurement"}
             </button>
           </div>
         </div>

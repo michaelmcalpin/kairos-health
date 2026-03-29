@@ -7,6 +7,7 @@ import { useDateRange } from "@/hooks/useDateRange";
 import { useSleep } from "@/hooks/client/useSleep";
 import { Moon, Clock, Zap, Brain, TrendingUp, Sun, Plus, X } from "lucide-react";
 import { generateSleepStages } from "@/lib/client-ops";
+import { trpc } from "@/lib/trpc";
 
 const stageColors: Record<string, string> = {
   deep: "#6366f1",
@@ -23,8 +24,12 @@ export default function SleepPage() {
 
   const displayRecord = lastRecord || { score: 0, total: 0, deep: 0, rem: 0, light: 0, awake: 0, bedtime: "--", wake: "--" };
 
+  // tRPC mutation for creating sleep entry
+  const createSleep = trpc.clientPortal.sleep.create.useMutation();
+
   // Manual sleep entry state
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     bedtime: "22:00",
@@ -62,23 +67,53 @@ export default function SleepPage() {
     setFormData(prev => ({ ...prev, sleepQuality: parseInt(e.target.value) }));
   };
 
-  const handleSaveEntry = () => {
-    // Placeholder for save logic - currently UI only
-    console.log("Sleep entry saved:", {
-      ...formData,
-      totalSleep: formData.totalSleep || calculatedTotalSleep,
-    });
-    setShowManualEntry(false);
-    setFormData({
-      date: new Date().toISOString().split('T')[0],
-      bedtime: "22:00",
-      wakeTime: "06:00",
-      totalSleep: "",
-      deepSleep: "",
-      remSleep: "",
-      sleepQuality: 75,
-      notes: "",
-    });
+  const handleSaveEntry = async () => {
+    try {
+      // Prepare data for mutation - convert hours (string/number) to minutes
+      const totalMinutes = formData.totalSleep
+        ? Math.round(parseFloat(formData.totalSleep) * 60)
+        : Math.round(parseFloat(calculatedTotalSleep || "0") * 60);
+
+      const deepMinutes = formData.deepSleep
+        ? Math.round(parseFloat(formData.deepSleep) * 60)
+        : undefined;
+
+      const remMinutes = formData.remSleep
+        ? Math.round(parseFloat(formData.remSleep) * 60)
+        : undefined;
+
+      await createSleep.mutateAsync({
+        date: formData.date,
+        bedtime: formData.bedtime,
+        wakeTime: formData.wakeTime,
+        totalMinutes: totalMinutes,
+        deepMinutes: deepMinutes,
+        remMinutes: remMinutes,
+        score: formData.sleepQuality,
+        notes: formData.notes || undefined,
+      });
+
+      // Show success feedback
+      setSaveSuccess(true);
+
+      // Reset form and close modal
+      setShowManualEntry(false);
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        bedtime: "22:00",
+        wakeTime: "06:00",
+        totalSleep: "",
+        deepSleep: "",
+        remSleep: "",
+        sleepQuality: 75,
+        notes: "",
+      });
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error) {
+      console.error("Error saving sleep entry:", error);
+    }
   };
 
   const handleCancel = () => {
@@ -110,6 +145,13 @@ export default function SleepPage() {
           Add Sleep Entry
         </button>
       </div>
+
+      {/* Success Toast */}
+      {saveSuccess && (
+        <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-kairos-sm text-green-400 font-body text-sm">
+          Sleep entry saved successfully!
+        </div>
+      )}
 
       {/* Manual Sleep Entry Form */}
       {showManualEntry && (
@@ -243,13 +285,15 @@ export default function SleepPage() {
             <div className="flex gap-3 pt-2">
               <button
                 onClick={handleSaveEntry}
-                className="kairos-btn-gold flex-1"
+                disabled={createSleep.isPending}
+                className="kairos-btn-gold flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save Entry
+                {createSleep.isPending ? "Saving..." : "Save Entry"}
               </button>
               <button
                 onClick={handleCancel}
-                className="kairos-btn-outline flex-1"
+                disabled={createSleep.isPending}
+                className="kairos-btn-outline flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>

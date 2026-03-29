@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { getClientLabs, filterLabMarkers } from "@/lib/client-ops/engine";
 import { LAB_CATEGORIES } from "@/lib/client-ops/types";
+import { trpc } from "@/lib/trpc";
 
 const CLIENT_ID = "demo-client";
 
@@ -41,6 +42,7 @@ export default function LabsPage() {
   const [showAddResults, setShowAddResults] = useState(false);
   const [activeTab, setActiveTab] = useState<"pdf" | "url" | "manual">("pdf");
   const [urlInput, setUrlInput] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [manualForm, setManualForm] = useState<ManualEntryForm>({
     labName: "",
     requestingDoctor: "",
@@ -54,6 +56,11 @@ export default function LabsPage() {
     resultStatus: "normal",
     referenceRange: "",
   });
+
+  // tRPC mutations
+  const uploadPdfMutation = trpc.clientPortal.labs.uploadPdf.useMutation();
+  const importUrlMutation = trpc.clientPortal.labs.importUrl.useMutation();
+  const addManualResultsMutation = trpc.clientPortal.labs.addManualResults.useMutation();
 
   const { orders, stats: statusCounts } = getClientLabs(CLIENT_ID);
   const filteredMarkers = filterLabMarkers(CLIENT_ID, activeCategory);
@@ -119,7 +126,71 @@ export default function LabsPage() {
     });
   };
 
-  const handleSaveResults = () => {
+  const handleSaveResults = async () => {
+    try {
+      if (activeTab === "pdf") {
+        if (!pdfFile) {
+          alert("Please select a PDF file to upload");
+          return;
+        }
+        // For PDF upload, we would need to convert to base64 or get a URL
+        // This is a placeholder that assumes the PDF URL is available
+        const pdfUrl = await uploadPdfToStorage(pdfFile);
+        await uploadPdfMutation.mutateAsync({
+          panelName: "Lab Results",
+          provider: "unknown",
+          pdfUrl: pdfUrl,
+          receivedDate: new Date().toISOString().split("T")[0],
+        });
+      } else if (activeTab === "url") {
+        if (!urlInput.trim()) {
+          alert("Please enter a valid URL");
+          return;
+        }
+        await importUrlMutation.mutateAsync({
+          panelName: "Lab Results",
+          provider: "unknown",
+          sourceUrl: urlInput,
+          receivedDate: new Date().toISOString().split("T")[0],
+        });
+      } else if (activeTab === "manual") {
+        if (!manualForm.labName || !manualForm.date || manualForm.tests.length === 0) {
+          alert("Please fill in all required fields");
+          return;
+        }
+
+        // Extract numeric value from resultValue (e.g., "95 mg/dL" -> 95)
+        const biomarkers = manualForm.tests.map((test) => {
+          const valueMatch = test.resultValue.match(/^([\d.]+)/);
+          const numericValue = valueMatch ? parseFloat(valueMatch[1]) : 0;
+
+          return {
+            code: test.testName.toUpperCase().replace(/\s+/g, "_"),
+            name: test.testName,
+            value: numericValue,
+            unit: test.resultValue.replace(/^[\d.]+\s*/, ""),
+            refLow: undefined,
+            refHigh: undefined,
+          };
+        });
+
+        await addManualResultsMutation.mutateAsync({
+          panelName: manualForm.labName,
+          provider: manualForm.requestingDoctor || undefined,
+          receivedDate: manualForm.date,
+          biomarkers: biomarkers,
+        });
+      }
+
+      // Reset form after successful submission
+      resetForm();
+    } catch (error) {
+      console.error("Error saving lab results:", error);
+      alert("Failed to save lab results. Please try again.");
+    }
+  };
+
+  const resetForm = () => {
     setShowAddResults(false);
     setManualForm({
       labName: "",
@@ -135,24 +206,18 @@ export default function LabsPage() {
       referenceRange: "",
     });
     setUrlInput("");
+    setPdfFile(null);
+  };
+
+  // Placeholder function for PDF upload to storage
+  // In a real implementation, this would use a file upload service like S3
+  const uploadPdfToStorage = async (file: File): Promise<string> => {
+    // This is a placeholder - implement with actual storage service
+    return URL.createObjectURL(file);
   };
 
   const handleCancel = () => {
-    setShowAddResults(false);
-    setManualForm({
-      labName: "",
-      requestingDoctor: "",
-      date: new Date().toISOString().split("T")[0],
-      tests: [],
-      notes: "",
-    });
-    setCurrentTest({
-      testName: "",
-      resultValue: "",
-      resultStatus: "normal",
-      referenceRange: "",
-    });
-    setUrlInput("");
+    resetForm();
   };
 
   const getOrderStatusColor = (status: string): string => {
@@ -270,11 +335,21 @@ export default function LabsPage() {
             {/* PDF Upload Tab */}
             {activeTab === "pdf" && (
               <div className="space-y-4">
-                <div className="border-2 border-dashed border-kairos-border rounded-kairos-sm p-12 text-center hover:border-kairos-gold/50 transition-all cursor-pointer">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                  id="pdf-input"
+                />
+                <label
+                  htmlFor="pdf-input"
+                  className="border-2 border-dashed border-kairos-border rounded-kairos-sm p-12 text-center hover:border-kairos-gold/50 transition-all cursor-pointer block"
+                >
                   <Upload className="w-12 h-12 text-kairos-silver-dark mx-auto mb-4" />
-                  <p className="text-white font-body mb-2">Drag and drop your PDF here</p>
+                  <p className="text-white font-body mb-2">{pdfFile ? pdfFile.name : "Drag and drop your PDF here"}</p>
                   <p className="text-kairos-silver-dark text-sm font-body">or click to select a file</p>
-                </div>
+                </label>
                 <div className="flex gap-3 justify-end">
                   <button
                     onClick={handleCancel}
@@ -284,9 +359,10 @@ export default function LabsPage() {
                   </button>
                   <button
                     onClick={handleSaveResults}
-                    className="kairos-btn-gold text-black px-6 py-2 rounded-kairos-sm font-body text-sm font-medium hover:bg-kairos-gold/90 transition-all"
+                    disabled={!pdfFile || uploadPdfMutation.isPending}
+                    className="kairos-btn-gold text-black px-6 py-2 rounded-kairos-sm font-body text-sm font-medium hover:bg-kairos-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Import
+                    {uploadPdfMutation.isPending ? "Uploading..." : "Import"}
                   </button>
                 </div>
               </div>
@@ -302,22 +378,24 @@ export default function LabsPage() {
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
                     placeholder="https://example.com/lab-results"
-                    className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
+                    disabled={importUrlMutation.isPending}
+                    className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none disabled:opacity-50"
                   />
                 </div>
                 <div className="flex gap-3 justify-end">
                   <button
                     onClick={handleCancel}
-                    className="kairos-btn-outline text-kairos-silver-dark px-6 py-2 rounded-kairos-sm font-body text-sm font-medium hover:text-white transition-all"
+                    disabled={importUrlMutation.isPending}
+                    className="kairos-btn-outline text-kairos-silver-dark px-6 py-2 rounded-kairos-sm font-body text-sm font-medium hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveResults}
-                    disabled={!urlInput}
+                    disabled={!urlInput || importUrlMutation.isPending}
                     className="kairos-btn-gold text-black px-6 py-2 rounded-kairos-sm font-body text-sm font-medium hover:bg-kairos-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Import
+                    {importUrlMutation.isPending ? "Importing..." : "Import"}
                   </button>
                 </div>
               </div>
@@ -461,16 +539,17 @@ export default function LabsPage() {
                 <div className="flex gap-3 justify-end">
                   <button
                     onClick={handleCancel}
-                    className="kairos-btn-outline text-kairos-silver-dark px-6 py-2 rounded-kairos-sm font-body text-sm font-medium hover:text-white transition-all"
+                    disabled={addManualResultsMutation.isPending}
+                    className="kairos-btn-outline text-kairos-silver-dark px-6 py-2 rounded-kairos-sm font-body text-sm font-medium hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveResults}
-                    disabled={!manualForm.labName || !manualForm.date || manualForm.tests.length === 0}
+                    disabled={!manualForm.labName || !manualForm.date || manualForm.tests.length === 0 || addManualResultsMutation.isPending}
                     className="kairos-btn-gold text-black px-6 py-2 rounded-kairos-sm font-body text-sm font-medium hover:bg-kairos-gold/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Save Results
+                    {addManualResultsMutation.isPending ? "Saving..." : "Save Results"}
                   </button>
                 </div>
               </div>
