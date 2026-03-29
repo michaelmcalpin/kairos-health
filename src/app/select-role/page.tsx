@@ -82,7 +82,11 @@ function SelectRoleContent() {
 
   // Step 1: Ensure the DB user exists (creates on first sign-in)
   const ensureUser = trpc.auth.ensureUser.useMutation({
-    onSuccess: () => setSynced(true),
+    onSuccess: () => {
+      // Invalidate any cached `me` query so we get the freshly-synced role
+      utils.auth.me.invalidate();
+      setSynced(true);
+    },
     onError: () => {
       // DB may be unreachable — still allow the page to proceed
       // so the user isn't stuck on a spinner forever
@@ -99,9 +103,11 @@ function SelectRoleContent() {
   }, []);
 
   // Step 2: Fetch the user's actual role from the database (after sync completes)
+  // staleTime: 0 ensures we always get fresh data after ensureUser may have updated the role
+  const utils = trpc.useUtils();
   const { data: me, isLoading: meLoading } = trpc.auth.me.useQuery(undefined, {
     retry: false,
-    staleTime: 60_000,
+    staleTime: 0,
     enabled: synced, // Only query after ensureUser has completed
   });
 
