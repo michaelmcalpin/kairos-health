@@ -1,23 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pill, CheckCircle, TrendingUp } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useSupplements } from "@/hooks/client/useSupplements";
-import { getSupplementProtocol } from "@/lib/client-ops";
-import type { ProtocolItem } from "@/lib/client-ops";
+import { trpc } from "@/lib/trpc";
+
+interface ProtocolItem {
+  id: string;
+  name: string;
+  dosage: string | null;
+  timeOfDay: string;
+  taken: boolean;
+  timing: string;
+}
 
 const timeOfDayLabels: Record<string, string> = { morning: "Morning", midday: "Midday", evening: "Evening", bedtime: "Bedtime" };
-const timeOfDayIcons: Record<string, string> = { morning: "\u2600\uFE0F", midday: "\uD83C\uDF24\uFE0F", evening: "\uD83C\uDF05", bedtime: "\uD83C\uDF19" };
+const timeOfDayIcons: Record<string, string> = { morning: "☀️", midday: "🌤️", evening: "🌅", bedtime: "🌙" };
 
 export default function SupplementsPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
-  const [items, setItems] = useState<ProtocolItem[]>(() => getSupplementProtocol());
+  const { data: protocol } = trpc.clientPortal.supplements.getActiveProtocol.useQuery();
+  const logAdherenceMutation = trpc.clientPortal.supplements.logAdherence.useMutation();
+
+  const [takenIds, setTakenIds] = useState<Set<string>>(new Set());
 
   const { records: supplementHistory, stats: supplementStats } = useSupplements(dateRange);
+
+  // Transform tRPC protocol data into ProtocolItem format
+  const items = useMemo<ProtocolItem[]>(() => {
+    if (!protocol?.items) return [];
+    return protocol.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      dosage: item.dosage,
+      timeOfDay: item.timeOfDay ?? "morning",
+      taken: takenIds.has(item.id),
+      timing: item.frequency || "Daily",
+    }));
+  }, [protocol?.items, takenIds]);
 
   const takenCount = items.filter((i) => i.taken).length;
   const totalCount = items.length;
@@ -26,7 +50,16 @@ export default function SupplementsPage() {
   const avgAdherence = supplementStats.avgAdherence;
 
   function toggle(id: string) {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, taken: !i.taken } : i)));
+    setTakenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    logAdherenceMutation.mutate({ protocolItemId: id });
   }
 
   const grouped = items.reduce<Record<string, ProtocolItem[]>>((acc, item) => {
@@ -92,7 +125,7 @@ export default function SupplementsPage() {
                   </div>
                   <div className="flex-1 text-left">
                     <p className={`text-sm font-heading font-semibold ${item.taken ? "text-kairos-silver-dark line-through" : "text-white"}`}>{item.name}</p>
-                    <p className="text-xs font-body text-kairos-silver-dark">{item.dosage} — {item.instructions}</p>
+                    <p className="text-xs font-body text-kairos-silver-dark">{item.dosage} — {item.timing}</p>
                   </div>
                 </button>
               ))}
@@ -109,7 +142,7 @@ export default function SupplementsPage() {
         <div className="grid grid-cols-7 gap-3">
           {supplementHistory.slice(0, period === "week" ? 7 : 28).map((day, i) => (
             <div key={i} className="text-center">
-              <p className="text-[10px] font-heading text-kairos-silver-dark mb-1">{day.dateLabel}</p>
+              <p className="text-[10px] font-heading text-kairos-silver-dark mb-1">{new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}</p>
               <div className="relative h-20 bg-kairos-royal-surface rounded-kairos-sm flex items-end justify-center p-1">
                 <div className={`w-full rounded-sm transition-all ${
                   day.adherence >= 90 ? "bg-green-500/60" : day.adherence >= 70 ? "bg-kairos-gold/60" : "bg-red-500/40"

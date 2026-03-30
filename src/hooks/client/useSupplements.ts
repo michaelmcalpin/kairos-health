@@ -1,9 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import { useMockQuery } from "@/hooks/useKairosQuery";
+import { trpc } from "@/lib/trpc";
 import { DateRange } from "@/utils/dateRange";
-import { generateSupplementData, SupplementRecord } from "@/utils/mockDataGenerator";
+
+export interface SupplementRecord {
+  date: string;
+  adherence: number;
+  taken: number;
+  total: number;
+}
 
 export interface SupplementStats {
   avgAdherence: number;
@@ -15,20 +21,25 @@ export interface UseSupplementsReturn {
   records: SupplementRecord[];
   stats: SupplementStats;
   isLoading: boolean;
-  isMock: boolean;
 }
 
-/**
- * Hook for supplement data – tRPC procedures:
- *   trpc.client.supplements.getAdherence     → records
- *   trpc.client.supplements.adherenceStats   → stats
- *   trpc.client.supplements.getActiveProtocol → protocol items
- */
 export function useSupplements(dateRange: DateRange): UseSupplementsReturn {
-  const { data: records, isLoading, isMock } = useMockQuery(
-    () => generateSupplementData(dateRange.startDate, dateRange.endDate),
-    [dateRange.startDate.getTime(), dateRange.endDate.getTime()]
+  const startDate = dateRange.startDate.toISOString().split("T")[0];
+  const endDate = dateRange.endDate.toISOString().split("T")[0];
+
+  const { data: rawStats, isLoading } = trpc.clientPortal.supplements.adherenceStats.useQuery(
+    { startDate, endDate }
   );
+
+  const records = useMemo<SupplementRecord[]>(() => {
+    if (!rawStats) return [];
+    return rawStats.map((r) => ({
+      date: r.date,
+      adherence: r.percentage,
+      taken: r.taken,
+      total: r.total,
+    }));
+  }, [rawStats]);
 
   const stats = useMemo<SupplementStats>(() => {
     if (records.length === 0) return { avgAdherence: 0, totalDays: 0, perfectDays: 0 };
@@ -39,5 +50,5 @@ export function useSupplements(dateRange: DateRange): UseSupplementsReturn {
     };
   }, [records]);
 
-  return { records, stats, isLoading, isMock };
+  return { records, stats, isLoading };
 }

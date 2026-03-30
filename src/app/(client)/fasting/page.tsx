@@ -5,6 +5,7 @@ import { Timer, Play, Square, Flame, Zap, Trophy, Clock } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useFasting } from "@/hooks/client/useFasting";
+import { trpc } from "@/lib/trpc";
 
 const fastingZones = [
   { name: "Fed State", start: 0, end: 4, color: "#ef4444", description: "Insulin elevated, storing energy" },
@@ -27,6 +28,14 @@ export default function FastingPage() {
   const { records: fastingHistory, stats: fastingStats } = useFasting(dateRange);
   const historyStats = fastingStats;
 
+  const logFastMutation = trpc.clientPortal.fasting.logFast.useMutation({
+    onSuccess: () => {
+      // Invalidate the fasting queries to refetch data
+      trpc.useUtils().clientPortal.fasting.listLogs.invalidate();
+      trpc.useUtils().clientPortal.fasting.stats.invalidate();
+    },
+  });
+
   useEffect(() => {
     if (!isFasting || !startTime) return;
     const interval = setInterval(() => {
@@ -43,6 +52,14 @@ export default function FastingPage() {
   }
 
   function stopFast() {
+    if (startTime) {
+      const endTime = new Date();
+      logFastMutation.mutate({
+        startedAt: startTime.toISOString(),
+        endedAt: endTime.toISOString(),
+        completed: elapsedHours >= targetHours,
+      });
+    }
     setIsFasting(false);
   }
 
