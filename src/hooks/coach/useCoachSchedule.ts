@@ -1,6 +1,7 @@
 "use client";
 
-import { useMockQuery } from "@/hooks/useKairosQuery";
+import { useMemo } from "react";
+import { trpc } from "@/lib/trpc";
 import { DateRange } from "@/utils/dateRange";
 
 export interface Appointment {
@@ -28,21 +29,44 @@ export function useCoachSchedule(dateRange: DateRange): {
   appointments: Appointment[];
   profile: CoachProfile;
   isLoading: boolean;
-  isMock: boolean;
 } {
-  const { data, isLoading, isMock } = useMockQuery(() => {
-    const appointments: Appointment[] = [
-      { id: "apt1", clientName: "Sarah Chen", type: "Weekly Review", date: "Mon", time: "9:00 AM", duration: 30, status: "confirmed" },
-      { id: "apt2", clientName: "James Miller", type: "Protocol Adjustment", date: "Mon", time: "10:30 AM", duration: 45, status: "confirmed" },
-      { id: "apt3", clientName: "Lisa Thompson", type: "Lab Review", date: "Tue", time: "2:00 PM", duration: 30, status: "confirmed" },
-      { id: "apt4", clientName: "Emily Rodriguez", type: "Urgent Check-in", date: "Tue", time: "4:00 PM", duration: 30, status: "pending" },
-      { id: "apt5", clientName: "Michael Park", type: "Monthly Assessment", date: "Wed", time: "11:00 AM", duration: 60, status: "confirmed" },
-      { id: "apt6", clientName: "David Kim", type: "Onboarding", date: "Thu", time: "9:00 AM", duration: 60, status: "confirmed" },
-      { id: "apt7", clientName: "Anna Wright", type: "Weekly Review", date: "Fri", time: "10:00 AM", duration: 30, status: "confirmed" },
-    ];
-    const profile: CoachProfile = { maxCapacity: 12, currentClients: 8, availableSlots: 4 };
-    return { appointments, profile };
-  }, [dateRange.startDate.getTime()]);
+  const weekStart = dateRange.startDate.toISOString().split("T")[0];
 
-  return { appointments: data.appointments, profile: data.profile, isLoading, isMock };
+  const profileQuery = trpc.coach.schedule.getProfile.useQuery();
+  const appointmentsQuery = trpc.coach.schedule.listAppointments.useQuery({
+    weekStart,
+  });
+
+  const appointments = useMemo<Appointment[]>(() => {
+    const rawAppointments = appointmentsQuery.data?.appointments ?? [];
+
+    return rawAppointments.map((appt: any) => {
+      const [hours, minutes] = (appt.startTime ?? "09:00").split(":").map(Number);
+      const timeStr = `${hours > 12 ? hours - 12 : hours}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
+      const dayOfWeek = new Date(appt.date).toLocaleDateString("en-US", { weekday: "short" });
+
+      return {
+        id: appt.id,
+        clientName: appt.clientName,
+        type: appt.sessionType ?? "Appointment",
+        date: dayOfWeek,
+        time: timeStr,
+        duration: appt.durationMinutes ?? 60,
+        status: appt.status ?? "confirmed",
+      };
+    });
+  }, [appointmentsQuery.data]);
+
+  const profile = useMemo<CoachProfile>(() => {
+    const rawProfile = profileQuery.data;
+    return {
+      maxCapacity: rawProfile?.capacity ?? 12,
+      currentClients: rawProfile?.capacity ?? 8,
+      availableSlots: Math.max(0, (rawProfile?.capacity ?? 12) - 8),
+    };
+  }, [profileQuery.data]);
+
+  const isLoading = profileQuery.isLoading || appointmentsQuery.isLoading;
+
+  return { appointments, profile, isLoading };
 }

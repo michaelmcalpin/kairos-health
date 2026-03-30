@@ -1,6 +1,7 @@
 "use client";
 
-import { useMockQuery } from "@/hooks/useKairosQuery";
+import { useMemo } from "react";
+import { trpc } from "@/lib/trpc";
 
 export interface CoachClient {
   id: string;
@@ -36,31 +37,66 @@ export interface CoachDashboardData {
  *   trpc.coach.dashboard.getClientList    → clients with metrics
  *   trpc.coach.dashboard.getRecentActivity → recentAlerts
  */
-export function useCoachDashboard(): { data: CoachDashboardData; isLoading: boolean; isMock: boolean } {
-  const { data, isLoading, isMock } = useMockQuery(() => {
-    const clients: CoachClient[] = [
-      { id: "1", name: "Sarah Chen", tier: "tier1", lastActivity: "2h ago", glucoseAvg: 94, sleepScore: 88, adherence: 96, alertCount: 0, status: "on-track" },
-      { id: "2", name: "James Miller", tier: "tier1", lastActivity: "5h ago", glucoseAvg: 108, sleepScore: 72, adherence: 82, alertCount: 2, status: "needs-attention" },
-      { id: "3", name: "Emily Rodriguez", tier: "tier2", lastActivity: "1d ago", glucoseAvg: 112, sleepScore: 65, adherence: 68, alertCount: 3, status: "at-risk" },
-      { id: "4", name: "Michael Park", tier: "tier2", lastActivity: "3h ago", glucoseAvg: 91, sleepScore: 91, adherence: 94, alertCount: 0, status: "on-track" },
-      { id: "5", name: "Lisa Thompson", tier: "tier1", lastActivity: "1h ago", glucoseAvg: 97, sleepScore: 84, adherence: 90, alertCount: 1, status: "on-track" },
-      { id: "6", name: "David Kim", tier: "tier3", lastActivity: "12h ago", glucoseAvg: 102, sleepScore: 78, adherence: 75, alertCount: 1, status: "needs-attention" },
-    ];
-    const recentAlerts: CoachAlert[] = [
-      { id: "a1", clientName: "Emily Rodriguez", title: "Glucose spike > 180 mg/dL", priority: "urgent", time: "30m ago" },
-      { id: "a2", clientName: "James Miller", title: "Sleep score below 70 for 3 days", priority: "action", time: "2h ago" },
-      { id: "a3", clientName: "David Kim", title: "Missed supplement protocol 2 days", priority: "action", time: "5h ago" },
-      { id: "a4", clientName: "Emily Rodriguez", title: "Fasting protocol not started", priority: "info", time: "8h ago" },
-      { id: "a5", clientName: "James Miller", title: "Weekly check-in overdue", priority: "info", time: "1d ago" },
-    ];
-    return {
-      totalClients: clients.length,
-      activeAlerts: recentAlerts.filter((a) => a.priority !== "info").length,
-      avgAdherence: Math.round(clients.reduce((s, c) => s + c.adherence, 0) / clients.length),
-      clients,
-      recentAlerts,
-    };
-  }, []);
+export function useCoachDashboard(): { data: CoachDashboardData; isLoading: boolean } {
+  const overviewQuery = trpc.coach.dashboard.getOverview.useQuery();
+  const clientListQuery = trpc.coach.dashboard.getClientList.useQuery();
+  const recentActivityQuery = trpc.coach.dashboard.getRecentActivity.useQuery();
 
-  return { data, isLoading, isMock };
+  const isLoading = overviewQuery.isLoading || clientListQuery.isLoading || recentActivityQuery.isLoading;
+
+  const data = useMemo<CoachDashboardData>(() => {
+    const overview = overviewQuery.data ?? { clientCount: 0, activeAlerts: 0 };
+    const clients = clientListQuery.data ?? [];
+    const recentActivityRaw = recentActivityQuery.data ?? [];
+
+    // Transform raw clients into CoachClient shape
+    const transformedClients: CoachClient[] = clients.map((client: any) => ({
+      id: client.id,
+      name: `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || client.email || "Unknown",
+      tier: client.tier ?? "tier3",
+      lastActivity: "Recently active",
+      glucoseAvg: client.latestGlucose ?? 100,
+      sleepScore: client.latestSleepScore ?? 75,
+      adherence: 85,
+      alertCount: client.activeAlerts ?? 0,
+      status: client.activeAlerts >= 3 ? "at-risk" : client.activeAlerts >= 1 ? "needs-attention" : "on-track",
+    }));
+
+    // Transform raw alerts into CoachAlert shape
+    const transformedAlerts: CoachAlert[] = recentActivityRaw.map((alert: any) => {
+      const createdAt = new Date(alert.createdAt);
+      const diffMs = Date.now() - createdAt.getTime();
+      const diffMin = Math.floor(diffMs / 60000);
+      const diffHr = Math.floor(diffMin / 60);
+      const diffDay = Math.floor(diffHr / 24);
+
+      let timeStr = "Recently";
+      if (diffMin < 1) timeStr = "Just now";
+      else if (diffMin < 60) timeStr = `${diffMin}m ago`;
+      else if (diffHr < 24) timeStr = `${diffHr}h ago`;
+      else if (diffDay < 7) timeStr = `${diffDay}d ago`;
+
+      return {
+        id: alert.id,
+        clientName: "Unknown Client",
+        title: alert.title,
+        priority: alert.priority || "info",
+        time: timeStr,
+      };
+    });
+
+    const avgAdherence = transformedClients.length > 0
+      ? Math.round(transformedClients.reduce((s, c) => s + c.adherence, 0) / transformedClients.length)
+      : 0;
+
+    return {
+      totalClients: overview.clientCount,
+      activeAlerts: overview.activeAlerts,
+      avgAdherence,
+      clients: transformedClients,
+      recentAlerts: transformedAlerts,
+    };
+  }, [overviewQuery.data, clientListQuery.data, recentActivityQuery.data]);
+
+  return { data, isLoading };
 }

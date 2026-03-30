@@ -1,6 +1,7 @@
 "use client";
 
-import { useMockQuery } from "@/hooks/useKairosQuery";
+import { useMemo } from "react";
+import { trpc } from "@/lib/trpc";
 
 export interface TierRevenue {
   tier: string;
@@ -30,7 +31,7 @@ export interface CoachPayout {
  * Hook for admin revenue – tRPC procedures:
  *   trpc.admin.revenue.getPlatformRevenue  → mrr, arr, byTier
  *   trpc.admin.revenue.getRevenueBySource  → sources
- *   trpc.admin.revenue.getCoachPayouts     → payouts
+ *   trpc.admin.revenue.getTrainerPayouts     → payouts
  */
 export function useAdminRevenue(): {
   mrr: number;
@@ -39,29 +40,53 @@ export function useAdminRevenue(): {
   sources: RevenueSource[];
   payouts: CoachPayout[];
   isLoading: boolean;
-  isMock: boolean;
 } {
-  const { data, isLoading, isMock } = useMockQuery(() => {
-    const byTier: TierRevenue[] = [
-      { tier: "tier1", label: "Private", clientCount: 28, monthlyRevenue: 13972, pricePerClient: 499 },
-      { tier: "tier2", label: "Associate", clientCount: 54, monthlyRevenue: 13446, pricePerClient: 249 },
-      { tier: "tier3", label: "AI-Guided", clientCount: 56, monthlyRevenue: 5544, pricePerClient: 99 },
-    ];
-    const mrr = byTier.reduce((s, t) => s + t.monthlyRevenue, 0);
-    const sources: RevenueSource[] = [
-      { source: "coaching", label: "Coaching Fees", amount: mrr, percentage: 74 },
-      { source: "supplements", label: "Supplement Markup", amount: Math.round(mrr * 0.25), percentage: 19 },
-      { source: "labs", label: "Lab Fees", amount: Math.round(mrr * 0.1), percentage: 7 },
-    ];
-    const payouts: CoachPayout[] = [
-      { coachName: "Coach Alex Rivera", clientCount: 12, grossRevenue: 4120, payoutRate: 0.6, payout: 2472, platformFee: 1648 },
-      { coachName: "Coach Mike Torres", clientCount: 10, grossRevenue: 3540, payoutRate: 0.6, payout: 2124, platformFee: 1416 },
-      { coachName: "Dr. Sarah Williams", clientCount: 8, grossRevenue: 3180, payoutRate: 0.6, payout: 1908, platformFee: 1272 },
-      { coachName: "Dr. Rachel Green", clientCount: 7, grossRevenue: 2990, payoutRate: 0.6, payout: 1794, platformFee: 1196 },
-      { coachName: "Dr. Jennifer Chang", clientCount: 6, grossRevenue: 2694, payoutRate: 0.6, payout: 1616, platformFee: 1078 },
-    ];
-    return { mrr, arr: mrr * 12, byTier, sources, payouts };
-  }, []);
+  const platformQuery = trpc.admin.revenue.getPlatformRevenue.useQuery();
+  const sourcesQuery = trpc.admin.revenue.getRevenueBySource.useQuery();
+  const payoutsQuery = trpc.admin.revenue.getTrainerPayouts.useQuery();
 
-  return { mrr: data.mrr, arr: data.arr, byTier: data.byTier, sources: data.sources, payouts: data.payouts, isLoading, isMock };
+  const isLoading = platformQuery.isLoading || sourcesQuery.isLoading || payoutsQuery.isLoading;
+
+  const mrr = useMemo(() => {
+    return platformQuery.data?.mrr ?? 0;
+  }, [platformQuery.data]);
+
+  const arr = useMemo(() => {
+    return platformQuery.data?.arr ?? 0;
+  }, [platformQuery.data]);
+
+  const byTier = useMemo<TierRevenue[]>(() => {
+    if (!platformQuery.data?.byTier) return [];
+    return platformQuery.data.byTier.map((tier: any) => ({
+      tier: tier.tier,
+      label: tier.label,
+      clientCount: tier.clientCount,
+      monthlyRevenue: tier.monthlyRevenue,
+      pricePerClient: tier.pricePerClient,
+    }));
+  }, [platformQuery.data]);
+
+  const sources = useMemo<RevenueSource[]>(() => {
+    if (!sourcesQuery.data?.sources) return [];
+    return sourcesQuery.data.sources.map((src: any) => ({
+      source: src.source,
+      label: src.label,
+      amount: src.amount,
+      percentage: src.percentage,
+    }));
+  }, [sourcesQuery.data]);
+
+  const payouts = useMemo<CoachPayout[]>(() => {
+    if (!payoutsQuery.data) return [];
+    return payoutsQuery.data.map((payout: any) => ({
+      coachName: payout.name,
+      clientCount: payout.clientCount,
+      grossRevenue: payout.grossRevenue,
+      payoutRate: payout.payoutRate,
+      payout: payout.payout,
+      platformFee: payout.platformFee,
+    }));
+  }, [payoutsQuery.data]);
+
+  return { mrr, arr, byTier, sources, payouts, isLoading };
 }

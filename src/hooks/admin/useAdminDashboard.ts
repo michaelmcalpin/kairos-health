@@ -1,6 +1,7 @@
 "use client";
 
-import { useMockQuery } from "@/hooks/useKairosQuery";
+import { useMemo } from "react";
+import { trpc } from "@/lib/trpc";
 
 export interface AdminKPIs {
   totalUsers: number;
@@ -29,7 +30,7 @@ export interface AuditEntry {
 /**
  * Hook for admin dashboard – tRPC procedures:
  *   trpc.admin.dashboard.getKPIs             → kpis
- *   trpc.admin.dashboard.getCoachPerformance → coaches
+ *   trpc.admin.dashboard.getTrainerPerformance → coaches
  *   trpc.admin.dashboard.getRecentActivity   → auditLog
  */
 export function useAdminDashboard(): {
@@ -37,32 +38,53 @@ export function useAdminDashboard(): {
   coaches: CoachPerformance[];
   auditLog: AuditEntry[];
   isLoading: boolean;
-  isMock: boolean;
 } {
-  const { data, isLoading, isMock } = useMockQuery(() => {
-    const kpis: AdminKPIs = {
-      totalUsers: 156,
-      totalClients: 142,
-      totalCoaches: 12,
-      activeSubscriptions: 138,
-      mrr: 28450,
-    };
-    const coaches: CoachPerformance[] = [
-      { id: "c1", name: "Dr. Sarah Williams", clientCount: 8, capacity: 12, avgRating: 4.9, revenue: 3180 },
-      { id: "c2", name: "Coach Mike Torres", clientCount: 10, capacity: 15, avgRating: 4.7, revenue: 3540 },
-      { id: "c3", name: "Dr. Jennifer Chang", clientCount: 6, capacity: 8, avgRating: 4.8, revenue: 2694 },
-      { id: "c4", name: "Coach Alex Rivera", clientCount: 12, capacity: 15, avgRating: 4.6, revenue: 4120 },
-      { id: "c5", name: "Dr. Rachel Green", clientCount: 7, capacity: 10, avgRating: 4.9, revenue: 2990 },
-    ];
-    const auditLog: AuditEntry[] = [
-      { id: "au1", action: "User onboarding completed", userName: "Robert Lee", timestamp: "2m ago" },
-      { id: "au2", action: "Subscription upgraded to Tier 1", userName: "Anna Wright", timestamp: "15m ago" },
-      { id: "au3", action: "Coach capacity increased", userName: "Coach Mike Torres", timestamp: "1h ago" },
-      { id: "au4", action: "Lab results uploaded", userName: "System", timestamp: "2h ago" },
-      { id: "au5", action: "Alert rule modified", userName: "Dr. Sarah Williams", timestamp: "3h ago" },
-    ];
-    return { kpis, coaches, auditLog };
-  }, []);
+  const kpisQuery = trpc.admin.dashboard.getKPIs.useQuery();
+  const coachesQuery = trpc.admin.dashboard.getTrainerPerformance.useQuery();
+  const auditQuery = trpc.admin.dashboard.getRecentActivity.useQuery();
 
-  return { kpis: data.kpis, coaches: data.coaches, auditLog: data.auditLog, isLoading, isMock };
+  const isLoading = kpisQuery.isLoading || coachesQuery.isLoading || auditQuery.isLoading;
+
+  const kpis = useMemo<AdminKPIs>(() => {
+    if (!kpisQuery.data) {
+      return {
+        totalUsers: 0,
+        totalClients: 0,
+        totalCoaches: 0,
+        activeSubscriptions: 0,
+        mrr: 0,
+      };
+    }
+    return {
+      totalUsers: kpisQuery.data.totalUsers,
+      totalClients: kpisQuery.data.totalClients,
+      totalCoaches: kpisQuery.data.totalTrainers,
+      activeSubscriptions: kpisQuery.data.activeSubscriptions,
+      mrr: Math.round((kpisQuery.data.totalClients ?? 0) * 200),
+    };
+  }, [kpisQuery.data]);
+
+  const coaches = useMemo<CoachPerformance[]>(() => {
+    if (!coachesQuery.data) return [];
+    return coachesQuery.data.map((trainer) => ({
+      id: trainer.id,
+      name: trainer.name,
+      clientCount: trainer.clientCount,
+      capacity: trainer.capacity,
+      avgRating: trainer.rating,
+      revenue: trainer.clientCount * 265,
+    }));
+  }, [coachesQuery.data]);
+
+  const auditLog = useMemo<AuditEntry[]>(() => {
+    if (!auditQuery.data) return [];
+    return auditQuery.data.map((log) => ({
+      id: log.id,
+      action: log.action,
+      userName: log.userName,
+      timestamp: new Date(log.createdAt).toLocaleString(),
+    }));
+  }, [auditQuery.data]);
+
+  return { kpis, coaches, auditLog, isLoading };
 }

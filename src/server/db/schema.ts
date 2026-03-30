@@ -23,6 +23,10 @@ export const messageRoleEnum = pgEnum("message_role", ["client", "coach", "ai_co
 export const mealTypeEnum = pgEnum("meal_type", ["breakfast", "lunch", "dinner", "snack"]);
 export const fastingTypeEnum = pgEnum("fasting_type", ["16_8", "20_4", "36hr", "omad", "custom"]);
 export const bloodSugarTimingEnum = pgEnum("blood_sugar_timing", ["fasted", "1hr", "2hr", "3hr", "4hr"]);
+export const goalCategoryEnum = pgEnum("goal_category", ["glucose", "sleep", "weight", "body_fat", "activity", "nutrition", "supplements", "fasting", "labs", "custom"]);
+export const goalStatusEnum = pgEnum("goal_status", ["active", "paused", "completed", "abandoned"]);
+export const goalDirectionEnum = pgEnum("goal_direction", ["increase", "decrease", "maintain", "reach"]);
+export const goalTimeframeEnum = pgEnum("goal_timeframe", ["weekly", "monthly", "quarterly", "yearly", "open_ended"]);
 
 // ======================== CORE: COMPANIES ========================
 export const companies = pgTable("companies", {
@@ -342,6 +346,45 @@ export const fastingLogs = pgTable("fasting_logs", {
   completed: boolean("completed").default(false),
   metabolicZones: jsonb("metabolic_zones").$type<{ zone: string; durationMinutes: number }[]>(),
 }, (t) => [index("fasting_client_date_idx").on(t.clientId, t.date)]);
+
+// ======================== GOALS ========================
+export const healthGoals = pgTable("health_goals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  category: goalCategoryEnum("category").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  targetValue: real("target_value").notNull(),
+  targetUnit: varchar("target_unit", { length: 50 }).notNull(),
+  targetDirection: goalDirectionEnum("target_direction").notNull(),
+  startValue: real("start_value").notNull(),
+  currentValue: real("current_value").notNull(),
+  status: goalStatusEnum("status").notNull().default("active"),
+  timeframe: goalTimeframeEnum("timeframe").notNull(),
+  startDate: date("start_date").notNull(),
+  targetDate: date("target_date"),
+  completedDate: date("completed_date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("goals_client_status_idx").on(t.clientId, t.status)]);
+
+export const goalMilestones = pgTable("goal_milestones", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  goalId: uuid("goal_id").notNull().references(() => healthGoals.id, { onDelete: "cascade" }),
+  label: varchar("label", { length: 255 }).notNull(),
+  targetValue: real("target_value").notNull(),
+  reachedAt: timestamp("reached_at"),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const goalCheckpoints = pgTable("goal_checkpoints", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  goalId: uuid("goal_id").notNull().references(() => healthGoals.id, { onDelete: "cascade" }),
+  value: real("value").notNull(),
+  note: text("note"),
+  source: varchar("source", { length: 20 }).notNull().default("manual"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("checkpoints_goal_idx").on(t.goalId)]);
 
 // ======================== NUTRITION ========================
 export const foodDatabase = pgTable("food_database", {

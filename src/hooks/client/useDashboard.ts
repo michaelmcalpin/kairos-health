@@ -1,17 +1,35 @@
 "use client";
 
 import { useMemo } from "react";
-import { useMockQuery } from "@/hooks/useKairosQuery";
+import { trpc } from "@/lib/trpc";
 import { DateRange } from "@/utils/dateRange";
-import {
-  generateGlucoseData,
-  aggregateGlucoseDaily,
-  generateSleepData,
-  generateSupplementData,
-  DailyGlucoseSummary,
-  SleepRecord,
-  SupplementRecord,
-} from "@/utils/mockDataGenerator";
+
+export interface DailyGlucoseSummary {
+  date: string;
+  avg: number;
+  min: number;
+  max: number;
+  count: number;
+}
+
+export interface SleepRecord {
+  id: string;
+  date: string;
+  total: number;
+  deep: number;
+  rem: number;
+  light: number;
+  awake: number;
+  score: number;
+  source: string;
+}
+
+export interface SupplementRecord {
+  id: string;
+  date: string;
+  supplementName: string;
+  adherence: number;
+}
 
 export interface DashboardKPIs {
   avgGlucose: number;
@@ -27,53 +45,90 @@ export interface UseDashboardReturn {
   supplementRecords: SupplementRecord[];
   kpis: DashboardKPIs;
   isLoading: boolean;
-  isMock: boolean;
 }
 
-/**
- * Hook for client dashboard – tRPC procedures:
- *   trpc.client.dashboard.getOverview       → kpis
- *   trpc.client.dashboard.getRecentActivity → recent alerts
- *   trpc.client.dashboard.getActiveProtocol → protocol items
- */
 export function useDashboard(dateRange: DateRange): UseDashboardReturn {
-  const { data: glucoseReadings } = useMockQuery(
-    () => generateGlucoseData(dateRange.startDate, dateRange.endDate),
-    [dateRange.startDate.getTime(), dateRange.endDate.getTime()]
-  );
+  const startDate = dateRange.startDate.toISOString().split("T")[0];
+  const endDate = dateRange.endDate.toISOString().split("T")[0];
 
-  const glucoseSummaries = useMemo(() => aggregateGlucoseDaily(glucoseReadings), [glucoseReadings]);
+  const { data: overviewData, isLoading: overviewLoading } = trpc.clientPortal.dashboard.getOverview.useQuery();
 
-  const { data: sleepRecords } = useMockQuery(
-    () => generateSleepData(dateRange.startDate, dateRange.endDate),
-    [dateRange.startDate.getTime(), dateRange.endDate.getTime()]
-  );
+  const { data: dailySummariesData, isLoading: summariesLoading } =
+    trpc.clientPortal.dashboard.getDailySummaries.useQuery({
+      startDate,
+      endDate,
+    });
 
-  const { data: supplementRecords, isLoading, isMock } = useMockQuery(
-    () => generateSupplementData(dateRange.startDate, dateRange.endDate),
-    [dateRange.startDate.getTime(), dateRange.endDate.getTime()]
-  );
+  const glucoseSummaries = useMemo<DailyGlucoseSummary[]>(() => {
+    if (!dailySummariesData) return [];
+    return dailySummariesData.map((d) => ({
+      date: d.date,
+      avg: d.glucose.avg,
+      min: d.glucose.min,
+      max: d.glucose.max,
+      count: d.glucose.timeInRange,
+    }));
+  }, [dailySummariesData]);
+
+  const sleepRecords = useMemo<SleepRecord[]>(() => {
+    if (!dailySummariesData) return [];
+    return dailySummariesData
+      .filter((d) => d.sleep !== null)
+      .map((d) => ({
+        id: `sleep-${d.date}`,
+        date: d.date,
+        total: d.sleep?.totalHrs ?? 0,
+        deep: 0,
+        rem: 0,
+        light: 0,
+        awake: 0,
+        score: d.sleep?.score ?? 0,
+        source: "unknown",
+      }));
+  }, [dailySummariesData]);
+
+  const supplementRecords = useMemo<SupplementRecord[]>(() => {
+    if (!dailySummariesData) return [];
+    return dailySummariesData
+      .filter((d) => d.adherence !== null)
+      .map((d) => ({
+        id: `supplement-${d.date}`,
+        date: d.date,
+        supplementName: "Protocol",
+        adherence: d.adherence ?? 0,
+      }));
+  }, [dailySummariesData]);
 
   const kpis = useMemo<DashboardKPIs>(() => {
-    const glucoseValues = glucoseReadings.map((r) => r.value);
-    const avgGlucose = glucoseValues.length > 0
-      ? Math.round(glucoseValues.reduce((s, v) => s + v, 0) / glucoseValues.length)
-      : 0;
-    const avgSleepHrs = sleepRecords.length > 0
-      ? parseFloat((sleepRecords.reduce((s, d) => s + d.total, 0) / sleepRecords.length).toFixed(1))
-      : 0;
-    const avgSleepScore = sleepRecords.length > 0
-      ? Math.round(sleepRecords.reduce((s, d) => s + d.score, 0) / sleepRecords.length)
-      : 0;
-    const avgAdherence = supplementRecords.length > 0
-      ? Math.round(supplementRecords.reduce((s, d) => s + d.adherence, 0) / supplementRecords.length)
-      : 0;
-    const healthScore = Math.min(100, Math.round(
-      (avgSleepScore * 0.3) + (avgAdherence * 0.3) + (Math.max(0, 100 - Math.abs(avgGlucose - 95)) * 0.4)
-    ));
+    if (!dailySummariesData || !overviewData) {
+      return { avgGlucose: 0, avgSleepHrs: 0, avgSleepScore: 0, avgAdherence: 0, healthScore: 0 };
+    }
+
+    const glucoseValues = glucoseSummaries.map((g) => g.avg);
+    const avgGlucose = glucoseValues.length > 0 ? Math.round(glucoseValues.reduce((s, v) => s + v, 0) / glucoseValues.length) : 0;
+
+    const sleepValues = sleepRecords.map((s) => s.total);
+    const avgSleepHrs = sleepValues.length > 0 ? parseFloat((sleepValues.reduce((s, v) => s + v, 0) / sleepValues.length).toFixed(1)) : 0;
+
+    const sleepScores = sleepRecords.map((s) => s.score);
+    const avgSleepScore = sleepScores.length > 0 ? Math.round(sleepScores.reduce((s, v) => s + v, 0) / sleepScores.length) : 0;
+
+    const adherenceValues = supplementRecords.map((s) => s.adherence);
+    const avgAdherence = adherenceValues.length > 0 ? Math.round(adherenceValues.reduce((s, v) => s + v, 0) / adherenceValues.length) : 0;
+
+    const healthScore = Math.min(
+      100,
+      Math.round((avgSleepScore * 0.3) + (avgAdherence * 0.3) + (Math.max(0, 100 - Math.abs(avgGlucose - 95)) * 0.4))
+    );
 
     return { avgGlucose, avgSleepHrs, avgSleepScore, avgAdherence, healthScore };
-  }, [glucoseReadings, sleepRecords, supplementRecords]);
+  }, [glucoseSummaries, sleepRecords, supplementRecords, dailySummariesData, overviewData]);
 
-  return { glucoseSummaries, sleepRecords, supplementRecords, kpis, isLoading, isMock };
+  return {
+    glucoseSummaries,
+    sleepRecords,
+    supplementRecords,
+    kpis,
+    isLoading: overviewLoading || summariesLoading,
+  };
 }

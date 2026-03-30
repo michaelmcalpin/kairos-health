@@ -1,6 +1,7 @@
 "use client";
 
-import { useMockQuery } from "@/hooks/useKairosQuery";
+import { useMemo } from "react";
+import { trpc } from "@/lib/trpc";
 
 export interface ClientRevenue {
   clientName: string;
@@ -22,22 +23,36 @@ export interface CoachRevenueData {
  *   trpc.coach.revenue.getSummary       → mrr, totals
  *   trpc.coach.revenue.getClientRevenue → per-client breakdown
  */
-export function useCoachRevenue(): { data: CoachRevenueData; isLoading: boolean; isMock: boolean } {
-  const { data, isLoading, isMock } = useMockQuery(() => {
-    const clientRevenue: ClientRevenue[] = [
-      { clientName: "Sarah Chen", tier: "tier1", monthlyFee: 499, supplementRevenue: 125, total: 624 },
-      { clientName: "James Miller", tier: "tier1", monthlyFee: 499, supplementRevenue: 89, total: 588 },
-      { clientName: "Lisa Thompson", tier: "tier1", monthlyFee: 499, supplementRevenue: 156, total: 655 },
-      { clientName: "Emily Rodriguez", tier: "tier2", monthlyFee: 249, supplementRevenue: 78, total: 327 },
-      { clientName: "Michael Park", tier: "tier2", monthlyFee: 249, supplementRevenue: 112, total: 361 },
-      { clientName: "Anna Wright", tier: "tier2", monthlyFee: 249, supplementRevenue: 95, total: 344 },
-      { clientName: "David Kim", tier: "tier3", monthlyFee: 99, supplementRevenue: 45, total: 144 },
-      { clientName: "Robert Lee", tier: "tier3", monthlyFee: 99, supplementRevenue: 38, total: 137 },
-    ];
-    const mrr = clientRevenue.reduce((s, c) => s + c.monthlyFee, 0);
-    const supplementRevenue = clientRevenue.reduce((s, c) => s + c.supplementRevenue, 0);
-    return { mrr, supplementRevenue, totalRevenue: mrr + supplementRevenue, clientRevenue };
-  }, []);
+export function useCoachRevenue(): { data: CoachRevenueData; isLoading: boolean } {
+  const summaryQuery = trpc.coach.revenue.getSummary.useQuery();
+  const clientRevenueQuery = trpc.coach.revenue.getClientRevenue.useQuery();
 
-  return { data, isLoading, isMock };
+  const data = useMemo<CoachRevenueData>(() => {
+    const summary = summaryQuery.data ?? {
+      totalMonthlyRevenue: 0,
+      coachingFees: 0,
+      supplementMarkup: 0,
+    };
+    const rawClientRevenue = clientRevenueQuery.data ?? [];
+
+    // Transform client revenue into expected shape
+    const clientRevenue: ClientRevenue[] = rawClientRevenue.map((client: any) => ({
+      clientName: client.name,
+      tier: client.tier,
+      monthlyFee: client.coachingFee ?? 0,
+      supplementRevenue: client.supplementMarkup ?? 0,
+      total: (client.coachingFee ?? 0) + (client.supplementMarkup ?? 0),
+    }));
+
+    return {
+      mrr: summary.coachingFees ?? 0,
+      supplementRevenue: summary.supplementMarkup ?? 0,
+      totalRevenue: summary.totalMonthlyRevenue ?? 0,
+      clientRevenue,
+    };
+  }, [summaryQuery.data, clientRevenueQuery.data]);
+
+  const isLoading = summaryQuery.isLoading || clientRevenueQuery.isLoading;
+
+  return { data, isLoading };
 }
