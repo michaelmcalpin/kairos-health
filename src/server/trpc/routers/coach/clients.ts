@@ -434,4 +434,45 @@ export const coachClientsRouter = router({
         .returning();
       return deleted.length > 0;
     }),
+
+  // Update protocol with notes and priority level
+  updateProtocol: trainerProcedure
+    .input(
+      z.object({
+        clientId: z.string(),
+        notes: z.string().min(1),
+        priority: z.enum(["Normal", "High — Review within 24h", "Urgent — Immediate attention"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Find the active protocol for this client
+      const protocol = await ctx.db.query.supplementProtocols.findFirst({
+        where: and(
+          eq(supplementProtocols.clientId, input.clientId),
+          eq(supplementProtocols.status, "active")
+        ),
+      });
+
+      if (!protocol) {
+        throw new Error("No active protocol found for this client");
+      }
+
+      // Create a coach note to record the protocol adjustment
+      // Using the coach_notes table to store protocol adjustment records
+      const [note] = await ctx.db
+        .insert(coachNotes)
+        .values({
+          clientId: input.clientId,
+          coachId: ctx.dbUserId,
+          content: `[PROTOCOL ADJUSTMENT] Priority: ${input.priority}\n\n${input.notes}`,
+        })
+        .returning();
+
+      return {
+        success: true,
+        protocolId: protocol.id,
+        noteId: note.id,
+        message: "Protocol adjustment saved successfully",
+      };
+    }),
 });

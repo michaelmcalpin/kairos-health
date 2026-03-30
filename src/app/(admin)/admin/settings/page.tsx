@@ -10,10 +10,16 @@ import {
 } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
+import { trpc } from "@/lib/trpc";
 
 export default function AdminSettingsPage() {
   const { theme, setTheme } = useTheme();
 
+  // Fetch user data
+  const { data: authUser } = trpc.auth.me.useQuery();
+
+  // Platform settings are stored locally for now with a comment about DB persistence
+  // TODO: Create an admin.settings router mutation to persist platform settings to DB
   const [platform, setPlatform] = useState({
     platformName: "KAIROS Health",
     supportEmail: "support@kairos.health",
@@ -21,6 +27,8 @@ export default function AdminSettingsPage() {
     sessionTimeout: "30",
   });
 
+  // Notification preferences stored locally
+  // TODO: Wire to trpc.admin.settings mutation once endpoint is created
   const [notifications, setNotifications] = useState({
     coachSignups: true,
     revenueAlerts: true,
@@ -29,6 +37,7 @@ export default function AdminSettingsPage() {
   });
 
   const [saveMessage, setSaveMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setPlatform((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -38,9 +47,19 @@ export default function AdminSettingsPage() {
     setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleSaveChanges = () => {
-    setSaveMessage("Changes saved successfully");
-    setTimeout(() => setSaveMessage(""), 3000);
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    try {
+      // For now, platform and notification settings are stored locally.
+      // In production, these would be persisted via tRPC mutations to the database.
+      setSaveMessage("Changes saved successfully");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } catch (error) {
+      setSaveMessage("Failed to save changes");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -160,9 +179,13 @@ export default function AdminSettingsPage() {
       {/* Save */}
       <div className="flex justify-end gap-4">
         <button className="kairos-btn-outline">Cancel</button>
-        <button onClick={handleSaveChanges} className="kairos-btn-gold flex items-center gap-2">
+        <button
+          onClick={handleSaveChanges}
+          disabled={isSaving}
+          className="kairos-btn-gold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Save className="w-5 h-5" />
-          Save Changes
+          {isSaving ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </div>

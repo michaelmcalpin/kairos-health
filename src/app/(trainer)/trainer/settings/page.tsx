@@ -13,6 +13,7 @@ import {
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
 import { useCompanyBrand } from "@/lib/company-ops";
+import { trpc } from "@/lib/trpc";
 
 export default function TrainerSettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -20,21 +21,35 @@ export default function TrainerSettingsPage() {
   const isWhiteLabel = brand.id !== "kairos";
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
+  // Fetch user data
+  const { data: authUser } = trpc.auth.me.useQuery();
+
+  // Fetch trainer profile
+  const { data: profile } = trpc.coach.schedule.getProfile.useQuery();
+
+  // Fetch notification preferences
+  const { data: notificationPrefs } = trpc.coach.schedule.getNotificationPreferences.useQuery();
+
+  // Mutations
+  const updateProfileMutation = trpc.coach.schedule.updateProfile.useMutation();
+  const updateNotificationsMutation = trpc.coach.schedule.updateNotificationPreferences.useMutation();
+
   const [formData, setFormData] = useState({
-    displayName: "Dr. Marcus Chen",
-    email: "marcus.chen@kairos.health",
-    specialization: "Longevity Medicine",
+    displayName: authUser?.firstName || "",
+    email: authUser?.email || "",
+    specialization: "",
     timezone: "America/Los_Angeles",
   });
 
   const [notifications, setNotifications] = useState({
-    clientAlerts: true,
-    labResults: true,
-    appointmentReminders: true,
-    weeklyReports: true,
+    clientAlerts: notificationPrefs?.categories?.clientAlerts?.email ?? true,
+    labResults: notificationPrefs?.categories?.labResults?.email ?? true,
+    appointmentReminders: notificationPrefs?.categories?.appointmentReminders?.email ?? true,
+    weeklyReports: notificationPrefs?.categories?.weeklyReports?.email ?? true,
   });
 
   const [saveMessage, setSaveMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -44,9 +59,54 @@ export default function TrainerSettingsPage() {
     setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleSaveChanges = () => {
-    setSaveMessage("Changes saved successfully");
-    setTimeout(() => setSaveMessage(""), 3000);
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    try {
+      // Update profile
+      if (formData.specialization) {
+        await updateProfileMutation.mutateAsync({
+          specialties: formData.specialization ? [formData.specialization] : [],
+        });
+      }
+
+      // Update notifications
+      await updateNotificationsMutation.mutateAsync({
+        categories: {
+          clientAlerts: {
+            in_app: true,
+            email: notifications.clientAlerts,
+            push: true,
+            sms: false,
+          },
+          labResults: {
+            in_app: true,
+            email: notifications.labResults,
+            push: true,
+            sms: false,
+          },
+          appointmentReminders: {
+            in_app: true,
+            email: notifications.appointmentReminders,
+            push: true,
+            sms: false,
+          },
+          weeklyReports: {
+            in_app: false,
+            email: notifications.weeklyReports,
+            push: false,
+            sms: false,
+          },
+        },
+      });
+
+      setSaveMessage("Changes saved successfully");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } catch (error) {
+      setSaveMessage("Failed to save changes");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -58,14 +118,15 @@ export default function TrainerSettingsPage() {
         </div>
         <button
           onClick={handleSaveChanges}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-kairos-sm font-heading font-semibold text-sm transition-colors"
+          disabled={isSaving}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-kairos-sm font-heading font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             backgroundColor: accentColor || "rgb(var(--k-accent))",
             color: accentColor ? "#fff" : "rgb(var(--k-bg))",
           }}
         >
           <Save className="w-4 h-4" />
-          Save Changes
+          {isSaving ? "Saving..." : "Save Changes"}
         </button>
       </div>
 

@@ -28,6 +28,7 @@ import { clientMealsRouter } from "./client/meals";
 import { clientProgressPhotosRouter } from "./client/progressphotos";
 import { clientProtocolRouter } from "./client/protocol";
 import { clientGeneticsRouter } from "./client/genetics";
+import { clientSettingsRouter } from "./client/settings";
 
 // Coach routers
 import { coachDashboardRouter } from "./coach/dashboard";
@@ -78,6 +79,7 @@ export const appRouter = router({
     progressPhotos: clientProgressPhotosRouter,
     protocol: clientProtocolRouter,
     genetics: clientGeneticsRouter,
+    settings: clientSettingsRouter,
   }),
   coach: router({
     dashboard: coachDashboardRouter,

@@ -85,6 +85,19 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     },
   });
 
+  const updateProtocolMutation = trpc.coach.clients.updateProtocol.useMutation({
+    onSuccess: () => {
+      notesQuery.refetch();
+      setProtocolSaved(true);
+      setTimeout(() => {
+        setShowProtocolModal(false);
+        setProtocolNotes("");
+        setProtocolPriority("Normal");
+        setProtocolSaved(false);
+      }, 1500);
+    },
+  });
+
   // Loading skeleton
   if (isLoading) {
     return (
@@ -521,21 +534,28 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               </div>
             </div>
             <div className="flex gap-3 p-6 border-t border-kairos-border">
-              <button onClick={() => { setShowProtocolModal(false); setProtocolSaved(false); }} className="kairos-btn-outline flex-1">Cancel</button>
               <button
                 onClick={() => {
-                  setProtocolSaved(true);
-                  setTimeout(() => {
-                    setShowProtocolModal(false);
-                    setProtocolNotes("");
-                    setProtocolPriority("Normal");
-                    setProtocolSaved(false);
-                  }, 1500);
+                  setShowProtocolModal(false);
+                  setProtocolSaved(false);
                 }}
-                disabled={!protocolNotes.trim()}
-                className="kairos-btn-gold flex-1 disabled:opacity-50"
+                disabled={updateProtocolMutation.isPending}
+                className="kairos-btn-outline flex-1 disabled:opacity-50"
               >
-                Save Changes
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  updateProtocolMutation.mutate({
+                    clientId: params.id,
+                    notes: protocolNotes.trim(),
+                    priority: protocolPriority as "Normal" | "High — Review within 24h" | "Urgent — Immediate attention",
+                  });
+                }}
+                disabled={!protocolNotes.trim() || updateProtocolMutation.isPending}
+                className="kairos-btn-gold flex-1 disabled:opacity-50 relative"
+              >
+                {updateProtocolMutation.isPending ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </div>

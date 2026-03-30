@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Settings,
   User,
@@ -13,11 +13,25 @@ import {
 } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
+import { trpc } from "@/lib/trpc";
 
 export default function SettingsPage() {
+  // tRPC queries
+  const { data: settingsData, isLoading: isLoadingSettings } = trpc.clientPortal.settings.getSettings.useQuery();
+  const meQuery = trpc.auth.me.useQuery();
+
+  // tRPC mutations
+  const updateProfileMutation = trpc.clientPortal.settings.updateProfile.useMutation();
+  const updateNotificationsMutation = trpc.clientPortal.settings.updateNotificationPreferences.useMutation();
+
+  const { theme, setTheme } = useTheme();
+  const [saveMessage, setSaveMessage] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Local form state
   const [formData, setFormData] = useState({
-    displayName: "Sarah Chen",
-    email: "sarah.chen@example.com",
+    displayName: "",
+    email: "",
     phone: "+1 (555) 123-4567",
     timezone: "America/Los_Angeles",
   });
@@ -40,9 +54,32 @@ export default function SettingsPage() {
     { id: "dexcom", name: "Dexcom CGM", status: "not connected" },
   ]);
 
-  const { theme, setTheme } = useTheme();
-  const [saveMessage, setSaveMessage] = useState("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // Hydrate form with user data from database on load
+  useEffect(() => {
+    if (settingsData?.user) {
+      const user = settingsData.user;
+      setFormData((prev) => ({
+        ...prev,
+        displayName: user.firstName && user.lastName
+          ? `${user.firstName} ${user.lastName}`
+          : user.firstName || "",
+        email: user.email || "",
+      }));
+    }
+  }, [settingsData?.user]);
+
+  // Hydrate notifications from database on load
+  useEffect(() => {
+    if (settingsData?.notificationPreferences?.categories) {
+      const categories = settingsData.notificationPreferences.categories;
+      setNotifications({
+        emailAlerts: categories.email?.email ?? true,
+        pushNotifications: categories.push?.push ?? true,
+        smsAlerts: categories.sms?.sms ?? false,
+        weeklyDigest: categories.email?.email ?? true,
+      });
+    }
+  }, [settingsData?.notificationPreferences]);
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -81,10 +118,62 @@ export default function SettingsPage() {
     );
   };
 
-  const handleSaveChanges = () => {
-    setSaveMessage("Changes saved successfully");
-    setTimeout(() => setSaveMessage(""), 3000);
+  const handleSaveChanges = async () => {
+    try {
+      // Parse display name into firstName and lastName
+      const [firstName, ...lastNameParts] = formData.displayName.split(" ");
+      const lastName = lastNameParts.join(" ");
+
+      // Update profile
+      await updateProfileMutation.mutateAsync({
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+      });
+
+      // Update notification preferences
+      await updateNotificationsMutation.mutateAsync({
+        categories: {
+          email: {
+            in_app: notifications.emailAlerts,
+            email: notifications.emailAlerts,
+            push: false,
+            sms: false,
+          },
+          push: {
+            in_app: notifications.pushNotifications,
+            email: false,
+            push: notifications.pushNotifications,
+            sms: false,
+          },
+          sms: {
+            in_app: notifications.smsAlerts,
+            email: false,
+            push: false,
+            sms: notifications.smsAlerts,
+          },
+        },
+      });
+
+      setSaveMessage("Changes saved successfully");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } catch (error) {
+      console.error("Failed to save changes:", error);
+      setSaveMessage("Failed to save changes. Please try again.");
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
   };
+
+  // Show loading state while data is being fetched
+  if (isLoadingSettings) {
+    return (
+      <div className="min-h-screen bg-kairos-card p-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-kairos-gold"></div>
+          <p className="mt-4 text-kairos-silver-dark">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-kairos-card p-8">
@@ -399,15 +488,29 @@ export default function SettingsPage() {
 
         {/* Save Button */}
         <div className="flex justify-end gap-4">
-          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-gray-700 border border-kairos-border text-kairos-silver-dark rounded-kairos-sm font-body font-medium hover:bg-gray-600 transition-colors">
+          <button
+            onClick={() => window.location.reload()}
+            disabled={updateProfileMutation.isPending || updateNotificationsMutation.isPending}
+            className="px-8 py-3 bg-gray-700 border border-kairos-border text-kairos-silver-dark rounded-kairos-sm font-body font-medium hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             Cancel
           </button>
           <button
             onClick={handleSaveChanges}
-            className="flex items-center gap-2 px-8 py-3 bg-kairos-gold text-kairos-card rounded-kairos-sm font-body font-medium hover:bg-yellow-500 transition-colors"
+            disabled={updateProfileMutation.isPending || updateNotificationsMutation.isPending}
+            className="flex items-center gap-2 px-8 py-3 bg-kairos-gold text-kairos-card rounded-kairos-sm font-body font-medium hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Save className="w-5 h-5" />
-            Save Changes
+            {updateProfileMutation.isPending || updateNotificationsMutation.isPending ? (
+              <>
+                <div className="w-5 h-5 border-2 border-kairos-card border-t-transparent rounded-full animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-5 h-5" />
+                Save Changes
+              </>
+            )}
           </button>
         </div>
       </div>
