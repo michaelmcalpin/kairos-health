@@ -2,34 +2,49 @@
 
 import { useState, useMemo } from "react";
 import { Search, MessageSquare, User, X, Send } from "lucide-react";
-import {
-  seedAdminCoaches,
-  filterAdminCoaches,
-  getAdminCoachStats,
-} from "@/lib/admin-coaches/engine";
-import { STATUS_COLORS } from "@/lib/admin-coaches/types";
-import type { CoachStatus } from "@/lib/admin-coaches/types";
 import { CompanySelector, useCompanyFilter } from "@/components/admin/CompanySelector";
 import { trpc } from "@/lib/trpc";
+
+type TrainerStatus = "active" | "inactive" | "suspended" | "onboarding";
+
+const STATUS_COLORS: Record<string, string> = {
+  active: "bg-green-900 text-green-200",
+  inactive: "bg-gray-900 text-gray-200",
+  suspended: "bg-yellow-900 text-yellow-200",
+  onboarding: "bg-blue-900 text-blue-200",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  inactive: "Inactive",
+  suspended: "On Leave",
+  onboarding: "Pending",
+};
 
 export default function TrainersPage() {
   const { selectedCompany, setSelectedCompany, company } = useCompanyFilter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<CoachStatus | "All">("All");
+  const [statusFilter, setStatusFilter] = useState<TrainerStatus | "All">("All");
   const [viewingTrainer, setViewingTrainer] = useState<{ name: string; email?: string; specialization?: string; clients: number; capacity: number; revenue?: number; score?: number } | null>(null);
   const [messagingTrainer, setMessagingTrainer] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
   const [messageSent, setMessageSent] = useState(false);
 
-  // Seed platform-level data on first render
-  useMemo(() => seedAdminCoaches(), []);
-
-  // Platform-level data
-  const platformStats = useMemo(() => getAdminCoachStats(), []);
-  const platformTrainers = useMemo(
-    () => filterAdminCoaches({ search: searchQuery || undefined, status: statusFilter }),
-    [searchQuery, statusFilter],
+  // Platform-level data via tRPC
+  const { data: platformStatsData } = trpc.admin.dashboard.getTrainerStats.useQuery(
+    undefined,
+    { staleTime: 30_000 }
   );
+  const platformStats = platformStatsData ?? {
+    totalCoaches: 0, activeCoaches: 0, onLeaveCoaches: 0, pendingCoaches: 0,
+    totalClients: 0, totalRevenue: 0, avgHealthScore: 0,
+  };
+
+  const { data: platformTrainersData } = trpc.admin.dashboard.listTrainers.useQuery(
+    { search: searchQuery || undefined, status: statusFilter === "All" ? undefined : statusFilter },
+    { staleTime: 15_000 }
+  );
+  const platformTrainers = platformTrainersData ?? [];
 
   // Company-level data via tRPC
   const { data: companyTrainersData } = trpc.admin.companies.getTrainers.useQuery(
@@ -144,17 +159,22 @@ export default function TrainersPage() {
           </div>
           {!company && (
             <div className="flex gap-2">
-              {(["All", "Active", "On Leave", "Pending"] as const).map((status) => (
+              {([
+                { value: "All" as const, label: "All" },
+                { value: "active" as const, label: "Active" },
+                { value: "suspended" as const, label: "On Leave" },
+                { value: "onboarding" as const, label: "Pending" },
+              ]).map(({ value, label }) => (
                 <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
+                  key={value}
+                  onClick={() => setStatusFilter(value)}
                   className={`px-4 py-2 rounded-kairos-sm text-sm font-body font-semibold transition-colors ${
-                    statusFilter === status
+                    statusFilter === value
                       ? "bg-kairos-gold text-kairos-royal"
                       : "bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:border-kairos-gold"
                   }`}
                 >
-                  {status}
+                  {label}
                 </button>
               ))}
             </div>
@@ -255,8 +275,8 @@ export default function TrainersPage() {
                     <td className="py-3 px-4 font-body text-sm text-white">{coach.name}</td>
                     <td className="py-3 px-4 font-body text-sm text-kairos-silver-dark">{coach.specialization}</td>
                     <td className="py-3 px-4">
-                      <span className={`inline-block px-3 py-1 rounded-kairos-sm font-body text-xs font-semibold ${STATUS_COLORS[coach.status]}`}>
-                        {coach.status}
+                      <span className={`inline-block px-3 py-1 rounded-kairos-sm font-body text-xs font-semibold ${STATUS_COLORS[coach.status] ?? "bg-gray-900 text-gray-200"}`}>
+                        {STATUS_LABELS[coach.status] ?? coach.status}
                       </span>
                     </td>
                     <td className="py-3 px-4 font-body text-sm text-white text-center">{coach.clientsAssigned}</td>

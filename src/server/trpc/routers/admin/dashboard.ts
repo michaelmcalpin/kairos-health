@@ -4,10 +4,11 @@ import {
   users,
   trainerProfiles,
   trainerClientRelationships,
+  clientProfiles,
   subscriptions,
   auditLogs,
 } from "@/server/db/schema";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, ilike, or } from "drizzle-orm";
 
 // ─── Seeded random for supplemental values ─────────────────────
 function seededRandom(seed: number): number {
@@ -246,6 +247,136 @@ export const adminDashboardRouter = router({
       })
     );
     return performance.sort((a, b) => b.clientCount - a.clientCount);
+  }),
+
+  /**
+   * listTrainers — platform-wide trainer listing with search/filter.
+   * Used by the trainers management page.
+   */
+  listTrainers: superAdminProcedure
+    .input(
+      z.object({
+        search: z.string().optional(),
+        status: z.enum(["All", "active", "inactive", "suspended", "onboarding"]).optional(),
+      }).optional()
+    )
+    .query(async ({ ctx, input }) => {
+      const filters = input ?? {};
+
+      // Get all trainers
+      const allTrainers = await ctx.db.query.users.findMany({
+        where: eq(users.role, "trainer"),
+      });
+
+      // Enrich each trainer
+      const enriched = await Promise.all(
+        allTrainers.map(async (trainer) => {
+          const profile = await ctx.db.query.trainerProfiles.findFirst({
+            where: eq(trainerProfiles.userId, trainer.id),
+          });
+          const clientCountResult = await ctx.db
+            .select({ count: sql<number>`count(*)` })
+            .from(trainerClientRelationships)
+            .where(
+              and(
+                eq(trainerClientRelationships.trainerId, trainer.id),
+                eq(trainerClientRelationships.status, "active")
+              )
+            );
+          const clientCount = Number(clientCountResult[0]?.count ?? 0);
+          const specialties = (profile?.specialties as string[] | null) ?? [];
+
+          return {
+            id: trainer.id,
+            name: `${trainer.firstName ?? ""} ${trainer.lastName ?? ""}`.trim() || trainer.email,
+            email: trainer.email,
+            status: trainer.status,
+            specialization: specialties[0] ?? "General Health",
+            clientsAssigned: clientCount,
+            clientCapacity: profile?.capacity ?? 25,
+            revenueGenerated: clientCount * 200 * 12,
+            avgHealthScore: profile?.rating ? Math.round(profile.rating * 10) / 10 : 0,
+            responseTimeMin: Math.round(10 + (1 - (profile?.rating ?? 4.0) / 5) * 30),
+            rating: profile?.rating ?? 0,
+            acceptingClients: profile?.acceptingClients ?? false,
+          };
+        })
+      );
+
+      // Apply search filter
+      let result = enriched;
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        result = result.filter(
+          (t) =>
+            t.name.toLowerCase().includes(q) ||
+            t.specialization.toLowerCase().includes(q) ||
+            t.email.toLowerCase().includes(q)
+        );
+      }
+
+      // Apply status filter
+      if (filters.status && filters.status !== "All") {
+        result = result.filter((t) => t.status === filters.status);
+      }
+
+      return result.sort((a, b) => b.clientsAssigned - a.clientsAssigned);
+    }),
+
+  /**
+   * getTrainerStats — platform-wide trainer statistics.
+   */
+  getTrainerStats: superAdminProcedure.query(async ({ ctx }) => {
+    const allTrainers = await ctx.db.query.users.findMany({
+      where: eq(users.role, "trainer"),
+    });
+
+    const active = allTrainers.filter((t) => t.status === "active");
+    const suspended = allTrainers.filter((t) => t.status === "suspended");
+    const onboarding = allTrainers.filter((t) => t.status === "onboarding");
+
+    // Get total client assignments and revenue
+    let totalClients = 0;
+    let totalRevenue = 0;
+    let ratingSum = 0;
+    let ratingCount = 0;
+
+    for (const trainer of active) {
+      const clientCountResult = await ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(trainerClientRelationships)
+        .where(
+          and(
+            eq(trainerClientRelationships.trainerId, trainer.id),
+            eq(trainerClientRelationships.status, "active")
+          )
+        );
+      const count = Number(clientCountResult[0]?.count ?? 0);
+      totalClients += count;
+      totalRevenue += count * 200 * 12;
+
+      const profile = await ctx.db.query.trainerProfiles.findFirst({
+        where: eq(trainerProfiles.userId, trainer.id),
+      });
+      if (profile?.rating && profile.rating > 0) {
+        ratingSum += profile.rating;
+        ratingCount++;
+      }
+    }
+
+    const avgHealthScore = ratingCount > 0
+      ? Math.round((ratingSum / ratingCount) * 10) / 10
+      : 0;
+
+    return {
+      totalCoaches: allTrainers.length,
+      activeCoaches: active.length,
+      onLeaveCoaches: suspended.length,
+      pendingCoaches: onboarding.length,
+      totalClients,
+      totalRevenue,
+      avgHealthScore,
+    };
   }),
 
   getRecentActivity: superAdminProcedure.query(async ({ ctx }) => {

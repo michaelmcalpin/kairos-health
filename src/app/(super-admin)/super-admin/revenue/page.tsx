@@ -4,12 +4,12 @@ import { useMemo } from "react";
 import { TrendingUp, Users, Percent, DollarSign } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
-import { getAdminRevenueData } from "@/lib/admin-revenue/engine";
-import type { RevenueKPI } from "@/lib/admin-revenue/types";
 import { CompanySelector, useCompanyFilter } from "@/components/admin/CompanySelector";
 import { trpc } from "@/lib/trpc";
 
-const ICON_MAP: Record<RevenueKPI["iconKey"], typeof DollarSign> = {
+type IconKey = "dollar" | "trending" | "users" | "percent";
+
+const ICON_MAP: Record<IconKey, typeof DollarSign> = {
   dollar: DollarSign,
   trending: TrendingUp,
   users: Users,
@@ -26,7 +26,11 @@ export default function Page() {
   const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "month" });
 
-  const platformData = useMemo(() => getAdminRevenueData(), []);
+  // Platform-wide revenue via tRPC
+  const { data: platformData } = trpc.admin.revenue.getRevenueDashboard.useQuery(
+    undefined,
+    { staleTime: 30_000 }
+  );
 
   // Company-specific tRPC queries
   const { data: trainersData } = trpc.admin.companies.getTrainers.useQuery(
@@ -77,7 +81,11 @@ export default function Page() {
     };
   }, [company, trainersData, clientsData]);
 
-  const { kpis, topClients, recentPayouts, breakdown, sources } = platformData;
+  const kpis = platformData?.kpis ?? [];
+  const topClients = platformData?.topClients ?? [];
+  const recentPayouts = platformData?.recentPayouts ?? [];
+  const breakdown = platformData?.breakdown ?? [];
+  const sources = platformData?.sources ?? [];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -158,7 +166,7 @@ export default function Page() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {kpis.map((kpi) => {
-            const Icon = ICON_MAP[kpi.iconKey];
+            const Icon = ICON_MAP[kpi.iconKey as IconKey];
             return (
               <div
                 key={kpi.label}
