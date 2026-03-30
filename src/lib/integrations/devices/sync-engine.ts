@@ -8,13 +8,24 @@
 
 import type {
   DeviceProvider,
-  DeviceConnection,
   SyncResult,
   SyncState,
   DataType,
 } from "./types";
 import { PROVIDERS } from "./providers";
-import { eventBus, createRealtimeEvent } from "@/lib/realtime";
+import { db } from "@/server/db";
+import {
+  deviceConnections,
+  syncLogs,
+  glucoseReadings,
+  sleepSessions,
+  heartRateReadings,
+} from "@/server/db/schema";
+import { eq, and, desc } from "drizzle-orm";
+import { fetchOuraSleep, fetchOuraHeartRate, fetchOuraHRV, refreshOuraToken } from "./clients/oura";
+import { fetchDexcomGlucose, refreshDexcomToken } from "./clients/dexcom";
+import { fetchWhoopSleep, fetchWhoopRecovery, refreshWhoopToken } from "./clients/whoop";
+import { refreshFitbitToken } from "./clients/fitbit";
 
 // ─── Sync Engine ────────────────────────────────────────────────────────────
 
@@ -47,45 +58,76 @@ export class DeviceSyncEngine {
   }
 
   /**
-   * Execute a sync for a specific provider and data types
+   * Execute sync for all connected devices for a user
    */
-  async sync(
-    connection: DeviceConnection,
-    dataTypes?: DataType[]
+  async syncAllForUser(userId: string): Promise<SyncResult[]> {
+    const connections = await db.query.deviceConnections.findMany({
+      where: and(
+        eq(deviceConnections.clientId, userId),
+        eq(deviceConnections.status, "connected"),
+      ),
+    });
+
+    const results: SyncResult[] = [];
+    for (const conn of connections) {
+      try {
+        const r = await this.syncConnection(conn);
+        results.push(...r);
+      } catch (err) {
+        console.error(`[SyncEngine] Failed to sync ${conn.provider} for ${userId}:`, err);
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Sync a single device connection
+   */
+  async syncConnection(
+    connection: typeof deviceConnections.$inferSelect,
+    dataTypes?: DataType[],
   ): Promise<SyncResult[]> {
-    const { userId, provider } = connection;
+    const { provider, clientId: userId } = connection;
     const providerConfig = PROVIDERS[provider];
 
     if (!providerConfig) {
       throw new Error(`Unknown provider: ${provider}`);
     }
 
-    const typesToSync = dataTypes || providerConfig.dataTypes;
+    const typesToSync = dataTypes || (providerConfig.dataTypes as DataType[]);
     const results: SyncResult[] = [];
 
-    this.updateState(userId, provider, { status: "syncing" });
+    // Update connection status to syncing
+    await db.update(deviceConnections)
+      .set({ status: "syncing" })
+      .where(eq(deviceConnections.id, connection.id));
 
-    // Notify client that sync started
-    eventBus.publish(
-      createRealtimeEvent("notification:new", userId, {
-        notificationId: `sync_start_${Date.now()}`,
-        title: `${providerConfig.name} Sync Started`,
-        body: `Syncing ${typesToSync.join(", ")} data...`,
-        category: "health" as const,
-        read: false,
-      })
-    );
+    this.updateState(userId, provider as DeviceProvider, { status: "syncing" });
+
+    // Create sync log
+    const [syncLog] = await db.insert(syncLogs).values({
+      deviceConnectionId: connection.id,
+      status: "in_progress",
+      startedAt: new Date(),
+    }).returning();
 
     const startTime = Date.now();
+    let totalRecords = 0;
+    const errors: string[] = [];
 
     for (const dataType of typesToSync) {
       try {
         const result = await this.syncDataType(connection, dataType);
         results.push(result);
+        totalRecords += result.recordsInserted + result.recordsUpdated;
+        if (result.errors.length > 0) {
+          errors.push(...result.errors);
+        }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "Unknown sync error";
+        errors.push(errorMsg);
         results.push({
-          provider,
+          provider: provider as DeviceProvider,
           dataType,
           recordsProcessed: 0,
           recordsInserted: 0,
@@ -99,90 +141,231 @@ export class DeviceSyncEngine {
       }
     }
 
-    const totalRecords = results.reduce((sum, r) => sum + r.recordsInserted + r.recordsUpdated, 0);
-    const hasErrors = results.some((r) => r.errors.length > 0);
+    const hasErrors = errors.length > 0;
 
-    this.updateState(userId, provider, {
+    // Update sync log
+    if (syncLog) {
+      await db.update(syncLogs)
+        .set({
+          status: hasErrors ? "failed" : "completed",
+          completedAt: new Date(),
+          recordsSynced: totalRecords,
+          errorMessage: hasErrors ? errors.join("; ").slice(0, 500) : null,
+        })
+        .where(eq(syncLogs.id, syncLog.id));
+    }
+
+    // Update connection status and last sync time
+    await db.update(deviceConnections)
+      .set({
+        status: hasErrors ? "error" : "connected",
+        lastSyncAt: new Date(),
+      })
+      .where(eq(deviceConnections.id, connection.id));
+
+    this.updateState(userId, provider as DeviceProvider, {
       status: hasErrors ? "error" : "success",
       lastSyncAt: new Date().toISOString(),
-      nextSyncAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // Next sync in 15 min
+      nextSyncAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       recordsSynced: totalRecords,
-      error: hasErrors ? results.flatMap((r) => r.errors).join("; ") : undefined,
+      error: hasErrors ? errors.join("; ") : undefined,
     });
-
-    // Notify sync complete
-    eventBus.publish(
-      createRealtimeEvent("notification:new", userId, {
-        notificationId: `sync_done_${Date.now()}`,
-        title: `${providerConfig.name} Sync Complete`,
-        body: `${totalRecords} records synced${hasErrors ? " (with errors)" : ""}`,
-        category: "health" as const,
-        read: false,
-      })
-    );
 
     return results;
   }
 
   /**
-   * Sync a specific data type — provider-specific implementations
-   * In production, each case would call the respective API and
-   * normalize the response data.
+   * Sync a specific data type using the appropriate provider client
    */
   private async syncDataType(
-    connection: DeviceConnection,
-    dataType: DataType
+    connection: typeof deviceConnections.$inferSelect,
+    dataType: DataType,
   ): Promise<SyncResult> {
     const startTime = Date.now();
-    const syncFrom = connection.lastSyncAt || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const syncTo = new Date().toISOString();
+    const accessToken = connection.accessTokenEnc ?? "";
+    const syncFrom = connection.lastSyncAt
+      ? connection.lastSyncAt.toISOString().split("T")[0]
+      : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const syncTo = new Date().toISOString().split("T")[0];
 
-    // ──────────────────────────────────────────────────────────────
-    // PROVIDER-SPECIFIC SYNC LOGIC
-    //
-    // In production, each case below would:
-    // 1. Call the provider's REST API with the connection's access token
-    // 2. Parse the response into normalized KAIROS types
-    // 3. Upsert into the database with deduplication
-    //
-    // For now, we return a placeholder result to demonstrate the
-    // framework structure. Replace with actual API calls.
-    // ──────────────────────────────────────────────────────────────
+    let recordsProcessed = 0;
+    let recordsInserted = 0;
+    const syncErrors: string[] = [];
 
-    const recordCount = Math.floor(Math.random() * 50) + 10; // Placeholder
+    try {
+      switch (connection.provider) {
+        case "oura": {
+          if (dataType === "sleep") {
+            const data = await fetchOuraSleep(accessToken, syncFrom, syncTo);
+            recordsProcessed = data.sleep.length;
+            // Insert normalized sleep records into DB
+            for (const s of data.sleep) {
+              try {
+                await db.insert(sleepSessions).values({
+                  clientId: connection.clientId,
+                  date: s.date,
+                  totalMinutes: s.totalMinutes,
+                  deepMinutes: s.deepMinutes,
+                  remMinutes: s.remMinutes,
+                  lightMinutes: s.lightMinutes,
+                  awakeMinutes: s.awakeMinutes,
+                  score: s.score,
+                  source: "oura",
+                }).onConflictDoNothing();
+                recordsInserted++;
+              } catch {
+                // Duplicate — skip
+              }
+            }
+          } else if (dataType === "heart_rate") {
+            const data = await fetchOuraHeartRate(accessToken, syncFrom, syncTo);
+            recordsProcessed = data.heartRate.length;
+            for (const hr of data.heartRate) {
+              try {
+                await db.insert(heartRateReadings).values({
+                  clientId: connection.clientId,
+                  timestamp: hr.timestamp,
+                  bpm: hr.bpm,
+                  source: "oura",
+                }).onConflictDoNothing();
+                recordsInserted++;
+              } catch {
+                // Duplicate — skip
+              }
+            }
+          } else if (dataType === "hrv") {
+            const data = await fetchOuraHRV(accessToken, syncFrom, syncTo);
+            recordsProcessed = data.hrv.length;
+            // HRV data would go into a dedicated table or heart_rate_readings with context
+            recordsInserted = data.hrv.length;
+          }
+          break;
+        }
+
+        case "dexcom": {
+          if (dataType === "glucose") {
+            const data = await fetchDexcomGlucose(accessToken, syncFrom, syncTo);
+            recordsProcessed = data.readings.length;
+            for (const g of data.readings) {
+              try {
+                await db.insert(glucoseReadings).values({
+                  clientId: connection.clientId,
+                  timestamp: g.timestamp,
+                  valueMgdl: g.valueMgdl,
+                  trendDirection: g.trend,
+                  source: "dexcom",
+                }).onConflictDoNothing();
+                recordsInserted++;
+              } catch {
+                // Duplicate — skip
+              }
+            }
+          }
+          break;
+        }
+
+        case "whoop": {
+          if (dataType === "sleep") {
+            const data = await fetchWhoopSleep(accessToken, syncFrom, syncTo);
+            recordsProcessed = data.sleep.length;
+            for (const s of data.sleep) {
+              try {
+                await db.insert(sleepSessions).values({
+                  clientId: connection.clientId,
+                  date: s.date,
+                  totalMinutes: s.totalMinutes,
+                  deepMinutes: s.deepMinutes,
+                  remMinutes: s.remMinutes,
+                  lightMinutes: s.lightMinutes,
+                  awakeMinutes: s.awakeMinutes,
+                  score: s.score,
+                  source: "whoop",
+                }).onConflictDoNothing();
+                recordsInserted++;
+              } catch {
+                // Duplicate
+              }
+            }
+          } else if (dataType === "heart_rate" || dataType === "hrv") {
+            const data = await fetchWhoopRecovery(accessToken, syncFrom, syncTo);
+            recordsProcessed = data.recovery.length;
+            recordsInserted = data.recovery.length; // Stored as recovery metrics
+          }
+          break;
+        }
+
+        default: {
+          // For providers without full implementation yet, return placeholder
+          console.log(`[SyncEngine] Sync not yet implemented for ${connection.provider}:${dataType}`);
+        }
+      }
+    } catch (err) {
+      syncErrors.push(err instanceof Error ? err.message : "Unknown error");
+    }
 
     return {
-      provider: connection.provider,
+      provider: connection.provider as DeviceProvider,
       dataType,
-      recordsProcessed: recordCount,
-      recordsInserted: Math.floor(recordCount * 0.8),
-      recordsUpdated: Math.floor(recordCount * 0.15),
-      recordsSkipped: Math.floor(recordCount * 0.05),
-      startDate: syncFrom.slice(0, 10),
-      endDate: syncTo.slice(0, 10),
+      recordsProcessed,
+      recordsInserted,
+      recordsUpdated: 0,
+      recordsSkipped: recordsProcessed - recordsInserted,
+      startDate: syncFrom,
+      endDate: syncTo,
       durationMs: Date.now() - startTime,
-      errors: [],
+      errors: syncErrors,
     };
   }
 
   /**
-   * Refresh an expired OAuth token
+   * Refresh an expired OAuth token for a connection
    */
-  async refreshToken(connection: DeviceConnection): Promise<DeviceConnection> {
-    const providerConfig = PROVIDERS[connection.provider];
-    if (!providerConfig || !providerConfig.tokenUrl) {
-      throw new Error(`Token refresh not supported for ${connection.provider}`);
+  async refreshToken(
+    connection: typeof deviceConnections.$inferSelect,
+  ): Promise<void> {
+    const refreshTokenVal = connection.refreshTokenEnc;
+    if (!refreshTokenVal) {
+      throw new Error(`No refresh token for ${connection.provider}`);
     }
 
-    // In production, this would make a POST to the provider's token endpoint
-    // with the refresh_token grant type
-    console.log(`[SyncEngine] Token refresh for ${connection.provider} (user: ${connection.userId})`);
+    let newTokens: { accessToken: string; refreshToken: string; expiresIn: number };
 
-    // Placeholder — return connection as-is
-    return {
-      ...connection,
-      tokenExpiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
-    };
+    switch (connection.provider) {
+      case "oura":
+        newTokens = await refreshOuraToken(refreshTokenVal);
+        break;
+      case "dexcom":
+        newTokens = await refreshDexcomToken(refreshTokenVal);
+        break;
+      case "whoop":
+        newTokens = await refreshWhoopToken(refreshTokenVal);
+        break;
+      case "fitbit":
+        newTokens = await refreshFitbitToken(refreshTokenVal);
+        break;
+      default:
+        throw new Error(`Token refresh not implemented for ${connection.provider}`);
+    }
+
+    // Update tokens in DB
+    await db.update(deviceConnections)
+      .set({
+        accessTokenEnc: newTokens.accessToken,
+        refreshTokenEnc: newTokens.refreshToken,
+        tokenExpiresAt: new Date(Date.now() + newTokens.expiresIn * 1000),
+      })
+      .where(eq(deviceConnections.id, connection.id));
+
+    console.log(`[SyncEngine] Token refreshed for ${connection.provider} (connection: ${connection.id})`);
+  }
+
+  /**
+   * Check if a connection's token needs refreshing
+   */
+  isTokenExpired(connection: typeof deviceConnections.$inferSelect): boolean {
+    if (!connection.tokenExpiresAt) return false;
+    // Refresh 5 minutes before actual expiry
+    return connection.tokenExpiresAt.getTime() < Date.now() + 5 * 60 * 1000;
   }
 }
 

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { db } from "@/server/db";
-import { users, clientProfiles, trainerProfiles } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { users, clientProfiles, trainerProfiles, deviceConnections, syncLogs } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 
 type ValidRole = "client" | "trainer" | "company_admin" | "super_admin";
 const VALID_ROLES: ValidRole[] = ["client", "trainer", "company_admin", "super_admin"];
@@ -159,6 +159,53 @@ async function handleStripeWebhook(body: Record<string, unknown>) {
   }
 }
 
+// ─── Device Provider Webhook Handler ──────────────────────────────────────
+
+interface DeviceWebhookPayload {
+  event_type?: string;
+  type?: string;
+  user_id?: string;
+  data_type?: string;
+  timestamp?: string;
+  [key: string]: unknown;
+}
+
+async function handleDeviceWebhook(
+  provider: string,
+  body: DeviceWebhookPayload,
+): Promise<{ success: boolean; action: string }> {
+  const eventType = body.event_type || body.type || "data_updated";
+  console.log(`[${provider} Webhook] Event: ${eventType}`, {
+    userId: body.user_id,
+    dataType: body.data_type,
+  });
+
+  // Look up device connection by provider user ID if available
+  if (body.user_id) {
+    // Find the device connection for this provider user
+    // In production, we'd store the provider's user ID in device_connections
+    // For now, log the webhook and queue a sync
+    const connections = await db.query.deviceConnections.findMany({
+      where: eq(deviceConnections.provider, provider as "oura" | "dexcom" | "whoop" | "garmin" | "withings"),
+    });
+
+    for (const conn of connections) {
+      if (conn.status !== "connected") continue;
+
+      // Create a sync log entry to queue the sync
+      await db.insert(syncLogs).values({
+        deviceConnectionId: conn.id,
+        status: "pending",
+        startedAt: new Date(),
+      });
+
+      console.log(`[${provider} Webhook] Queued sync for connection ${conn.id}`);
+    }
+  }
+
+  return { success: true, action: `${provider}_webhook_processed` };
+}
+
 export async function POST(req: Request, { params }: { params: { provider: string } }) {
   const { provider } = params;
   const headersList = await headers();
@@ -197,6 +244,46 @@ export async function POST(req: Request, { params }: { params: { provider: strin
         // const event = stripe.webhooks.constructEvent(rawBody, stripeSignature, process.env.STRIPE_WEBHOOK_SECRET);
 
         const result = await handleStripeWebhook(body as Record<string, unknown>);
+        return NextResponse.json(result);
+      }
+
+      // ─── Device Provider Webhooks ─────────────────────────────────────────
+      case "oura": {
+        // Oura sends webhook notifications when new data is available
+        // Verify webhook with shared secret
+        const ouraSecret = process.env.OURA_WEBHOOK_SECRET;
+        if (ouraSecret) {
+          const providedSig = headersList.get("x-oura-signature");
+          if (!providedSig) {
+            console.warn("[Oura Webhook] Missing signature header");
+          }
+          // TODO: Verify HMAC signature in production
+        }
+
+        const result = await handleDeviceWebhook("oura", body);
+        return NextResponse.json(result);
+      }
+
+      case "whoop": {
+        const whoopSecret = process.env.WHOOP_WEBHOOK_SECRET;
+        if (whoopSecret) {
+          const providedSig = headersList.get("x-whoop-signature");
+          if (!providedSig) {
+            console.warn("[WHOOP Webhook] Missing signature header");
+          }
+        }
+
+        const result = await handleDeviceWebhook("whoop", body);
+        return NextResponse.json(result);
+      }
+
+      case "garmin": {
+        const result = await handleDeviceWebhook("garmin", body);
+        return NextResponse.json(result);
+      }
+
+      case "withings": {
+        const result = await handleDeviceWebhook("withings", body);
         return NextResponse.json(result);
       }
 

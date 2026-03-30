@@ -4,7 +4,7 @@ import { deviceConnections, syncLogs } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { PROVIDERS } from "@/lib/integrations/devices/providers";
 
-const providerEnum = z.enum(["oura", "apple_health", "dexcom", "garmin", "whoop", "withings"]);
+const providerEnum = z.enum(["oura", "apple_health", "dexcom", "garmin", "whoop", "withings", "fitbit"]);
 
 export const clientDevicesRouter = router({
   /**

@@ -241,15 +241,15 @@ export function IntegrationDashboard() {
   });
 
   const handleConnect = (provider: string) => {
-    initiateConnectMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" });
+    initiateConnectMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit" });
   };
 
   const handleSync = (provider: string) => {
-    syncNowMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" });
+    syncNowMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit" });
   };
 
   const handleDisconnect = (provider: string) => {
-    disconnectMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" });
+    disconnectMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit" });
   };
 
   const connectedCount = integrations.filter((i) => i.connected).length;

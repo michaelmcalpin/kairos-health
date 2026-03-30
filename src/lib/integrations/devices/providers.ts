@@ -68,6 +68,16 @@ export const PROVIDERS: Record<string, ProviderConfig> = {
     dataTypes: ["sleep", "heart_rate", "steps", "workouts", "calories"],
     webhookSupported: true,
   },
+  withings: {
+    id: "withings",
+    name: "Withings",
+    description: "Smart scales, blood pressure monitors, and sleep tracking",
+    oauthUrl: "https://account.withings.com/oauth2_user/authorize2",
+    tokenUrl: "https://wbsapi.withings.net/v2/oauth2",
+    scopes: ["user.metrics", "user.activity", "user.sleepevents"],
+    dataTypes: ["weight", "body_composition", "blood_pressure", "sleep"],
+    webhookSupported: true,
+  },
 };
 
 /**
