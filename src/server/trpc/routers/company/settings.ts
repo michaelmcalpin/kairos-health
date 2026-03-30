@@ -1,35 +1,37 @@
 import { z } from "zod";
 import { router, companyAdminProcedure } from "@/server/trpc";
-import {
-  getCompany,
-  updateCompany,
-} from "@/lib/company-ops/engine";
+import { companies } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 
 export const companySettingsRouter = router({
-  // Get company settings
-  get: companyAdminProcedure
-    .input(z.object({ companyId: z.string() }))
-    .query(async ({ input }) => {
-      const company = getCompany(input.companyId);
-      if (!company) throw new Error("Company not found");
-      return {
-        name: company.name,
-        slug: company.slug,
-        website: company.website,
-        brandColor: company.brandColor,
-        logoUrl: company.logoUrl,
-        emailFromName: company.emailFromName,
-        emailFooter: company.emailFooter,
-        maxTrainers: company.maxTrainers,
-        maxClients: company.maxClients,
-      };
-    }),
+  // Get company settings from the real DB
+  get: companyAdminProcedure.query(async ({ ctx }) => {
+    const companyId = ctx.companyId;
+    if (!companyId) throw new Error("No company assigned");
+
+    const company = await ctx.db.query.companies.findFirst({
+      where: eq(companies.id, companyId),
+    });
+    if (!company) throw new Error("Company not found");
+
+    return {
+      id: company.id,
+      name: company.name,
+      slug: company.slug,
+      website: company.website ?? "",
+      brandColor: company.brandColor ?? "#D4AF37",
+      logoUrl: company.logoUrl,
+      emailFromName: company.emailFromName ?? "",
+      emailFooter: company.emailFooter ?? "",
+      maxTrainers: company.maxTrainers ?? 10,
+      maxClients: company.maxClients ?? 100,
+    };
+  }),
 
   // Update company settings (company admin can edit their own company)
   update: companyAdminProcedure
     .input(
       z.object({
-        companyId: z.string(),
         name: z.string().min(1).max(255).optional(),
         website: z.string().max(500).optional(),
         brandColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
@@ -39,7 +41,15 @@ export const companySettingsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { companyId, ...updates } = input;
-      return updateCompany(companyId, updates, ctx.dbUserId);
+      const companyId = ctx.companyId;
+      if (!companyId) throw new Error("No company assigned");
+
+      const [updated] = await ctx.db
+        .update(companies)
+        .set({ ...input, updatedAt: new Date() })
+        .where(eq(companies.id, companyId))
+        .returning();
+
+      return updated;
     }),
 });

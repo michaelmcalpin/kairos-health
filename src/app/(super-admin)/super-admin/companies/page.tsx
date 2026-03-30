@@ -1,38 +1,44 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2, Search, Users, Dumbbell, Plus, MoreVertical,
   Edit2, Pause, Play, Trash2, DollarSign, ArrowUpDown, Eye,
+  Loader2,
 } from "lucide-react";
-import {
-  listCompanies,
-  getCompanyStats,
-  performCompanyAction,
-} from "@/lib/company-ops/engine";
-import type { Company, CompanyListFilters } from "@/lib/company-ops";
+import { trpc } from "@/lib/trpc";
 
 type SortBy = "name" | "createdAt" | "trainerCount" | "clientCount";
+type StatusFilter = "all" | "active" | "inactive" | "suspended" | "onboarding";
 
 export default function CompaniesPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<CompanyListFilters["status"]>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [actionMenu, setActionMenu] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const utils = trpc.useUtils();
 
-  // Fetch data
-  const stats = getCompanyStats();
-  const result = listCompanies({ search: searchQuery, status: statusFilter, sortBy, sortOrder, page, pageSize: 10 });
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _ = refreshKey; // force re-render on refresh
+  // Fetch data via tRPC
+  const { data: stats, isLoading: statsLoading } = trpc.admin.companies.getStats.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const { data: result, isLoading: listLoading } = trpc.admin.companies.list.useQuery(
+    { search: searchQuery, status: statusFilter, sortBy, sortOrder, page, pageSize: 10 },
+    { staleTime: 15_000 }
+  );
+
+  const actionMutation = trpc.admin.companies.performAction.useMutation({
+    onSuccess: () => {
+      utils.admin.companies.list.invalidate();
+      utils.admin.companies.getStats.invalidate();
+    },
+  });
 
   function toggleSort(field: SortBy) {
     if (sortBy === field) {
@@ -45,14 +51,24 @@ export default function CompaniesPage() {
   }
 
   function handleAction(companyId: string, action: "suspend" | "reactivate" | "delete") {
-    try {
-      performCompanyAction(companyId, action);
-      refresh();
-    } catch {
-      // Silently handle errors in demo
-    }
+    actionMutation.mutate({ companyId, action });
     setActionMenu(null);
   }
+
+  if (statsLoading || listLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-kairos-gold border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-xs font-body text-kairos-silver-dark">Loading companies...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const companiesList = result?.companies ?? [];
+  const totalPages = result?.totalPages ?? 1;
+  const total = result?.total ?? 0;
 
   return (
     <div className="animate-fade-in">
@@ -78,7 +94,7 @@ export default function CompaniesPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="kairos-label mb-1">Total</p>
-              <p className="font-heading font-bold text-2xl text-kairos-gold">{stats.totalCompanies}</p>
+              <p className="font-heading font-bold text-2xl text-kairos-gold">{stats?.totalCompanies ?? 0}</p>
             </div>
             <Building2 className="w-7 h-7 text-kairos-gold/40" />
           </div>
@@ -87,7 +103,7 @@ export default function CompaniesPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="kairos-label mb-1">Active</p>
-              <p className="font-heading font-bold text-2xl text-green-400">{stats.activeCompanies}</p>
+              <p className="font-heading font-bold text-2xl text-green-400">{stats?.activeCompanies ?? 0}</p>
             </div>
             <Play className="w-7 h-7 text-green-400/40" />
           </div>
@@ -96,7 +112,7 @@ export default function CompaniesPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="kairos-label mb-1">Trainers</p>
-              <p className="font-heading font-bold text-2xl text-blue-400">{stats.totalTrainers}</p>
+              <p className="font-heading font-bold text-2xl text-blue-400">{stats?.totalTrainers ?? 0}</p>
             </div>
             <Dumbbell className="w-7 h-7 text-blue-400/40" />
           </div>
@@ -105,7 +121,7 @@ export default function CompaniesPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="kairos-label mb-1">Clients</p>
-              <p className="font-heading font-bold text-2xl text-purple-400">{stats.totalClients}</p>
+              <p className="font-heading font-bold text-2xl text-purple-400">{stats?.totalClients ?? 0}</p>
             </div>
             <Users className="w-7 h-7 text-purple-400/40" />
           </div>
@@ -114,7 +130,7 @@ export default function CompaniesPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="kairos-label mb-1">Est. MRR</p>
-              <p className="font-heading font-bold text-2xl text-emerald-400">${(stats.mrr / 1000).toFixed(0)}k</p>
+              <p className="font-heading font-bold text-2xl text-emerald-400">${((stats?.mrr ?? 0) / 1000).toFixed(0)}k</p>
             </div>
             <DollarSign className="w-7 h-7 text-emerald-400/40" />
           </div>
@@ -135,7 +151,7 @@ export default function CompaniesPage() {
         </div>
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value as CompanyListFilters["status"]); setPage(1); }}
+          onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
           className="bg-kairos-card border border-kairos-border rounded-kairos-sm px-4 py-2.5 text-sm text-white focus:outline-none focus:border-kairos-gold/50"
         >
           <option value="all">All Statuses</option>
@@ -172,17 +188,100 @@ export default function CompaniesPage() {
             </tr>
           </thead>
           <tbody>
-            {result.companies.map((company) => (
-              <CompanyRow
-                key={company.id}
-                company={company}
-                actionMenuOpen={actionMenu === company.id}
-                onToggleMenu={() => setActionMenu(actionMenu === company.id ? null : company.id)}
-                onView={() => router.push(`/super-admin/companies/${company.id}`)}
-                onAction={(action) => handleAction(company.id, action)}
-              />
-            ))}
-            {result.companies.length === 0 && (
+            {companiesList.map((company) => {
+              const trainerPct = company.maxTrainers > 0 ? Math.round((company.trainerCount / company.maxTrainers) * 100) : 0;
+              const clientPct = company.maxClients > 0 ? Math.round((company.clientCount / company.maxClients) * 100) : 0;
+              const capacityPct = Math.max(trainerPct, clientPct);
+
+              const statusColors: Record<string, string> = {
+                active: "bg-green-500/15 text-green-400",
+                suspended: "bg-yellow-500/15 text-yellow-400",
+                inactive: "bg-gray-500/15 text-gray-400",
+                onboarding: "bg-blue-500/15 text-blue-400",
+              };
+
+              return (
+                <tr key={company.id} className="border-b border-kairos-border/50 hover:bg-kairos-card-hover transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-10 h-10 rounded-kairos-sm flex items-center justify-center text-white font-heading font-bold text-sm flex-shrink-0"
+                        style={{ backgroundColor: company.brandColor + "30", color: company.brandColor }}
+                      >
+                        {company.name.charAt(0)}
+                      </div>
+                      <div>
+                        <button onClick={() => router.push(`/super-admin/companies/${company.id}`)} className="font-heading font-semibold text-white text-sm hover:text-kairos-gold transition-colors text-left">
+                          {company.name}
+                        </button>
+                        <p className="text-xs font-body text-kairos-silver-dark">{company.website || company.slug}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2.5 py-1 rounded-kairos-sm text-xs font-heading font-semibold ${statusColors[company.status] || statusColors.inactive}`}>
+                      {company.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="font-heading font-semibold text-white text-sm">{company.trainerCount}</span>
+                    <span className="text-xs text-kairos-silver-dark">/{company.maxTrainers}</span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="font-heading font-semibold text-white text-sm">{company.clientCount}</span>
+                    <span className="text-xs text-kairos-silver-dark">/{company.maxClients}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 justify-center">
+                      <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(capacityPct, 100)}%`,
+                            backgroundColor: capacityPct >= 90 ? "#ef4444" : capacityPct >= 70 ? "#eab308" : "#22c55e",
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs font-body text-kairos-silver-dark">{capacityPct}%</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="relative inline-block">
+                      <button
+                        onClick={() => setActionMenu(actionMenu === company.id ? null : company.id)}
+                        className="p-2 rounded-kairos-sm text-kairos-silver-dark hover:text-white hover:bg-kairos-card-hover transition-colors"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      {actionMenu === company.id && (
+                        <div className="absolute right-0 top-10 w-48 bg-kairos-card border border-kairos-border rounded-kairos-sm shadow-lg z-20 py-1">
+                          <button onClick={() => { router.push(`/super-admin/companies/${company.id}`); setActionMenu(null); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
+                            <Eye size={14} /> View Details
+                          </button>
+                          <button onClick={() => { router.push(`/super-admin/companies/${company.id}`); setActionMenu(null); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
+                            <Edit2 size={14} /> Edit Company
+                          </button>
+                          <div className="border-t border-kairos-border my-1" />
+                          {company.status === "active" ? (
+                            <button onClick={() => handleAction(company.id, "suspend")} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-yellow-400 hover:bg-kairos-card-hover transition-colors">
+                              <Pause size={14} /> Suspend
+                            </button>
+                          ) : (
+                            <button onClick={() => handleAction(company.id, "reactivate")} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-green-400 hover:bg-kairos-card-hover transition-colors">
+                              <Play size={14} /> Reactivate
+                            </button>
+                          )}
+                          <button onClick={() => handleAction(company.id, "delete")} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-kairos-card-hover transition-colors">
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {companiesList.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-kairos-silver-dark font-body">
                   No companies found
@@ -194,10 +293,10 @@ export default function CompaniesPage() {
       </div>
 
       {/* Pagination */}
-      {result.totalPages > 1 && (
+      {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-xs font-body text-kairos-silver-dark">
-            Showing {(result.page - 1) * result.pageSize + 1}–{Math.min(result.page * result.pageSize, result.total)} of {result.total}
+            Showing {(page - 1) * 10 + 1}–{Math.min(page * 10, total)} of {total}
           </p>
           <div className="flex gap-2">
             <button
@@ -209,7 +308,7 @@ export default function CompaniesPage() {
             </button>
             <button
               onClick={() => setPage(page + 1)}
-              disabled={page >= result.totalPages}
+              disabled={page >= totalPages}
               className="px-3 py-1.5 rounded-kairos-sm text-xs font-heading bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:text-white disabled:opacity-40 transition-colors"
             >
               Next
@@ -222,118 +321,14 @@ export default function CompaniesPage() {
       {showCreateModal && (
         <CreateCompanyModal
           onClose={() => setShowCreateModal(false)}
-          onCreated={() => { setShowCreateModal(false); refresh(); }}
+          onCreated={() => {
+            setShowCreateModal(false);
+            utils.admin.companies.list.invalidate();
+            utils.admin.companies.getStats.invalidate();
+          }}
         />
       )}
     </div>
-  );
-}
-
-// ─── Company Row ─────────────────────────────────────────────────
-
-function CompanyRow({
-  company,
-  actionMenuOpen,
-  onToggleMenu,
-  onView,
-  onAction,
-}: {
-  company: Company;
-  actionMenuOpen: boolean;
-  onToggleMenu: () => void;
-  onView: () => void;
-  onAction: (action: "suspend" | "reactivate" | "delete") => void;
-}) {
-  const trainerPct = company.maxTrainers > 0 ? Math.round((company.trainerCount / company.maxTrainers) * 100) : 0;
-  const clientPct = company.maxClients > 0 ? Math.round((company.clientCount / company.maxClients) * 100) : 0;
-  const capacityPct = Math.max(trainerPct, clientPct);
-
-  const statusColors: Record<string, string> = {
-    active: "bg-green-500/15 text-green-400",
-    suspended: "bg-yellow-500/15 text-yellow-400",
-    inactive: "bg-gray-500/15 text-gray-400",
-    onboarding: "bg-blue-500/15 text-blue-400",
-  };
-
-  return (
-    <tr className="border-b border-kairos-border/50 hover:bg-kairos-card-hover transition-colors">
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-kairos-sm flex items-center justify-center text-white font-heading font-bold text-sm flex-shrink-0"
-            style={{ backgroundColor: company.brandColor + "30", color: company.brandColor }}
-          >
-            {company.name.charAt(0)}
-          </div>
-          <div>
-            <button onClick={onView} className="font-heading font-semibold text-white text-sm hover:text-kairos-gold transition-colors text-left">
-              {company.name}
-            </button>
-            <p className="text-xs font-body text-kairos-silver-dark">{company.website || company.slug}</p>
-          </div>
-        </div>
-      </td>
-      <td className="px-6 py-4">
-        <span className={`px-2.5 py-1 rounded-kairos-sm text-xs font-heading font-semibold ${statusColors[company.status] || statusColors.inactive}`}>
-          {company.status}
-        </span>
-      </td>
-      <td className="px-6 py-4 text-center">
-        <span className="font-heading font-semibold text-white text-sm">{company.trainerCount}</span>
-        <span className="text-xs text-kairos-silver-dark">/{company.maxTrainers}</span>
-      </td>
-      <td className="px-6 py-4 text-center">
-        <span className="font-heading font-semibold text-white text-sm">{company.clientCount}</span>
-        <span className="text-xs text-kairos-silver-dark">/{company.maxClients}</span>
-      </td>
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-2 justify-center">
-          <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${Math.min(capacityPct, 100)}%`,
-                backgroundColor: capacityPct >= 90 ? "#ef4444" : capacityPct >= 70 ? "#eab308" : "#22c55e",
-              }}
-            />
-          </div>
-          <span className="text-xs font-body text-kairos-silver-dark">{capacityPct}%</span>
-        </div>
-      </td>
-      <td className="px-6 py-4 text-right">
-        <div className="relative inline-block">
-          <button
-            onClick={onToggleMenu}
-            className="p-2 rounded-kairos-sm text-kairos-silver-dark hover:text-white hover:bg-kairos-card-hover transition-colors"
-          >
-            <MoreVertical size={16} />
-          </button>
-          {actionMenuOpen && (
-            <div className="absolute right-0 top-10 w-48 bg-kairos-card border border-kairos-border rounded-kairos-sm shadow-lg z-20 py-1">
-              <button onClick={onView} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
-                <Eye size={14} /> View Details
-              </button>
-              <button onClick={() => { onView(); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-white hover:bg-kairos-card-hover transition-colors">
-                <Edit2 size={14} /> Edit Company
-              </button>
-              <div className="border-t border-kairos-border my-1" />
-              {company.status === "active" ? (
-                <button onClick={() => onAction("suspend")} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-yellow-400 hover:bg-kairos-card-hover transition-colors">
-                  <Pause size={14} /> Suspend
-                </button>
-              ) : (
-                <button onClick={() => onAction("reactivate")} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-green-400 hover:bg-kairos-card-hover transition-colors">
-                  <Play size={14} /> Reactivate
-                </button>
-              )}
-              <button onClick={() => onAction("delete")} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-kairos-card-hover transition-colors">
-                <Trash2 size={14} /> Delete
-              </button>
-            </div>
-          )}
-        </div>
-      </td>
-    </tr>
   );
 }
 
@@ -356,15 +351,22 @@ function CreateCompanyModal({
   });
   const [error, setError] = useState<string | null>(null);
 
+  const createMutation = trpc.admin.companies.create.useMutation({
+    onSuccess: () => onCreated(),
+    onError: (err) => setError(err.message || "Failed to create company"),
+  });
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    try {
-      createCompanyFromForm(form);
-      onCreated();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create company");
-    }
+    createMutation.mutate({
+      name: form.name,
+      website: form.website || undefined,
+      brandColor: form.brandColor,
+      maxTrainers: form.maxTrainers,
+      maxClients: form.maxClients,
+      emailFromName: form.emailFromName || undefined,
+    });
   }
 
   return (
@@ -483,9 +485,10 @@ function CreateCompanyModal({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-kairos-gold text-kairos-royal-dark rounded-kairos-sm font-heading font-semibold text-sm hover:bg-kairos-gold-light transition-colors"
+              disabled={createMutation.isPending}
+              className="px-5 py-2 bg-kairos-gold text-kairos-royal-dark rounded-kairos-sm font-heading font-semibold text-sm hover:bg-kairos-gold-light transition-colors disabled:opacity-50"
             >
-              Create Company
+              {createMutation.isPending ? "Creating..." : "Create Company"}
             </button>
           </div>
         </form>
@@ -493,6 +496,3 @@ function CreateCompanyModal({
     </div>
   );
 }
-
-// Helper to avoid importing engine directly in modal
-import { createCompany as createCompanyFromForm } from "@/lib/company-ops/engine";

@@ -1,21 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   ArrowLeft, Building2, Dumbbell, Users, Save, Palette,
   Globe, Mail, Shield, Pause, Play, Trash2, Clock,
-  Star, ChevronRight,
+  Star, ChevronRight, Loader2,
 } from "lucide-react";
-import {
-  getCompany,
-  getCompanyTrainers,
-  getCompanyClients,
-  updateCompany,
-  performCompanyAction,
-  getCompanyAuditLog,
-} from "@/lib/company-ops/engine";
-import type { Company, CompanyTrainer, CompanyClient, CompanyAuditEntry } from "@/lib/company-ops";
+import { trpc } from "@/lib/trpc";
 
 type Tab = "overview" | "trainers" | "clients" | "branding" | "audit";
 
@@ -23,14 +15,28 @@ export default function CompanyDetailPage() {
   const router = useRouter();
   const params = useParams();
   const companyId = params.id as string;
+  const utils = trpc.useUtils();
 
   const [tab, setTab] = useState<Tab>("overview");
-  const [company, setCompany] = useState<Company | null>(null);
-  const [trainers, setTrainers] = useState<CompanyTrainer[]>([]);
-  const [clients, setClients] = useState<CompanyClient[]>([]);
-  const [audit, setAudit] = useState<CompanyAuditEntry[]>([]);
-  const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+  // Fetch company data via tRPC
+  const { data: company, isLoading: companyLoading } = trpc.admin.companies.get.useQuery(
+    { companyId },
+    { staleTime: 30_000 }
+  );
+  const { data: trainers = [] } = trpc.admin.companies.getTrainers.useQuery(
+    { companyId },
+    { staleTime: 30_000, enabled: !!company }
+  );
+  const { data: clients = [] } = trpc.admin.companies.getClients.useQuery(
+    { companyId },
+    { staleTime: 30_000, enabled: !!company }
+  );
+  const { data: audit = [] } = trpc.admin.companies.getAuditLog.useQuery(
+    { limit: 20, companyId },
+    { staleTime: 30_000, enabled: !!company && tab === "audit" }
+  );
 
   // Edit form state
   const [form, setForm] = useState({
@@ -43,71 +49,63 @@ export default function CompanyDetailPage() {
     maxTrainers: 10,
     maxClients: 100,
   });
+  const [formSeeded, setFormSeeded] = useState(false);
 
-  useEffect(() => {
-    const c = getCompany(companyId);
-    if (!c) {
-      router.replace("/super-admin/companies");
-      return;
-    }
-    setCompany(c);
+  // Seed form when company loads
+  if (company && !formSeeded) {
     setForm({
-      name: c.name,
-      slug: c.slug,
-      website: c.website,
-      brandColor: c.brandColor,
-      emailFromName: c.emailFromName,
-      emailFooter: c.emailFooter,
-      maxTrainers: c.maxTrainers,
-      maxClients: c.maxClients,
+      name: company.name,
+      slug: company.slug,
+      website: company.website,
+      brandColor: company.brandColor,
+      emailFromName: company.emailFromName,
+      emailFooter: company.emailFooter,
+      maxTrainers: company.maxTrainers,
+      maxClients: company.maxClients,
     });
-    setTrainers(getCompanyTrainers(companyId));
-    setClients(getCompanyClients(companyId));
-    setAudit(getCompanyAuditLog(20, companyId));
-  }, [companyId, router]);
-
-  function reload() {
-    const c = getCompany(companyId);
-    if (c) {
-      setCompany(c);
-      setTrainers(getCompanyTrainers(companyId));
-      setClients(getCompanyClients(companyId));
-      setAudit(getCompanyAuditLog(20, companyId));
-    }
+    setFormSeeded(true);
   }
 
-  function handleSave() {
-    setSaving(true);
-    setSaveMsg(null);
-    try {
-      const updated = updateCompany(companyId, form);
-      setCompany(updated);
+  const updateMutation = trpc.admin.companies.update.useMutation({
+    onSuccess: () => {
+      utils.admin.companies.get.invalidate({ companyId });
+      utils.admin.companies.list.invalidate();
       setSaveMsg("Changes saved successfully");
+      setFormSeeded(false);
       setTimeout(() => setSaveMsg(null), 3000);
-    } catch (err) {
-      setSaveMsg(err instanceof Error ? err.message : "Save failed");
-    }
-    setSaving(false);
+    },
+    onError: (err) => {
+      setSaveMsg(err.message || "Save failed");
+      setTimeout(() => setSaveMsg(null), 3000);
+    },
+  });
+
+  const actionMutation = trpc.admin.companies.performAction.useMutation({
+    onSuccess: (_, variables) => {
+      if (variables.action === "delete") {
+        router.replace("/super-admin/companies");
+      } else {
+        utils.admin.companies.get.invalidate({ companyId });
+        utils.admin.companies.list.invalidate();
+      }
+    },
+  });
+
+  function handleSave() {
+    updateMutation.mutate({ companyId, ...form });
   }
 
   function handleAction(action: "suspend" | "reactivate" | "delete") {
-    try {
-      const result = performCompanyAction(companyId, action);
-      if (action === "delete") {
-        router.replace("/super-admin/companies");
-      } else if (result) {
-        setCompany(result);
-        reload();
-      }
-    } catch {
-      // Silently handle in demo
-    }
+    actionMutation.mutate({ companyId, action });
   }
 
-  if (!company) {
+  if (companyLoading || !company) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-kairos-silver-dark font-body">Loading...</p>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-kairos-gold border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-xs font-body text-kairos-silver-dark">Loading company...</p>
+        </div>
       </div>
     );
   }
@@ -213,9 +211,8 @@ export default function CompanyDetailPage() {
         <BrandingTab
           form={form}
           setForm={setForm}
-          company={company}
           onSave={handleSave}
-          saving={saving}
+          saving={updateMutation.isPending}
           saveMsg={saveMsg}
         />
       )}
@@ -240,7 +237,43 @@ function CapacityBar({ pct }: { pct: number }) {
   );
 }
 
-function OverviewTab({ company, trainers, clients }: { company: Company; trainers: CompanyTrainer[]; clients: CompanyClient[] }) {
+type CompanyData = {
+  id: string;
+  name: string;
+  slug: string;
+  brandColor: string;
+  website: string;
+  emailFromName: string;
+  emailFooter: string;
+  maxTrainers: number;
+  maxClients: number;
+  trainerCount: number;
+  clientCount: number;
+  createdAt: string;
+};
+
+type TrainerData = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  clientCount: number;
+  capacity: number;
+  rating: number;
+  status: "active" | "inactive";
+};
+
+type ClientData = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  tier: "tier1" | "tier2" | "tier3";
+  trainerName: string;
+  status: "active" | "inactive";
+};
+
+function OverviewTab({ company, trainers, clients }: { company: CompanyData; trainers: TrainerData[]; clients: ClientData[] }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Top Trainers */}
@@ -270,6 +303,9 @@ function OverviewTab({ company, trainers, clients }: { company: Company; trainer
               </div>
             </div>
           ))}
+          {trainers.length === 0 && (
+            <p className="text-sm text-kairos-silver-dark font-body">No trainers assigned yet</p>
+          )}
         </div>
       </div>
 
@@ -309,6 +345,9 @@ function OverviewTab({ company, trainers, clients }: { company: Company; trainer
               </span>
             </div>
           ))}
+          {clients.length === 0 && (
+            <p className="text-sm text-kairos-silver-dark font-body col-span-3">No clients yet</p>
+          )}
         </div>
       </div>
     </div>
@@ -327,7 +366,7 @@ function DetailRow({ label, value, color }: { label: string; value: string; colo
   );
 }
 
-function TrainersTab({ trainers }: { trainers: CompanyTrainer[] }) {
+function TrainersTab({ trainers }: { trainers: TrainerData[] }) {
   return (
     <div className="kairos-card overflow-hidden p-0">
       <table className="w-full">
@@ -362,19 +401,26 @@ function TrainersTab({ trainers }: { trainers: CompanyTrainer[] }) {
                 </div>
               </td>
               <td className="px-6 py-3 text-center">
-                <span className="px-2 py-0.5 rounded-kairos-sm text-xs font-heading font-semibold bg-green-500/15 text-green-400">
+                <span className={`px-2 py-0.5 rounded-kairos-sm text-xs font-heading font-semibold ${
+                  t.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"
+                }`}>
                   {t.status}
                 </span>
               </td>
             </tr>
           ))}
+          {trainers.length === 0 && (
+            <tr>
+              <td colSpan={6} className="px-6 py-12 text-center text-kairos-silver-dark font-body">No trainers assigned</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
   );
 }
 
-function ClientsTab({ clients }: { clients: CompanyClient[] }) {
+function ClientsTab({ clients }: { clients: ClientData[] }) {
   const [search, setSearch] = useState("");
   const filtered = clients.filter((c) =>
     `${c.firstName} ${c.lastName} ${c.email}`.toLowerCase().includes(search.toLowerCase())
@@ -420,12 +466,19 @@ function ClientsTab({ clients }: { clients: CompanyClient[] }) {
                   </span>
                 </td>
                 <td className="px-6 py-3 text-center">
-                  <span className="px-2 py-0.5 rounded-kairos-sm text-xs font-heading font-semibold bg-green-500/15 text-green-400">
+                  <span className={`px-2 py-0.5 rounded-kairos-sm text-xs font-heading font-semibold ${
+                    c.status === "active" ? "bg-green-500/15 text-green-400" : "bg-gray-500/15 text-gray-400"
+                  }`}>
                     {c.status}
                   </span>
                 </td>
               </tr>
             ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-6 py-12 text-center text-kairos-silver-dark font-body">No clients found</td>
+              </tr>
+            )}
           </tbody>
         </table>
         {filtered.length > 20 && (
@@ -447,7 +500,6 @@ function BrandingTab({
 }: {
   form: { name: string; slug: string; website: string; brandColor: string; emailFromName: string; emailFooter: string; maxTrainers: number; maxClients: number };
   setForm: (f: typeof form) => void;
-  company: Company;
   onSave: () => void;
   saving: boolean;
   saveMsg: string | null;
@@ -554,7 +606,7 @@ function BrandingTab({
               disabled={saving}
               className="flex items-center gap-2 px-5 py-2 bg-kairos-gold text-kairos-royal-dark rounded-kairos-sm font-heading font-semibold text-sm hover:bg-kairos-gold-light transition-colors disabled:opacity-50"
             >
-              <Save size={14} />
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? "Saving..." : "Save Changes"}
             </button>
             {saveMsg && (
@@ -630,7 +682,14 @@ function BrandingTab({
   );
 }
 
-function AuditTab({ entries }: { entries: CompanyAuditEntry[] }) {
+type AuditEntry = {
+  id: string;
+  action: string;
+  details: string;
+  timestamp: string;
+};
+
+function AuditTab({ entries }: { entries: AuditEntry[] }) {
   const actionColors: Record<string, string> = {
     "company.created": "text-green-400",
     "company.updated": "text-blue-400",

@@ -1,63 +1,92 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Building2, Palette, Bell, Mail, Eye, Save, Check } from "lucide-react";
+import { Building2, Palette, Bell, Mail, Eye, Save, Check, Loader2 } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
-import { useCompanyBrand, useCompanyList } from "@/lib/company-ops";
-import { updateCompany } from "@/lib/company-ops/engine";
+import { useCompanyBrand } from "@/lib/company-ops";
+import { trpc } from "@/lib/trpc";
 
 export default function CompanySettingsPage() {
   const { theme: currentTheme, setTheme } = useTheme();
-  const { brand, setCompanyId, company } = useCompanyBrand();
-  const companies = useCompanyList();
+  const { brand } = useCompanyBrand();
 
-  // Local editable state seeded from brand
-  const [companyName, setCompanyName] = useState(brand.name);
-  const [website, setWebsite] = useState(brand.website);
-  const [emailFooter, setEmailFooter] = useState(brand.emailFooter);
-  const [brandColor, setBrandColor] = useState(brand.brandColor);
-  const [emailFromName, setEmailFromName] = useState(brand.emailFromName);
+  // Fetch real settings from DB via tRPC
+  const utils = trpc.useUtils();
+  const { data: settings, isLoading } = trpc.company.settings.get.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+
+  const updateMutation = trpc.company.settings.update.useMutation({
+    onSuccess: () => {
+      utils.company.settings.get.invalidate();
+      utils.company.dashboard.getDashboard.invalidate();
+      setSaveMsg("Settings saved successfully");
+      setTimeout(() => setSaveMsg(null), 3000);
+    },
+    onError: (err) => {
+      setSaveMsg(err.message || "Save failed");
+      setTimeout(() => setSaveMsg(null), 3000);
+    },
+  });
+
+  // Local editable state seeded from DB settings
+  const [companyName, setCompanyName] = useState("");
+  const [website, setWebsite] = useState("");
+  const [emailFooter, setEmailFooter] = useState("");
+  const [brandColor, setBrandColor] = useState("#D4AF37");
+  const [emailFromName, setEmailFromName] = useState("");
   const [showEmailPreview, setShowEmailPreview] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [seeded, setSeeded] = useState(false);
   const [notifications, setNotifications] = useState({
     trainerSignups: true,
     clientMilestones: true,
     weeklyReports: true,
   });
 
-  // Sync form when company changes
+  // Sync form when settings load from DB
   useEffect(() => {
-    setCompanyName(brand.name);
-    setWebsite(brand.website);
-    setEmailFooter(brand.emailFooter);
-    setBrandColor(brand.brandColor);
-    setEmailFromName(brand.emailFromName);
-  }, [brand]);
+    if (settings && !seeded) {
+      setCompanyName(settings.name);
+      setWebsite(settings.website);
+      setEmailFooter(settings.emailFooter);
+      setBrandColor(settings.brandColor);
+      setEmailFromName(settings.emailFromName);
+      setSeeded(true);
+    }
+  }, [settings, seeded]);
 
-  const isDirty = company && (
-    companyName !== company.name ||
-    website !== company.website ||
-    emailFooter !== company.emailFooter ||
-    brandColor !== company.brandColor ||
-    emailFromName !== company.emailFromName
+  const isDirty = settings && (
+    companyName !== settings.name ||
+    website !== settings.website ||
+    emailFooter !== settings.emailFooter ||
+    brandColor !== settings.brandColor ||
+    emailFromName !== settings.emailFromName
   );
 
   const handleSave = useCallback(() => {
-    if (!company) return;
-    try {
-      updateCompany(company.id, {
-        name: companyName,
-        website,
-        emailFooter,
-        brandColor,
-        emailFromName,
-      });
-      setSaveMsg("Settings saved successfully");
-      setTimeout(() => setSaveMsg(null), 3000);
-    } catch (err) {
-      setSaveMsg(err instanceof Error ? err.message : "Save failed");
-    }
-  }, [company, companyName, website, emailFooter, brandColor, emailFromName]);
+    if (!settings) return;
+    updateMutation.mutate({
+      name: companyName,
+      website,
+      emailFooter,
+      brandColor,
+      emailFromName,
+    });
+    // Reset seeded so next fetch re-syncs the form
+    setSeeded(false);
+  }, [settings, companyName, website, emailFooter, brandColor, emailFromName, updateMutation]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-kairos-gold border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-xs font-body text-kairos-silver-dark">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -75,49 +104,16 @@ export default function CompanySettingsPage() {
           )}
           <button
             onClick={handleSave}
-            disabled={!isDirty}
+            disabled={!isDirty || updateMutation.isPending}
             className="flex items-center gap-2 px-4 py-2.5 bg-kairos-gold text-kairos-royal-dark rounded-kairos-sm font-heading font-semibold text-sm hover:bg-kairos-gold-light transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Save size={16} />
-            Save Changes
+            {updateMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {updateMutation.isPending ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </div>
 
       <div className="space-y-8 max-w-3xl">
-
-        {/* Company Selector (for demo: pick which company to preview) */}
-        <div className="kairos-card">
-          <div className="flex items-center gap-3 mb-4">
-            <Eye className="w-5 h-5 text-kairos-gold" />
-            <h2 className="font-heading font-bold text-lg text-white">Preview Company</h2>
-          </div>
-          <p className="font-body text-sm text-kairos-silver-dark mb-3">
-            Select a company to preview its white-label branding
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {companies.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => {
-                  setCompanyId(c.id);
-                  // Form will sync via useEffect
-                }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-kairos-sm border transition-all ${
-                  company?.id === c.id
-                    ? "border-kairos-gold bg-kairos-gold/10"
-                    : "border-kairos-border hover:border-kairos-gold/50"
-                }`}
-              >
-                <div
-                  className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: c.brandColor }}
-                />
-                <span className="font-body text-sm text-white">{c.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* Company Profile */}
         <div className="kairos-card">
