@@ -8,6 +8,7 @@
  */
 
 import React, { useState } from "react";
+import { trpc } from "@/lib/trpc";
 
 export interface IntegrationStatus {
   provider: string;
@@ -178,53 +179,88 @@ const INTEGRATION_CONFIGS: IntegrationStatus[] = [
 ];
 
 export function IntegrationDashboard() {
-  const [integrations, setIntegrations] = useState(INTEGRATION_CONFIGS);
+  const utils = trpc.useUtils();
+
+  // Fetch real device connections from tRPC
+  const { data: devices = [], isLoading } = trpc.clientPortal.devices.list.useQuery();
+
+  // Mutations for device actions
+  const initiateConnectMutation = trpc.clientPortal.devices.initiateConnect.useMutation({
+    onSuccess: (data) => {
+      // Redirect to auth URL
+      window.location.href = data.authUrl;
+    },
+  });
+
+  const disconnectMutation = trpc.clientPortal.devices.disconnect.useMutation({
+    onSuccess: () => {
+      // Invalidate and refetch device list
+      utils.clientPortal.devices.list.invalidate();
+    },
+  });
+
+  const syncNowMutation = trpc.clientPortal.devices.syncNow.useMutation({
+    onSuccess: () => {
+      // Invalidate and refetch device list
+      utils.clientPortal.devices.list.invalidate();
+    },
+  });
+
+  // Merge real connection data with static config metadata
+  const integrations: IntegrationStatus[] = INTEGRATION_CONFIGS.map((config) => {
+    const deviceConnection = devices.find((d) => d.provider === config.provider);
+
+    if (!deviceConnection) {
+      // No connection found - show as disconnected
+      return {
+        ...config,
+        connected: false,
+        status: "idle" as const,
+        lastSyncAt: null,
+        recordsSynced: 0,
+      };
+    }
+
+    // Map database status to UI status
+    const uiStatus = deviceConnection.status === "syncing"
+      ? "syncing"
+      : deviceConnection.status === "error"
+      ? "error"
+      : deviceConnection.status === "connected"
+      ? "success"
+      : "idle";
+
+    return {
+      ...config,
+      provider: deviceConnection.provider,
+      connected: deviceConnection.status === "connected" || deviceConnection.status === "syncing",
+      status: uiStatus as "idle" | "syncing" | "success" | "error",
+      lastSyncAt: deviceConnection.lastSyncAt,
+      recordsSynced: config.recordsSynced, // Keep from config for now
+    };
+  });
 
   const handleConnect = (provider: string) => {
-    // In production, this would initiate OAuth flow
-    setIntegrations((prev) =>
-      prev.map((i) =>
-        i.provider === provider
-          ? { ...i, connected: true, status: "syncing" as const, lastSyncAt: new Date().toISOString() }
-          : i
-      )
-    );
-    // Simulate sync completion
-    setTimeout(() => {
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          i.provider === provider ? { ...i, status: "success" as const, recordsSynced: 100 } : i
-        )
-      );
-    }, 3000);
+    initiateConnectMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" });
   };
 
   const handleSync = (provider: string) => {
-    setIntegrations((prev) =>
-      prev.map((i) => (i.provider === provider ? { ...i, status: "syncing" as const } : i))
-    );
-    setTimeout(() => {
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          i.provider === provider
-            ? { ...i, status: "success" as const, lastSyncAt: new Date().toISOString(), recordsSynced: i.recordsSynced + 50 }
-            : i
-        )
-      );
-    }, 2000);
+    syncNowMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" });
   };
 
   const handleDisconnect = (provider: string) => {
-    setIntegrations((prev) =>
-      prev.map((i) =>
-        i.provider === provider
-          ? { ...i, connected: false, status: "idle" as const, lastSyncAt: null, recordsSynced: 0 }
-          : i
-      )
-    );
+    disconnectMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" });
   };
 
   const connectedCount = integrations.filter((i) => i.connected).length;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <p className="text-gray-500">Loading integrations...</p>
+      </div>
+    );
+  }
 
   return (
     <div>
