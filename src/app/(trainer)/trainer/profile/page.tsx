@@ -29,6 +29,20 @@ export default function CoachProfilePage() {
   // Fetch revenue data
   const { data: revenue, isLoading: revenueLoading } = trpc.coach.revenue.getSummary.useQuery();
 
+  // Fetch notification preferences
+  const { data: notifPrefs } = trpc.coach.schedule.getNotificationPreferences.useQuery();
+
+  const utils = trpc.useUtils();
+
+  // Mutations
+  const updateProfileMutation = trpc.coach.schedule.updateProfile.useMutation({
+    onSuccess: () => utils.coach.schedule.getProfile.invalidate(),
+  });
+
+  const updateNotifMutation = trpc.coach.schedule.updateNotificationPreferences.useMutation({
+    onSuccess: () => utils.coach.schedule.getNotificationPreferences.invalidate(),
+  });
+
   const isLoading = userLoading || profileLoading || statsLoading || revenueLoading;
 
   // Create initials from user name
@@ -50,20 +64,21 @@ export default function CoachProfilePage() {
   const saveEdit = (field: string) => {
     const value = editValues[field];
     if (value) {
-      // TODO: Implement tRPC mutation for updateCoachProfile
-      // await trpc.coach.schedule.updateProfile.mutate({
-      //   [field]: isNaN(Number(value)) ? value : Number(value),
-      // });
+      updateProfileMutation.mutate({
+        [field]: isNaN(Number(value)) ? value : Number(value),
+      });
       setEditingField(null);
     }
   };
 
   const toggleNotification = (type: "email" | "sms" | "inApp") => {
-    // TODO: Implement tRPC mutation for updateNotificationPreferences
-    // await trpc.coach.settings.updateNotificationPreferences.mutate({
-    //   type,
-    //   enabled: !currentPreferences[type],
-    // });
+    const cats = (notifPrefs?.categories as Record<string, { in_app: boolean; email: boolean; push: boolean; sms: boolean }> | null) ?? {};
+    const current = cats.general ?? { in_app: true, email: true, push: true, sms: false };
+    const mapping: Record<string, keyof typeof current> = { email: "email", sms: "sms", inApp: "in_app" };
+    const key = mapping[type];
+    updateNotifMutation.mutate({
+      categories: { ...cats, general: { ...current, [key]: !current[key] } },
+    });
   };
 
   // Show loading state
@@ -252,6 +267,11 @@ export default function CoachProfilePage() {
             const descs = { email: "Receive email notifications", sms: "Receive SMS notifications", inApp: "Receive in-app notifications" };
             const Icon = icons[type];
 
+            const cats = (notifPrefs?.categories as Record<string, { in_app: boolean; email: boolean; push: boolean; sms: boolean }> | null) ?? {};
+            const general = cats.general ?? { in_app: true, email: true, push: true, sms: false };
+            const mapping: Record<string, keyof typeof general> = { email: "email", sms: "sms", inApp: "in_app" };
+            const isEnabled = general[mapping[type]];
+
             return (
               <div key={type} className="flex items-center justify-between p-4 rounded-kairos-sm bg-kairos-card border border-kairos-border/50">
                 <div className="flex items-center gap-3">
@@ -263,20 +283,14 @@ export default function CoachProfilePage() {
                 </div>
                 <button
                   onClick={() => toggleNotification(type)}
-                  className={`relative w-12 h-6 rounded-full transition disabled:opacity-50`}
-                  disabled={true}
-                  title="Notification preferences can be updated via tRPC mutation"
+                  className={`relative w-12 h-6 rounded-full transition ${isEnabled ? "bg-kairos-gold" : "bg-gray-600"}`}
                 >
-                  <div className="absolute w-5 h-5 bg-white rounded-full transition left-0.5" />
+                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition ${isEnabled ? "left-[26px]" : "left-0.5"}`} />
                 </button>
               </div>
             );
           })}
         </div>
-
-        <p className="text-xs text-kairos-silver-dark mt-4 italic">
-          Note: Notification preferences are ready for tRPC mutation implementation
-        </p>
       </div>
     </div>
   );

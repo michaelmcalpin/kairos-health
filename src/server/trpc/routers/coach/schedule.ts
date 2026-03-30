@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, trainerProcedure } from "@/server/trpc";
-import { appointments, sessionNotes, coachAvailability, trainerProfiles, users } from "@/server/db/schema";
+import { appointments, sessionNotes, coachAvailability, trainerProfiles, users, notificationPreferences } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
 
 function addMinutes(time: string, minutes: number): string {
@@ -31,6 +31,98 @@ export const coachScheduleRouter = router({
         }
       : null;
   }),
+
+  // Update trainer profile
+  updateProfile: trainerProcedure
+    .input(
+      z.object({
+        bio: z.string().optional(),
+        specialties: z.array(z.string()).optional(),
+        credentials: z.array(z.string()).optional(),
+        capacity: z.number().min(1).max(100).optional(),
+        acceptingClients: z.boolean().optional(),
+        monthlyRate: z.string().optional(),
+        packages: z
+          .array(
+            z.object({
+              name: z.string(),
+              price: z.number(),
+              description: z.string(),
+            })
+          )
+          .optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.query.trainerProfiles.findFirst({
+        where: eq(trainerProfiles.userId, ctx.dbUserId),
+      });
+
+      if (existing) {
+        const [updated] = await ctx.db
+          .update(trainerProfiles)
+          .set(input)
+          .where(eq(trainerProfiles.userId, ctx.dbUserId))
+          .returning();
+        return updated;
+      } else {
+        const [created] = await ctx.db
+          .insert(trainerProfiles)
+          .values({ userId: ctx.dbUserId, ...input })
+          .returning();
+        return created;
+      }
+    }),
+
+  // Get notification preferences
+  getNotificationPreferences: trainerProcedure.query(async ({ ctx }) => {
+    const prefs = await ctx.db.query.notificationPreferences.findFirst({
+      where: eq(notificationPreferences.userId, ctx.dbUserId),
+    });
+    return prefs ?? { enabled: true, categories: null, quietHoursStart: null, quietHoursEnd: null };
+  }),
+
+  // Update notification preferences
+  updateNotificationPreferences: trainerProcedure
+    .input(
+      z.object({
+        enabled: z.boolean().optional(),
+        quietHoursStart: z.string().nullable().optional(),
+        quietHoursEnd: z.string().nullable().optional(),
+        categories: z.record(z.string(), z.object({
+          in_app: z.boolean(),
+          email: z.boolean(),
+          push: z.boolean(),
+          sms: z.boolean(),
+        })).nullable().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.query.notificationPreferences.findFirst({
+        where: eq(notificationPreferences.userId, ctx.dbUserId),
+      });
+
+      if (existing) {
+        const [updated] = await ctx.db
+          .update(notificationPreferences)
+          .set({ ...input, updatedAt: new Date() })
+          .where(eq(notificationPreferences.userId, ctx.dbUserId))
+          .returning();
+        return updated;
+      } else {
+        const [created] = await ctx.db
+          .insert(notificationPreferences)
+          .values({
+            userId: ctx.dbUserId,
+            enabled: input.enabled ?? true,
+            quietHoursStart: input.quietHoursStart,
+            quietHoursEnd: input.quietHoursEnd,
+            categories: input.categories,
+          })
+          .returning();
+        return created;
+      }
+    }),
 
   // List appointments for a week
   listAppointments: trainerProcedure

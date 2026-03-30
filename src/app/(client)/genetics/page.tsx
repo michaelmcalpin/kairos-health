@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Dna,
   Upload,
@@ -17,6 +17,7 @@ import {
   Beaker,
   ShieldAlert,
 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 // Types for genetic data display
 interface GeneMarker {
@@ -167,6 +168,62 @@ export default function GeneticsPage() {
   const [uploadTab, setUploadTab] = useState<"pdf" | "url" | "manual">("pdf");
   const [urlInput, setUrlInput] = useState("");
 
+  // ── tRPC queries ────────────────────────────────────────────
+  const { data: profileData } = trpc.clientPortal.genetics.getProfile.useQuery();
+  const { data: pathwayData } = trpc.clientPortal.genetics.getPathwayScores.useQuery();
+  const utils = trpc.useUtils();
+
+  const uploadMutation = trpc.clientPortal.genetics.uploadProfile.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.genetics.getProfile.invalidate();
+      utils.clientPortal.genetics.getPathwayScores.invalidate();
+      setShowUpload(false);
+    },
+  });
+
+  const addMarkerMutation = trpc.clientPortal.genetics.addMarker.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.genetics.getProfile.invalidate();
+    },
+  });
+
+  // Use DB data if available, otherwise fall back to demo data
+  const markers: GeneMarker[] = useMemo(() => {
+    if (profileData?.markers && profileData.markers.length > 0) {
+      return profileData.markers.map((m) => ({
+        id: m.id,
+        section: m.section ?? "Other",
+        gene: m.gene,
+        rsId: m.rsId ?? "",
+        pathway: m.pathway ?? "",
+        function: m.function ?? "",
+        mutation: m.mutation ?? "",
+        symptoms: m.symptoms ?? "",
+        supplementProtocol: m.supplementProtocol ?? "",
+        peptideSupport: m.peptideSupport ?? "",
+        dietStrategy: m.dietStrategy ?? "",
+        lifestyleStrategy: m.lifestyleStrategy ?? "",
+        labTests: m.labTests ?? "",
+        clinicalPriority: (m.clinicalPriority as "high" | "medium" | "low") ?? "medium",
+      }));
+    }
+    return DEMO_MARKERS;
+  }, [profileData]);
+
+  const pathwayScores: PathwayScore[] = useMemo(() => {
+    if (pathwayData && pathwayData.length > 0) {
+      return pathwayData.map((p) => ({
+        pathway: p.pathway,
+        genesInPathway: p.genesInPathway ?? "",
+        genesAffected: p.genesAffected ?? 0,
+        homozygous: p.homozygousCount ?? 0,
+        heterozygous: p.heterozygousCount ?? 0,
+        priorityLevel: (p.priorityLevel as "high" | "medium" | "low") ?? "medium",
+      }));
+    }
+    return DEMO_PATHWAY_SCORES;
+  }, [pathwayData]);
+
   // Manual entry form state
   const [manualForm, setManualForm] = useState({
     gene: "",
@@ -177,7 +234,7 @@ export default function GeneticsPage() {
     clinicalPriority: "medium" as "high" | "medium" | "low",
   });
 
-  const filteredMarkers = DEMO_MARKERS.filter((m) => {
+  const filteredMarkers = markers.filter((m) => {
     const matchesSection = activeSection === "All" || m.section === activeSection;
     const matchesSearch =
       !searchQuery ||
@@ -201,7 +258,36 @@ export default function GeneticsPage() {
   };
 
   const handleSaveManual = () => {
-    console.log("Saving manual genetic entry:", manualForm);
+    if (!manualForm.gene) return;
+    if (profileData?.id) {
+      addMarkerMutation.mutate({
+        profileId: profileData.id,
+        gene: manualForm.gene,
+        rsId: manualForm.rsId || undefined,
+        section: manualForm.section,
+        pathway: manualForm.pathway || undefined,
+        mutation: manualForm.mutation || undefined,
+        clinicalPriority: manualForm.clinicalPriority,
+      });
+    } else {
+      // Create a profile first, then add marker
+      uploadMutation.mutate(
+        { uploadType: "manual" },
+        {
+          onSuccess: (newProfile) => {
+            addMarkerMutation.mutate({
+              profileId: newProfile.id,
+              gene: manualForm.gene,
+              rsId: manualForm.rsId || undefined,
+              section: manualForm.section,
+              pathway: manualForm.pathway || undefined,
+              mutation: manualForm.mutation || undefined,
+              clinicalPriority: manualForm.clinicalPriority,
+            });
+          },
+        }
+      );
+    }
     setManualForm({ gene: "", rsId: "", section: "Methylation", pathway: "", mutation: "", clinicalPriority: "medium" });
     setShowUpload(false);
   };
@@ -403,9 +489,9 @@ export default function GeneticsPage() {
             <p className="text-kairos-silver-dark text-sm font-body">Pathways Affected</p>
           </div>
           <p className="text-2xl font-bold text-yellow-400 font-heading">
-            {DEMO_PATHWAY_SCORES.filter((p) => p.genesAffected > 0).length}
+            {pathwayScores.filter((p) => p.genesAffected > 0).length}
           </p>
-          <p className="text-xs text-kairos-silver-dark mt-1">of {DEMO_PATHWAY_SCORES.length} total</p>
+          <p className="text-xs text-kairos-silver-dark mt-1">of {pathwayScores.length} total</p>
         </div>
         <div className="kairos-card p-5">
           <div className="flex items-center gap-2 mb-2">
@@ -413,7 +499,7 @@ export default function GeneticsPage() {
             <p className="text-kairos-silver-dark text-sm font-body">Low Risk</p>
           </div>
           <p className="text-2xl font-bold text-green-400 font-heading">
-            {DEMO_PATHWAY_SCORES.filter((p) => p.priorityLevel === "low").length}
+            {pathwayScores.filter((p) => p.priorityLevel === "low").length}
           </p>
           <p className="text-xs text-kairos-silver-dark mt-1">Pathways stable</p>
         </div>
@@ -580,7 +666,7 @@ export default function GeneticsPage() {
             <h2 className="font-heading font-bold text-xl text-white">Pathway Scoring</h2>
           </div>
 
-          {DEMO_PATHWAY_SCORES.map((pathway, idx) => {
+          {pathwayScores.map((pathway, idx) => {
             const totalGenes = pathway.genesInPathway.split(",").length;
             const affectedPct = totalGenes > 0 ? (pathway.genesAffected / totalGenes) * 100 : 0;
             return (

@@ -41,7 +41,7 @@ export default function CoachSchedulePage() {
 
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentLike | null>(null);
   const [showNewAppt, setShowNewAppt] = useState(false);
-  const [newAppt, setNewAppt] = useState({ clientName: "", date: "", time: "09:00", type: "follow_up" as const, meeting: "video" as const });
+  const [newAppt, setNewAppt] = useState({ clientId: "", clientName: "", date: "", time: "09:00", type: "follow_up" as const, meeting: "video" as const });
 
   // Get current Monday for week view
   const now = new Date();
@@ -49,9 +49,10 @@ export default function CoachSchedulePage() {
   monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
   const weekStart = monday.toISOString().split("T")[0];
 
-  // Fetch calendar and stats data
+  // Fetch calendar, stats, and clients data
   const { data: calendarData, isLoading: isCalendarLoading } = trpc.coach.schedule.getCalendarWeek.useQuery({ weekStart });
   const { data: statsData, isLoading: isStatsLoading } = trpc.coach.schedule.getStats.useQuery();
+  const { data: clientsList, isLoading: isClientsLoading } = trpc.coach.clients.list.useQuery();
 
   // Mutations
   const createMutation = trpc.coach.schedule.createAppointment.useMutation();
@@ -221,8 +222,24 @@ export default function CoachSchedulePage() {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="kairos-label mb-1 block">Client Name</label>
-                <input value={newAppt.clientName} onChange={(e) => setNewAppt({ ...newAppt, clientName: e.target.value })} placeholder="Enter client name" className="kairos-input w-full" />
+                <label className="kairos-label mb-1 block">Select Client</label>
+                <select
+                  value={newAppt.clientId}
+                  onChange={(e) => {
+                    const selectedClient = clientsList?.find(c => c.id === e.target.value);
+                    setNewAppt({
+                      ...newAppt,
+                      clientId: e.target.value,
+                      clientName: selectedClient?.name ?? ""
+                    });
+                  }}
+                  className="kairos-input w-full"
+                >
+                  <option value="">-- Select a client --</option>
+                  {clientsList?.map((client) => (
+                    <option key={client.id} value={client.id}>{client.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -253,10 +270,10 @@ export default function CoachSchedulePage() {
               <button onClick={() => setShowNewAppt(false)} className="kairos-btn-outline flex-1">Cancel</button>
               <button
                 onClick={() => {
-                  if (newAppt.clientName && newAppt.date) {
+                  if (newAppt.clientId && newAppt.date) {
                     createMutation.mutate(
                       {
-                        clientId: "", // TODO: Add client selector to resolve ID
+                        clientId: newAppt.clientId,
                         clientName: newAppt.clientName,
                         sessionType: newAppt.type,
                         meetingType: newAppt.meeting,
@@ -267,13 +284,13 @@ export default function CoachSchedulePage() {
                       {
                         onSuccess: () => {
                           setShowNewAppt(false);
-                          setNewAppt({ clientName: "", date: "", time: "09:00", type: "follow_up", meeting: "video" });
+                          setNewAppt({ clientId: "", clientName: "", date: "", time: "09:00", type: "follow_up", meeting: "video" });
                         },
                       }
                     );
                   }
                 }}
-                disabled={!newAppt.clientName || !newAppt.date || createMutation.isPending}
+                disabled={!newAppt.clientId || !newAppt.date || createMutation.isPending}
                 className="kairos-btn-gold flex-1 disabled:opacity-50"
               >
                 {createMutation.isPending ? "Creating..." : "Create Appointment"}
