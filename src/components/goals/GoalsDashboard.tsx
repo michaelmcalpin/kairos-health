@@ -10,12 +10,12 @@ import type {
   GoalDirection,
   GoalProgress,
 } from "@/lib/goals/types";
-import { uid } from "@/lib/goals/types";
+import { trpc } from "@/lib/trpc";
 import { GoalCard } from "./GoalCard";
 import { GoalTemplateSelector } from "./GoalTemplateSelector";
 import { GoalProgressRing } from "./GoalProgressRing";
 
-// ─── Inlined from @/lib/goals/engine ────────────────────────────────
+// ─── Pure calculation helpers (no side effects) ─────────────────────
 
 function calculateTrend(
   checkpoints: GoalCheckpoint[],
@@ -48,13 +48,11 @@ function calculateStreak(
   for (let i = 0; i < sorted.length - 1; i++) {
     const current = sorted[i].value;
     const previous = sorted[i + 1].value;
-    const isImproving =
-      direction === "decrease"
-        ? current <= previous
-        : direction === "maintain"
-          ? Math.abs(current - targetValue) <= Math.abs(previous - targetValue)
-          : current >= previous;
-    if (isImproving) streak++;
+    let improving = false;
+    if (direction === "decrease") improving = current <= previous;
+    else if (direction === "increase") improving = current >= previous;
+    else improving = Math.abs(current - targetValue) <= Math.abs(previous - targetValue);
+    if (improving) streak++;
     else break;
   }
   return streak;
@@ -65,38 +63,31 @@ function projectCompletion(
   daysElapsed: number,
   percentComplete: number,
 ): string | null {
-  if (percentComplete >= 100 || percentComplete <= 0 || daysElapsed <= 0) return null;
-  const ratePerDay = percentComplete / daysElapsed;
-  if (ratePerDay <= 0) return null;
-  const daysToComplete = Math.ceil((100 - percentComplete) / ratePerDay);
-  const projectedDate = new Date();
-  projectedDate.setDate(projectedDate.getDate() + daysToComplete);
-  return projectedDate.toISOString().split("T")[0];
+  if (percentComplete >= 100) return "Completed";
+  if (daysElapsed < 3 || percentComplete <= 0) return null;
+  const daysPerPercent = daysElapsed / percentComplete;
+  const remainingPercent = 100 - percentComplete;
+  const daysLeft = Math.ceil(remainingPercent * daysPerPercent);
+  const projected = new Date();
+  projected.setDate(projected.getDate() + daysLeft);
+  return projected.toISOString().split("T")[0];
 }
 
-function calculateProgress(goal: HealthGoal): GoalProgress {
-  const { startValue, currentValue, target, milestones, checkpoints, startDate, targetDate } = goal;
-  const totalRange = Math.abs(target.value - startValue);
-
+export function calculateProgress(goal: HealthGoal): GoalProgress {
+  const { target, startValue, currentValue, checkpoints, milestones, startDate, targetDate } = goal;
+  const range = Math.abs(target.value - startValue);
   let percentComplete = 0;
-  if (target.direction === "maintain") {
-    const deviation = Math.abs(currentValue - target.value);
-    const maxDeviation = Math.max(totalRange, Math.abs(startValue) * 0.1, 1);
-    percentComplete = Math.max(0, 100 - (deviation / maxDeviation) * 100);
-  } else if (totalRange > 0) {
+  if (range > 0) {
     if (target.direction === "decrease") {
-      if (currentValue <= target.value) percentComplete = 100;
-      else if (currentValue >= startValue) percentComplete = 0;
-      else percentComplete = ((startValue - currentValue) / (startValue - target.value)) * 100;
-    } else if (target.direction === "increase") {
-      if (currentValue >= target.value) percentComplete = 100;
-      else if (currentValue <= startValue) percentComplete = 0;
-      else percentComplete = ((currentValue - startValue) / (target.value - startValue)) * 100;
+      percentComplete = Math.min(100, Math.max(0, ((startValue - currentValue) / (startValue - target.value)) * 100));
+    } else if (target.direction === "maintain") {
+      const diff = Math.abs(currentValue - target.value);
+      percentComplete = Math.max(0, 100 - (diff / range) * 100);
     } else {
-      percentComplete = (Math.abs(currentValue - startValue) / totalRange) * 100;
+      percentComplete = Math.min(100, Math.max(0, ((currentValue - startValue) / (target.value - startValue)) * 100));
     }
   }
-  percentComplete = Math.max(0, Math.min(100, Math.round(percentComplete)));
+  percentComplete = Math.round(percentComplete * 10) / 10;
 
   const trend = calculateTrend(checkpoints, target.direction);
   const now = new Date();
@@ -122,111 +113,6 @@ function calculateProgress(goal: HealthGoal): GoalProgress {
     totalMilestones: milestones.length,
     streak,
     projectedCompletion,
-  };
-}
-
-function checkMilestones(goal: HealthGoal): HealthGoal {
-  const progress = calculateProgress(goal);
-  const updatedMilestones = goal.milestones.map((m) => {
-    if (m.reachedAt) return m;
-    let reached = false;
-    if (goal.target.direction === "decrease") {
-      reached = goal.currentValue <= m.targetValue;
-    } else {
-      reached = goal.currentValue >= m.targetValue;
-    }
-    if (reached) return { ...m, reachedAt: new Date().toISOString() };
-    return m;
-  });
-
-  const isComplete = progress.percentComplete >= 100;
-  return {
-    ...goal,
-    milestones: updatedMilestones,
-    status: isComplete && goal.status === "active" ? "completed" : goal.status,
-    completedDate: isComplete && !goal.completedDate ? new Date().toISOString() : goal.completedDate,
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-function addCheckpoint(
-  goal: HealthGoal,
-  value: number,
-  note: string = "",
-  source: GoalCheckpoint["source"] = "manual",
-): HealthGoal {
-  const checkpoint: GoalCheckpoint = {
-    id: uid(),
-    date: new Date().toISOString(),
-    value,
-    note,
-    source,
-  };
-  const updated: HealthGoal = {
-    ...goal,
-    currentValue: value,
-    checkpoints: [...goal.checkpoints, checkpoint],
-    updatedAt: new Date().toISOString(),
-  };
-  return checkMilestones(updated);
-}
-
-function createGoalFromTemplate(
-  template: GoalTemplate,
-  clientId: string,
-  startValue: number,
-  customTarget?: number,
-): HealthGoal {
-  const targetValue = customTarget ?? template.defaultTarget.value;
-  const now = new Date().toISOString();
-
-  const milestones: GoalMilestone[] = template.suggestedMilestones.map((sm, idx) => {
-    let milestoneValue: number;
-    if (template.defaultTarget.direction === "decrease") {
-      milestoneValue = startValue - ((startValue - targetValue) * sm.percent) / 100;
-    } else {
-      milestoneValue = startValue + ((targetValue - startValue) * sm.percent) / 100;
-    }
-    return {
-      id: uid(),
-      label: sm.label,
-      targetValue: Math.round(milestoneValue * 10) / 10,
-      reachedAt: null,
-      order: idx,
-    };
-  });
-
-  let targetDate: string | null = null;
-  const d = new Date();
-  switch (template.timeframe) {
-    case "weekly": d.setDate(d.getDate() + 7); break;
-    case "monthly": d.setMonth(d.getMonth() + 1); break;
-    case "quarterly": d.setMonth(d.getMonth() + 3); break;
-    case "yearly": d.setFullYear(d.getFullYear() + 1); break;
-    default: break;
-  }
-  if (template.timeframe !== "open_ended") {
-    targetDate = d.toISOString().split("T")[0];
-  }
-
-  return {
-    id: uid(),
-    clientId,
-    category: template.category,
-    title: template.title,
-    description: template.description,
-    target: { ...template.defaultTarget, value: targetValue },
-    startValue,
-    currentValue: startValue,
-    status: "active",
-    timeframe: template.timeframe,
-    startDate: now.split("T")[0],
-    targetDate,
-    completedDate: null,
-    milestones,
-    checkpoints: [{ id: uid(), date: now, value: startValue, note: "Starting value", source: "manual" }],
-    createdAt: now,
-    updatedAt: now,
   };
 }
 
@@ -268,49 +154,85 @@ function summarizeGoals(goals: HealthGoal[]): GoalsSummary {
 
 // ─── Component ──────────────────────────────────────────────────────
 
-interface GoalsDashboardProps {
-  initialGoals?: HealthGoal[];
-  clientId?: string;
-}
-
-export function GoalsDashboard({ initialGoals = [], clientId = "demo" }: GoalsDashboardProps) {
-  const [goals, setGoals] = useState<HealthGoal[]>(initialGoals);
+export function GoalsDashboard() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [filterStatus, setFilterStatus] = useState<GoalStatus | "all">("all");
+  const utils = trpc.useUtils();
+
+  // ── tRPC queries ──────────────────────────────────────────────────
+  const { data: goals = [], isLoading } = trpc.clientPortal.goals.list.useQuery(
+    filterStatus === "all" ? undefined : { status: filterStatus }
+  );
+
+  // ── tRPC mutations ────────────────────────────────────────────────
+  const createMutation = trpc.clientPortal.goals.create.useMutation({
+    onSuccess: () => utils.clientPortal.goals.list.invalidate(),
+  });
+
+  const addCheckpointMutation = trpc.clientPortal.goals.addCheckpoint.useMutation({
+    onSuccess: () => utils.clientPortal.goals.list.invalidate(),
+  });
+
+  const updateStatusMutation = trpc.clientPortal.goals.updateStatus.useMutation({
+    onSuccess: () => utils.clientPortal.goals.list.invalidate(),
+  });
 
   const summary = summarizeGoals(goals);
 
   function handleCreateGoal(template: GoalTemplate, startValue: number, customTarget?: number) {
-    const newGoal = createGoalFromTemplate(template, clientId, startValue, customTarget);
-    setGoals((prev) => [newGoal, ...prev]);
+    const targetValue = customTarget ?? template.defaultTarget.value;
+    let targetDate: string | null = null;
+    const d = new Date();
+    switch (template.timeframe) {
+      case "weekly": d.setDate(d.getDate() + 7); break;
+      case "monthly": d.setMonth(d.getMonth() + 1); break;
+      case "quarterly": d.setMonth(d.getMonth() + 3); break;
+      case "yearly": d.setFullYear(d.getFullYear() + 1); break;
+      default: break;
+    }
+    if (template.timeframe !== "open_ended") {
+      targetDate = d.toISOString().split("T")[0];
+    }
+
+    createMutation.mutate({
+      category: template.category,
+      title: template.title,
+      description: template.description,
+      targetValue,
+      targetUnit: template.defaultTarget.unit,
+      targetDirection: template.defaultTarget.direction,
+      startValue,
+      timeframe: template.timeframe,
+      targetDate,
+      milestones: template.suggestedMilestones.map((sm) => {
+        let milestoneValue: number;
+        if (template.defaultTarget.direction === "decrease") {
+          milestoneValue = startValue - ((startValue - targetValue) * sm.percent) / 100;
+        } else {
+          milestoneValue = startValue + ((targetValue - startValue) * sm.percent) / 100;
+        }
+        return { label: sm.label, targetValue: Math.round(milestoneValue * 10) / 10 };
+      }),
+    });
     setShowTemplates(false);
   }
 
   function handleAddCheckpoint(goalId: string, value: number, note: string) {
-    setGoals((prev) =>
-      prev.map((g) => (g.id === goalId ? addCheckpoint(g, value, note) : g))
-    );
+    addCheckpointMutation.mutate({ goalId, value, note });
   }
 
   function handlePause(goalId: string) {
-    setGoals((prev) =>
-      prev.map((g) =>
-        g.id === goalId ? { ...g, status: "paused" as const, updatedAt: new Date().toISOString() } : g
-      )
-    );
+    updateStatusMutation.mutate({ goalId, status: "paused" });
   }
 
   function handleResume(goalId: string) {
-    setGoals((prev) =>
-      prev.map((g) =>
-        g.id === goalId ? { ...g, status: "active" as const, updatedAt: new Date().toISOString() } : g
-      )
-    );
+    updateStatusMutation.mutate({ goalId, status: "active" });
   }
 
+  // For the "all" view, we already have all goals; for filtered we have only that status
   const filteredGoals = filterStatus === "all"
     ? goals
-    : goals.filter((g) => g.status === filterStatus);
+    : goals;
 
   if (showTemplates) {
     return (
@@ -318,6 +240,15 @@ export function GoalsDashboard({ initialGoals = [], clientId = "demo" }: GoalsDa
         onSelect={handleCreateGoal}
         onCancel={() => setShowTemplates(false)}
       />
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="kairos-card h-24 bg-kairos-card/50 animate-pulse" />
+        <div className="kairos-card h-48 bg-kairos-card/50 animate-pulse" />
+      </div>
     );
   }
 
@@ -369,11 +300,6 @@ export function GoalsDashboard({ initialGoals = [], clientId = "demo" }: GoalsDa
               }`}
             >
               {status === "all" ? "All" : status.charAt(0).toUpperCase() + status.slice(1)}
-              {status !== "all" && (
-                <span className="ml-1 text-gray-600">
-                  ({goals.filter((g) => g.status === status).length})
-                </span>
-              )}
             </button>
           ))}
         </div>

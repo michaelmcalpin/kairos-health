@@ -1,8 +1,11 @@
 "use client";
 
 import { MessagingDashboard } from "@/components/messaging/MessagingDashboard";
+import { trpc } from "@/lib/trpc";
 
 export default function CoachMessagesPage() {
+  const { data: user } = trpc.auth.me.useQuery();
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
@@ -13,9 +16,9 @@ export default function CoachMessagesPage() {
       </div>
 
       <MessagingDashboard
-        userId="demo-coach"
+        userId={user?.id ?? ""}
         role="coach"
-        userName="Trainer"
+        userName={user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "Trainer" : "Trainer"}
       />
     </div>
   );

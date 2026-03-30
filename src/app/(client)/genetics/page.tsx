@@ -46,117 +46,6 @@ interface PathwayScore {
   priorityLevel: "high" | "medium" | "low";
 }
 
-// Demo data based on the Genetics_Master_Database.xlsx structure
-const DEMO_MARKERS: GeneMarker[] = [
-  {
-    id: "1",
-    section: "Methylation",
-    gene: "MTHFR",
-    rsId: "rs1801133",
-    pathway: "Folate Cycle",
-    function: "Converts folic acid to active methylfolate (5-MTHF)",
-    mutation: "Reduced methylfolate production → elevated homocysteine, impaired DNA methylation",
-    symptoms: "Fatigue, brain fog, mood changes, elevated homocysteine, neural tube defect risk",
-    supplementProtocol: "Methylfolate (L-5-MTHF) 1–5mg, Methyl-B12 1000–5000mcg, TMG 500–1000mg",
-    peptideSupport: "BPC-157 for gut healing, Thymosin Alpha-1 for immune modulation",
-    dietStrategy: "Leafy greens, avoid folic acid fortified foods, emphasize natural folates",
-    lifestyleStrategy: "Reduce toxic exposures, support liver detox, manage stress",
-    labTests: "Homocysteine, RBC Folate, Methylmalonic acid, B12 serum",
-    clinicalPriority: "high",
-  },
-  {
-    id: "2",
-    section: "Methylation",
-    gene: "COMT",
-    rsId: "rs4680",
-    pathway: "Catechol Metabolism",
-    function: "Breaks down catecholamines (dopamine, norepinephrine, epinephrine) and estrogens",
-    mutation: "Slow COMT: excess catecholamines, anxiety, estrogen dominance; Fast COMT: low dopamine, poor focus",
-    symptoms: "Anxiety/worry (slow), low motivation (fast), estrogen-related issues, pain sensitivity",
-    supplementProtocol: "Slow: Magnesium, SAMe 200mg, DIM 100mg; Fast: Tyrosine 500mg, Mucuna 100mg",
-    peptideSupport: "Selank for anxiety (slow COMT), Semax for focus (fast COMT)",
-    dietStrategy: "Slow: reduce high-dopamine foods, moderate caffeine; Fast: protein-rich meals",
-    lifestyleStrategy: "Slow: meditation, limit stimulants; Fast: regular exercise for dopamine boost",
-    labTests: "Urinary catecholamines, Estrogen metabolites (2:16 ratio), DUTCH test",
-    clinicalPriority: "high",
-  },
-  {
-    id: "3",
-    section: "Detoxification",
-    gene: "CYP1A2",
-    rsId: "rs762551",
-    pathway: "Phase I Liver Detox",
-    function: "Metabolizes caffeine, estrogens, and environmental toxins",
-    mutation: "Slow metabolizer: caffeine sensitivity, impaired estrogen clearance",
-    symptoms: "Caffeine jitters/insomnia, hormonal imbalances, chemical sensitivity",
-    supplementProtocol: "DIM 100–200mg, Calcium D-Glucarate 500mg, NAC 600mg",
-    peptideSupport: "BPC-157 for liver support, Glutathione IV/liposomal",
-    dietStrategy: "Cruciferous vegetables, limit caffeine, increase fiber for estrogen binding",
-    lifestyleStrategy: "Reduce environmental toxin exposure, sauna for detox, filtered water",
-    labTests: "Comprehensive metabolic panel, Estrogen metabolites, Liver enzymes",
-    clinicalPriority: "medium",
-  },
-  {
-    id: "4",
-    section: "Detoxification",
-    gene: "GST (GSTM1/GSTT1)",
-    rsId: "multiple",
-    pathway: "Phase II Glutathione Conjugation",
-    function: "Conjugates toxins with glutathione for elimination",
-    mutation: "Null/deletion: severely impaired glutathione-dependent detox",
-    symptoms: "Chemical sensitivity, oxidative stress, increased cancer risk, poor recovery",
-    supplementProtocol: "Liposomal Glutathione 500mg, NAC 1200mg, Alpha Lipoic Acid 300mg, Selenium 200mcg",
-    peptideSupport: "Glutathione IV push, BPC-157",
-    dietStrategy: "Sulfur-rich foods (garlic, onions, cruciferous), whey protein for cysteine",
-    lifestyleStrategy: "Infrared sauna 3x/week, avoid pesticides, use air purifiers",
-    labTests: "Glutathione (reduced), 8-OHdG, Lipid peroxides, Organic acids",
-    clinicalPriority: "high",
-  },
-  {
-    id: "5",
-    section: "Inflammation",
-    gene: "TNF-alpha",
-    rsId: "rs1800629",
-    pathway: "Inflammatory Signaling",
-    function: "Pro-inflammatory cytokine production and signaling",
-    mutation: "Increased TNF-alpha production → chronic inflammation, autoimmune risk",
-    symptoms: "Chronic inflammation, joint pain, fatigue, autoimmune tendencies",
-    supplementProtocol: "Omega-3 (EPA 2g+), Curcumin 1000mg, Resveratrol 200mg, SPMs",
-    peptideSupport: "Thymosin Alpha-1, BPC-157, KPV peptide",
-    dietStrategy: "Anti-inflammatory diet, eliminate seed oils, emphasize omega-3 rich fish",
-    lifestyleStrategy: "Zone 2 cardio, cold exposure, stress management, adequate sleep",
-    labTests: "hs-CRP, ESR, TNF-alpha, IL-6, Omega-3 Index",
-    clinicalPriority: "high",
-  },
-  {
-    id: "6",
-    section: "Cardiovascular",
-    gene: "APOE",
-    rsId: "rs429358/rs7412",
-    pathway: "Lipid Metabolism",
-    function: "Cholesterol transport and metabolism, brain lipid homeostasis",
-    mutation: "E4 allele: increased LDL, Alzheimer risk; E2: triglyceride issues",
-    symptoms: "Elevated LDL/ApoB, cardiovascular risk, cognitive decline risk (E4)",
-    supplementProtocol: "Omega-3 DHA 2g, Berberine 500mg, Plant sterols, CoQ10 200mg",
-    peptideSupport: "Dihexa for neuroprotection (E4), Cerebrolysin",
-    dietStrategy: "E4: low saturated fat, Mediterranean; E2: moderate fat, limit refined carbs",
-    lifestyleStrategy: "Regular aerobic exercise, cognitive training, limit alcohol",
-    labTests: "ApoB, Lp(a), Advanced lipid panel, Coronary calcium score",
-    clinicalPriority: "high",
-  },
-];
-
-const DEMO_PATHWAY_SCORES: PathwayScore[] = [
-  { pathway: "Methylation / Folate Cycle", genesInPathway: "MTHFR, MTR, MTRR, MAT, AHCY", genesAffected: 3, homozygous: 1, heterozygous: 2, priorityLevel: "high" },
-  { pathway: "Detoxification Phase I", genesInPathway: "CYP1A2, CYP2D6, CYP3A4, CYP2C19", genesAffected: 2, homozygous: 0, heterozygous: 2, priorityLevel: "medium" },
-  { pathway: "Detoxification Phase II", genesInPathway: "GSTM1, GSTT1, NAT2, UGT1A1", genesAffected: 2, homozygous: 1, heterozygous: 1, priorityLevel: "high" },
-  { pathway: "Inflammatory Signaling", genesInPathway: "TNF-alpha, IL-6, IL-1B, NF-kB", genesAffected: 2, homozygous: 1, heterozygous: 1, priorityLevel: "high" },
-  { pathway: "Cardiovascular / Lipid", genesInPathway: "APOE, MTHFR, FUT2, PCSK9", genesAffected: 2, homozygous: 0, heterozygous: 2, priorityLevel: "medium" },
-  { pathway: "Neurotransmitter Metabolism", genesInPathway: "COMT, MAO-A, GAD1, BDNF", genesAffected: 2, homozygous: 1, heterozygous: 1, priorityLevel: "high" },
-  { pathway: "Oxidative Stress Defense", genesInPathway: "SOD2, CAT, GPX1, NRF2", genesAffected: 1, homozygous: 0, heterozygous: 1, priorityLevel: "low" },
-  { pathway: "Hormone Metabolism", genesInPathway: "CYP19A1, CYP1B1, SRD5A2, AR", genesAffected: 1, homozygous: 0, heterozygous: 1, priorityLevel: "low" },
-];
-
 const SECTIONS = ["All", "Methylation", "Detoxification", "Inflammation", "Cardiovascular", "Neurotransmitter", "Oxidative Stress", "Hormone"];
 
 export default function GeneticsPage() {
@@ -207,7 +96,7 @@ export default function GeneticsPage() {
         clinicalPriority: (m.clinicalPriority as "high" | "medium" | "low") ?? "medium",
       }));
     }
-    return DEMO_MARKERS;
+    return [];
   }, [profileData]);
 
   const pathwayScores: PathwayScore[] = useMemo(() => {
@@ -221,7 +110,7 @@ export default function GeneticsPage() {
         priorityLevel: (p.priorityLevel as "high" | "medium" | "low") ?? "medium",
       }));
     }
-    return DEMO_PATHWAY_SCORES;
+    return [];
   }, [pathwayData]);
 
   // Manual entry form state
@@ -470,7 +359,7 @@ export default function GeneticsPage() {
             <Dna className="w-5 h-5 text-kairos-gold" />
             <p className="text-kairos-silver-dark text-sm font-body">Total Genes</p>
           </div>
-          <p className="text-2xl font-bold text-white font-heading">{DEMO_MARKERS.length}</p>
+          <p className="text-2xl font-bold text-white font-heading">{markers.length}</p>
           <p className="text-xs text-kairos-silver-dark mt-1">Analyzed</p>
         </div>
         <div className="kairos-card p-5">
@@ -479,7 +368,7 @@ export default function GeneticsPage() {
             <p className="text-kairos-silver-dark text-sm font-body">High Priority</p>
           </div>
           <p className="text-2xl font-bold text-red-400 font-heading">
-            {DEMO_MARKERS.filter((m) => m.clinicalPriority === "high").length}
+            {markers.filter((m) => m.clinicalPriority === "high").length}
           </p>
           <p className="text-xs text-kairos-silver-dark mt-1">Requires attention</p>
         </div>
