@@ -6,8 +6,19 @@ import {
   ArrowUpDown, BarChart3, X, Copy, Check,
 } from "lucide-react";
 import { useCompanyBrand } from "@/lib/company-ops";
-import { getCompanyTrainers, getCompanyClients } from "@/lib/company-ops/engine";
-import type { CompanyTrainer } from "@/lib/company-ops";
+import { trpc } from "@/lib/trpc";
+
+interface CompanyTrainer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  avatarUrl?: string | null;
+  clientCount: number;
+  capacity: number;
+  rating: number;
+  status: "active" | "inactive";
+}
 
 type SortField = "name" | "clientCount" | "capacity" | "rating";
 
@@ -16,8 +27,12 @@ export default function CompanyTrainersPage() {
   const isWhiteLabel = brand.id !== "kairos";
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
-  const companyId = company?.id || "company-1";
-  const allTrainers = getCompanyTrainers(companyId);
+  // Fetch real data from DB via tRPC
+  const { data: dashboardData, isLoading } = trpc.company.dashboard.getDashboard.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const allTrainers: CompanyTrainer[] = dashboardData?.trainers ?? [];
+  const allClients = dashboardData?.clients ?? [];
 
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("name");
@@ -58,6 +73,17 @@ export default function CompanyTrainersPage() {
     ? (allTrainers.reduce((s, t) => s + t.rating, 0) / allTrainers.length).toFixed(1)
     : "0";
   const utilization = totalCapacity > 0 ? Math.round((totalClients / totalCapacity) * 100) : 0;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-kairos-gold border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-xs font-body text-kairos-silver-dark">Loading trainers...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -198,7 +224,7 @@ export default function CompanyTrainersPage() {
       {showTrainerDetail && (
         <TrainerDetailDrawer
           trainer={allTrainers.find((t) => t.id === showTrainerDetail) || null}
-          clients={getCompanyClients(companyId).filter((c) => c.trainerId === showTrainerDetail)}
+          clients={allClients.filter((c) => c.trainerId === showTrainerDetail)}
           accentColor={accentColor}
           onClose={() => setShowTrainerDetail(null)}
         />

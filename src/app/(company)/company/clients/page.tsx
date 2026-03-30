@@ -5,7 +5,7 @@ import {
   Search, ArrowUpDown, Filter,
 } from "lucide-react";
 import { useCompanyBrand } from "@/lib/company-ops";
-import { getCompanyClients, getCompanyTrainers } from "@/lib/company-ops/engine";
+import { trpc } from "@/lib/trpc";
 
 type SortField = "name" | "trainer" | "tier";
 type TierFilter = "all" | "tier1" | "tier2" | "tier3";
@@ -27,9 +27,12 @@ export default function CompanyClientsPage() {
   const isWhiteLabel = brand.id !== "kairos";
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
-  const companyId = company?.id || "company-1";
-  const allClients = getCompanyClients(companyId);
-  const trainers = getCompanyTrainers(companyId);
+  // Fetch real data from DB via tRPC
+  const { data: dashboardData, isLoading } = trpc.company.dashboard.getDashboard.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const allClients = dashboardData?.clients ?? [];
+  const trainers = dashboardData?.trainers ?? [];
 
   const [search, setSearch] = useState("");
   const [tierFilter, setTierFilter] = useState<TierFilter>("all");
@@ -76,6 +79,17 @@ export default function CompanyClientsPage() {
   const tier1Count = allClients.filter((c) => c.tier === "tier1").length;
   const tier2Count = allClients.filter((c) => c.tier === "tier2").length;
   const tier3Count = allClients.filter((c) => c.tier === "tier3").length;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-kairos-gold border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-xs font-body text-kairos-silver-dark">Loading clients...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">

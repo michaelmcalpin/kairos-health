@@ -134,8 +134,8 @@ export const companyDashboardRouter = router({
         avgRating,
         estMrr: clients.length * 200,
       },
-      trainers: trainers.sort((a, b) => b.rating - a.rating).slice(0, 10),
-      clients: clients.slice(0, 10),
+      trainers: trainers.sort((a, b) => b.rating - a.rating),
+      clients,
     };
   }),
 
