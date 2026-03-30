@@ -1,15 +1,52 @@
 "use client";
 
-import type { CalendarDay, Appointment } from "@/lib/scheduling/types";
-import {
-  DAY_NAMES,
-  getSessionTypeInfo,
-  formatTimeDisplay,
-} from "@/lib/scheduling/types";
+// ─── Local types (previously from @/lib/scheduling/types) ───────────
+
+interface AppointmentLike {
+  id: string;
+  clientName: string | null;
+  sessionType: string;
+  startTime: string;
+  [key: string]: unknown;
+}
+
+interface CalendarDay {
+  date: string;
+  dayOfWeek: number;
+  isToday: boolean;
+  appointments: AppointmentLike[];
+}
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const SESSION_TYPE_COLORS: Record<string, string> = {
+  initial_consultation: "rgb(59, 130, 246)",
+  initial_consult: "rgb(59, 130, 246)",
+  follow_up: "rgb(139, 92, 246)",
+  lab_review: "rgb(245, 158, 11)",
+  protocol_review: "rgb(20, 184, 166)",
+  protocol_adjustment: "rgb(20, 184, 166)",
+  goal_setting: "rgb(99, 102, 241)",
+  weekly_review: "rgb(99, 102, 241)",
+  ad_hoc: "rgb(148, 163, 184)",
+  onboarding: "rgb(212, 175, 55)",
+  emergency: "rgb(239, 68, 68)",
+};
+
+function formatTimeDisplay(time: string): string {
+  const [h, m] = time.split(":");
+  const hour = parseInt(h, 10);
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${displayHour}:${m} ${period}`;
+}
+
+// ─── Component ──────────────────────────────────────────────────────
 
 interface WeeklyCalendarProps {
   days: CalendarDay[];
-  onAppointmentClick: (appointment: Appointment) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onAppointmentClick: (appointment: any) => void;
   onSlotClick?: (date: string, time: string) => void;
 }
 
@@ -74,15 +111,15 @@ export function WeeklyCalendar({
                   }`}
                 >
                   {dayAppts.map((appt) => {
-                    const info = getSessionTypeInfo(appt.sessionType);
+                    const color = SESSION_TYPE_COLORS[appt.sessionType] ?? "rgb(148, 163, 184)";
                     return (
                       <button
                         key={appt.id}
                         onClick={() => onAppointmentClick(appt)}
                         className="w-full rounded-md px-1.5 py-1 text-left mb-1 transition-opacity hover:opacity-80"
                         style={{
-                          backgroundColor: `${info.color}20`,
-                          borderLeft: `3px solid ${info.color}`,
+                          backgroundColor: `${color}20`,
+                          borderLeft: `3px solid ${color}`,
                         }}
                       >
                         <div className="text-[10px] font-medium text-white truncate">

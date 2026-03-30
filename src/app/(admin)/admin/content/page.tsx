@@ -9,16 +9,137 @@ import {
   Filter,
   BarChart3,
 } from "lucide-react";
-import { getContentLibrary, filterContent } from "@/lib/content-management/engine";
-import type { ContentCategory } from "@/lib/content-management/types";
 
-const { items: allContent, stats } = getContentLibrary();
+// Type definitions
+type ContentCategory = "Protocols" | "Articles" | "Videos" | "Guides";
+
+interface ContentItem {
+  id: string;
+  title: string;
+  category: ContentCategory;
+  author: string;
+  status: "Published" | "Draft" | "Review";
+  thumbnail: string;
+  viewCount: number;
+  publishDate: string;
+}
+
+// Content items
+const CONTENT_ITEMS: ContentItem[] = [
+  {
+    id: "1",
+    title: "Intermittent Fasting Protocol: 16/8 Method",
+    category: "Protocols",
+    author: "Dr. Sarah Chen",
+    status: "Published",
+    thumbnail: "protocol-fasting",
+    viewCount: 3200,
+    publishDate: "2026-02-15",
+  },
+  {
+    id: "2",
+    title: "Sleep Optimization: Architecture & Circadian Rhythms",
+    category: "Guides",
+    author: "Dr. Marcus Webb",
+    status: "Published",
+    thumbnail: "guide-sleep",
+    viewCount: 2800,
+    publishDate: "2026-02-10",
+  },
+  {
+    id: "3",
+    title: "NMN & NAD+ Supplementation Guide",
+    category: "Articles",
+    author: "Dr. Emily Rodriguez",
+    status: "Published",
+    thumbnail: "article-nmn",
+    viewCount: 4100,
+    publishDate: "2026-02-08",
+  },
+  {
+    id: "4",
+    title: "Metabolic Health Markers: Complete Assessment",
+    category: "Guides",
+    author: "Dr. James Liu",
+    status: "Review",
+    thumbnail: "guide-metabolic",
+    viewCount: 0,
+    publishDate: "2026-02-05",
+  },
+  {
+    id: "5",
+    title: "Advanced Supplement Stacking Protocols",
+    category: "Protocols",
+    author: "Dr. Sarah Chen",
+    status: "Draft",
+    thumbnail: "protocol-stack",
+    viewCount: 0,
+    publishDate: "2026-02-01",
+  },
+  {
+    id: "6",
+    title: "Longevity Interventions: Latest Research",
+    category: "Articles",
+    author: "Dr. Michael Foster",
+    status: "Published",
+    thumbnail: "article-research",
+    viewCount: 3600,
+    publishDate: "2026-01-28",
+  },
+  {
+    id: "7",
+    title: "Video Series: Biohacking Basics",
+    category: "Videos",
+    author: "Dr. Jessica Park",
+    status: "Published",
+    thumbnail: "video-biohack",
+    viewCount: 5200,
+    publishDate: "2026-01-25",
+  },
+  {
+    id: "8",
+    title: "Mitochondrial Health Protocol",
+    category: "Protocols",
+    author: "Dr. Sarah Chen",
+    status: "Draft",
+    thumbnail: "protocol-mito",
+    viewCount: 0,
+    publishDate: "2026-01-20",
+  },
+];
+
+// Stats
+const STATS = {
+  total: 24,
+  published: 18,
+  drafts: 4,
+  inReview: 2,
+};
+
+// Filter function
+function filterContent(
+  items: ContentItem[],
+  searchQuery: string,
+  selectedCategory: "All" | ContentCategory
+): ContentItem[] {
+  return items.filter((item) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.author.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesCategory =
+      selectedCategory === "All" || item.category === selectedCategory;
+
+    return matchesSearch && matchesCategory;
+  });
+}
 
 const statCards = [
-  { label: "Total Content", value: String(stats.total) },
-  { label: "Published", value: String(stats.published) },
-  { label: "Drafts", value: String(stats.drafts) },
-  { label: "In Review", value: String(stats.inReview) },
+  { label: "Total Content", value: String(STATS.total) },
+  { label: "Published", value: String(STATS.published) },
+  { label: "Drafts", value: String(STATS.drafts) },
+  { label: "In Review", value: String(STATS.inReview) },
 ];
 
 export default function ContentPage() {
@@ -27,7 +148,7 @@ export default function ContentPage() {
 
   const categories: Array<"All" | ContentCategory> = ["All", "Protocols", "Articles", "Videos", "Guides"];
 
-  const filteredContent = filterContent(allContent, searchQuery, selectedCategory);
+  const filteredContent = filterContent(CONTENT_ITEMS, searchQuery, selectedCategory);
 
   const getStatusColor = (status: string) => {
     switch (status) {

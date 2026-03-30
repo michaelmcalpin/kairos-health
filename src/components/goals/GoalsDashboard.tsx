@@ -1,11 +1,272 @@
 "use client";
 
 import { useState } from "react";
-import type { HealthGoal, GoalTemplate, GoalStatus } from "@/lib/goals/types";
-import { createGoalFromTemplate, addCheckpoint, summarizeGoals } from "@/lib/goals/engine";
+import type {
+  HealthGoal,
+  GoalTemplate,
+  GoalStatus,
+  GoalCheckpoint,
+  GoalMilestone,
+  GoalDirection,
+  GoalProgress,
+} from "@/lib/goals/types";
+import { uid } from "@/lib/goals/types";
 import { GoalCard } from "./GoalCard";
 import { GoalTemplateSelector } from "./GoalTemplateSelector";
 import { GoalProgressRing } from "./GoalProgressRing";
+
+// ─── Inlined from @/lib/goals/engine ────────────────────────────────
+
+function calculateTrend(
+  checkpoints: GoalCheckpoint[],
+  direction: GoalDirection,
+): "improving" | "declining" | "stable" {
+  if (checkpoints.length < 2) return "stable";
+  const sorted = [...checkpoints].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+  const recent = sorted.slice(-3);
+  const first = recent[0].value;
+  const last = recent[recent.length - 1].value;
+  const diff = last - first;
+  const threshold = Math.abs(first) * 0.02;
+  if (Math.abs(diff) < threshold) return "stable";
+  if (direction === "decrease") return diff < 0 ? "improving" : "declining";
+  return diff > 0 ? "improving" : "declining";
+}
+
+function calculateStreak(
+  checkpoints: GoalCheckpoint[],
+  direction: GoalDirection,
+  targetValue: number,
+): number {
+  if (checkpoints.length < 2) return 0;
+  const sorted = [...checkpoints].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+  let streak = 0;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const current = sorted[i].value;
+    const previous = sorted[i + 1].value;
+    const isImproving =
+      direction === "decrease"
+        ? current <= previous
+        : direction === "maintain"
+          ? Math.abs(current - targetValue) <= Math.abs(previous - targetValue)
+          : current >= previous;
+    if (isImproving) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function projectCompletion(
+  goal: HealthGoal,
+  daysElapsed: number,
+  percentComplete: number,
+): string | null {
+  if (percentComplete >= 100 || percentComplete <= 0 || daysElapsed <= 0) return null;
+  const ratePerDay = percentComplete / daysElapsed;
+  if (ratePerDay <= 0) return null;
+  const daysToComplete = Math.ceil((100 - percentComplete) / ratePerDay);
+  const projectedDate = new Date();
+  projectedDate.setDate(projectedDate.getDate() + daysToComplete);
+  return projectedDate.toISOString().split("T")[0];
+}
+
+function calculateProgress(goal: HealthGoal): GoalProgress {
+  const { startValue, currentValue, target, milestones, checkpoints, startDate, targetDate } = goal;
+  const totalRange = Math.abs(target.value - startValue);
+
+  let percentComplete = 0;
+  if (target.direction === "maintain") {
+    const deviation = Math.abs(currentValue - target.value);
+    const maxDeviation = Math.max(totalRange, Math.abs(startValue) * 0.1, 1);
+    percentComplete = Math.max(0, 100 - (deviation / maxDeviation) * 100);
+  } else if (totalRange > 0) {
+    if (target.direction === "decrease") {
+      if (currentValue <= target.value) percentComplete = 100;
+      else if (currentValue >= startValue) percentComplete = 0;
+      else percentComplete = ((startValue - currentValue) / (startValue - target.value)) * 100;
+    } else if (target.direction === "increase") {
+      if (currentValue >= target.value) percentComplete = 100;
+      else if (currentValue <= startValue) percentComplete = 0;
+      else percentComplete = ((currentValue - startValue) / (target.value - startValue)) * 100;
+    } else {
+      percentComplete = (Math.abs(currentValue - startValue) / totalRange) * 100;
+    }
+  }
+  percentComplete = Math.max(0, Math.min(100, Math.round(percentComplete)));
+
+  const trend = calculateTrend(checkpoints, target.direction);
+  const now = new Date();
+  const start = new Date(startDate);
+  const daysElapsed = Math.max(0, Math.floor((now.getTime() - start.getTime()) / 86400000));
+  const daysRemaining = targetDate
+    ? Math.max(0, Math.floor((new Date(targetDate).getTime() - now.getTime()) / 86400000))
+    : null;
+  const milestonesReached = milestones.filter((m) => m.reachedAt !== null).length;
+  const streak = calculateStreak(checkpoints, target.direction, target.value);
+  const projectedCompletion = projectCompletion(goal, daysElapsed, percentComplete);
+
+  return {
+    percentComplete,
+    currentValue,
+    startValue,
+    targetValue: target.value,
+    direction: target.direction,
+    trend,
+    daysRemaining,
+    daysElapsed,
+    milestonesReached,
+    totalMilestones: milestones.length,
+    streak,
+    projectedCompletion,
+  };
+}
+
+function checkMilestones(goal: HealthGoal): HealthGoal {
+  const progress = calculateProgress(goal);
+  const updatedMilestones = goal.milestones.map((m) => {
+    if (m.reachedAt) return m;
+    let reached = false;
+    if (goal.target.direction === "decrease") {
+      reached = goal.currentValue <= m.targetValue;
+    } else {
+      reached = goal.currentValue >= m.targetValue;
+    }
+    if (reached) return { ...m, reachedAt: new Date().toISOString() };
+    return m;
+  });
+
+  const isComplete = progress.percentComplete >= 100;
+  return {
+    ...goal,
+    milestones: updatedMilestones,
+    status: isComplete && goal.status === "active" ? "completed" : goal.status,
+    completedDate: isComplete && !goal.completedDate ? new Date().toISOString() : goal.completedDate,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function addCheckpoint(
+  goal: HealthGoal,
+  value: number,
+  note: string = "",
+  source: GoalCheckpoint["source"] = "manual",
+): HealthGoal {
+  const checkpoint: GoalCheckpoint = {
+    id: uid(),
+    date: new Date().toISOString(),
+    value,
+    note,
+    source,
+  };
+  const updated: HealthGoal = {
+    ...goal,
+    currentValue: value,
+    checkpoints: [...goal.checkpoints, checkpoint],
+    updatedAt: new Date().toISOString(),
+  };
+  return checkMilestones(updated);
+}
+
+function createGoalFromTemplate(
+  template: GoalTemplate,
+  clientId: string,
+  startValue: number,
+  customTarget?: number,
+): HealthGoal {
+  const targetValue = customTarget ?? template.defaultTarget.value;
+  const now = new Date().toISOString();
+
+  const milestones: GoalMilestone[] = template.suggestedMilestones.map((sm, idx) => {
+    let milestoneValue: number;
+    if (template.defaultTarget.direction === "decrease") {
+      milestoneValue = startValue - ((startValue - targetValue) * sm.percent) / 100;
+    } else {
+      milestoneValue = startValue + ((targetValue - startValue) * sm.percent) / 100;
+    }
+    return {
+      id: uid(),
+      label: sm.label,
+      targetValue: Math.round(milestoneValue * 10) / 10,
+      reachedAt: null,
+      order: idx,
+    };
+  });
+
+  let targetDate: string | null = null;
+  const d = new Date();
+  switch (template.timeframe) {
+    case "weekly": d.setDate(d.getDate() + 7); break;
+    case "monthly": d.setMonth(d.getMonth() + 1); break;
+    case "quarterly": d.setMonth(d.getMonth() + 3); break;
+    case "yearly": d.setFullYear(d.getFullYear() + 1); break;
+    default: break;
+  }
+  if (template.timeframe !== "open_ended") {
+    targetDate = d.toISOString().split("T")[0];
+  }
+
+  return {
+    id: uid(),
+    clientId,
+    category: template.category,
+    title: template.title,
+    description: template.description,
+    target: { ...template.defaultTarget, value: targetValue },
+    startValue,
+    currentValue: startValue,
+    status: "active",
+    timeframe: template.timeframe,
+    startDate: now.split("T")[0],
+    targetDate,
+    completedDate: null,
+    milestones,
+    checkpoints: [{ id: uid(), date: now, value: startValue, note: "Starting value", source: "manual" }],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+interface GoalsSummary {
+  totalGoals: number;
+  activeGoals: number;
+  completedGoals: number;
+  avgProgress: number;
+  totalMilestonesReached: number;
+  longestStreak: number;
+}
+
+function summarizeGoals(goals: HealthGoal[]): GoalsSummary {
+  const activeGoals = goals.filter((g) => g.status === "active");
+  const completedGoals = goals.filter((g) => g.status === "completed");
+  const progressValues = activeGoals.map((g) => calculateProgress(g).percentComplete);
+  const avgProgress =
+    progressValues.length > 0
+      ? Math.round(progressValues.reduce((a, b) => a + b, 0) / progressValues.length)
+      : 0;
+
+  let totalMilestonesReached = 0;
+  let longestStreak = 0;
+  for (const goal of goals) {
+    const progress = calculateProgress(goal);
+    totalMilestonesReached += progress.milestonesReached;
+    if (progress.streak > longestStreak) longestStreak = progress.streak;
+  }
+
+  return {
+    totalGoals: goals.length,
+    activeGoals: activeGoals.length,
+    completedGoals: completedGoals.length,
+    avgProgress,
+    totalMilestonesReached,
+    longestStreak,
+  };
+}
+
+// ─── Component ──────────────────────────────────────────────────────
 
 interface GoalsDashboardProps {
   initialGoals?: HealthGoal[];

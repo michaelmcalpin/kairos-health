@@ -2,35 +2,40 @@
 
 import { useState } from "react";
 import { ShoppingCart, Star, Plus } from "lucide-react";
-import {
-  listClientProducts,
-  addToCart,
-  getCart,
-  getCartTotal,
-} from "@/lib/client-ops/engine";
-import { PRODUCT_CATEGORIES, PRODUCT_CATEGORY_LABELS } from "@/lib/client-ops/types";
+import { trpc } from "@/lib/trpc";
 
-const CLIENT_ID = "demo-client";
-const CATEGORIES = PRODUCT_CATEGORIES;
-const CATEGORY_LABELS = PRODUCT_CATEGORY_LABELS;
+// Local constants that were in client-ops/types
+const PRODUCT_CATEGORIES = ["All", "Supplements", "Peptides", "Diagnostics", "Equipment", "Books"] as const;
+const CATEGORY_LABELS: Record<string, string> = {
+  All: "All",
+  Supplements: "Supplements",
+  Peptides: "Peptides & Injectables",
+  Diagnostics: "Diagnostics",
+  Equipment: "Equipment",
+  Books: "Books & Education",
+};
 
 export default function Page() {
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [showReview, setShowReview] = useState(false);
 
-  const allProducts = refreshKey >= 0 ? listClientProducts(CLIENT_ID) : [];
+  // Query active protocol items from DB
+  const { data: protocolData } = trpc.clientPortal.protocol.getActive.useQuery(undefined, { staleTime: 30_000 });
+
+  // Map protocol items to product-like display
+  const products = (protocolData?.items ?? []).map((item) => ({
+    id: String(item.id),
+    name: String(item.name ?? "Unknown"),
+    brand: "KAIROS",
+    description: String(item.dosage ?? item.rationale ?? "Recommended by your coach"),
+    price: 0,
+    rating: 4.5,
+    category: String(item.category ?? "Supplements"),
+    inProtocol: true,
+  }));
+
   const filteredProducts = selectedCategory === "All"
-    ? allProducts
-    : allProducts.filter((p) => p.category === selectedCategory);
-  const cart = getCart(CLIENT_ID);
-  const cartTotal = getCartTotal(CLIENT_ID);
-  const cartItems = cart.reduce((s, c) => s + c.quantity, 0);
-
-  const handleAddToProtocol = (productId: string) => {
-    addToCart(CLIENT_ID, productId);
-    setRefreshKey((k) => k + 1);
-  };
+    ? products
+    : products.filter((p) => p.category === selectedCategory);
 
   return (
     <div className="space-y-6 animate-fade-in pb-24">
@@ -42,7 +47,7 @@ export default function Page() {
 
       {/* Category Filters */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {CATEGORIES.map((category) => (
+        {PRODUCT_CATEGORIES.map((category) => (
           <button key={category} onClick={() => setSelectedCategory(category)}
             className={`font-body text-sm px-4 py-2 rounded-kairos-sm whitespace-nowrap transition-colors ${selectedCategory === category ? "bg-kairos-gold text-gray-900 font-semibold" : "bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:bg-kairos-card-hover"}`}>
             {CATEGORY_LABELS[category] ?? category}
@@ -76,7 +81,7 @@ export default function Page() {
             <p className="font-body text-sm text-kairos-silver-dark mb-4 flex-grow">{product.description}</p>
 
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-kairos-border">
-              <span className="font-heading font-bold text-lg text-kairos-gold">${product.price}</span>
+              {product.price > 0 && <span className="font-heading font-bold text-lg text-kairos-gold">${product.price}</span>}
               <div className="flex items-center gap-1">
                 <div className="flex">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -87,53 +92,20 @@ export default function Page() {
               </div>
             </div>
 
-            <button onClick={() => handleAddToProtocol(product.id)}
-              className="w-full bg-kairos-gold hover:opacity-90 text-gray-900 font-heading font-semibold py-2 rounded-kairos-sm flex items-center justify-center gap-2 transition-opacity">
+            <button className="w-full bg-kairos-gold hover:opacity-90 text-gray-900 font-heading font-semibold py-2 rounded-kairos-sm flex items-center justify-center gap-2 transition-opacity">
               <Plus className="w-4 h-4" />
-              Add to Protocol
+              View Details
             </button>
           </div>
         ))}
       </div>
 
-      {/* Protocol Review Panel */}
-      {showReview && cart.length > 0 && (
-        <div className="fixed bottom-20 left-0 right-0 bg-kairos-card border-t border-kairos-border px-4 py-4 z-40">
-          <div className="max-w-7xl mx-auto">
-            <h3 className="font-heading font-bold text-white mb-3">Your Protocol ({cartItems} items)</h3>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {cart.map((item) => {
-                const product = allProducts.find((p) => p.id === item.productId);
-                return (
-                  <div key={item.productId} className="flex items-center justify-between py-2 border-b border-kairos-border/50 last:border-0">
-                    <div>
-                      <p className="text-sm text-white">{product?.name || item.productId}</p>
-                      <p className="text-xs text-kairos-silver-dark">Qty: {item.quantity}</p>
-                    </div>
-                    <p className="text-sm font-heading text-kairos-gold">{product ? `$${(product.price * item.quantity).toFixed(2)}` : "—"}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+      {filteredProducts.length === 0 && (
+        <div className="kairos-card text-center py-10">
+          <ShoppingCart size={32} className="text-kairos-silver-dark mx-auto mb-3" />
+          <p className="text-sm font-body text-kairos-silver-dark">No products available in this category yet.</p>
         </div>
       )}
-
-      {/* Shopping Cart Summary Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-kairos-card border-t border-kairos-border px-4 py-4 z-50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ShoppingCart className="w-5 h-5 text-kairos-gold" />
-            <div>
-              <p className="font-body text-sm text-kairos-silver-dark">{cartItems} {cartItems === 1 ? "item" : "items"} in protocol</p>
-              <p className="font-heading font-bold text-lg text-kairos-gold">${cartTotal.toFixed(2)}</p>
-            </div>
-          </div>
-          <button onClick={() => setShowReview(!showReview)} className="bg-kairos-gold hover:opacity-90 text-gray-900 font-heading font-semibold px-6 py-2 rounded-kairos-sm transition-opacity">
-            {showReview ? "Close Review" : "Review Protocol"}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

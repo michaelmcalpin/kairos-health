@@ -12,39 +12,58 @@ import {
   FileText,
   X,
 } from "lucide-react";
-import { getClientPayments } from "@/lib/client-ops/engine";
+import { trpc } from "@/lib/trpc";
 
-const CLIENT_ID = "demo-client";
+const TIER_NAMES: Record<string, string> = {
+  tier1: "Private (Tier 1)",
+  tier2: "Associate (Tier 2)",
+  tier3: "AI-Guided (Tier 3)",
+};
+
+const TIER_PRICES: Record<string, number> = {
+  tier1: 499,
+  tier2: 249,
+  tier3: 99,
+};
 
 export default function PaymentsPage() {
-  const data = getClientPayments(CLIENT_ID);
-  const { currentPlan, subscriptions, billingHistory, upcomingCharges } = data;
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState<string | null>(null);
 
-  const getStatusBadge = (status: string) => {
-    if (status === "Paid") {
+  const { data: subData } = trpc.clientPortal.payments.getSubscription.useQuery(undefined, { staleTime: 30_000 });
+  const { data: billingData = [] } = trpc.clientPortal.payments.billingHistory.useQuery(undefined, { staleTime: 30_000 });
+
+  const tier = subData?.tier ?? "tier2";
+  const sub = subData?.subscription;
+  const planName = TIER_NAMES[tier] ?? "Standard Plan";
+  const monthlyTotal = TIER_PRICES[tier] ?? 249;
+  const nextBillingDate = sub?.currentPeriodEnd
+    ? new Date(sub.currentPeriodEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "—";
+  const status = sub?.status ?? "active";
+
+  const getStatusBadge = (s: string) => {
+    if (s === "active" || s === "Paid") {
       return (
         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-green-900/30 text-green-300 text-xs font-medium">
           <CheckCircle size={14} />
-          Paid
+          {s === "active" ? "Active" : "Paid"}
         </span>
       );
-    } else if (status === "Pending") {
+    } else if (s === "past_due" || s === "Pending") {
       return (
         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-yellow-900/30 text-yellow-300 text-xs font-medium">
           <AlertTriangle size={14} />
-          Pending
-        </span>
-      );
-    } else {
-      return (
-        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-red-900/30 text-red-300 text-xs font-medium">
-          <AlertTriangle size={14} />
-          Failed
+          {s === "past_due" ? "Past Due" : "Pending"}
         </span>
       );
     }
+    return (
+      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-red-900/30 text-red-300 text-xs font-medium">
+        <AlertTriangle size={14} />
+        {s}
+      </span>
+    );
   };
 
   return (
@@ -56,7 +75,7 @@ export default function PaymentsPage() {
           <p className="text-kairos-silver-dark font-body">Manage your subscription and billing information</p>
         </div>
         <div className="bg-kairos-gold/20 text-kairos-gold px-4 py-2 rounded-kairos-sm">
-          <span className="font-heading font-semibold text-sm">{currentPlan.name}</span>
+          <span className="font-heading font-semibold text-sm">{planName}</span>
         </div>
       </div>
 
@@ -71,25 +90,22 @@ export default function PaymentsPage() {
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <p className="text-kairos-silver-dark text-sm font-body mb-2">Plan Name</p>
-                <p className="text-white font-semibold text-lg">{currentPlan.name}</p>
+                <p className="text-white font-semibold text-lg">{planName}</p>
               </div>
               <div>
                 <p className="text-kairos-silver-dark text-sm font-body mb-2">Monthly Total</p>
-                <p className="text-kairos-gold font-bold text-lg">${currentPlan.monthlyTotal}/mo</p>
+                <p className="text-kairos-gold font-bold text-lg">${monthlyTotal}/mo</p>
               </div>
               <div>
                 <p className="text-kairos-silver-dark text-sm font-body mb-2">Next Billing Date</p>
                 <p className="text-white font-semibold flex items-center gap-2">
                   <Calendar size={16} className="text-kairos-gold" />
-                  {new Date(currentPlan.nextBillingDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {nextBillingDate}
                 </p>
               </div>
               <div>
                 <p className="text-kairos-silver-dark text-sm font-body mb-2">Status</p>
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-kairos-sm bg-green-900/30 text-green-300 text-sm font-medium">
-                  <CheckCircle size={14} />
-                  {currentPlan.status}
-                </span>
+                {getStatusBadge(status)}
               </div>
             </div>
           </div>
@@ -104,7 +120,7 @@ export default function PaymentsPage() {
             </div>
             <div className="bg-kairos-card rounded-lg p-4 border border-kairos-border mb-4">
               <p className="text-kairos-silver-dark text-xs font-body mb-3">Primary Card</p>
-              <p className="text-white font-mono font-semibold text-lg mb-3">{currentPlan.paymentMethod}</p>
+              <p className="text-white font-mono font-semibold text-lg mb-3">•••• •••• •••• 4242</p>
               <p className="text-kairos-silver-dark text-sm font-body">Expires 12/27</p>
             </div>
             <button onClick={() => setShowPaymentModal(true)} className="kairos-btn-outline w-full py-2 px-4 rounded-kairos-sm font-semibold text-sm">
@@ -118,18 +134,16 @@ export default function PaymentsPage() {
       <div className="kairos-card p-6 mb-8">
         <h2 className="text-xl font-bold font-heading text-white mb-6">Active Subscriptions</h2>
         <div className="space-y-4">
-          {subscriptions.map((sub) => (
-            <div key={sub.id} className="flex items-center justify-between p-4 bg-kairos-card rounded-kairos-sm border border-kairos-border">
-              <div className="flex-1">
-                <p className="text-white font-semibold mb-1">{sub.name}</p>
-                <p className="text-kairos-silver-dark text-sm font-body">${sub.amount}{sub.frequency}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-green-900/20 text-green-300 font-medium">{sub.status}</span>
-                <button onClick={() => setShowManageModal(sub.id)} className="kairos-btn-outline px-4 py-2 rounded-kairos-sm font-semibold text-sm whitespace-nowrap">Manage</button>
-              </div>
+          <div className="flex items-center justify-between p-4 bg-kairos-card rounded-kairos-sm border border-kairos-border">
+            <div className="flex-1">
+              <p className="text-white font-semibold mb-1">{planName}</p>
+              <p className="text-kairos-silver-dark text-sm font-body">${monthlyTotal}/month</p>
             </div>
-          ))}
+            <div className="flex items-center gap-3">
+              {getStatusBadge(status)}
+              <button onClick={() => setShowManageModal("main")} className="kairos-btn-outline px-4 py-2 rounded-kairos-sm font-semibold text-sm whitespace-nowrap">Manage</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -141,18 +155,16 @@ export default function PaymentsPage() {
         </h2>
         <div className="bg-kairos-card rounded-lg p-6 border border-kairos-border mb-6">
           <p className="text-kairos-silver-dark text-sm font-body mb-2">
-            Estimated charge on {new Date(currentPlan.nextBillingDate).toLocaleDateString("en-US")}
+            Estimated charge on {nextBillingDate}
           </p>
-          <p className="text-kairos-gold text-3xl font-bold font-heading">${upcomingCharges.estimatedTotal.toFixed(2)}</p>
+          <p className="text-kairos-gold text-3xl font-bold font-heading">${monthlyTotal.toFixed(2)}</p>
         </div>
         <div className="space-y-3">
           <p className="text-kairos-silver-dark text-sm font-body font-semibold mb-4">Breakdown:</p>
-          {upcomingCharges.breakdown.map((item, idx) => (
-            <div key={idx} className="flex justify-between items-center p-3 bg-kairos-card rounded border border-kairos-border/50">
-              <span className="text-white font-body">{item.name}</span>
-              <span className="text-kairos-gold font-semibold">${item.amount.toFixed(2)}</span>
-            </div>
-          ))}
+          <div className="flex justify-between items-center p-3 bg-kairos-card rounded border border-kairos-border/50">
+            <span className="text-white font-body">{planName}</span>
+            <span className="text-kairos-gold font-semibold">${monthlyTotal.toFixed(2)}</span>
+          </div>
         </div>
       </div>
 
@@ -168,27 +180,31 @@ export default function PaymentsPage() {
               <tr className="border-b border-kairos-border">
                 <th className="text-left py-3 px-4 text-kairos-silver-dark text-sm font-semibold font-body">Date</th>
                 <th className="text-left py-3 px-4 text-kairos-silver-dark text-sm font-semibold font-body">Description</th>
-                <th className="text-right py-3 px-4 text-kairos-silver-dark text-sm font-semibold font-body">Amount</th>
                 <th className="text-center py-3 px-4 text-kairos-silver-dark text-sm font-semibold font-body">Status</th>
                 <th className="text-center py-3 px-4 text-kairos-silver-dark text-sm font-semibold font-body">Receipt</th>
               </tr>
             </thead>
             <tbody>
-              {billingHistory.map((transaction) => (
-                <tr key={transaction.id} className="border-b border-kairos-border/50 hover:bg-kairos-card/50 transition-colors">
+              {billingData.length > 0 ? billingData.map((sub) => (
+                <tr key={sub.id} className="border-b border-kairos-border/50 hover:bg-kairos-card/50 transition-colors">
                   <td className="py-4 px-4 text-white text-sm font-body">
-                    {new Date(transaction.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    {sub.createdAt ? new Date(sub.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
                   </td>
-                  <td className="py-4 px-4 text-kairos-silver-dark text-sm font-body">{transaction.description}</td>
-                  <td className="py-4 px-4 text-white text-sm font-semibold text-right">${transaction.amount.toFixed(2)}</td>
-                  <td className="py-4 px-4 text-center">{getStatusBadge(transaction.status)}</td>
+                  <td className="py-4 px-4 text-kairos-silver-dark text-sm font-body">
+                    {TIER_NAMES[sub.tier ?? ""] ?? "Subscription"} — {sub.status}
+                  </td>
+                  <td className="py-4 px-4 text-center">{getStatusBadge(sub.status)}</td>
                   <td className="py-4 px-4 text-center">
                     <button className="inline-flex items-center justify-center p-2 hover:bg-kairos-card rounded-lg transition-colors text-kairos-gold hover:text-kairos-gold/80">
                       <FileText size={18} />
                     </button>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-kairos-silver-dark font-body">No billing history yet.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

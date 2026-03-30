@@ -1,22 +1,69 @@
 "use client";
 
 import { useState } from "react";
-import type { SessionType, MeetingType, TimeSlot } from "@/lib/scheduling/types";
-import {
-  SESSION_TYPES,
-  MEETING_TYPE_LABELS,
-  getSessionTypeInfo,
-  formatTimeDisplay,
-  formatDateDisplay,
-} from "@/lib/scheduling/types";
-import { getAvailableSlots } from "@/lib/scheduling/engine";
+import { trpc } from "@/lib/trpc";
+
+// ─── Local types & constants (previously from @/lib/scheduling/types) ───
+
+type SessionType =
+  | "initial_consult"
+  | "follow_up"
+  | "lab_review"
+  | "protocol_adjustment"
+  | "weekly_review"
+  | "onboarding"
+  | "emergency";
+
+type MeetingType = "video" | "phone" | "in_person";
+
+interface SessionTypeInfo {
+  id: string;
+  label: string;
+  durationMinutes: number;
+  color: string;
+  description: string;
+}
+
+const SESSION_TYPES: SessionTypeInfo[] = [
+  { id: "initial_consultation", label: "Initial Consultation", durationMinutes: 60, color: "rgb(59, 130, 246)", description: "Comprehensive health assessment and goal-setting session." },
+  { id: "follow_up", label: "Follow-Up", durationMinutes: 30, color: "rgb(139, 92, 246)", description: "Progress check and protocol adjustment." },
+  { id: "lab_review", label: "Lab Review", durationMinutes: 45, color: "rgb(245, 158, 11)", description: "Detailed review of lab results and biomarker trends." },
+  { id: "protocol_review", label: "Protocol Review", durationMinutes: 45, color: "rgb(20, 184, 166)", description: "Review and adjust supplement/medication protocol." },
+  { id: "goal_setting", label: "Goal Setting", durationMinutes: 60, color: "rgb(99, 102, 241)", description: "Set or revise health goals." },
+  { id: "ad_hoc", label: "Ad Hoc", durationMinutes: 30, color: "rgb(148, 163, 184)", description: "Quick session for specific concerns." },
+];
+
+const MEETING_TYPE_LABELS: Record<string, string> = {
+  video: "Video Call",
+  phone: "Phone Call",
+  in_person: "In-Person",
+};
+
+function getSessionTypeInfo(type: string): SessionTypeInfo {
+  return SESSION_TYPES.find((s) => s.id === type) ?? SESSION_TYPES[1];
+}
+
+function formatTimeDisplay(time: string): string {
+  const [h, m] = time.split(":");
+  const hour = parseInt(h, 10);
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${displayHour}:${m} ${period}`;
+}
+
+function formatDateDisplay(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+// ─── Component ──────────────────────────────────────────────────
 
 interface BookingFormProps {
   coachId: string;
   coachName: string;
   onBook: (booking: {
-    sessionType: SessionType;
-    meetingType: MeetingType;
+    sessionType: string;
+    meetingType: "video" | "phone" | "in_person";
     date: string;
     startTime: string;
     notes: string;
@@ -28,22 +75,31 @@ type Step = "session_type" | "date_time" | "details" | "confirm";
 
 export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFormProps) {
   const [step, setStep] = useState<Step>("session_type");
-  const [sessionType, setSessionType] = useState<SessionType | null>(null);
+  const [sessionType, setSessionType] = useState<string | null>(null);
   const [meetingType, setMeetingType] = useState<MeetingType>("video");
   const [selectedDate, setSelectedDate] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<{ start: string; end: string } | null>(null);
   const [notes, setNotes] = useState("");
-  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
 
   const sessionInfo = sessionType ? getSessionTypeInfo(sessionType) : null;
+
+  // Fetch available slots from DB via tRPC when date + session type are selected
+  const { data: availableSlots = [], isFetching: loadingSlots } =
+    trpc.clientPortal.scheduling.getAvailableSlots.useQuery(
+      {
+        coachId,
+        date: selectedDate,
+        durationMinutes: sessionInfo?.durationMinutes ?? 30,
+      },
+      {
+        enabled: !!selectedDate && !!sessionInfo,
+        staleTime: 15_000,
+      }
+    );
 
   const handleDateChange = (date: string) => {
     setSelectedDate(date);
     setSelectedSlot(null);
-    if (sessionInfo) {
-      const slots = getAvailableSlots(coachId, date, sessionInfo.durationMinutes);
-      setAvailableSlots(slots);
-    }
   };
 
   const handleConfirm = () => {
@@ -52,7 +108,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
       sessionType,
       meetingType,
       date: selectedDate,
-      startTime: selectedSlot.startTime,
+      startTime: selectedSlot.start,
       notes,
     });
   };
@@ -171,30 +227,30 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
           {selectedDate && (
             <div>
               <label className="text-xs text-gray-400 mb-2 block">Available Times</label>
-              {availableSlots.filter((s) => s.available).length === 0 ? (
+              {loadingSlots ? (
+                <p className="text-sm text-gray-500 py-4 text-center">Loading available times...</p>
+              ) : availableSlots.length === 0 ? (
                 <p className="text-sm text-gray-500 py-4 text-center">
                   No available slots on this date.
                 </p>
               ) : (
                 <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
-                  {availableSlots
-                    .filter((s) => s.available)
-                    .map((slot) => (
-                      <button
-                        key={slot.startTime}
-                        onClick={() => {
-                          setSelectedSlot(slot);
-                          setStep("details");
-                        }}
-                        className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                          selectedSlot?.startTime === slot.startTime
-                            ? "bg-kairos-gold text-kairos-royal font-medium"
-                            : "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                        }`}
-                      >
-                        {formatTimeDisplay(slot.startTime)}
-                      </button>
-                    ))}
+                  {availableSlots.map((slot) => (
+                    <button
+                      key={slot.start}
+                      onClick={() => {
+                        setSelectedSlot(slot);
+                        setStep("details");
+                      }}
+                      className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                        selectedSlot?.start === slot.start
+                          ? "bg-kairos-gold text-kairos-royal font-medium"
+                          : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                      }`}
+                    >
+                      {formatTimeDisplay(slot.start)}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -217,7 +273,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
           </h3>
           <p className="text-sm text-gray-400 mb-4">
             {sessionInfo.label} on {formatDateDisplay(selectedDate)} at{" "}
-            {formatTimeDisplay(selectedSlot.startTime)}
+            {formatTimeDisplay(selectedSlot.start)}
           </p>
 
           {/* Meeting type */}
@@ -296,8 +352,8 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
             <div className="flex justify-between">
               <span className="text-sm text-gray-400">Time</span>
               <span className="text-sm text-white font-medium">
-                {formatTimeDisplay(selectedSlot.startTime)} —{" "}
-                {formatTimeDisplay(selectedSlot.endTime)}
+                {formatTimeDisplay(selectedSlot.start)} —{" "}
+                {formatTimeDisplay(selectedSlot.end)}
               </span>
             </div>
             <div className="flex justify-between">

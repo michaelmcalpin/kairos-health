@@ -1,22 +1,45 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { Calendar, Clock, Plus, Users, X } from 'lucide-react';
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
-import type { Appointment } from "@/lib/scheduling/types";
-import {
-  SESSION_TYPES,
-} from "@/lib/scheduling/types";
 import { trpc } from "@/lib/trpc";
 import { WeeklyCalendar } from "@/components/scheduling/WeeklyCalendar";
 import { AppointmentDetail } from "@/components/scheduling/AppointmentDetail";
+
+// Local session types constant (previously from @/lib/scheduling/types)
+const SESSION_TYPES = [
+  { id: "initial_consultation", label: "Initial Consultation", durationMinutes: 60, color: "rgb(59, 130, 246)", description: "Comprehensive health assessment." },
+  { id: "follow_up", label: "Follow-Up", durationMinutes: 30, color: "rgb(139, 92, 246)", description: "Progress check and protocol adjustment." },
+  { id: "lab_review", label: "Lab Review", durationMinutes: 45, color: "rgb(245, 158, 11)", description: "Review lab results and biomarker trends." },
+  { id: "protocol_review", label: "Protocol Review", durationMinutes: 45, color: "rgb(20, 184, 166)", description: "Review and adjust protocols." },
+  { id: "goal_setting", label: "Goal Setting", durationMinutes: 60, color: "rgb(99, 102, 241)", description: "Set or revise health goals." },
+  { id: "ad_hoc", label: "Ad Hoc", durationMinutes: 30, color: "rgb(148, 163, 184)", description: "Quick session for specific concerns." },
+];
+
+interface AppointmentLike {
+  id: string;
+  coachId: string;
+  clientId: string;
+  coachName: string | null;
+  clientName: string | null;
+  sessionType: string;
+  meetingType: string;
+  date: string;
+  startTime: string;
+  endTime: string | null;
+  durationMinutes: number | null;
+  status: string;
+  notes: string | null;
+  cancellationReason: string | null;
+}
 
 export default function CoachSchedulePage() {
   const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<AppointmentLike | null>(null);
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [newAppt, setNewAppt] = useState({ clientName: "", date: "", time: "09:00", type: "follow_up" as const, meeting: "video" as const });
 
@@ -34,7 +57,31 @@ export default function CoachSchedulePage() {
   const createMutation = trpc.coach.schedule.createAppointment.useMutation();
   const updateStatusMutation = trpc.coach.schedule.updateStatus.useMutation();
 
-  const calendarDays = calendarData || [];
+  // Transform tRPC calendar data { weekStart, weekEnd, days: Record<string, appt[]> } into CalendarDay[]
+  const calendarDays = useMemo(() => {
+    if (!calendarData || !calendarData.days) return [];
+    const todayStr = new Date().toISOString().split("T")[0];
+    // Generate 7 days starting from weekStart
+    const days = [];
+    const start = new Date(calendarData.weekStart + "T00:00:00");
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const dateStr = d.toISOString().split("T")[0];
+      days.push({
+        date: dateStr,
+        dayOfWeek: d.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+        isToday: dateStr === todayStr,
+        appointments: (calendarData.days[dateStr] ?? []).map((a) => ({
+          ...a,
+          date: typeof a.date === "string" ? a.date : new Date(a.date).toISOString().split("T")[0],
+          endTime: a.endTime ?? "",
+        })),
+      });
+    }
+    return days;
+  }, [calendarData]);
+
   const stats = statsData || {
     upcomingAppointments: 0,
     todayAppointments: 0,

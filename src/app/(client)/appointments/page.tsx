@@ -1,76 +1,91 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { Appointment } from "@/lib/scheduling/types";
-import {
-  getSessionTypeInfo,
-  formatTimeDisplay,
-  formatDateDisplay,
-  STATUS_LABELS,
-  STATUS_COLORS,
-  MEETING_TYPE_LABELS,
-} from "@/lib/scheduling/types";
-import {
-  createAppointment,
-  getClientAppointments,
-  updateAppointmentStatus,
-  getSessionNotes,
-} from "@/lib/scheduling/engine";
+import { trpc } from "@/lib/trpc";
 import { BookingForm } from "@/components/scheduling/BookingForm";
 import { AppointmentDetail } from "@/components/scheduling/AppointmentDetail";
 
-// Seed demo data
-function seedClientAppointments(clientId: string) {
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const nextWeek = new Date(today);
-  nextWeek.setDate(today.getDate() + 5);
+const SESSION_TYPE_INFO: Record<string, { label: string; color: string }> = {
+  initial_consultation: { label: "Initial Consultation", color: "#D4AF37" },
+  follow_up: { label: "Follow-Up", color: "#60A5FA" },
+  protocol_review: { label: "Protocol Review", color: "#A78BFA" },
+  lab_review: { label: "Lab Review", color: "#34D399" },
+  goal_setting: { label: "Goal Setting", color: "#F472B6" },
+  ad_hoc: { label: "Ad Hoc", color: "#94A3B8" },
+};
 
-  try {
-    createAppointment({
-      coachId: "coach-1",
-      clientId,
-      clientName: "You",
-      coachName: "Dr. Sarah Mitchell",
-      sessionType: "follow_up",
-      meetingType: "video",
-      date: tomorrow.toISOString().split("T")[0],
-      startTime: "10:00",
-      notes: "Discuss glucose trends from the past week.",
-    });
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  in_progress: "In Progress",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  no_show: "No Show",
+};
 
-    createAppointment({
-      coachId: "coach-1",
-      clientId,
-      clientName: "You",
-      coachName: "Dr. Sarah Mitchell",
-      sessionType: "lab_review",
-      meetingType: "video",
-      date: nextWeek.toISOString().split("T")[0],
-      startTime: "14:00",
-      notes: "Review latest blood panel results.",
-    });
-  } catch {
-    // Ignore duplicate seeds
-  }
+const STATUS_COLORS: Record<string, string> = {
+  pending: "#FBBF24",
+  confirmed: "#34D399",
+  in_progress: "#60A5FA",
+  completed: "#6B7280",
+  cancelled: "#EF4444",
+  no_show: "#F97316",
+};
+
+const MEETING_TYPE_LABELS: Record<string, string> = {
+  video: "Video Call",
+  phone: "Phone Call",
+  in_person: "In Person",
+};
+
+function formatDateDisplay(dateStr: string): string {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function formatTimeDisplay(time: string): string {
+  const [h, m] = time.split(":");
+  const hour = parseInt(h, 10);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const display = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+  return `${display}:${m} ${suffix}`;
 }
 
 export default function AppointmentsPage() {
-  const clientId = "demo-client";
   const [view, setView] = useState<"list" | "book" | "detail">("list");
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"upcoming" | "past" | "all">("upcoming");
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [seeded, setSeeded] = useState(false);
 
-  if (!seeded) {
-    seedClientAppointments(clientId);
-    setSeeded(true);
-  }
+  const utils = trpc.useUtils();
 
-  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
-  const appointments = getClientAppointments(clientId, filter);
+  const { data: appointmentsList = [] } = trpc.clientPortal.scheduling.listAppointments.useQuery(
+    { filter },
+    { staleTime: 15_000 }
+  );
+
+  const { data: selectedAppointment } = trpc.clientPortal.scheduling.getAppointment.useQuery(
+    { appointmentId: selectedAppointmentId ?? "" },
+    { enabled: !!selectedAppointmentId && view === "detail" }
+  );
+
+  const { data: sessionNotesData } = trpc.clientPortal.scheduling.getSessionNotes.useQuery(
+    { appointmentId: selectedAppointmentId ?? "" },
+    { enabled: !!selectedAppointmentId && view === "detail" }
+  );
+
+  const bookMutation = trpc.clientPortal.scheduling.bookAppointment.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.scheduling.listAppointments.invalidate();
+      setView("list");
+    },
+  });
+
+  const cancelMutation = trpc.clientPortal.scheduling.cancelAppointment.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.scheduling.listAppointments.invalidate();
+      setView("list");
+      setSelectedAppointmentId(null);
+    },
+  });
 
   const handleBook = (booking: {
     sessionType: string;
@@ -79,23 +94,19 @@ export default function AppointmentsPage() {
     startTime: string;
     notes: string;
   }) => {
-    createAppointment({
+    bookMutation.mutate({
       coachId: "coach-1",
-      clientId,
-      clientName: "You",
       coachName: "Dr. Sarah Mitchell",
-      sessionType: booking.sessionType as "follow_up",
+      sessionType: booking.sessionType,
       meetingType: booking.meetingType,
       date: booking.date,
       startTime: booking.startTime,
       notes: booking.notes,
     });
-    setView("list");
-    refresh();
   };
 
   return (
-    <div className="max-w-4xl mx-auto" key={refreshKey}>
+    <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-heading font-bold text-white">Appointments</h1>
@@ -124,17 +135,27 @@ export default function AppointmentsPage() {
 
       {view === "detail" && selectedAppointment && (
         <AppointmentDetail
-          appointment={selectedAppointment}
-          sessionNotes={getSessionNotes(selectedAppointment.id)}
+          appointment={{
+            ...selectedAppointment,
+            date: typeof selectedAppointment.date === "string" ? selectedAppointment.date : new Date(selectedAppointment.date).toISOString().split("T")[0],
+            endTime: selectedAppointment.endTime ?? "",
+          }}
+          sessionNotes={sessionNotesData ? {
+            summary: sessionNotesData.summary ?? "",
+            keyFindings: (sessionNotesData.keyFindings as string[]) ?? [],
+            actionItems: (sessionNotesData.actionItems as string[]) ?? [],
+            nextSessionFocus: sessionNotesData.nextSessionFocus ?? "",
+            privateNotes: sessionNotesData.privateNotes ?? "",
+          } : null}
           role="client"
           onUpdateStatus={(status, reason) => {
-            updateAppointmentStatus(selectedAppointment.id, status, reason);
-            setView("list");
-            refresh();
+            if (status === "cancelled" && selectedAppointmentId) {
+              cancelMutation.mutate({ appointmentId: selectedAppointmentId, reason });
+            }
           }}
           onClose={() => {
             setView("list");
-            setSelectedAppointment(null);
+            setSelectedAppointmentId(null);
           }}
         />
       )}
@@ -159,7 +180,7 @@ export default function AppointmentsPage() {
           </div>
 
           {/* Appointment list */}
-          {appointments.length === 0 ? (
+          {appointmentsList.length === 0 ? (
             <div className="kairos-card p-8 text-center">
               <p className="text-gray-500 mb-4">
                 {filter === "upcoming"
@@ -175,13 +196,14 @@ export default function AppointmentsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {appointments.map((appt) => {
-                const info = getSessionTypeInfo(appt.sessionType);
+              {appointmentsList.map((appt) => {
+                const info = SESSION_TYPE_INFO[appt.sessionType] ?? { label: appt.sessionType, color: "#94A3B8" };
+                const dateStr = typeof appt.date === "string" ? appt.date : new Date(appt.date).toISOString().split("T")[0];
                 return (
                   <button
                     key={appt.id}
                     onClick={() => {
-                      setSelectedAppointment(appt);
+                      setSelectedAppointmentId(appt.id);
                       setView("detail");
                     }}
                     className="w-full kairos-card p-4 text-left hover:border-gray-600 transition-colors"
@@ -197,21 +219,21 @@ export default function AppointmentsPage() {
                           <span
                             className="px-2 py-0.5 rounded-full text-[10px]"
                             style={{
-                              backgroundColor: `${STATUS_COLORS[appt.status]}20`,
-                              color: STATUS_COLORS[appt.status],
+                              backgroundColor: `${STATUS_COLORS[appt.status] ?? "#6B7280"}20`,
+                              color: STATUS_COLORS[appt.status] ?? "#6B7280",
                             }}
                           >
-                            {STATUS_LABELS[appt.status]}
+                            {STATUS_LABELS[appt.status] ?? appt.status}
                           </span>
                         </div>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          with {appt.coachName} — {MEETING_TYPE_LABELS[appt.meetingType]}
+                          with {appt.coachName ?? "Coach"} — {MEETING_TYPE_LABELS[appt.meetingType] ?? appt.meetingType}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-white">{formatDateDisplay(appt.date)}</p>
+                        <p className="text-sm text-white">{formatDateDisplay(dateStr)}</p>
                         <p className="text-xs text-gray-400">
-                          {formatTimeDisplay(appt.startTime)} — {formatTimeDisplay(appt.endTime)}
+                          {formatTimeDisplay(appt.startTime)} — {appt.endTime ? formatTimeDisplay(appt.endTime) : ""}
                         </p>
                       </div>
                     </div>

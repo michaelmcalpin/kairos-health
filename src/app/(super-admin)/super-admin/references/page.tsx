@@ -9,23 +9,61 @@ import {
   Clock,
   Award,
 } from "lucide-react";
-import {
-  getReferences,
-  getReferenceStats,
-  filterReferences,
-  sortReferences,
-  REFERENCE_CATEGORIES,
-} from "@/lib/admin-references/engine";
-import type { ReferenceCategory, ReferenceSortBy } from "@/lib/admin-references/types";
 import { CompanySelector, useCompanyFilter } from "@/components/admin/CompanySelector";
 
-const allReferences = getReferences();
-const refStats = getReferenceStats();
+// ─── Local types & data (previously from @/lib/admin-references) ───
+
+type ReferenceCategory = "Clinical Studies" | "Supplement Database" | "Lab Ranges" | "Protocol Templates" | "Dosage Guidelines";
+type ReferenceSortBy = "date" | "relevance";
+
+interface Reference {
+  id: string;
+  title: string;
+  source: string;
+  year: number;
+  category: ReferenceCategory;
+  relevanceTags: string[];
+  summary: string;
+  citationCount: number;
+}
+
+const REFERENCES: Reference[] = [
+  { id: "1", title: "NMN Improves Muscle Insulin Sensitivity and Mitochondrial Oxidative Capacity", source: "Cell Metabolism", year: 2023, category: "Clinical Studies", relevanceTags: ["NAD+", "Aging", "Mitochondria"], summary: "Study demonstrates NMN's role in improving muscle metabolism and insulin sensitivity in aging mice.", citationCount: 165 },
+  { id: "2", title: "Rapamycin as a Longevity Drug: From Yeast to Humans", source: "Nature Reviews Molecular Cell Biology", year: 2023, category: "Clinical Studies", relevanceTags: ["mTOR", "Lifespan", "Aging"], summary: "Comprehensive review of rapamycin's mechanisms and potential applications in human longevity research.", citationCount: 435 },
+  { id: "3", title: "Sleep Architecture and Cognitive Decline in Aging", source: "Journal of Neuroscience", year: 2024, category: "Clinical Studies", relevanceTags: ["Sleep", "Brain Health", "Aging"], summary: "Research linking sleep architecture patterns to cognitive aging and neuroinflammation markers.", citationCount: 98 },
+  { id: "4", title: "GLP-1 Receptor Agonists: Beyond Glucose Control", source: "The Lancet", year: 2024, category: "Clinical Studies", relevanceTags: ["GLP-1", "Metabolic Health", "Weight Management"], summary: "Evidence for GLP-1's cardiovascular and neuroprotective benefits independent of glucose lowering.", citationCount: 278 },
+  { id: "5", title: "NMN & NR Supplementation Database", source: "Internal Knowledge Base", year: 2024, category: "Supplement Database", relevanceTags: ["NAD+", "Dosage", "Safety"], summary: "Compiled data on NMN and nicotinamide riboside efficacy, dosing recommendations, and safety profiles.", citationCount: 52 },
+  { id: "6", title: "Fasting Metabolic Biomarkers: Reference Ranges", source: "Kairos Internal Lab Standards", year: 2024, category: "Lab Ranges", relevanceTags: ["Metabolic Health", "Biomarkers", "Assessment"], summary: "Comprehensive reference ranges for fasting glucose, insulin, lipids, and metabolic health markers.", citationCount: 142 },
+  { id: "7", title: "16/8 Intermittent Fasting Protocol Template", source: "Kairos Protocol Library", year: 2024, category: "Protocol Templates", relevanceTags: ["Fasting", "Implementation", "Guidelines"], summary: "Structured protocol template for implementing intermittent fasting with safety guidelines and progression.", citationCount: 85 },
+  { id: "8", title: "Resveratrol Dosage Guidelines and Safety", source: "Kairos Dosage Database", year: 2023, category: "Dosage Guidelines", relevanceTags: ["Polyphenols", "Dosing", "Drug Interactions"], summary: "Evidence-based dosage recommendations for resveratrol supplementation with interaction profiles.", citationCount: 63 },
+  { id: "9", title: "Senolytics in Aging Research: Current State", source: "Aging Cell", year: 2023, category: "Clinical Studies", relevanceTags: ["Cellular Aging", "Senescence", "Longevity"], summary: "Review of senolytic compounds and their potential to remove senescent cells in aging organisms.", citationCount: 212 },
+  { id: "10", title: "Circadian Rhythm Optimization Protocol", source: "Kairos Protocol Library", year: 2024, category: "Protocol Templates", relevanceTags: ["Sleep", "Light Exposure", "Circadian"], summary: "Complete protocol for optimizing circadian rhythm through light exposure and behavioral modifications.", citationCount: 51 },
+];
+
+const REFERENCE_CATEGORIES: Array<"All" | ReferenceCategory> = [
+  "All", "Clinical Studies", "Supplement Database", "Lab Ranges", "Protocol Templates", "Dosage Guidelines",
+];
+
+const REF_STATS = { total: 156, recentlyAdded: 8, mostCitedCategory: "Clinical Studies" };
+
+function filterReferences(refs: Reference[], query: string, category: "All" | ReferenceCategory): Reference[] {
+  return refs.filter((ref) => {
+    const matchesSearch = ref.title.toLowerCase().includes(query.toLowerCase()) || ref.source.toLowerCase().includes(query.toLowerCase());
+    const matchesCategory = category === "All" || ref.category === category;
+    return matchesSearch && matchesCategory;
+  });
+}
+
+function sortReferences(refs: Reference[], sortBy: ReferenceSortBy): Reference[] {
+  return [...refs].sort((a, b) => sortBy === "date" ? b.year - a.year : b.citationCount - a.citationCount);
+}
+
+// ─── Component ──────────────────────────────────────────────────────
 
 const statItems = [
-  { label: "Total References", value: String(refStats.total), icon: BookOpen },
-  { label: "Recently Added", value: String(refStats.recentlyAdded), icon: Clock },
-  { label: "Most Cited Category", value: refStats.mostCitedCategory, icon: Award },
+  { label: "Total References", value: String(REF_STATS.total), icon: BookOpen },
+  { label: "Recently Added", value: String(REF_STATS.recentlyAdded), icon: Clock },
+  { label: "Most Cited Category", value: REF_STATS.mostCitedCategory, icon: Award },
 ];
 
 export default function ReferencesPage() {
@@ -34,23 +72,17 @@ export default function ReferencesPage() {
   const [selectedCategory, setSelectedCategory] = useState<"All" | ReferenceCategory>("All");
   const [sortBy, setSortBy] = useState<ReferenceSortBy>("date");
 
-  const filtered = filterReferences(allReferences, searchQuery, selectedCategory);
+  const filtered = filterReferences(REFERENCES, searchQuery, selectedCategory);
   const sorted = sortReferences(filtered, sortBy);
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case "Clinical Studies":
-        return "bg-blue-900/30 text-blue-300";
-      case "Supplement Database":
-        return "bg-purple-900/30 text-purple-300";
-      case "Lab Ranges":
-        return "bg-cyan-900/30 text-cyan-300";
-      case "Protocol Templates":
-        return "bg-emerald-900/30 text-emerald-300";
-      case "Dosage Guidelines":
-        return "bg-pink-900/30 text-pink-300";
-      default:
-        return "bg-gray-900/30 text-gray-300";
+      case "Clinical Studies": return "bg-blue-900/30 text-blue-300";
+      case "Supplement Database": return "bg-purple-900/30 text-purple-300";
+      case "Lab Ranges": return "bg-cyan-900/30 text-cyan-300";
+      case "Protocol Templates": return "bg-emerald-900/30 text-emerald-300";
+      case "Dosage Guidelines": return "bg-pink-900/30 text-pink-300";
+      default: return "bg-gray-900/30 text-gray-300";
     }
   };
 

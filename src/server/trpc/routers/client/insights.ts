@@ -3,29 +3,45 @@
  *
  * tRPC endpoints for AI-generated health insights,
  * weekly reports, and data export triggers.
+ * Now DB-backed: reads real client data where available.
  */
 
 import { z } from "zod";
-import { router } from "@/server/trpc";
-import { clientProcedure } from "@/server/trpc";
-import {
-  analyzeGlucose,
-  analyzeSleep,
-  analyzeNutrition,
-  analyzeActivity,
-  analyzeSupplements,
-  analyzeFasting,
-  analyzeComposite,
-  generateWeeklyReport,
-} from "@/lib/ai/engine";
-import type {
-  GlucoseAnalysisInput,
-  SleepAnalysisInput,
-  ActivityAnalysisInput,
-  SupplementAnalysisInput,
-  CompositeAnalysisInput,
-  HealthInsight,
-} from "@/lib/ai/types";
+import { router, clientProcedure } from "@/server/trpc";
+import { clientProfiles, sleepSessions, glucoseReadings, supplementProtocols } from "@/server/db/schema";
+import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+
+interface HealthInsight {
+  id: string;
+  category: string;
+  severity: "info" | "warning" | "positive" | "critical";
+  title: string;
+  description: string;
+  recommendation?: string;
+  confidence: number;
+  dataSource: string;
+  timestamp: string;
+}
+
+function makeInsight(
+  category: string,
+  severity: HealthInsight["severity"],
+  title: string,
+  description: string,
+  recommendation?: string,
+): HealthInsight {
+  return {
+    id: crypto.randomUUID(),
+    category,
+    severity,
+    title,
+    description,
+    recommendation,
+    confidence: 0.85,
+    dataSource: "platform_analytics",
+    timestamp: new Date().toISOString(),
+  };
+}
 
 const dateRangeInput = z.object({
   startDate: z.string(),
@@ -35,71 +51,104 @@ const dateRangeInput = z.object({
 export const clientInsightsRouter = router({
   /**
    * Get all insights for a date range
-   * Runs the full analysis pipeline and returns categorized insights
    */
   getAll: clientProcedure
     .input(dateRangeInput)
-    .query(async ({ input }) => {
-      // In production, these would query the database.
-      // For now, generate demo insights from representative data.
-      const allInsights: HealthInsight[] = [];
+    .query(async ({ ctx, input }) => {
+      const insights: HealthInsight[] = [];
 
-      // Demo glucose analysis
-      const glucoseInput: GlucoseAnalysisInput = {
-        readings: [],
-        avgGlucose: 98,
-        timeInRange: 0.82,
-        gmi: 5.3,
-        cv: 22,
-        minGlucose: 68,
-        maxGlucose: 155,
-        priorWeekAvg: 102,
-      };
-      allInsights.push(...analyzeGlucose(glucoseInput));
+      // Query real glucose data if available
+      const glucoseData = await ctx.db
+        .select({
+          avg: sql<number>`avg(${glucoseReadings.valueMgdl})`,
+          min: sql<number>`min(${glucoseReadings.valueMgdl})`,
+          max: sql<number>`max(${glucoseReadings.valueMgdl})`,
+          count: sql<number>`count(*)`,
+        })
+        .from(glucoseReadings)
+        .where(and(
+          eq(glucoseReadings.clientId, ctx.dbUserId),
+          gte(glucoseReadings.timestamp, new Date(input.startDate)),
+          lte(glucoseReadings.timestamp, new Date(input.endDate + "T23:59:59")),
+        ));
 
-      // Demo sleep analysis
-      const sleepInput: SleepAnalysisInput = {
-        sessions: [],
-        avgScore: 76,
-        avgDuration: 420,
-        consistency: 65,
-        priorWeekAvgScore: 72,
-      };
-      allInsights.push(...analyzeSleep(sleepInput));
+      const gd = glucoseData[0];
+      if (gd && Number(gd.count) > 0) {
+        const avg = Number(gd.avg);
+        if (avg < 100) {
+          insights.push(makeInsight("glucose", "positive", "Great Glucose Control",
+            `Your average glucose of ${avg.toFixed(0)} mg/dL is in the optimal range.`,
+            "Keep up your current nutrition and activity patterns."));
+        } else if (avg < 126) {
+          insights.push(makeInsight("glucose", "warning", "Elevated Glucose",
+            `Your average glucose of ${avg.toFixed(0)} mg/dL is slightly above optimal.`,
+            "Consider reducing refined carbohydrates and increasing post-meal walks."));
+        } else {
+          insights.push(makeInsight("glucose", "critical", "High Glucose Alert",
+            `Your average glucose of ${avg.toFixed(0)} mg/dL needs attention.`,
+            "Consult with your coach about adjusting your protocol."));
+        }
+      }
 
-      // Demo activity analysis
-      const activityInput: ActivityAnalysisInput = {
-        workouts: [],
-        totalWorkouts: 4,
-        avgDurationMinutes: 42,
-        activeDays: 4,
-        totalDaysInRange: 7,
-      };
-      allInsights.push(...analyzeActivity(activityInput));
+      // Query real sleep data if available
+      const sleepData = await ctx.db
+        .select({
+          avgScore: sql<number>`avg(${sleepSessions.score})`,
+          avgDuration: sql<number>`avg(${sleepSessions.totalMinutes})`,
+          count: sql<number>`count(*)`,
+        })
+        .from(sleepSessions)
+        .where(and(
+          eq(sleepSessions.clientId, ctx.dbUserId),
+          gte(sleepSessions.date, input.startDate),
+          lte(sleepSessions.date, input.endDate),
+        ));
 
-      // Demo supplement analysis
-      const supplementInput: SupplementAnalysisInput = {
-        adherenceRate: 0.78,
-        missedItems: ["Omega-3", "Magnesium"],
-        streakDays: 3,
-        totalProtocolItems: 8,
-      };
-      allInsights.push(...analyzeSupplements(supplementInput));
+      const sd = sleepData[0];
+      if (sd && Number(sd.count) > 0) {
+        const avgScore = Number(sd.avgScore);
+        const avgDuration = Number(sd.avgDuration);
+        if (avgScore >= 80) {
+          insights.push(makeInsight("sleep", "positive", "Excellent Sleep Quality",
+            `Your average sleep score of ${avgScore.toFixed(0)} shows strong recovery.`,
+            "Maintain your current sleep routine."));
+        } else if (avgScore >= 60) {
+          insights.push(makeInsight("sleep", "info", "Sleep Could Improve",
+            `Your average sleep score of ${avgScore.toFixed(0)} has room for improvement.`,
+            "Try consistent bed/wake times and limiting screens 1 hour before bed."));
+        } else {
+          insights.push(makeInsight("sleep", "warning", "Low Sleep Quality",
+            `Your average sleep score of ${avgScore.toFixed(0)} may be impacting recovery.`,
+            "Discuss sleep optimization strategies with your coach."));
+        }
 
-      // Demo composite
-      const compositeInput: CompositeAnalysisInput = {
-        healthScore: 74,
-        glucoseScore: 82,
-        sleepScore: 76,
-        activityScore: 72,
-        supplementScore: 78,
-        checkinScore: 65,
-        priorWeekHealthScore: 70,
-      };
-      allInsights.push(...analyzeComposite(compositeInput));
+        if (avgDuration < 360) {
+          insights.push(makeInsight("sleep", "warning", "Short Sleep Duration",
+            `You're averaging ${(avgDuration / 60).toFixed(1)} hours of sleep.`,
+            "Aim for at least 7 hours per night for optimal recovery."));
+        }
+      }
+
+      // General composite insight
+      const profile = await ctx.db.query.clientProfiles.findFirst({
+        where: eq(clientProfiles.userId, ctx.dbUserId),
+      });
+
+      if (profile) {
+        insights.push(makeInsight("composite", "info", "Health Score Summary",
+          `Your overall health trajectory is being tracked. Current tier: ${profile.tier ?? "unset"}.`,
+          "Continue logging daily check-ins for more personalized insights."));
+      }
+
+      // If no real data, add a helpful fallback
+      if (insights.length === 0) {
+        insights.push(makeInsight("composite", "info", "Start Tracking for Insights",
+          "We need more data to generate personalized health insights.",
+          "Log daily check-ins, connect wearable devices, and upload lab results to unlock insights."));
+      }
 
       return {
-        insights: allInsights,
+        insights,
         period: { startDate: input.startDate, endDate: input.endDate },
         generatedAt: new Date().toISOString(),
       };
@@ -114,64 +163,64 @@ export const clientInsightsRouter = router({
       endDate: z.string(),
       category: z.enum(["glucose", "sleep", "nutrition", "activity", "supplements", "fasting", "composite"]),
     }))
-    .query(async ({ input }) => {
-      const { category } = input;
+    .query(async ({ ctx, input }) => {
+      const insights: HealthInsight[] = [];
 
-      // Generate category-specific demo insights
-      let insights: HealthInsight[] = [];
-
-      switch (category) {
-        case "glucose":
-          insights = analyzeGlucose({
-            readings: [], avgGlucose: 98, timeInRange: 0.82,
-            gmi: 5.3, cv: 22, minGlucose: 68, maxGlucose: 155,
-          });
+      switch (input.category) {
+        case "glucose": {
+          const data = await ctx.db
+            .select({
+              avg: sql<number>`avg(${glucoseReadings.valueMgdl})`,
+              min: sql<number>`min(${glucoseReadings.valueMgdl})`,
+              max: sql<number>`max(${glucoseReadings.valueMgdl})`,
+              count: sql<number>`count(*)`,
+            })
+            .from(glucoseReadings)
+            .where(and(
+              eq(glucoseReadings.clientId, ctx.dbUserId),
+              gte(glucoseReadings.timestamp, new Date(input.startDate)),
+              lte(glucoseReadings.timestamp, new Date(input.endDate + "T23:59:59")),
+            ));
+          const d = data[0];
+          if (d && Number(d.count) > 0) {
+            const avg = Number(d.avg);
+            insights.push(makeInsight("glucose", avg < 100 ? "positive" : avg < 126 ? "warning" : "critical",
+              `Glucose Average: ${avg.toFixed(0)} mg/dL`,
+              `Range: ${Number(d.min).toFixed(0)}–${Number(d.max).toFixed(0)} mg/dL across ${d.count} readings.`,
+              avg < 100 ? "Excellent control!" : "Consider reviewing carb intake with your coach."));
+          }
           break;
-        case "sleep":
-          insights = analyzeSleep({
-            sessions: [], avgScore: 76, avgDuration: 420, consistency: 65,
-          });
+        }
+        case "sleep": {
+          const data = await ctx.db
+            .select({
+              avgScore: sql<number>`avg(${sleepSessions.score})`,
+              avgDuration: sql<number>`avg(${sleepSessions.totalMinutes})`,
+              count: sql<number>`count(*)`,
+            })
+            .from(sleepSessions)
+            .where(and(
+              eq(sleepSessions.clientId, ctx.dbUserId),
+              gte(sleepSessions.date, input.startDate),
+              lte(sleepSessions.date, input.endDate),
+            ));
+          const d = data[0];
+          if (d && Number(d.count) > 0) {
+            insights.push(makeInsight("sleep", Number(d.avgScore) >= 75 ? "positive" : "info",
+              `Sleep Score: ${Number(d.avgScore).toFixed(0)}`,
+              `Averaging ${(Number(d.avgDuration) / 60).toFixed(1)} hours across ${d.count} sessions.`));
+          }
           break;
-        case "nutrition":
-          insights = analyzeNutrition({
-            dailyLogs: Array.from({ length: 6 }, (_, i) => ({
-              date: `2024-03-${10 + i}`, calories: 2100, protein: 135,
-              carbs: 220, fat: 75, fiber: 28,
-            })),
-            avgCalories: 2100, avgProtein: 135, avgCarbs: 220, avgFat: 75,
-          });
-          break;
-        case "activity":
-          insights = analyzeActivity({
-            workouts: [], totalWorkouts: 4, avgDurationMinutes: 42,
-            activeDays: 4, totalDaysInRange: 7,
-          });
-          break;
-        case "supplements":
-          insights = analyzeSupplements({
-            adherenceRate: 0.78, missedItems: ["Omega-3", "Magnesium"],
-            streakDays: 3, totalProtocolItems: 8,
-          });
-          break;
-        case "fasting":
-          insights = analyzeFasting({
-            logs: [
-              { date: "2024-03-11", durationHours: 16, completed: true },
-              { date: "2024-03-12", durationHours: 14, completed: false },
-              { date: "2024-03-13", durationHours: 16.5, completed: true },
-            ],
-            avgDurationHours: 15.5, completionRate: 0.67, protocolTargetHours: 16,
-          });
-          break;
-        case "composite":
-          insights = analyzeComposite({
-            healthScore: 74, glucoseScore: 82, sleepScore: 76,
-            activityScore: 72, supplementScore: 78, checkinScore: 65,
-          });
-          break;
+        }
+        default: {
+          insights.push(makeInsight(input.category, "info",
+            `${input.category.charAt(0).toUpperCase() + input.category.slice(1)} Insights`,
+            "Continue logging data for more personalized insights in this category.",
+            "Check back after logging more entries."));
+        }
       }
 
-      return { insights, category, generatedAt: new Date().toISOString() };
+      return { insights, category: input.category, generatedAt: new Date().toISOString() };
     }),
 
   /**
@@ -179,40 +228,74 @@ export const clientInsightsRouter = router({
    */
   weeklyReport: clientProcedure
     .input(z.object({ weekStart: z.string(), weekEnd: z.string() }))
-    .query(async ({ input }) => {
-      const report = generateWeeklyReport({
+    .query(async ({ ctx, input }) => {
+      // Pull real data for the week
+      const glucoseData = await ctx.db
+        .select({
+          avg: sql<number>`avg(${glucoseReadings.valueMgdl})`,
+          count: sql<number>`count(*)`,
+        })
+        .from(glucoseReadings)
+        .where(and(
+          eq(glucoseReadings.clientId, ctx.dbUserId),
+          gte(glucoseReadings.timestamp, new Date(input.weekStart)),
+          lte(glucoseReadings.timestamp, new Date(input.weekEnd + "T23:59:59")),
+        ));
+
+      const sleepData = await ctx.db
+        .select({
+          avgScore: sql<number>`avg(${sleepSessions.score})`,
+          avgDuration: sql<number>`avg(${sleepSessions.totalMinutes})`,
+          count: sql<number>`count(*)`,
+        })
+        .from(sleepSessions)
+        .where(and(
+          eq(sleepSessions.clientId, ctx.dbUserId),
+          gte(sleepSessions.date, input.weekStart),
+          lte(sleepSessions.date, input.weekEnd),
+        ));
+
+      const gd = glucoseData[0];
+      const sd = sleepData[0];
+
+      const sections = [];
+
+      if (gd && Number(gd.count) > 0) {
+        sections.push({
+          category: "glucose",
+          title: "Glucose",
+          score: Number(gd.avg) < 100 ? 85 : Number(gd.avg) < 126 ? 65 : 40,
+          summary: `Average ${Number(gd.avg).toFixed(0)} mg/dL across ${gd.count} readings.`,
+          highlights: Number(gd.avg) < 100 ? ["In optimal range"] : ["Consider protocol adjustment"],
+        });
+      }
+
+      if (sd && Number(sd.count) > 0) {
+        sections.push({
+          category: "sleep",
+          title: "Sleep",
+          score: Number(sd.avgScore),
+          summary: `Average score ${Number(sd.avgScore).toFixed(0)}, ${(Number(sd.avgDuration) / 60).toFixed(1)} hrs/night.`,
+          highlights: Number(sd.avgScore) >= 75 ? ["Good recovery"] : ["Room for improvement"],
+        });
+      }
+
+      // Compute overall score
+      const scores = sections.map((s) => s.score);
+      const overallScore = scores.length > 0
+        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+        : 0;
+
+      return {
         weekStart: input.weekStart,
         weekEnd: input.weekEnd,
-        glucose: {
-          readings: [], avgGlucose: 98, timeInRange: 0.82,
-          gmi: 5.3, cv: 22, minGlucose: 68, maxGlucose: 155, priorWeekAvg: 102,
-        },
-        sleep: {
-          sessions: [], avgScore: 76, avgDuration: 420,
-          consistency: 65, priorWeekAvgScore: 72,
-        },
-        nutrition: {
-          dailyLogs: Array.from({ length: 6 }, (_, i) => ({
-            date: `2024-03-${10 + i}`, calories: 2100, protein: 135,
-            carbs: 220, fat: 75, fiber: 28,
-          })),
-          avgCalories: 2100, avgProtein: 135, avgCarbs: 220, avgFat: 75,
-        },
-        activity: {
-          workouts: [], totalWorkouts: 4, avgDurationMinutes: 42,
-          activeDays: 4, totalDaysInRange: 7,
-        },
-        supplements: {
-          adherenceRate: 0.78, missedItems: ["Omega-3", "Magnesium"],
-          streakDays: 3, totalProtocolItems: 8,
-        },
-        composite: {
-          healthScore: 74, glucoseScore: 82, sleepScore: 76,
-          activityScore: 72, supplementScore: 78, checkinScore: 65,
-          priorWeekHealthScore: 70,
-        },
-      });
-
-      return report;
+        overallScore,
+        sections,
+        generatedAt: new Date().toISOString(),
+        recommendations: [
+          "Continue daily check-ins for more accurate insights.",
+          "Connect additional wearable devices for comprehensive tracking.",
+        ],
+      };
     }),
 });

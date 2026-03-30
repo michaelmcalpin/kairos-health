@@ -1,38 +1,40 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Bell, CheckCircle, AlertTriangle, Info, ChevronDown, ChevronUp, Clock } from "lucide-react";
-import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
-import { useDateRange } from "@/hooks/useDateRange";
-import {
-  getClientAlerts,
-  acknowledgeClientAlert,
-} from "@/lib/client-ops/engine";
-import { CLIENT_ALERT_PRIORITY_CONFIG } from "@/lib/client-ops/types";
-import type { ClientAlertStatus } from "@/lib/client-ops/types";
+import { trpc } from "@/lib/trpc";
 
-const CLIENT_ID = "demo-client";
+const PRIORITY_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
+  urgent: { label: "Urgent", color: "text-red-400", bgColor: "bg-red-500/15" },
+  action: { label: "Action Needed", color: "text-yellow-400", bgColor: "bg-yellow-500/15" },
+  info: { label: "Informational", color: "text-blue-400", bgColor: "bg-blue-500/15" },
+};
 
 export default function AlertsPage() {
-  const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
-    useDateRange({ initialPeriod: "week" });
-
-  const [filter, setFilter] = useState<"all" | ClientAlertStatus>("all");
+  const [filter, setFilter] = useState<"all" | "active" | "acknowledged" | "resolved">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  const alerts = useMemo(
-    () => getClientAlerts(CLIENT_ID, dateRange.startDate, dateRange.endDate),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dateRange, refreshKey]
+  const utils = trpc.useUtils();
+
+  const { data } = trpc.clientPortal.alerts.list.useQuery(
+    { status: filter, limit: 50, offset: 0 },
+    { staleTime: 15_000 }
   );
 
-  const filtered = filter === "all" ? alerts : alerts.filter((a) => a.status === filter);
-  const activeCount = alerts.filter((a) => a.status === "active").length;
+  const acknowledgeMutation = trpc.clientPortal.alerts.acknowledge.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.alerts.list.invalidate();
+      utils.clientPortal.alerts.unreadCount.invalidate();
+    },
+  });
+
+  const { data: unreadData } = trpc.clientPortal.alerts.unreadCount.useQuery(undefined, { staleTime: 15_000 });
+
+  const alerts = data?.alerts ?? [];
+  const activeCount = unreadData?.count ?? 0;
 
   function acknowledge(id: string) {
-    acknowledgeClientAlert(CLIENT_ID, id);
-    setRefreshKey((k) => k + 1);
+    acknowledgeMutation.mutate({ id });
   }
 
   return (
@@ -57,21 +59,9 @@ export default function AlertsPage() {
         </div>
       </div>
 
-      <DateRangeNavigator
-        availablePeriods={["week", "month"]}
-        selectedPeriod={period}
-        onPeriodChange={setPeriod}
-        formattedRange={formattedRange}
-        isCurrent={isCurrent}
-        canForward={canForward}
-        onBack={goBack}
-        onForward={goForward}
-        onToday={goToToday}
-      />
-
       <div className="space-y-3">
-        {filtered.map((alert) => {
-          const config = CLIENT_ALERT_PRIORITY_CONFIG[alert.priority];
+        {alerts.map((alert) => {
+          const config = PRIORITY_CONFIG[alert.priority] ?? PRIORITY_CONFIG.info;
           const isExpanded = expanded === alert.id;
           return (
             <div key={alert.id} className="kairos-card">
@@ -100,7 +90,7 @@ export default function AlertsPage() {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className="text-[10px] font-body text-kairos-silver-dark flex items-center gap-1">
-                    <Clock size={10} /> {alert.createdAt}
+                    <Clock size={10} /> {alert.createdAt ? new Date(alert.createdAt).toLocaleDateString() : ""}
                   </span>
                   {isExpanded ? <ChevronUp size={16} className="text-kairos-silver-dark" /> : <ChevronDown size={16} className="text-kairos-silver-dark" />}
                 </div>
@@ -108,8 +98,8 @@ export default function AlertsPage() {
 
               {isExpanded && (
                 <div className="mt-3 pt-3 border-t border-kairos-border space-y-3">
-                  {alert.details && (
-                    <p className="text-sm font-body text-kairos-silver">{alert.details}</p>
+                  {alert.data && (
+                    <p className="text-sm font-body text-kairos-silver">{String(alert.data.details ?? JSON.stringify(alert.data))}</p>
                   )}
                   {alert.status === "active" && (
                     <button onClick={() => acknowledge(alert.id)} className="kairos-btn-outline text-xs">
@@ -122,7 +112,7 @@ export default function AlertsPage() {
           );
         })}
 
-        {filtered.length === 0 && (
+        {alerts.length === 0 && (
           <div className="kairos-card text-center py-10">
             <Bell size={32} className="text-kairos-silver-dark mx-auto mb-3" />
             <p className="text-sm font-body text-kairos-silver-dark">No alerts matching this filter.</p>

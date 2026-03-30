@@ -11,17 +11,51 @@ import {
   X,
   Save,
 } from "lucide-react";
-import { getContentLibrary, filterContent } from "@/lib/content-management/engine";
-import type { ContentCategory } from "@/lib/content-management/types";
 import { CompanySelector, useCompanyFilter } from "@/components/admin/CompanySelector";
 
-const { items: allContent, stats } = getContentLibrary();
+// ─── Local types & data (previously from @/lib/content-management) ───
+
+type ContentCategory = "Protocols" | "Articles" | "Videos" | "Guides";
+
+interface ContentItem {
+  id: string;
+  title: string;
+  category: ContentCategory;
+  author: string;
+  publishDate: string;
+  status: string;
+  viewCount: number;
+  thumbnail: string;
+}
+
+const CONTENT_ITEMS: ContentItem[] = [
+  { id: "cnt_1", title: "Intermittent Fasting Protocol: 16/8 Method", category: "Protocols", author: "Dr. Sarah Chen", status: "Published", thumbnail: "protocol-fasting", viewCount: 3200, publishDate: "2026-02-15" },
+  { id: "cnt_2", title: "Sleep Optimization: Architecture & Circadian Rhythms", category: "Guides", author: "Dr. Marcus Webb", status: "Published", thumbnail: "guide-sleep", viewCount: 2800, publishDate: "2026-02-10" },
+  { id: "cnt_3", title: "NMN & NAD+ Supplementation Guide", category: "Articles", author: "Dr. Emily Rodriguez", status: "Published", thumbnail: "article-nmn", viewCount: 4100, publishDate: "2026-02-08" },
+  { id: "cnt_4", title: "Metabolic Health Markers: Complete Assessment", category: "Guides", author: "Dr. James Liu", status: "Review", thumbnail: "guide-metabolic", viewCount: 0, publishDate: "2026-02-05" },
+  { id: "cnt_5", title: "Advanced Supplement Stacking Protocols", category: "Protocols", author: "Dr. Sarah Chen", status: "Draft", thumbnail: "protocol-stack", viewCount: 0, publishDate: "2026-02-01" },
+  { id: "cnt_6", title: "Longevity Interventions: Latest Research", category: "Articles", author: "Dr. Michael Foster", status: "Published", thumbnail: "article-research", viewCount: 3600, publishDate: "2026-01-28" },
+  { id: "cnt_7", title: "Video Series: Biohacking Basics", category: "Videos", author: "Dr. Jessica Park", status: "Published", thumbnail: "video-biohack", viewCount: 5200, publishDate: "2026-01-25" },
+  { id: "cnt_8", title: "Mitochondrial Health Protocol", category: "Protocols", author: "Dr. Sarah Chen", status: "Draft", thumbnail: "protocol-mito", viewCount: 0, publishDate: "2026-01-20" },
+];
+
+const STATS = { total: 24, published: 18, drafts: 4, inReview: 2 };
+
+function filterContent(items: ContentItem[], query: string, category: "All" | ContentCategory): ContentItem[] {
+  return items.filter((item) => {
+    const matchesSearch = item.title.toLowerCase().includes(query.toLowerCase());
+    const matchesCategory = category === "All" || item.category === category;
+    return matchesSearch && matchesCategory;
+  });
+}
+
+// ─── Component ──────────────────────────────────────────────────────
 
 const statCards = [
-  { label: "Total Content", value: String(stats.total) },
-  { label: "Published", value: String(stats.published) },
-  { label: "Drafts", value: String(stats.drafts) },
-  { label: "In Review", value: String(stats.inReview) },
+  { label: "Total Content", value: String(STATS.total) },
+  { label: "Published", value: String(STATS.published) },
+  { label: "Drafts", value: String(STATS.drafts) },
+  { label: "In Review", value: String(STATS.inReview) },
 ];
 
 export default function ContentPage() {
@@ -34,35 +68,26 @@ export default function ContentPage() {
 
   const categories: Array<"All" | ContentCategory> = ["All", "Protocols", "Articles", "Videos", "Guides"];
 
-  const filteredContent = filterContent(allContent, searchQuery, selectedCategory).filter(
+  const filteredContent = filterContent(CONTENT_ITEMS, searchQuery, selectedCategory).filter(
     (item) => !archivedItems.has(item.id),
   );
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Published":
-        return "bg-green-900/30 text-green-300";
-      case "Draft":
-        return "bg-amber-900/30 text-amber-300";
-      case "Review":
-        return "bg-blue-900/30 text-blue-300";
-      default:
-        return "bg-gray-900/30 text-gray-300";
+      case "Published": return "bg-green-900/30 text-green-300";
+      case "Draft": return "bg-amber-900/30 text-amber-300";
+      case "Review": return "bg-blue-900/30 text-blue-300";
+      default: return "bg-gray-900/30 text-gray-300";
     }
   };
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case "Protocols":
-        return "bg-purple-900/30 text-purple-300";
-      case "Articles":
-        return "bg-cyan-900/30 text-cyan-300";
-      case "Videos":
-        return "bg-pink-900/30 text-pink-300";
-      case "Guides":
-        return "bg-emerald-900/30 text-emerald-300";
-      default:
-        return "bg-gray-900/30 text-gray-300";
+      case "Protocols": return "bg-purple-900/30 text-purple-300";
+      case "Articles": return "bg-cyan-900/30 text-cyan-300";
+      case "Videos": return "bg-pink-900/30 text-pink-300";
+      case "Guides": return "bg-emerald-900/30 text-emerald-300";
+      default: return "bg-gray-900/30 text-gray-300";
     }
   };
 
@@ -197,7 +222,7 @@ export default function ContentPage() {
 
       {/* Edit Modal */}
       {editingItem && (() => {
-        const item = allContent.find((c) => c.id === editingItem);
+        const item = CONTENT_ITEMS.find((c) => c.id === editingItem);
         if (!item) return null;
         return (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -241,7 +266,7 @@ export default function ContentPage() {
 
       {/* Preview Modal */}
       {previewItem && (() => {
-        const item = allContent.find((c) => c.id === previewItem);
+        const item = CONTENT_ITEMS.find((c) => c.id === previewItem);
         if (!item) return null;
         return (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

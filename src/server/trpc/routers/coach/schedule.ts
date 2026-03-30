@@ -1,22 +1,20 @@
 import { z } from "zod";
 import { router, trainerProcedure } from "@/server/trpc";
-import { trainerProfiles } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
-import {
-  createAppointment,
-  getAppointment,
-  getAppointmentsForWeek,
-  getCoachAppointments,
-  getCalendarWeek,
-  updateAppointmentStatus,
-  rescheduleAppointment,
-  getAvailableSlots,
-  getCoachAvailability,
-  updateCoachAvailability,
-  saveSessionNotes,
-  getSessionNotes,
-  getSchedulingStats,
-} from "@/lib/scheduling/engine";
+import { appointments, sessionNotes, coachAvailability, trainerProfiles, users } from "@/server/db/schema";
+import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+
+function addMinutes(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + minutes;
+  return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function getWeekDates(weekStart: string): { start: string; end: string } {
+  const d = new Date(weekStart);
+  const end = new Date(d);
+  end.setDate(end.getDate() + 6);
+  return { start: d.toISOString().split("T")[0], end: end.toISOString().split("T")[0] };
+}
 
 export const coachScheduleRouter = router({
   // Get trainer profile (for schedule settings like capacity)
@@ -36,20 +34,48 @@ export const coachScheduleRouter = router({
 
   // List appointments for a week
   listAppointments: trainerProcedure
-    .input(
-      z.object({
-        weekStart: z.string().describe("ISO date string for the start of the week"),
-      })
-    )
+    .input(z.object({ weekStart: z.string() }))
     .query(async ({ ctx, input }) => {
-      return { appointments: getAppointmentsForWeek(ctx.dbUserId, input.weekStart) };
+      const { start, end } = getWeekDates(input.weekStart);
+      const results = await ctx.db.query.appointments.findMany({
+        where: and(
+          eq(appointments.coachId, ctx.dbUserId),
+          gte(appointments.date, start),
+          lte(appointments.date, end),
+        ),
+        orderBy: [appointments.date, appointments.startTime],
+      });
+      return { appointments: results };
     }),
 
   // Get calendar view for a week
   getCalendarWeek: trainerProcedure
     .input(z.object({ weekStart: z.string() }))
     .query(async ({ ctx, input }) => {
-      return getCalendarWeek(ctx.dbUserId, input.weekStart);
+      const { start, end } = getWeekDates(input.weekStart);
+      const appts = await ctx.db.query.appointments.findMany({
+        where: and(
+          eq(appointments.coachId, ctx.dbUserId),
+          gte(appointments.date, start),
+          lte(appointments.date, end),
+          sql`${appointments.status} NOT IN ('cancelled')`,
+        ),
+        orderBy: [appointments.date, appointments.startTime],
+      });
+
+      // Group by day
+      const days: Record<string, typeof appts> = {};
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(input.weekStart);
+        d.setDate(d.getDate() + i);
+        days[d.toISOString().split("T")[0]] = [];
+      }
+      for (const a of appts) {
+        const key = typeof a.date === "string" ? a.date : new Date(a.date).toISOString().split("T")[0];
+        if (days[key]) days[key].push(a);
+      }
+
+      return { weekStart: start, weekEnd: end, days };
     }),
 
   // Get all appointments with optional filter
@@ -60,17 +86,30 @@ export const coachScheduleRouter = router({
       }).optional()
     )
     .query(async ({ ctx, input }) => {
-      return getCoachAppointments(ctx.dbUserId, input?.filter ?? "all");
+      const filter = input?.filter ?? "all";
+      const today = new Date().toISOString().split("T")[0];
+      const conditions = [eq(appointments.coachId, ctx.dbUserId)];
+
+      if (filter === "upcoming") conditions.push(gte(appointments.date, today));
+      if (filter === "past") conditions.push(lte(appointments.date, today));
+
+      return ctx.db.query.appointments.findMany({
+        where: and(...conditions),
+        orderBy: filter === "past" ? desc(appointments.date) : appointments.date,
+      });
     }),
 
   // Get a specific appointment
   getAppointment: trainerProcedure
     .input(z.object({ appointmentId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const appt = getAppointment(input.appointmentId);
-      if (!appt || appt.coachId !== ctx.dbUserId) {
-        throw new Error("Appointment not found");
-      }
+      const appt = await ctx.db.query.appointments.findFirst({
+        where: and(
+          eq(appointments.id, input.appointmentId),
+          eq(appointments.coachId, ctx.dbUserId),
+        ),
+      });
+      if (!appt) throw new Error("Appointment not found");
       return appt;
     }),
 
@@ -88,17 +127,31 @@ export const coachScheduleRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return createAppointment({
-        coachId: ctx.dbUserId,
-        clientId: input.clientId,
-        clientName: input.clientName,
-        coachName: "Trainer",
-        sessionType: input.sessionType as "follow_up",
-        meetingType: input.meetingType,
-        date: input.date,
-        startTime: input.startTime,
-        notes: input.notes,
+      const coachUser = await ctx.db.query.users.findFirst({
+        where: eq(users.id, ctx.dbUserId),
       });
+      const coachName = coachUser
+        ? `${coachUser.firstName ?? ""} ${coachUser.lastName ?? ""}`.trim() || coachUser.email
+        : "Coach";
+
+      const [created] = await ctx.db
+        .insert(appointments)
+        .values({
+          coachId: ctx.dbUserId,
+          clientId: input.clientId,
+          clientName: input.clientName,
+          coachName,
+          sessionType: input.sessionType as "follow_up",
+          meetingType: input.meetingType,
+          date: input.date,
+          startTime: input.startTime,
+          endTime: addMinutes(input.startTime, 60),
+          durationMinutes: 60,
+          notes: input.notes,
+        })
+        .returning();
+
+      return created;
     }),
 
   // Update appointment status
@@ -111,11 +164,23 @@ export const coachScheduleRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const appt = getAppointment(input.appointmentId);
-      if (!appt || appt.coachId !== ctx.dbUserId) {
-        throw new Error("Appointment not found");
-      }
-      return updateAppointmentStatus(input.appointmentId, input.status, input.reason);
+      const [updated] = await ctx.db
+        .update(appointments)
+        .set({
+          status: input.status,
+          cancellationReason: input.status === "cancelled" ? input.reason : undefined,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(appointments.id, input.appointmentId),
+            eq(appointments.coachId, ctx.dbUserId),
+          )
+        )
+        .returning();
+
+      if (!updated) throw new Error("Appointment not found");
+      return updated;
     }),
 
   // Reschedule an appointment
@@ -128,11 +193,26 @@ export const coachScheduleRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const appt = getAppointment(input.appointmentId);
-      if (!appt || appt.coachId !== ctx.dbUserId) {
-        throw new Error("Appointment not found");
-      }
-      return rescheduleAppointment(input.appointmentId, input.newDate, input.newStartTime);
+      const appt = await ctx.db.query.appointments.findFirst({
+        where: and(
+          eq(appointments.id, input.appointmentId),
+          eq(appointments.coachId, ctx.dbUserId),
+        ),
+      });
+      if (!appt) throw new Error("Appointment not found");
+
+      const [updated] = await ctx.db
+        .update(appointments)
+        .set({
+          date: input.newDate,
+          startTime: input.newStartTime,
+          endTime: addMinutes(input.newStartTime, appt.durationMinutes ?? 60),
+          updatedAt: new Date(),
+        })
+        .where(eq(appointments.id, input.appointmentId))
+        .returning();
+
+      return updated;
     }),
 
   // Get available slots for a date
@@ -144,14 +224,59 @@ export const coachScheduleRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      return getAvailableSlots(ctx.dbUserId, input.date, input.durationMinutes);
+      const avail = await ctx.db.query.coachAvailability.findFirst({
+        where: eq(coachAvailability.coachId, ctx.dbUserId),
+      });
+
+      const dayOfWeek = new Date(input.date).getDay();
+      const schedule = avail?.weeklySchedule ?? [];
+      const daySchedule = schedule.find((d) => d.dayOfWeek === dayOfWeek);
+
+      if (!daySchedule?.enabled || !daySchedule.slots.length) return [];
+
+      const existing = await ctx.db.query.appointments.findMany({
+        where: and(
+          eq(appointments.coachId, ctx.dbUserId),
+          eq(appointments.date, input.date),
+          sql`${appointments.status} NOT IN ('cancelled')`,
+        ),
+      });
+
+      const bookedSlots = existing.map((a) => ({
+        start: a.startTime,
+        end: a.endTime ?? addMinutes(a.startTime, a.durationMinutes ?? 60),
+      }));
+
+      const buffer = avail?.bufferMinutes ?? 15;
+      const slots: { start: string; end: string }[] = [];
+
+      for (const window of daySchedule.slots) {
+        let cursor = window.start;
+        while (cursor < window.end) {
+          const end = addMinutes(cursor, input.durationMinutes);
+          if (end > window.end) break;
+
+          const conflicts = bookedSlots.some(
+            (b) => cursor < b.end && end > b.start
+          );
+
+          if (!conflicts) {
+            slots.push({ start: cursor, end });
+          }
+          cursor = addMinutes(cursor, buffer + input.durationMinutes);
+        }
+      }
+
+      return slots;
     }),
 
   // Get/update availability settings
-  getAvailability: trainerProcedure
-    .query(async ({ ctx }) => {
-      return getCoachAvailability(ctx.dbUserId);
-    }),
+  getAvailability: trainerProcedure.query(async ({ ctx }) => {
+    const avail = await ctx.db.query.coachAvailability.findFirst({
+      where: eq(coachAvailability.coachId, ctx.dbUserId),
+    });
+    return avail ?? { weeklySchedule: [], bufferMinutes: 15, blockedDates: [] };
+  }),
 
   updateAvailability: trainerProcedure
     .input(
@@ -169,7 +294,35 @@ export const coachScheduleRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return updateCoachAvailability(ctx.dbUserId, input as Record<string, unknown>);
+      const existing = await ctx.db.query.coachAvailability.findFirst({
+        where: eq(coachAvailability.coachId, ctx.dbUserId),
+      });
+
+      if (existing) {
+        const [updated] = await ctx.db
+          .update(coachAvailability)
+          .set({
+            ...(input.bufferMinutes !== undefined && { bufferMinutes: input.bufferMinutes }),
+            ...(input.blockedDates !== undefined && { blockedDates: input.blockedDates }),
+            ...(input.weeklySchedule !== undefined && { weeklySchedule: input.weeklySchedule }),
+            updatedAt: new Date(),
+          })
+          .where(eq(coachAvailability.coachId, ctx.dbUserId))
+          .returning();
+        return updated;
+      }
+
+      const [created] = await ctx.db
+        .insert(coachAvailability)
+        .values({
+          coachId: ctx.dbUserId,
+          bufferMinutes: input.bufferMinutes ?? 15,
+          blockedDates: input.blockedDates ?? [],
+          weeklySchedule: input.weeklySchedule ?? [],
+        })
+        .returning();
+
+      return created;
     }),
 
   // Session notes
@@ -185,24 +338,107 @@ export const coachScheduleRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return saveSessionNotes(input.appointmentId, ctx.dbUserId, {
-        summary: input.summary,
-        keyFindings: input.keyFindings,
-        actionItems: input.actionItems,
-        nextSessionFocus: input.nextSessionFocus,
-        privateNotes: input.privateNotes,
+      // Verify appointment belongs to coach
+      const appt = await ctx.db.query.appointments.findFirst({
+        where: and(
+          eq(appointments.id, input.appointmentId),
+          eq(appointments.coachId, ctx.dbUserId),
+        ),
       });
+      if (!appt) throw new Error("Appointment not found");
+
+      // Upsert
+      const existing = await ctx.db.query.sessionNotes.findFirst({
+        where: eq(sessionNotes.appointmentId, input.appointmentId),
+      });
+
+      if (existing) {
+        const [updated] = await ctx.db
+          .update(sessionNotes)
+          .set({
+            summary: input.summary,
+            keyFindings: input.keyFindings,
+            actionItems: input.actionItems,
+            nextSessionFocus: input.nextSessionFocus,
+            privateNotes: input.privateNotes,
+            updatedAt: new Date(),
+          })
+          .where(eq(sessionNotes.id, existing.id))
+          .returning();
+        return updated;
+      }
+
+      const [created] = await ctx.db
+        .insert(sessionNotes)
+        .values({
+          appointmentId: input.appointmentId,
+          coachId: ctx.dbUserId,
+          summary: input.summary,
+          keyFindings: input.keyFindings,
+          actionItems: input.actionItems,
+          nextSessionFocus: input.nextSessionFocus,
+          privateNotes: input.privateNotes,
+        })
+        .returning();
+      return created;
     }),
 
   getSessionNotes: trainerProcedure
     .input(z.object({ appointmentId: z.string() }))
-    .query(async ({ input }) => {
-      return getSessionNotes(input.appointmentId);
+    .query(async ({ ctx, input }) => {
+      const appt = await ctx.db.query.appointments.findFirst({
+        where: and(
+          eq(appointments.id, input.appointmentId),
+          eq(appointments.coachId, ctx.dbUserId),
+        ),
+      });
+      if (!appt) return null;
+
+      return ctx.db.query.sessionNotes.findFirst({
+        where: eq(sessionNotes.appointmentId, input.appointmentId),
+      });
     }),
 
   // Scheduling stats
-  getStats: trainerProcedure
-    .query(async ({ ctx }) => {
-      return getSchedulingStats(ctx.dbUserId);
-    }),
+  getStats: trainerProcedure.query(async ({ ctx }) => {
+    const today = new Date().toISOString().split("T")[0];
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekStartStr = weekStart.toISOString().split("T")[0];
+
+    const upcoming = await ctx.db
+      .select({ count: sql<number>`count(*)` })
+      .from(appointments)
+      .where(and(
+        eq(appointments.coachId, ctx.dbUserId),
+        gte(appointments.date, today),
+        sql`${appointments.status} NOT IN ('cancelled', 'no_show')`,
+      ));
+
+    const todayAppts = await ctx.db
+      .select({ count: sql<number>`count(*)` })
+      .from(appointments)
+      .where(and(
+        eq(appointments.coachId, ctx.dbUserId),
+        eq(appointments.date, today),
+        sql`${appointments.status} NOT IN ('cancelled', 'no_show')`,
+      ));
+
+    const weekAppts = await ctx.db
+      .select({ count: sql<number>`count(*)`, totalMin: sql<number>`coalesce(sum(${appointments.durationMinutes}), 0)` })
+      .from(appointments)
+      .where(and(
+        eq(appointments.coachId, ctx.dbUserId),
+        gte(appointments.date, weekStartStr),
+        lte(appointments.date, today),
+        eq(appointments.status, "completed"),
+      ));
+
+    return {
+      upcomingAppointments: Number(upcoming[0]?.count ?? 0),
+      todayAppointments: Number(todayAppts[0]?.count ?? 0),
+      hoursBookedThisWeek: Math.round(Number(weekAppts[0]?.totalMin ?? 0) / 60 * 10) / 10,
+      completedThisWeek: Number(weekAppts[0]?.count ?? 0),
+    };
+  }),
 });
