@@ -7,7 +7,7 @@ import { useDateRange } from "@/hooks/useDateRange";
 import { getAdminRevenueData } from "@/lib/admin-revenue/engine";
 import type { RevenueKPI } from "@/lib/admin-revenue/types";
 import { CompanySelector, useCompanyFilter } from "@/components/admin/CompanySelector";
-import { getCompanyTrainers, getCompanyClients } from "@/lib/company-ops/engine";
+import { trpc } from "@/lib/trpc";
 
 const ICON_MAP: Record<RevenueKPI["iconKey"], typeof DollarSign> = {
   dollar: DollarSign,
@@ -28,11 +28,21 @@ export default function Page() {
 
   const platformData = useMemo(() => getAdminRevenueData(), []);
 
+  // Company-specific tRPC queries
+  const { data: trainersData } = trpc.admin.companies.getTrainers.useQuery(
+    { companyId: company?.id ?? "" },
+    { enabled: !!company, staleTime: 30_000 }
+  );
+  const { data: clientsData } = trpc.admin.companies.getClients.useQuery(
+    { companyId: company?.id ?? "" },
+    { enabled: !!company, staleTime: 30_000 }
+  );
+
   // Company-specific revenue data
   const companyRevenueData = useMemo(() => {
-    if (!company) return null;
-    const trainers = getCompanyTrainers(company.id);
-    const clients = getCompanyClients(company.id);
+    if (!company || !trainersData || !clientsData) return null;
+    const trainers = trainersData;
+    const clients = clientsData;
 
     const mrr = company.clientCount * 200;
     const arr = mrr * 12;
@@ -65,7 +75,7 @@ export default function Page() {
       ],
       trainerRevenue,
     };
-  }, [company]);
+  }, [company, trainersData, clientsData]);
 
   const { kpis, topClients, recentPayouts, breakdown, sources } = platformData;
 

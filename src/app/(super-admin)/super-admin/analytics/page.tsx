@@ -20,7 +20,7 @@ import { CoachLeaderboard } from "@/components/analytics/CoachLeaderboard";
 import { PlatformHealthPanel } from "@/components/analytics/PlatformHealthPanel";
 import { RevenueChart } from "@/components/analytics/RevenueChart";
 import { CompanySelector, useCompanyFilter } from "@/components/admin/CompanySelector";
-import { getCompanyTrainers, getCompanyClients } from "@/lib/company-ops/engine";
+import { trpc } from "@/lib/trpc";
 
 const KPI_ICONS: Record<string, React.ReactNode> = {
   users: <Users size={24} />,
@@ -50,12 +50,20 @@ export default function AnalyticsPage() {
   const platformHealth = useMemo(() => getPlatformHealth(), []);
   const revenue = useMemo(() => getRevenueAnalytics(range), [range]);
 
+  // Company-specific tRPC queries
+  const { data: trainersData } = trpc.admin.companies.getTrainers.useQuery(
+    { companyId: company?.id ?? "" },
+    { enabled: !!company, staleTime: 30_000 }
+  );
+  const { data: clientsData } = trpc.admin.companies.getClients.useQuery(
+    { companyId: company?.id ?? "" },
+    { enabled: !!company, staleTime: 30_000 }
+  );
+
   // Company-specific analytics
   const companyAnalytics = useMemo(() => {
-    if (!company) return null;
-    const trainers = getCompanyTrainers(company.id);
-    const clients = getCompanyClients(company.id);
-    const active = trainers.filter((t) => t.status === "active");
+    if (!company || !trainersData || !clientsData) return null;
+    const active = trainersData.filter((t) => t.status === "active");
     const avgRating = active.length > 0
       ? (active.reduce((s, t) => s + t.rating, 0) / active.length).toFixed(1)
       : "0";
@@ -66,7 +74,7 @@ export default function AnalyticsPage() {
 
     // Tier distribution
     const tierCounts = { tier1: 0, tier2: 0, tier3: 0 };
-    clients.forEach((c) => { tierCounts[c.tier]++; });
+    clientsData.forEach((c) => { tierCounts[c.tier]++; });
 
     return {
       trainers: active.length,
@@ -83,7 +91,7 @@ export default function AnalyticsPage() {
         utilization: t.capacity > 0 ? Math.round((t.clientCount / t.capacity) * 100) : 0,
       })).sort((a, b) => b.rating - a.rating),
     };
-  }, [company]);
+  }, [company, trainersData, clientsData]);
 
   return (
     <div className="space-y-6 animate-fade-in">

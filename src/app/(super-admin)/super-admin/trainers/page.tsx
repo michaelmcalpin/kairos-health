@@ -10,7 +10,7 @@ import {
 import { STATUS_COLORS } from "@/lib/admin-coaches/types";
 import type { CoachStatus } from "@/lib/admin-coaches/types";
 import { CompanySelector, useCompanyFilter } from "@/components/admin/CompanySelector";
-import { getCompanyTrainers } from "@/lib/company-ops/engine";
+import { trpc } from "@/lib/trpc";
 
 export default function TrainersPage() {
   const { selectedCompany, setSelectedCompany, company } = useCompanyFilter();
@@ -31,11 +31,12 @@ export default function TrainersPage() {
     [searchQuery, statusFilter],
   );
 
-  // Company-level data
-  const companyTrainers = useMemo(
-    () => (company ? getCompanyTrainers(company.id) : []),
-    [company],
+  // Company-level data via tRPC
+  const { data: companyTrainersData } = trpc.admin.companies.getTrainers.useQuery(
+    { companyId: company?.id ?? "" },
+    { enabled: !!company, staleTime: 30_000 }
   );
+  const companyTrainers = companyTrainersData ?? [];
 
   // Filter company trainers by search
   const filteredCompanyTrainers = useMemo(() => {

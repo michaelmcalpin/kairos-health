@@ -1,18 +1,39 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Building2, ChevronDown } from "lucide-react";
-import { getCompanies } from "@/lib/company-ops/engine";
+import { trpc } from "@/lib/trpc";
 
 interface CompanySelectorProps {
   value: string; // "all" or companyId
   onChange: (companyId: string) => void;
 }
 
+export type CompanyItem = {
+  id: string;
+  name: string;
+  slug: string;
+  brandColor: string;
+  website: string;
+  status: string;
+  trainerCount: number;
+  clientCount: number;
+  maxTrainers: number;
+  maxClients: number;
+  emailFromName: string;
+  emailFooter: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export function CompanySelector({ value, onChange }: CompanySelectorProps) {
   const [open, setOpen] = useState(false);
 
-  const companies = useMemo(() => getCompanies(), []);
+  const { data } = trpc.admin.companies.list.useQuery(
+    { pageSize: 100 },
+    { staleTime: 60_000 }
+  );
+  const companies = data?.companies ?? [];
   const selected = companies.find((c) => c.id === value);
 
   return (
@@ -88,7 +109,11 @@ export function CompanySelector({ value, onChange }: CompanySelectorProps) {
 export function useCompanyFilter() {
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
 
-  const companies = useMemo(() => getCompanies(), []);
+  const { data } = trpc.admin.companies.list.useQuery(
+    { pageSize: 100 },
+    { staleTime: 60_000 }
+  );
+  const companies = data?.companies ?? [];
   const company = selectedCompany === "all" ? null : companies.find((c) => c.id === selectedCompany) ?? null;
 
   return { selectedCompany, setSelectedCompany, company, companies };
