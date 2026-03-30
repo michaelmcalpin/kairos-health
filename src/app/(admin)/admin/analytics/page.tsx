@@ -4,21 +4,13 @@ import { useMemo } from "react";
 import { Users, Heart, Star, DollarSign, TrendingUp } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
-import {
-  getKPIs,
-  getGrowthAnalytics,
-  getEngagementAnalytics,
-  getRetentionAnalytics,
-  getCoachPerformance,
-  getPlatformHealth,
-  getRevenueAnalytics,
-} from "@/lib/analytics/engine";
 import { GrowthChart } from "@/components/analytics/GrowthChart";
 import { EngagementMetrics } from "@/components/analytics/EngagementMetrics";
 import { CohortRetentionTable } from "@/components/analytics/CohortRetentionTable";
 import { CoachLeaderboard } from "@/components/analytics/CoachLeaderboard";
 import { PlatformHealthPanel } from "@/components/analytics/PlatformHealthPanel";
 import { RevenueChart } from "@/components/analytics/RevenueChart";
+import { trpc } from "@/lib/trpc";
 
 const KPI_ICONS: Record<string, React.ReactNode> = {
   users: <Users size={24} />,
@@ -37,13 +29,14 @@ export default function AnalyticsPage() {
     endDate: dateRange.endDate.toISOString().split("T")[0],
   }), [dateRange]);
 
-  const kpis = useMemo(() => getKPIs(range), [range]);
-  const growth = useMemo(() => getGrowthAnalytics(range), [range]);
-  const engagement = useMemo(() => getEngagementAnalytics(range), [range]);
-  const retention = useMemo(() => getRetentionAnalytics(range), [range]);
-  const coachPerformance = useMemo(() => getCoachPerformance(range), [range]);
-  const platformHealth = useMemo(() => getPlatformHealth(), []);
-  const revenue = useMemo(() => getRevenueAnalytics(range), [range]);
+  // Platform-wide analytics via tRPC
+  const { data: kpis = [] } = trpc.admin.analytics.getKPIs.useQuery(range, { staleTime: 30_000 });
+  const { data: growth } = trpc.admin.analytics.getUserGrowth.useQuery(range, { staleTime: 30_000 });
+  const { data: engagement } = trpc.admin.analytics.getEngagement.useQuery(range, { staleTime: 30_000 });
+  const { data: retention } = trpc.admin.analytics.getCohortRetention.useQuery(range, { staleTime: 30_000 });
+  const { data: coachPerformance } = trpc.admin.analytics.getCoachPerformance.useQuery(range, { staleTime: 30_000 });
+  const { data: platformHealth } = trpc.admin.analytics.getPlatformHealth.useQuery(undefined, { staleTime: 60_000 });
+  const { data: revenue } = trpc.admin.analytics.getRevenue.useQuery(range, { staleTime: 30_000 });
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -86,24 +79,28 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Growth and Engagement */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <GrowthChart data={growth.dataPoints} />
+      {growth && engagement && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <GrowthChart data={growth.dataPoints} />
+          </div>
+          <EngagementMetrics data={engagement} />
         </div>
-        <EngagementMetrics data={engagement} />
-      </div>
+      )}
 
       {/* Revenue */}
-      <RevenueChart data={revenue} />
+      {revenue && <RevenueChart data={revenue} />}
 
       {/* Retention */}
-      <CohortRetentionTable data={retention} />
+      {retention && <CohortRetentionTable data={retention} />}
 
       {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CoachLeaderboard data={coachPerformance} />
-        <PlatformHealthPanel data={platformHealth} />
-      </div>
+      {(coachPerformance || platformHealth) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {coachPerformance && <CoachLeaderboard data={coachPerformance} />}
+          {platformHealth && <PlatformHealthPanel data={platformHealth} />}
+        </div>
+      )}
     </div>
   );
 }

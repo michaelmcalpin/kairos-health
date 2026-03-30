@@ -5,7 +5,7 @@ import { KPICard } from "@/components/ui/KPICard";
 import { Users, UserCircle, DollarSign, TrendingUp, Shield, Activity } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
-import { getAdminDashboard } from "@/lib/admin-coaches/engine";
+import { trpc } from "@/lib/trpc";
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   users: <Users size={16} />,
@@ -25,7 +25,15 @@ export default function AdminDashboard() {
     endDate: dateRange.endDate.toISOString().split("T")[0],
   }), [dateRange]);
 
-  const data = useMemo(() => getAdminDashboard(range), [range]);
+  const { data } = trpc.admin.dashboard.getDashboard.useQuery(range, { staleTime: 30_000 });
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-kairos-gold border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

@@ -3,10 +3,11 @@
 import { TrendingUp, Users, Percent, DollarSign } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
-import { getAdminRevenueData } from "@/lib/admin-revenue/engine";
-import type { RevenueKPI } from "@/lib/admin-revenue/types";
+import { trpc } from "@/lib/trpc";
 
-const ICON_MAP: Record<RevenueKPI["iconKey"], typeof DollarSign> = {
+type IconKey = "dollar" | "trending" | "users" | "percent";
+
+const ICON_MAP: Record<IconKey, typeof DollarSign> = {
   dollar: DollarSign,
   trending: TrendingUp,
   users: Users,
@@ -17,7 +18,13 @@ export default function Page() {
   const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "month" });
 
-  const { kpis, topClients, recentPayouts, breakdown, sources } = getAdminRevenueData();
+  const { data: platformData } = trpc.admin.revenue.getRevenueDashboard.useQuery(undefined, { staleTime: 30_000 });
+
+  const kpis = platformData?.kpis ?? [];
+  const topClients = platformData?.topClients ?? [];
+  const recentPayouts = platformData?.recentPayouts ?? [];
+  const breakdown = platformData?.breakdown ?? [];
+  const sources = platformData?.sources ?? [];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -44,7 +51,7 @@ export default function Page() {
       {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {kpis.map((kpi) => {
-          const Icon = ICON_MAP[kpi.iconKey];
+          const Icon = ICON_MAP[kpi.iconKey as IconKey];
           return (
             <div
               key={kpi.label}
@@ -54,7 +61,7 @@ export default function Page() {
                 <span className="font-body text-xs text-kairos-silver-dark uppercase tracking-wide">
                   {kpi.label}
                 </span>
-                <Icon className="w-4 h-4 text-kairos-gold" />
+                {Icon && <Icon className="w-4 h-4 text-kairos-gold" />}
               </div>
               <p className="font-heading font-bold text-xl text-white">{kpi.value}</p>
             </div>
@@ -80,17 +87,17 @@ export default function Page() {
                   <div className="flex h-6 rounded-kairos-sm overflow-hidden bg-gray-900">
                     <div
                       className="bg-kairos-gold"
-                      style={{ width: `${(item.tier1 / total) * 100}%` }}
+                      style={{ width: `${total > 0 ? (item.tier1 / total) * 100 : 0}%` }}
                       title={`Tier 1: $${(item.tier1 / 100).toLocaleString()}`}
                     />
                     <div
                       className="bg-blue-400"
-                      style={{ width: `${(item.tier2 / total) * 100}%` }}
+                      style={{ width: `${total > 0 ? (item.tier2 / total) * 100 : 0}%` }}
                       title={`Tier 2: $${(item.tier2 / 100).toLocaleString()}`}
                     />
                     <div
                       className="bg-purple-400"
-                      style={{ width: `${(item.tier3 / total) * 100}%` }}
+                      style={{ width: `${total > 0 ? (item.tier3 / total) * 100 : 0}%` }}
                       title={`Tier 3: $${(item.tier3 / 100).toLocaleString()}`}
                     />
                   </div>
