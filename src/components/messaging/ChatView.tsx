@@ -186,7 +186,7 @@ export function ChatView({
                       >
                         {!isOwn && (
                           <p className="text-xs font-medium text-kairos-gold mb-1">
-                            {msg.senderName}
+                            {msg.senderName ?? msg.senderRole}
                           </p>
                         )}
                         <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>
@@ -249,7 +249,7 @@ export function ChatView({
       {replyTo && (
         <div className="px-4 py-2 border-t border-gray-800 bg-gray-800/30 flex items-center justify-between">
           <div className="text-xs text-gray-400">
-            <span className="text-kairos-gold">Replying to {replyTo.senderName}</span>
+            <span className="text-kairos-gold">Replying to {replyTo.senderName ?? replyTo.senderRole}</span>
             <p className="truncate max-w-[300px]">{replyTo.body}</p>
           </div>
           <button

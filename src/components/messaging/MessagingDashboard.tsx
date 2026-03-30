@@ -55,7 +55,20 @@ export function MessagingDashboard({ userId, role, userName }: MessagingDashboar
 
   const clientStartConv = trpc.clientPortal.messaging.startConversation.useMutation({
     onSuccess: (conv) => {
-      setSelectedConversation(conv);
+      // Transform raw DB record into Conversation shape
+      const enriched: Conversation = {
+        id: conv.id,
+        coachId: conv.trainerId ?? null,
+        clientId: conv.clientId,
+        coachName: "AI Health Coach",
+        clientName: userName,
+        isAiCoach: conv.isAiTrainer ?? false,
+        lastMessage: null,
+        unreadCount: 0,
+        createdAt: conv.lastMessageAt ? new Date(conv.lastMessageAt).toISOString() : new Date().toISOString(),
+        updatedAt: conv.lastMessageAt ? new Date(conv.lastMessageAt).toISOString() : new Date().toISOString(),
+      };
+      setSelectedConversation(enriched);
       invalidateAll();
     },
   });
@@ -81,7 +94,15 @@ export function MessagingDashboard({ userId, role, userName }: MessagingDashboar
   // ── Derived data ──────────────────────────────────────────────
 
   const conversations = conversationsQuery.data ?? [];
-  const stats = statsQuery.data ?? {
+  interface MessagingStats {
+    totalConversations: number;
+    activeConversations: number;
+    totalMessages: number;
+    unreadMessages: number;
+    avgResponseTimeMinutes: number;
+    messagesThisWeek: number;
+  }
+  const defaultStats: MessagingStats = {
     totalConversations: 0,
     activeConversations: 0,
     totalMessages: 0,
@@ -89,6 +110,7 @@ export function MessagingDashboard({ userId, role, userName }: MessagingDashboar
     avgResponseTimeMinutes: 0,
     messagesThisWeek: 0,
   };
+  const stats: MessagingStats = { ...defaultStats, ...statsQuery.data };
   const currentMessages = messagesQuery.data ?? [];
 
   const typingUsers = selectedConversation

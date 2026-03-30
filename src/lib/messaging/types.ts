@@ -10,13 +10,13 @@ export interface Message {
   id: string;
   conversationId: string;
   senderId: string | null;
-  senderName: string;
+  senderName?: string;
   senderRole: MessageRole;
   body: string;
-  isAiMessage: boolean;
+  isAiMessage: boolean | null;
   readAt: string | null;
   createdAt: string;
-  attachments: MessageAttachment[];
+  attachments?: MessageAttachment[];
   replyTo: string | null;
 }
 
@@ -45,7 +45,7 @@ export interface Conversation {
 
 export interface MessagePreview {
   body: string;
-  senderName: string;
+  senderName?: string;
   senderRole: MessageRole;
   createdAt: string;
 }

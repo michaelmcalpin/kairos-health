@@ -581,6 +581,61 @@ export const clientTransfers = pgTable("client_transfers", {
   completedAt: timestamp("completed_at"),
 });
 
+// ======================== APPOINTMENTS / SCHEDULING ========================
+export const appointmentStatusEnum = pgEnum("appointment_status", [
+  "pending", "confirmed", "in_progress", "completed", "cancelled", "no_show",
+]);
+export const meetingTypeEnum = pgEnum("meeting_type", ["video", "phone", "in_person"]);
+export const sessionTypeEnum = pgEnum("session_type", [
+  "initial_consultation", "follow_up", "protocol_review", "lab_review", "goal_setting", "ad_hoc",
+]);
+
+export const appointments = pgTable("appointments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  coachId: uuid("coach_id").notNull().references(() => users.id),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  coachName: varchar("coach_name", { length: 255 }),
+  clientName: varchar("client_name", { length: 255 }),
+  sessionType: sessionTypeEnum("session_type").notNull().default("follow_up"),
+  meetingType: meetingTypeEnum("meeting_type").notNull().default("video"),
+  date: date("date").notNull(),
+  startTime: varchar("start_time", { length: 5 }).notNull(), // "09:00"
+  endTime: varchar("end_time", { length: 5 }),
+  durationMinutes: integer("duration_minutes").default(60),
+  status: appointmentStatusEnum("status").notNull().default("pending"),
+  notes: text("notes"),
+  cancellationReason: text("cancellation_reason"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("appt_coach_date_idx").on(t.coachId, t.date),
+  index("appt_client_date_idx").on(t.clientId, t.date),
+]);
+
+export const sessionNotes = pgTable("session_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").notNull().references(() => appointments.id),
+  coachId: uuid("coach_id").notNull().references(() => users.id),
+  summary: text("summary"),
+  keyFindings: jsonb("key_findings").$type<string[]>().default([]),
+  actionItems: jsonb("action_items").$type<string[]>().default([]),
+  nextSessionFocus: text("next_session_focus"),
+  privateNotes: text("private_notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const coachAvailability = pgTable("coach_availability", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  coachId: uuid("coach_id").notNull().references(() => users.id).unique(),
+  weeklySchedule: jsonb("weekly_schedule").$type<{
+    dayOfWeek: number; enabled: boolean; slots: { start: string; end: string }[];
+  }[]>(),
+  bufferMinutes: integer("buffer_minutes").default(15),
+  blockedDates: jsonb("blocked_dates").$type<string[]>().default([]),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // ======================== AI COACHING ========================
 export const aiCoachingSessions = pgTable("ai_coaching_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),

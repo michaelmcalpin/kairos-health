@@ -1,19 +1,7 @@
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import {
-  getOrCreateConversation,
-  listConversations,
-  getConversationForUser,
-  sendMessage,
-  getMessages,
-  markAsRead,
-  getUnreadCount,
-  setTyping,
-  clearTyping,
-  getTypingUsers,
-  searchMessages,
-  getMessagingStats,
-} from "@/lib/messaging/engine";
+import { conversations, messages, users } from "@/server/db/schema";
+import { eq, and, desc, sql, isNull, ilike, or } from "drizzle-orm";
 
 export const clientMessagingRouter = router({
   // List all conversations for the client
@@ -25,14 +13,85 @@ export const clientMessagingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const filter = input?.filter ?? "all";
-      return await listConversations(ctx.dbUserId, "client", filter);
+      const conditions = [eq(conversations.clientId, ctx.dbUserId)];
+
+      if (filter === "unread") {
+        conditions.push(sql`${conversations.unreadCountClient} > 0`);
+      } else if (filter === "ai_coach") {
+        conditions.push(eq(conversations.isAiTrainer, true));
+      } else if (filter === "human_coach") {
+        conditions.push(eq(conversations.isAiTrainer, false));
+      }
+
+      const convs = await ctx.db.query.conversations.findMany({
+        where: and(...conditions),
+        orderBy: desc(conversations.lastMessageAt),
+      });
+
+      // Get client name
+      const clientUser = await ctx.db.query.users.findFirst({
+        where: eq(users.id, ctx.dbUserId),
+      });
+      const clientName = clientUser
+        ? `${clientUser.firstName ?? ""} ${clientUser.lastName ?? ""}`.trim() || clientUser.email
+        : "Client";
+
+      // Enrich with coach names
+      const enriched = await Promise.all(
+        convs.map(async (c) => {
+          let coachName = "AI Coach";
+          if (c.trainerId) {
+            const coach = await ctx.db.query.users.findFirst({
+              where: eq(users.id, c.trainerId),
+            });
+            if (coach) coachName = `${coach.firstName ?? ""} ${coach.lastName ?? ""}`.trim() || coach.email;
+          }
+
+          // Get last message preview
+          const lastMsg = await ctx.db.query.messages.findFirst({
+            where: eq(messages.conversationId, c.id),
+            orderBy: desc(messages.createdAt),
+          });
+
+          const lastMessage = lastMsg
+            ? {
+                body: lastMsg.body,
+                senderName: lastMsg.senderRole === "client" ? clientName : coachName,
+                senderRole: lastMsg.senderRole as "client" | "coach" | "ai_coach" | "system",
+                createdAt: lastMsg.createdAt?.toISOString() ?? new Date().toISOString(),
+              }
+            : null;
+
+          return {
+            id: c.id,
+            coachId: c.trainerId ?? null,
+            clientId: c.clientId,
+            coachName,
+            clientName,
+            isAiCoach: c.isAiTrainer ?? false,
+            unreadCount: c.unreadCountClient ?? 0,
+            lastMessage,
+            createdAt: c.lastMessageAt?.toISOString() ?? new Date().toISOString(),
+            updatedAt: c.lastMessageAt?.toISOString() ?? new Date().toISOString(),
+          };
+        })
+      );
+
+      return enriched;
     }),
 
   // Get a specific conversation
   getConversation: clientProcedure
     .input(z.object({ conversationId: z.string() }))
     .query(async ({ ctx, input }) => {
-      return await getConversationForUser(input.conversationId, ctx.dbUserId);
+      const conv = await ctx.db.query.conversations.findFirst({
+        where: and(
+          eq(conversations.id, input.conversationId),
+          eq(conversations.clientId, ctx.dbUserId),
+        ),
+      });
+      if (!conv) throw new Error("Conversation not found");
+      return conv;
     }),
 
   // Start or get existing conversation with coach
@@ -45,13 +104,34 @@ export const clientMessagingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return await getOrCreateConversation(
-        ctx.dbUserId,
-        "You",
-        input.coachId,
-        input.coachName,
-        input.isAiCoach,
-      );
+      // Check for existing conversation
+      const existing = input.coachId
+        ? await ctx.db.query.conversations.findFirst({
+            where: and(
+              eq(conversations.clientId, ctx.dbUserId),
+              eq(conversations.trainerId, input.coachId),
+            ),
+          })
+        : await ctx.db.query.conversations.findFirst({
+            where: and(
+              eq(conversations.clientId, ctx.dbUserId),
+              eq(conversations.isAiTrainer, true),
+            ),
+          });
+
+      if (existing) return existing;
+
+      const [created] = await ctx.db
+        .insert(conversations)
+        .values({
+          clientId: ctx.dbUserId,
+          trainerId: input.coachId,
+          isAiTrainer: input.isAiCoach,
+          lastMessageAt: new Date(),
+        })
+        .returning();
+
+      return created;
     }),
 
   // Get messages for a conversation
@@ -64,11 +144,27 @@ export const clientMessagingRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const conv = await getConversationForUser(input.conversationId, ctx.dbUserId);
-      if (!conv || conv.clientId !== ctx.dbUserId) {
-        throw new Error("Conversation not found");
+      // Verify conversation belongs to client
+      const conv = await ctx.db.query.conversations.findFirst({
+        where: and(
+          eq(conversations.id, input.conversationId),
+          eq(conversations.clientId, ctx.dbUserId),
+        ),
+      });
+      if (!conv) throw new Error("Conversation not found");
+
+      const conditions = [eq(messages.conversationId, input.conversationId)];
+      if (input.before) {
+        conditions.push(sql`${messages.createdAt} < ${input.before}`);
       }
-      return await getMessages(input.conversationId, input.limit, input.before);
+
+      const results = await ctx.db.query.messages.findMany({
+        where: and(...conditions),
+        orderBy: desc(messages.createdAt),
+        limit: input.limit,
+      });
+
+      return results.reverse(); // oldest first
     }),
 
   // Send a message
@@ -81,66 +177,117 @@ export const clientMessagingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const conv = await getConversationForUser(input.conversationId, ctx.dbUserId);
-      if (!conv || conv.clientId !== ctx.dbUserId) {
-        throw new Error("Conversation not found");
-      }
-      return await sendMessage(
-        input.conversationId,
-        ctx.dbUserId,
-        "You",
-        "client",
-        input.body,
-        false,
-        input.replyTo ?? null,
-      );
+      // Verify conversation belongs to client
+      const conv = await ctx.db.query.conversations.findFirst({
+        where: and(
+          eq(conversations.id, input.conversationId),
+          eq(conversations.clientId, ctx.dbUserId),
+        ),
+      });
+      if (!conv) throw new Error("Conversation not found");
+
+      const [msg] = await ctx.db
+        .insert(messages)
+        .values({
+          conversationId: input.conversationId,
+          senderId: ctx.dbUserId,
+          senderRole: "client",
+          isAiMessage: false,
+          body: input.body,
+          replyTo: input.replyTo,
+        })
+        .returning();
+
+      // Update conversation timestamps and unread counts
+      await ctx.db
+        .update(conversations)
+        .set({
+          lastMessageAt: new Date(),
+          unreadCountTrainer: sql`${conversations.unreadCountTrainer} + 1`,
+        })
+        .where(eq(conversations.id, input.conversationId));
+
+      return msg;
     }),
 
   // Mark messages as read
   markAsRead: clientProcedure
     .input(z.object({ conversationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return await markAsRead(input.conversationId, ctx.dbUserId);
-    }),
+      await ctx.db
+        .update(conversations)
+        .set({ unreadCountClient: 0 })
+        .where(
+          and(
+            eq(conversations.id, input.conversationId),
+            eq(conversations.clientId, ctx.dbUserId),
+          )
+        );
 
-  // Get total unread count across all conversations
-  getUnreadCount: clientProcedure
-    .query(async ({ ctx }) => {
-      return { count: await getUnreadCount(ctx.dbUserId, "client") };
-    }),
+      // Mark individual messages as read
+      await ctx.db
+        .update(messages)
+        .set({ readAt: new Date() })
+        .where(
+          and(
+            eq(messages.conversationId, input.conversationId),
+            isNull(messages.readAt),
+            sql`${messages.senderId} != ${ctx.dbUserId}`,
+          )
+        );
 
-  // Set typing indicator
-  setTyping: clientProcedure
-    .input(z.object({ conversationId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      return setTyping(ctx.dbUserId, "You", input.conversationId);
-    }),
-
-  // Clear typing indicator
-  clearTyping: clientProcedure
-    .input(z.object({ conversationId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      clearTyping(ctx.dbUserId, input.conversationId);
       return { success: true };
     }),
 
-  // Get who is typing in a conversation
-  getTypingUsers: clientProcedure
-    .input(z.object({ conversationId: z.string() }))
-    .query(async ({ ctx, input }) => {
-      return getTypingUsers(input.conversationId, ctx.dbUserId);
-    }),
+  // Get total unread count across all conversations
+  getUnreadCount: clientProcedure.query(async ({ ctx }) => {
+    const result = await ctx.db
+      .select({ total: sql<number>`coalesce(sum(${conversations.unreadCountClient}), 0)` })
+      .from(conversations)
+      .where(eq(conversations.clientId, ctx.dbUserId));
+
+    return { count: Number(result[0]?.total ?? 0) };
+  }),
 
   // Search messages across conversations
   search: clientProcedure
     .input(z.object({ query: z.string().min(1).max(200) }))
     .query(async ({ ctx, input }) => {
-      return await searchMessages(ctx.dbUserId, "client", input.query);
+      const clientConvs = await ctx.db.query.conversations.findMany({
+        where: eq(conversations.clientId, ctx.dbUserId),
+      });
+      const convIds = clientConvs.map((c) => c.id);
+
+      if (convIds.length === 0) return [];
+
+      const results = await ctx.db.query.messages.findMany({
+        where: and(
+          sql`${messages.conversationId} IN (${sql.join(convIds.map(id => sql`${id}`), sql`, `)})`,
+          ilike(messages.body, `%${input.query}%`),
+        ),
+        orderBy: desc(messages.createdAt),
+        limit: 20,
+      });
+
+      return results;
     }),
 
   // Get messaging stats
-  getStats: clientProcedure
-    .query(async ({ ctx }) => {
-      return await getMessagingStats(ctx.dbUserId, "client");
-    }),
+  getStats: clientProcedure.query(async ({ ctx }) => {
+    const convCount = await ctx.db
+      .select({ count: sql<number>`count(*)` })
+      .from(conversations)
+      .where(eq(conversations.clientId, ctx.dbUserId));
+
+    const msgCount = await ctx.db
+      .select({ count: sql<number>`count(*)` })
+      .from(messages)
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .where(eq(conversations.clientId, ctx.dbUserId));
+
+    return {
+      totalConversations: Number(convCount[0]?.count ?? 0),
+      totalMessages: Number(msgCount[0]?.count ?? 0),
+    };
+  }),
 });
