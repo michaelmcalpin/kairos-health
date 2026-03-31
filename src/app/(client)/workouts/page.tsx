@@ -17,8 +17,51 @@ import {
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useWorkouts } from "@/hooks/client/useWorkouts";
-import { getTodaysWorkout, getWeeklySchedule, getHeartRateZones } from "@/lib/client-ops";
 import { trpc } from "@/lib/trpc";
+
+// ─── Workout schedule data (local constants) ────────────────────
+interface TodaysWorkout { name: string; duration: number; targetZone: string; time: string; }
+interface WeeklyScheduleItem { day: string; type: string; color: string; }
+interface HeartRateZone { zone: string; name: string; description: string; hrRange: string; benefits: string; }
+
+const WORKOUT_TYPES = [
+  { name: "Zone 2 Aerobic Base", duration: 45, zone: "Zone 2 (120-140 bpm)", time: "6:00 AM - 6:45 AM" },
+  { name: "Upper Body Strength", duration: 55, zone: "Zone 3 (140-155 bpm)", time: "6:00 AM - 6:55 AM" },
+  { name: "Rest & Recovery", duration: 20, zone: "Zone 1 (<120 bpm)", time: "7:00 AM - 7:20 AM" },
+  { name: "HIIT Intervals", duration: 30, zone: "Zone 4-5 (155-180 bpm)", time: "6:00 AM - 6:30 AM" },
+  { name: "Zone 2 Cardio", duration: 45, zone: "Zone 2 (120-140 bpm)", time: "6:00 AM - 6:45 AM" },
+  { name: "Yoga & Mobility", duration: 40, zone: "Zone 1 (<120 bpm)", time: "7:00 AM - 7:40 AM" },
+  { name: "Lower Body Strength", duration: 55, zone: "Zone 3 (140-155 bpm)", time: "6:00 AM - 6:55 AM" },
+];
+
+function getTodaysWorkout(dateRef: Date): TodaysWorkout {
+  const dow = dateRef.getDay();
+  const idx = dow === 0 ? 6 : dow - 1;
+  const wt = WORKOUT_TYPES[idx];
+  return { name: wt.name, duration: wt.duration, targetZone: wt.zone, time: wt.time };
+}
+
+function getWeeklySchedule(): WeeklyScheduleItem[] {
+  return [
+    { day: "Mon", type: "Zone 2 Cardio", color: "bg-blue-900/40" },
+    { day: "Tue", type: "Strength Training", color: "bg-orange-900/40" },
+    { day: "Wed", type: "Rest", color: "bg-gray-900/40" },
+    { day: "Thu", type: "HIIT", color: "bg-red-900/40" },
+    { day: "Fri", type: "Zone 2 Cardio", color: "bg-blue-900/40" },
+    { day: "Sat", type: "Yoga/Mobility", color: "bg-purple-900/40" },
+    { day: "Sun", type: "Strength Training", color: "bg-orange-900/40" },
+  ];
+}
+
+function getHeartRateZones(): HeartRateZone[] {
+  return [
+    { zone: "Zone 1", name: "Recovery", description: "Light activity, active recovery", hrRange: "50-70% max HR", benefits: "Promotes blood flow and adaptation" },
+    { zone: "Zone 2", name: "Aerobic Base", description: "Sustainable steady-state training", hrRange: "70-80% max HR", benefits: "Builds aerobic capacity and mitochondrial function" },
+    { zone: "Zone 3", name: "Tempo", description: "Comfortably hard, conversation difficult", hrRange: "80-90% max HR", benefits: "Improves lactate threshold" },
+    { zone: "Zone 4", name: "Threshold", description: "Hard effort, breathing elevated", hrRange: "90-95% max HR", benefits: "Strengthens anaerobic capacity" },
+    { zone: "Zone 5", name: "VO2 Max", description: "Maximum sustainable effort", hrRange: "95-100% max HR", benefits: "Maximizes cardiovascular power" },
+  ];
+}
 
 export default function WorkoutsPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =

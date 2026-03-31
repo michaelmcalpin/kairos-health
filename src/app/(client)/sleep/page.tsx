@@ -6,8 +6,36 @@ import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useSleep } from "@/hooks/client/useSleep";
 import { Moon, Clock, Zap, Brain, TrendingUp, Sun, Plus, X } from "lucide-react";
-import { generateSleepStages } from "@/lib/client-ops";
 import { trpc } from "@/lib/trpc";
+
+// ─── Sleep stages generator (deterministic by date) ─────────────
+interface SleepStageBlock { stage: string; duration: number; }
+
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
+const BASE_STAGES: SleepStageBlock[] = [
+  { stage: "light", duration: 25 }, { stage: "deep", duration: 35 },
+  { stage: "light", duration: 15 }, { stage: "rem", duration: 20 },
+  { stage: "light", duration: 10 }, { stage: "awake", duration: 5 },
+  { stage: "light", duration: 20 }, { stage: "deep", duration: 40 },
+  { stage: "light", duration: 15 }, { stage: "rem", duration: 25 },
+  { stage: "light", duration: 20 }, { stage: "deep", duration: 30 },
+  { stage: "rem", duration: 20 }, { stage: "light", duration: 30 },
+  { stage: "awake", duration: 5 }, { stage: "light", duration: 20 },
+  { stage: "rem", duration: 25 }, { stage: "light", duration: 25 },
+  { stage: "awake", duration: 5 }, { stage: "light", duration: 20 },
+];
+
+function generateSleepStages(dateRef: Date): SleepStageBlock[] {
+  const seed = dateRef.getFullYear() * 10000 + (dateRef.getMonth() + 1) * 100 + dateRef.getDate();
+  return BASE_STAGES.map((block, i) => {
+    const jitter = Math.round((seededRandom(seed + i * 3) - 0.5) * 10);
+    return { stage: block.stage, duration: Math.max(2, block.duration + jitter) };
+  });
+}
 
 const stageColors: Record<string, string> = {
   deep: "#6366f1",
