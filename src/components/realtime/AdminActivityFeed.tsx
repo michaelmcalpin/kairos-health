@@ -59,9 +59,9 @@ function AuditItem({ message }: { message: SSEMessage<AuditData> }) {
   );
 }
 
-export function AdminActivityFeed({ demo = false, maxItems = 20 }: { demo?: boolean; maxItems?: number }) {
+export function AdminActivityFeed({ maxItems = 20 }: { maxItems?: number }) {
   const { messages, status, clear } = useSSE<AuditData>({
-    url: `/api/realtime/feed${demo ? "?demo=true" : ""}`,
+    url: "/api/realtime/feed",
     eventTypes: ["admin:audit"],
     maxBuffer: maxItems,
   });

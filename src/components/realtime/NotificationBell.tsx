@@ -26,13 +26,13 @@ const CATEGORY_ICONS: Record<string, string> = {
   system: "\u2699\ufe0f",
 };
 
-export function NotificationBell({ demo = false }: { demo?: boolean }) {
+export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { messages, clear } = useSSE<NotificationData>({
-    url: `/api/realtime/notifications${demo ? "?demo=true" : ""}`,
+    url: "/api/realtime/notifications",
     eventTypes: ["notification:new"],
     maxBuffer: 20,
   });

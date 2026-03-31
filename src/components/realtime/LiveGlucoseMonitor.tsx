@@ -95,16 +95,15 @@ function MiniSparkline({ readings }: { readings: number[] }) {
   );
 }
 
-export function LiveGlucoseMonitor({ demo = false }: { demo?: boolean }) {
-  // Theme colors available via useThemeColors() when needed
+export function LiveGlucoseMonitor() {
   const glucoseSSE = useSSE<GlucoseReading>({
-    url: `/api/realtime/glucose${demo ? "?demo=true" : ""}`,
+    url: "/api/realtime/glucose",
     eventTypes: ["glucose:reading"],
     maxBuffer: 60,
   });
 
   const alertSSE = useSSE<GlucoseAlert>({
-    url: `/api/realtime/glucose${demo ? "?demo=true" : ""}`,
+    url: "/api/realtime/glucose",
     eventTypes: ["glucose:alert"],
     maxBuffer: 5,
   });

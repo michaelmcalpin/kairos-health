@@ -59,9 +59,9 @@ function getTimeAgo(timestamp: number): string {
   return `${Math.floor(seconds / 3600)}h ago`;
 }
 
-export function CoachAlertFeed({ demo = false, maxItems = 10 }: { demo?: boolean; maxItems?: number }) {
+export function CoachAlertFeed({ maxItems = 10 }: { maxItems?: number }) {
   const { messages, status, clear } = useSSE<AlertData>({
-    url: `/api/realtime/alerts${demo ? "?demo=true" : ""}`,
+    url: "/api/realtime/alerts",
     eventTypes: ["alert:new"],
     maxBuffer: maxItems,
   });
