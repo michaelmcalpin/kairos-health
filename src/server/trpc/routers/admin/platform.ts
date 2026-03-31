@@ -5,9 +5,10 @@
  * and operational metrics for the admin dashboard.
  */
 
+import { z } from "zod";
 import { router, superAdminProcedure as adminProcedure } from "@/server/trpc";
-import { users, clientProfiles } from "@/server/db/schema";
-import { sql, gte, eq } from "drizzle-orm";
+import { users, clientProfiles, platformSettings, notificationPreferences } from "@/server/db/schema";
+import { sql, gte, eq, and } from "drizzle-orm";
 
 export const adminPlatformRouter = router({
   /**
@@ -167,4 +168,97 @@ export const adminPlatformRouter = router({
       timestamp: u.createdAt?.toISOString() ?? new Date().toISOString(),
     }));
   }),
+
+  /**
+   * Get platform settings by key
+   */
+  getSettings: adminProcedure
+    .input(z.object({ key: z.string(), companyId: z.string().uuid().optional() }))
+    .query(async ({ ctx, input }) => {
+      const row = await ctx.db.query.platformSettings.findFirst({
+        where: and(
+          eq(platformSettings.key, input.key),
+          input.companyId
+            ? eq(platformSettings.companyId, input.companyId)
+            : sql`${platformSettings.companyId} IS NULL`,
+        ),
+      });
+      return row?.value ?? null;
+    }),
+
+  /**
+   * Save platform settings (upsert by key + companyId)
+   */
+  saveSettings: adminProcedure
+    .input(z.object({
+      key: z.string(),
+      value: z.record(z.string(), z.unknown()),
+      companyId: z.string().uuid().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.query.platformSettings.findFirst({
+        where: and(
+          eq(platformSettings.key, input.key),
+          input.companyId
+            ? eq(platformSettings.companyId, input.companyId)
+            : sql`${platformSettings.companyId} IS NULL`,
+        ),
+      });
+
+      if (existing) {
+        await ctx.db.update(platformSettings)
+          .set({ value: input.value, updatedBy: ctx.dbUserId, updatedAt: new Date() })
+          .where(eq(platformSettings.id, existing.id));
+      } else {
+        await ctx.db.insert(platformSettings).values({
+          key: input.key,
+          value: input.value,
+          companyId: input.companyId ?? null,
+          updatedBy: ctx.dbUserId,
+        });
+      }
+
+      return { success: true };
+    }),
+
+  /**
+   * Get admin notification preferences
+   */
+  getNotificationPrefs: adminProcedure.query(async ({ ctx }) => {
+    const prefs = await ctx.db.query.notificationPreferences.findFirst({
+      where: eq(notificationPreferences.userId, ctx.dbUserId),
+    });
+    return prefs?.categories ?? null;
+  }),
+
+  /**
+   * Save admin notification preferences
+   */
+  saveNotificationPrefs: adminProcedure
+    .input(z.object({
+      categories: z.record(z.string(), z.object({
+        in_app: z.boolean(),
+        email: z.boolean(),
+        push: z.boolean(),
+        sms: z.boolean(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.query.notificationPreferences.findFirst({
+        where: eq(notificationPreferences.userId, ctx.dbUserId),
+      });
+
+      if (existing) {
+        await ctx.db.update(notificationPreferences)
+          .set({ categories: input.categories, updatedAt: new Date() })
+          .where(eq(notificationPreferences.id, existing.id));
+      } else {
+        await ctx.db.insert(notificationPreferences).values({
+          userId: ctx.dbUserId,
+          categories: input.categories,
+        });
+      }
+
+      return { success: true };
+    }),
 });

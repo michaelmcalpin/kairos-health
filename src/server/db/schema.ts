@@ -911,3 +911,35 @@ export const referenceItems = pgTable("reference_items", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ======================== PLATFORM SETTINGS ========================
+export const platformSettings = pgTable("platform_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  companyId: uuid("company_id").references(() => companies.id),
+  key: varchar("key", { length: 100 }).notNull(),
+  value: jsonb("value").$type<Record<string, unknown>>().notNull(),
+  updatedBy: uuid("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("platform_settings_company_key_idx").on(t.companyId, t.key)]);
+
+// ======================== MARKETPLACE ========================
+export const marketplaceItemTypeEnum = pgEnum("marketplace_item_type", ["protocol", "program", "supplement_stack", "assessment"]);
+export const marketplaceStatusEnum = pgEnum("marketplace_status", ["active", "draft", "archived"]);
+
+export const marketplaceItems = pgTable("marketplace_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  companyId: uuid("company_id").references(() => companies.id),
+  createdBy: uuid("created_by").references(() => users.id),
+  title: varchar("title", { length: 300 }).notNull(),
+  description: text("description"),
+  type: marketplaceItemTypeEnum("type").notNull(),
+  status: marketplaceStatusEnum("status").default("draft").notNull(),
+  priceInCents: integer("price_in_cents").default(0).notNull(),
+  currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+  imageUrl: varchar("image_url", { length: 500 }),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+  purchaseCount: integer("purchase_count").default(0).notNull(),
+  rating: real("rating"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

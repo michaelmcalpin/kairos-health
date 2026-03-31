@@ -38,6 +38,7 @@ import { coachAlertsRouter } from "./coach/alerts";
 import { coachScheduleRouter } from "./coach/schedule";
 import { coachRevenueRouter } from "./coach/revenue";
 import { coachMessagingRouter } from "./coach/messaging";
+import { coachMarketplaceRouter } from "./coach/marketplace";
 
 // Admin routers
 import { adminDashboardRouter } from "./admin/dashboard";
@@ -92,6 +93,7 @@ export const appRouter = router({
     schedule: coachScheduleRouter,
     revenue: coachRevenueRouter,
     messaging: coachMessagingRouter,
+    marketplace: coachMarketplaceRouter,
   }),
   company: router({
     dashboard: companyDashboardRouter,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Settings,
   Shield,
@@ -14,12 +14,13 @@ import { trpc } from "@/lib/trpc";
 
 export default function AdminSettingsPage() {
   const { theme, setTheme } = useTheme();
+  const utils = trpc.useUtils();
 
-  // Fetch user data
-  const { data: authUser } = trpc.auth.me.useQuery();
+  // Fetch persisted platform settings
+  const { data: savedPlatform } = trpc.admin.platform.getSettings.useQuery({ key: "platform" });
+  const { data: savedNotifs } = trpc.admin.platform.getNotificationPrefs.useQuery();
 
-  // Platform settings are stored locally for now with a comment about DB persistence
-  // TODO: Create an admin.settings router mutation to persist platform settings to DB
+  // Platform settings
   const [platform, setPlatform] = useState({
     platformName: "KAIROS Health",
     supportEmail: "support@kairos.health",
@@ -27,8 +28,7 @@ export default function AdminSettingsPage() {
     sessionTimeout: "30",
   });
 
-  // Notification preferences stored locally
-  // TODO: Wire to trpc.admin.settings mutation once endpoint is created
+  // Notification preferences
   const [notifications, setNotifications] = useState({
     coachSignups: true,
     revenueAlerts: true,
@@ -36,8 +36,44 @@ export default function AdminSettingsPage() {
     weeklyDigest: true,
   });
 
+  // Hydrate from DB when data loads
+  useEffect(() => {
+    if (savedPlatform && typeof savedPlatform === "object") {
+      const p = savedPlatform as Record<string, string>;
+      setPlatform((prev) => ({
+        platformName: p.platformName ?? prev.platformName,
+        supportEmail: p.supportEmail ?? prev.supportEmail,
+        maxClientsPerCoach: p.maxClientsPerCoach ?? prev.maxClientsPerCoach,
+        sessionTimeout: p.sessionTimeout ?? prev.sessionTimeout,
+      }));
+    }
+  }, [savedPlatform]);
+
+  useEffect(() => {
+    if (savedNotifs && typeof savedNotifs === "object") {
+      const n = savedNotifs as Record<string, { in_app: boolean }>;
+      setNotifications({
+        coachSignups: n.coachSignups?.in_app ?? true,
+        revenueAlerts: n.revenueAlerts?.in_app ?? true,
+        systemErrors: n.systemErrors?.in_app ?? true,
+        weeklyDigest: n.weeklyDigest?.in_app ?? true,
+      });
+    }
+  }, [savedNotifs]);
+
   const [saveMessage, setSaveMessage] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+
+  const savePlatformMutation = trpc.admin.platform.saveSettings.useMutation({
+    onSuccess: () => {
+      utils.admin.platform.getSettings.invalidate();
+    },
+  });
+
+  const saveNotifsMutation = trpc.admin.platform.saveNotificationPrefs.useMutation({
+    onSuccess: () => {
+      utils.admin.platform.getNotificationPrefs.invalidate();
+    },
+  });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setPlatform((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -47,18 +83,29 @@ export default function AdminSettingsPage() {
     setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const isSaving = savePlatformMutation.isPending || saveNotifsMutation.isPending;
+
   const handleSaveChanges = async () => {
-    setIsSaving(true);
     try {
-      // For now, platform and notification settings are stored locally.
-      // In production, these would be persisted via tRPC mutations to the database.
+      await Promise.all([
+        savePlatformMutation.mutateAsync({
+          key: "platform",
+          value: platform as unknown as Record<string, unknown>,
+        }),
+        saveNotifsMutation.mutateAsync({
+          categories: Object.fromEntries(
+            Object.entries(notifications).map(([k, v]) => [
+              k,
+              { in_app: v, email: v, push: false, sms: false },
+            ]),
+          ),
+        }),
+      ]);
       setSaveMessage("Changes saved successfully");
       setTimeout(() => setSaveMessage(""), 3000);
-    } catch (error) {
+    } catch {
       setSaveMessage("Failed to save changes");
       setTimeout(() => setSaveMessage(""), 3000);
-    } finally {
-      setIsSaving(false);
     }
   };
 
