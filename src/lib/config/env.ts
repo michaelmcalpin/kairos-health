@@ -46,9 +46,30 @@ export const env = {
   STRIPE_SECRET_KEY: getEnvVar("STRIPE_SECRET_KEY", ""),
   STRIPE_WEBHOOK_SECRET: getEnvVar("STRIPE_WEBHOOK_SECRET", ""),
 
+  // Webhooks
+  CLERK_WEBHOOK_SECRET: getEnvVar("CLERK_WEBHOOK_SECRET", ""),
+  CRON_SECRET: getEnvVar("CRON_SECRET", ""),
+
   // Email (Resend)
   RESEND_API_KEY: getEnvVar("RESEND_API_KEY", ""),
   EMAIL_FROM: getEnvVar("EMAIL_FROM", "KAIROS Health <noreply@kairos.health>"),
+
+  // Device Integrations (OAuth)
+  OURA_CLIENT_ID: getEnvVar("OURA_CLIENT_ID", ""),
+  OURA_CLIENT_SECRET: getEnvVar("OURA_CLIENT_SECRET", ""),
+  OURA_WEBHOOK_SECRET: getEnvVar("OURA_WEBHOOK_SECRET", ""),
+  DEXCOM_CLIENT_ID: getEnvVar("DEXCOM_CLIENT_ID", ""),
+  DEXCOM_CLIENT_SECRET: getEnvVar("DEXCOM_CLIENT_SECRET", ""),
+  WHOOP_CLIENT_ID: getEnvVar("WHOOP_CLIENT_ID", ""),
+  WHOOP_CLIENT_SECRET: getEnvVar("WHOOP_CLIENT_SECRET", ""),
+  WHOOP_WEBHOOK_SECRET: getEnvVar("WHOOP_WEBHOOK_SECRET", ""),
+  GARMIN_CONSUMER_KEY: getEnvVar("GARMIN_CONSUMER_KEY", ""),
+  GARMIN_CONSUMER_SECRET: getEnvVar("GARMIN_CONSUMER_SECRET", ""),
+  FITBIT_CLIENT_ID: getEnvVar("FITBIT_CLIENT_ID", ""),
+  FITBIT_CLIENT_SECRET: getEnvVar("FITBIT_CLIENT_SECRET", ""),
+  WITHINGS_CLIENT_ID: getEnvVar("WITHINGS_CLIENT_ID", ""),
+  WITHINGS_CLIENT_SECRET: getEnvVar("WITHINGS_CLIENT_SECRET", ""),
+  WITHINGS_WEBHOOK_SECRET: getEnvVar("WITHINGS_WEBHOOK_SECRET", ""),
 
   // Logging
   LOG_LEVEL: getEnvVar("LOG_LEVEL", "info") as "debug" | "info" | "warn" | "error",
