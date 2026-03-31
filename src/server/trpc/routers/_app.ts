@@ -46,6 +46,8 @@ import { adminRevenueRouter } from "./admin/revenue";
 import { adminPlatformRouter } from "./admin/platform";
 import { adminUsersRouter } from "./admin/users";
 import { adminCompaniesRouter } from "./admin/companies";
+import { adminContentRouter } from "./admin/content";
+import { adminReferencesRouter } from "./admin/references";
 
 // Company admin routers
 import { companyDashboardRouter } from "./company/dashboard";
@@ -102,6 +104,8 @@ export const appRouter = router({
     platform: adminPlatformRouter,
     users: adminUsersRouter,
     companies: adminCompaniesRouter,
+    content: adminContentRouter,
+    references: adminReferencesRouter,
   }),
 });
 

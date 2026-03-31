@@ -873,3 +873,41 @@ export const geneticPathwayScores = pgTable("genetic_pathway_scores", {
   index("genetic_pathway_scores_profile_idx").on(t.profileId),
   index("genetic_pathway_scores_client_idx").on(t.clientId),
 ]);
+
+// ======================== CONTENT MANAGEMENT ========================
+export const contentCategoryEnum = pgEnum("content_category", ["protocols", "articles", "videos", "guides"]);
+export const contentStatusEnum = pgEnum("content_status", ["published", "draft", "review", "archived"]);
+
+export const contentItems = pgTable("content_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  companyId: uuid("company_id").references(() => companies.id),
+  title: varchar("title", { length: 500 }).notNull(),
+  category: contentCategoryEnum("category").notNull(),
+  authorId: uuid("author_id").references(() => users.id),
+  authorName: varchar("author_name", { length: 200 }),
+  status: contentStatusEnum("status").default("draft").notNull(),
+  thumbnail: varchar("thumbnail", { length: 500 }),
+  viewCount: integer("view_count").default(0).notNull(),
+  body: text("body"),
+  publishDate: timestamp("publish_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ======================== KNOWLEDGE BASE ========================
+export const referenceCategoryEnum = pgEnum("reference_category", ["clinical_studies", "supplement_database", "lab_ranges", "protocol_templates", "dosage_guidelines"]);
+
+export const referenceItems = pgTable("reference_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  companyId: uuid("company_id").references(() => companies.id),
+  title: varchar("title", { length: 500 }).notNull(),
+  source: varchar("source", { length: 300 }).notNull(),
+  year: integer("year").notNull(),
+  category: referenceCategoryEnum("category").notNull(),
+  relevanceTags: jsonb("relevance_tags").$type<string[]>().default([]),
+  summary: text("summary"),
+  citationCount: integer("citation_count").default(0).notNull(),
+  url: varchar("url", { length: 1000 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { trpc } from "@/lib/trpc";
 import {
   Search,
   Edit2,
@@ -8,189 +9,88 @@ import {
   Archive,
   Filter,
   BarChart3,
+  Plus,
 } from "lucide-react";
 
-// Type definitions
-type ContentCategory = "Protocols" | "Articles" | "Videos" | "Guides";
+type ContentCategory = "protocols" | "articles" | "videos" | "guides";
+type ContentStatus = "published" | "draft" | "review" | "archived";
 
-interface ContentItem {
-  id: string;
-  title: string;
-  category: ContentCategory;
-  author: string;
-  status: "Published" | "Draft" | "Review";
-  thumbnail: string;
-  viewCount: number;
-  publishDate: string;
-}
-
-// Content items
-const CONTENT_ITEMS: ContentItem[] = [
-  {
-    id: "1",
-    title: "Intermittent Fasting Protocol: 16/8 Method",
-    category: "Protocols",
-    author: "Dr. Sarah Chen",
-    status: "Published",
-    thumbnail: "protocol-fasting",
-    viewCount: 3200,
-    publishDate: "2026-02-15",
-  },
-  {
-    id: "2",
-    title: "Sleep Optimization: Architecture & Circadian Rhythms",
-    category: "Guides",
-    author: "Dr. Marcus Webb",
-    status: "Published",
-    thumbnail: "guide-sleep",
-    viewCount: 2800,
-    publishDate: "2026-02-10",
-  },
-  {
-    id: "3",
-    title: "NMN & NAD+ Supplementation Guide",
-    category: "Articles",
-    author: "Dr. Emily Rodriguez",
-    status: "Published",
-    thumbnail: "article-nmn",
-    viewCount: 4100,
-    publishDate: "2026-02-08",
-  },
-  {
-    id: "4",
-    title: "Metabolic Health Markers: Complete Assessment",
-    category: "Guides",
-    author: "Dr. James Liu",
-    status: "Review",
-    thumbnail: "guide-metabolic",
-    viewCount: 0,
-    publishDate: "2026-02-05",
-  },
-  {
-    id: "5",
-    title: "Advanced Supplement Stacking Protocols",
-    category: "Protocols",
-    author: "Dr. Sarah Chen",
-    status: "Draft",
-    thumbnail: "protocol-stack",
-    viewCount: 0,
-    publishDate: "2026-02-01",
-  },
-  {
-    id: "6",
-    title: "Longevity Interventions: Latest Research",
-    category: "Articles",
-    author: "Dr. Michael Foster",
-    status: "Published",
-    thumbnail: "article-research",
-    viewCount: 3600,
-    publishDate: "2026-01-28",
-  },
-  {
-    id: "7",
-    title: "Video Series: Biohacking Basics",
-    category: "Videos",
-    author: "Dr. Jessica Park",
-    status: "Published",
-    thumbnail: "video-biohack",
-    viewCount: 5200,
-    publishDate: "2026-01-25",
-  },
-  {
-    id: "8",
-    title: "Mitochondrial Health Protocol",
-    category: "Protocols",
-    author: "Dr. Sarah Chen",
-    status: "Draft",
-    thumbnail: "protocol-mito",
-    viewCount: 0,
-    publishDate: "2026-01-20",
-  },
-];
-
-// Stats
-const STATS = {
-  total: 24,
-  published: 18,
-  drafts: 4,
-  inReview: 2,
+const CATEGORY_LABELS: Record<string, string> = {
+  protocols: "Protocols",
+  articles: "Articles",
+  videos: "Videos",
+  guides: "Guides",
 };
-
-// Filter function
-function filterContent(
-  items: ContentItem[],
-  searchQuery: string,
-  selectedCategory: "All" | ContentCategory
-): ContentItem[] {
-  return items.filter((item) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.author.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesCategory =
-      selectedCategory === "All" || item.category === selectedCategory;
-
-    return matchesSearch && matchesCategory;
-  });
-}
-
-const statCards = [
-  { label: "Total Content", value: String(STATS.total) },
-  { label: "Published", value: String(STATS.published) },
-  { label: "Drafts", value: String(STATS.drafts) },
-  { label: "In Review", value: String(STATS.inReview) },
-];
 
 export default function ContentPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<"All" | ContentCategory>("All");
 
-  const categories: Array<"All" | ContentCategory> = ["All", "Protocols", "Articles", "Videos", "Guides"];
+  const { data: stats } = trpc.admin.content.getStats.useQuery({});
+  const { data: items = [], isLoading } = trpc.admin.content.list.useQuery({
+    category: selectedCategory === "All" ? undefined : selectedCategory,
+  });
 
-  const filteredContent = filterContent(CONTENT_ITEMS, searchQuery, selectedCategory);
+  const utils = trpc.useUtils();
+
+  const archiveMutation = trpc.admin.content.archive.useMutation({
+    onSuccess: () => {
+      utils.admin.content.list.invalidate();
+      utils.admin.content.getStats.invalidate();
+    },
+  });
+
+  const categories: Array<"All" | ContentCategory> = ["All", "protocols", "articles", "videos", "guides"];
+
+  const filteredContent = items.filter((item) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      item.title.toLowerCase().includes(q) ||
+      (item.authorName ?? "").toLowerCase().includes(q)
+    );
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Published":
-        return "bg-green-900/30 text-green-300";
-      case "Draft":
-        return "bg-amber-900/30 text-amber-300";
-      case "Review":
-        return "bg-blue-900/30 text-blue-300";
-      default:
-        return "bg-gray-900/30 text-gray-300";
+      case "published": return "bg-green-900/30 text-green-300";
+      case "draft": return "bg-amber-900/30 text-amber-300";
+      case "review": return "bg-blue-900/30 text-blue-300";
+      case "archived": return "bg-gray-900/30 text-gray-300";
+      default: return "bg-gray-900/30 text-gray-300";
     }
   };
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case "Protocols":
-        return "bg-purple-900/30 text-purple-300";
-      case "Articles":
-        return "bg-cyan-900/30 text-cyan-300";
-      case "Videos":
-        return "bg-pink-900/30 text-pink-300";
-      case "Guides":
-        return "bg-emerald-900/30 text-emerald-300";
-      default:
-        return "bg-gray-900/30 text-gray-300";
+      case "protocols": return "bg-purple-900/30 text-purple-300";
+      case "articles": return "bg-cyan-900/30 text-cyan-300";
+      case "videos": return "bg-pink-900/30 text-pink-300";
+      case "guides": return "bg-emerald-900/30 text-emerald-300";
+      default: return "bg-gray-900/30 text-gray-300";
     }
   };
 
+  const statCards = [
+    { label: "Total Content", value: String(stats?.total ?? 0) },
+    { label: "Published", value: String(stats?.published ?? 0) },
+    { label: "Drafts", value: String(stats?.draft ?? 0) },
+    { label: "In Review", value: String(stats?.review ?? 0) },
+  ];
+
   return (
     <div className="animate-fade-in">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="font-heading font-bold text-3xl text-white mb-2">
-          Content Management
-        </h1>
-        <p className="font-body text-kairos-silver-dark">
-          Manage and organize your longevity content library
-        </p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="font-heading font-bold text-3xl text-white mb-2">
+            Content Management
+          </h1>
+          <p className="font-body text-kairos-silver-dark">
+            Manage and organize your longevity content library
+          </p>
+        </div>
       </div>
 
-      {/* Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         {statCards.map((stat) => (
           <div key={stat.label} className="kairos-card bg-kairos-card border border-kairos-border">
@@ -205,7 +105,6 @@ export default function ContentPage() {
         ))}
       </div>
 
-      {/* Search and Filter */}
       <div className="mb-8 space-y-4">
         <div className="relative">
           <Search className="absolute left-4 top-3.5 w-5 h-5 text-kairos-silver-dark" />
@@ -229,64 +128,72 @@ export default function ContentPage() {
                   : "bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:border-kairos-gold/50"
               }`}
             >
-              {category}
+              {category === "All" ? "All" : CATEGORY_LABELS[category]}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredContent.length > 0 ? (
-          filteredContent.map((item) => (
-            <div
-              key={item.id}
-              className="kairos-card bg-kairos-card border border-kairos-border hover:bg-kairos-card-hover hover:border-kairos-gold/30 transition-all duration-300"
-            >
-              <div className="w-full h-40 bg-gradient-to-br from-kairos-card to-kairos-card border border-kairos-border rounded-kairos-sm mb-4 flex items-center justify-center text-kairos-silver-dark">
-                <div className="text-center">
-                  <div className="text-sm font-body text-kairos-silver-dark">{item.thumbnail}</div>
+      {isLoading ? (
+        <div className="text-center py-12">
+          <p className="font-body text-kairos-silver-dark">Loading content...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredContent.length > 0 ? (
+            filteredContent.map((item) => (
+              <div
+                key={item.id}
+                className="kairos-card bg-kairos-card border border-kairos-border hover:bg-kairos-card-hover hover:border-kairos-gold/30 transition-all duration-300"
+              >
+                <div className="w-full h-40 bg-gradient-to-br from-kairos-card to-kairos-card border border-kairos-border rounded-kairos-sm mb-4 flex items-center justify-center text-kairos-silver-dark">
+                  <div className="text-center">
+                    <div className="text-sm font-body text-kairos-silver-dark">{item.thumbnail ?? CATEGORY_LABELS[item.category]}</div>
+                  </div>
+                </div>
+                <div className="space-y-3 mb-4">
+                  <div className="flex gap-2 flex-wrap">
+                    <span className={`px-2 py-1 rounded-kairos-sm text-xs font-body font-semibold ${getCategoryColor(item.category)}`}>
+                      {CATEGORY_LABELS[item.category]}
+                    </span>
+                    <span className={`px-2 py-1 rounded-kairos-sm text-xs font-body font-semibold ${getStatusColor(item.status)}`}>
+                      {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    </span>
+                  </div>
+                  <h3 className="font-heading font-bold text-white line-clamp-2">{item.title}</h3>
+                  <div className="space-y-1">
+                    <p className="font-body text-sm text-kairos-silver-dark">{item.authorName ?? "Unknown"}</p>
+                    <p className="font-body text-xs text-kairos-silver-dark">
+                      {item.publishDate ? new Date(item.publishDate).toLocaleDateString() : "Not published"} • {(item.viewCount ?? 0).toLocaleString()} views
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-4 border-t border-kairos-border">
+                  <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-gold hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold">
+                    <Edit2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </button>
+                  <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-gold hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold">
+                    <Eye className="w-4 h-4" />
+                    <span className="hidden sm:inline">Preview</span>
+                  </button>
+                  <button
+                    onClick={() => archiveMutation.mutate({ id: item.id })}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:text-red-400 hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold"
+                  >
+                    <Archive className="w-4 h-4" />
+                    <span className="hidden sm:inline">Archive</span>
+                  </button>
                 </div>
               </div>
-              <div className="space-y-3 mb-4">
-                <div className="flex gap-2 flex-wrap">
-                  <span className={`px-2 py-1 rounded-kairos-sm text-xs font-body font-semibold ${getCategoryColor(item.category)}`}>
-                    {item.category}
-                  </span>
-                  <span className={`px-2 py-1 rounded-kairos-sm text-xs font-body font-semibold ${getStatusColor(item.status)}`}>
-                    {item.status}
-                  </span>
-                </div>
-                <h3 className="font-heading font-bold text-white line-clamp-2">{item.title}</h3>
-                <div className="space-y-1">
-                  <p className="font-body text-sm text-kairos-silver-dark">{item.author}</p>
-                  <p className="font-body text-xs text-kairos-silver-dark">
-                    {new Date(item.publishDate).toLocaleDateString()} • {item.viewCount.toLocaleString()} views
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2 pt-4 border-t border-kairos-border">
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-gold hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold">
-                  <Edit2 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Edit</span>
-                </button>
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-gold hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold">
-                  <Eye className="w-4 h-4" />
-                  <span className="hidden sm:inline">Preview</span>
-                </button>
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-kairos-card border border-kairos-border text-kairos-silver-dark hover:text-red-400 hover:bg-kairos-card-hover transition-all rounded-kairos-sm font-body text-sm font-semibold">
-                  <Archive className="w-4 h-4" />
-                  <span className="hidden sm:inline">Archive</span>
-                </button>
-              </div>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-12">
+              <p className="font-body text-kairos-silver-dark">No content found matching your filters</p>
             </div>
-          ))
-        ) : (
-          <div className="col-span-full text-center py-12">
-            <p className="font-body text-kairos-silver-dark">No content found matching your filters</p>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
