@@ -12,10 +12,22 @@ import {
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
 import { CompanySelector, useCompanyFilter } from "@/components/admin/CompanySelector";
+import { trpc } from "@/lib/trpc";
 
 export default function AdminSettingsPage() {
   const { theme, setTheme } = useTheme();
   const { selectedCompany, setSelectedCompany, company } = useCompanyFilter();
+  const utils = trpc.useUtils();
+
+  // Determine companyId for scoped queries (undefined = global platform settings)
+  const companyId = company ? company.id : undefined;
+
+  // Fetch persisted platform settings (scoped by company when selected)
+  const { data: savedPlatform } = trpc.admin.platform.getSettings.useQuery({
+    key: "platform",
+    companyId,
+  });
+  const { data: savedNotifs } = trpc.admin.platform.getNotificationPrefs.useQuery();
 
   const [platform, setPlatform] = useState({
     platformName: "KAIROS Health",
@@ -31,11 +43,18 @@ export default function AdminSettingsPage() {
     weeklyDigest: true,
   });
 
-  const [saveMessage, setSaveMessage] = useState("");
-
-  // When a company is selected, show its settings
+  // Hydrate platform settings from DB
   useEffect(() => {
-    if (company) {
+    if (savedPlatform && typeof savedPlatform === "object") {
+      const p = savedPlatform as Record<string, string>;
+      setPlatform((prev) => ({
+        platformName: p.platformName ?? prev.platformName,
+        supportEmail: p.supportEmail ?? prev.supportEmail,
+        maxClientsPerTrainer: p.maxClientsPerTrainer ?? prev.maxClientsPerTrainer,
+        sessionTimeout: p.sessionTimeout ?? prev.sessionTimeout,
+      }));
+    } else if (company) {
+      // Fallback to company info if no saved settings yet
       setPlatform({
         platformName: company.name,
         supportEmail: `admin@${company.slug}.com`,
@@ -50,7 +69,34 @@ export default function AdminSettingsPage() {
         sessionTimeout: "30",
       });
     }
-  }, [company]);
+  }, [savedPlatform, company]);
+
+  // Hydrate notification prefs from DB
+  useEffect(() => {
+    if (savedNotifs && typeof savedNotifs === "object") {
+      const n = savedNotifs as Record<string, { in_app: boolean }>;
+      setNotifications({
+        trainerSignups: n.trainerSignups?.in_app ?? true,
+        revenueAlerts: n.revenueAlerts?.in_app ?? true,
+        systemErrors: n.systemErrors?.in_app ?? true,
+        weeklyDigest: n.weeklyDigest?.in_app ?? true,
+      });
+    }
+  }, [savedNotifs]);
+
+  const [saveMessage, setSaveMessage] = useState("");
+
+  const savePlatformMutation = trpc.admin.platform.saveSettings.useMutation({
+    onSuccess: () => {
+      utils.admin.platform.getSettings.invalidate();
+    },
+  });
+
+  const saveNotifsMutation = trpc.admin.platform.saveNotificationPrefs.useMutation({
+    onSuccess: () => {
+      utils.admin.platform.getNotificationPrefs.invalidate();
+    },
+  });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setPlatform((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -60,9 +106,31 @@ export default function AdminSettingsPage() {
     setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleSaveChanges = () => {
-    setSaveMessage("Changes saved successfully");
-    setTimeout(() => setSaveMessage(""), 3000);
+  const isSaving = savePlatformMutation.isPending || saveNotifsMutation.isPending;
+
+  const handleSaveChanges = async () => {
+    try {
+      await Promise.all([
+        savePlatformMutation.mutateAsync({
+          key: "platform",
+          value: platform as unknown as Record<string, unknown>,
+          companyId,
+        }),
+        saveNotifsMutation.mutateAsync({
+          categories: Object.fromEntries(
+            Object.entries(notifications).map(([k, v]) => [
+              k,
+              { in_app: v, email: v, push: false, sms: false },
+            ]),
+          ),
+        }),
+      ]);
+      setSaveMessage("Changes saved successfully");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } catch {
+      setSaveMessage("Failed to save changes");
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
   };
 
   return (
@@ -239,9 +307,13 @@ export default function AdminSettingsPage() {
       {/* Save */}
       <div className="flex justify-end gap-4">
         <button onClick={() => window.location.reload()} className="kairos-btn-outline">Cancel</button>
-        <button onClick={handleSaveChanges} className="kairos-btn-gold flex items-center gap-2">
+        <button
+          onClick={handleSaveChanges}
+          disabled={isSaving}
+          className="kairos-btn-gold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           <Save className="w-5 h-5" />
-          Save Changes
+          {isSaving ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </div>
