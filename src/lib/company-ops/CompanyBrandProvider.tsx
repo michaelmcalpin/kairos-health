@@ -2,14 +2,13 @@
 
 // ─── Company Brand Context ───────────────────────────────────────
 // Provides white-label branding to the component tree.
-// Loads company from seed data (keyed by localStorage "kairos-company")
-// and exposes brand config + CSS variable overrides.
+// Loads company via tRPC query and exposes brand config + CSS variable overrides.
 
 import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from "react";
 import type { Company } from "./types";
 import type { CompanyBrand } from "./brand";
 import { resolveCompanyBrand, brandCssVars } from "./brand";
-import { getCompany, getCompanies } from "./engine";
+import { trpc } from "@/lib/trpc";
 
 // ─── Context ─────────────────────────────────────────────────────
 
@@ -49,11 +48,19 @@ export function CompanyBrandProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Resolve company from seed data
+  // Fetch company from DB when companyId is set
+  const { data: companyData } = trpc.admin.companies.list.useQuery(
+    { pageSize: 100 },
+    { enabled: mounted, staleTime: 60_000 }
+  );
+
+  // Resolve company from fetched list
   const company = useMemo(() => {
-    if (!companyId) return null;
-    return getCompany(companyId) ?? null;
-  }, [companyId]);
+    if (!companyId || !companyData?.companies) return null;
+    const found = companyData.companies.find((c) => c.id === companyId);
+    if (!found) return null;
+    return found as unknown as Company;
+  }, [companyId, companyData]);
 
   const brand = useMemo(() => resolveCompanyBrand(company), [company]);
   const cssVars = useMemo(() => brandCssVars(brand), [brand]);
@@ -87,5 +94,12 @@ export function useCompanyBrand(): CompanyBrandContextValue {
 // ─── Utility: Get all companies for selectors ────────────────────
 
 export function useCompanyList(): Company[] {
-  return useMemo(() => getCompanies(), []);
+  const { data } = trpc.admin.companies.list.useQuery(
+    { pageSize: 100 },
+    { staleTime: 60_000 }
+  );
+  return useMemo(() => {
+    if (!data?.companies) return [];
+    return data.companies as unknown as Company[];
+  }, [data]);
 }

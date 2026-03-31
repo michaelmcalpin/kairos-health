@@ -58,7 +58,7 @@ export const env = {
   RATE_LIMIT_ENABLED: getEnvBool("RATE_LIMIT_ENABLED", true),
 
   // Feature Flags (loaded from env, overridable via admin panel)
-  ENABLE_DEMO_MODE: getEnvBool("ENABLE_DEMO_MODE", true),
+  ENABLE_DEMO_MODE: getEnvBool("ENABLE_DEMO_MODE", false),
   ENABLE_REALTIME: getEnvBool("ENABLE_REALTIME", true),
   ENABLE_DEVICE_SYNC: getEnvBool("ENABLE_DEVICE_SYNC", false),
   ENABLE_LAB_ORDERING: getEnvBool("ENABLE_LAB_ORDERING", false),
