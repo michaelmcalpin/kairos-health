@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { db } from "@/server/db";
 import { users, clientProfiles, trainerProfiles, deviceConnections, syncLogs } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
+import { logger } from "@/lib/middleware/logger";
 
 type ValidRole = "client" | "trainer" | "company_admin" | "super_admin";
 const VALID_ROLES: ValidRole[] = ["client", "trainer", "company_admin", "super_admin"];
@@ -122,7 +123,7 @@ async function handleClerkWebhook(body: ClerkUserEvent) {
         : "client";
       const companyId = (userData.public_metadata?.companyId as string) || null;
 
-      console.log("[Clerk Webhook] User created:", { clerkId, email, role, companyId });
+      logger.info("webhook:clerk", "User created", { clerkId, email, role, companyId });
 
       // Check if user already exists (idempotent)
       const existing = await db.query.users.findFirst({
@@ -159,7 +160,7 @@ async function handleClerkWebhook(body: ClerkUserEvent) {
       const avatarUrl = userData.image_url;
       const metaRole = userData.public_metadata?.role as string | undefined;
 
-      console.log("[Clerk Webhook] User updated:", { clerkId, email });
+      logger.info("webhook:clerk", "User updated", { clerkId, email });
 
       const existingUser = await db.query.users.findFirst({
         where: eq(users.clerkId, clerkId),
@@ -184,17 +185,17 @@ async function handleClerkWebhook(body: ClerkUserEvent) {
     }
 
     case "user.deleted": {
-      console.log("[Clerk Webhook] User deleted:", { clerkId: userData.id });
+      logger.info("webhook:clerk", "User deleted", { clerkId: userData.id });
       return { success: true, action: "user_deleted" };
     }
 
     case "session.created": {
-      console.log("[Clerk Webhook] Session created for user:", userData.id);
+      logger.debug("webhook:clerk", "Session created", { userId: userData.id });
       return { success: true, action: "session_logged" };
     }
 
     default: {
-      console.log("[Clerk Webhook] Unhandled event type:", eventType);
+      logger.debug("webhook:clerk", "Unhandled event type", { eventType });
       return { success: true, action: "ignored" };
     }
   }
@@ -207,32 +208,32 @@ async function handleStripeWebhook(body: Record<string, unknown>) {
 
   switch (eventType) {
     case "checkout.session.completed": {
-      console.log("[Stripe Webhook] Checkout completed");
+      logger.info("webhook:stripe", "Checkout completed");
       return { success: true, action: "checkout_completed" };
     }
 
     case "customer.subscription.updated": {
-      console.log("[Stripe Webhook] Subscription updated");
+      logger.info("webhook:stripe", "Subscription updated");
       return { success: true, action: "subscription_updated" };
     }
 
     case "customer.subscription.deleted": {
-      console.log("[Stripe Webhook] Subscription cancelled");
+      logger.info("webhook:stripe", "Subscription cancelled");
       return { success: true, action: "subscription_cancelled" };
     }
 
     case "invoice.payment_succeeded": {
-      console.log("[Stripe Webhook] Payment succeeded");
+      logger.info("webhook:stripe", "Payment succeeded");
       return { success: true, action: "payment_recorded" };
     }
 
     case "invoice.payment_failed": {
-      console.log("[Stripe Webhook] Payment failed");
+      logger.warn("webhook:stripe", "Payment failed");
       return { success: true, action: "payment_failed_logged" };
     }
 
     default: {
-      console.log("[Stripe Webhook] Unhandled event:", eventType);
+      logger.debug("webhook:stripe", "Unhandled event", { eventType });
       return { success: true, action: "ignored" };
     }
   }
@@ -254,7 +255,7 @@ async function handleDeviceWebhook(
   body: DeviceWebhookPayload,
 ): Promise<{ success: boolean; action: string }> {
   const eventType = body.event_type || body.type || "data_updated";
-  console.log(`[${provider} Webhook] Event: ${eventType}`, {
+  logger.info(`webhook:${provider}`, `Event: ${eventType}`, {
     userId: body.user_id,
     dataType: body.data_type,
   });
@@ -273,7 +274,7 @@ async function handleDeviceWebhook(
         startedAt: new Date(),
       });
 
-      console.log(`[${provider} Webhook] Queued sync for connection ${conn.id}`);
+      logger.debug(`webhook:${provider}`, "Queued sync", { connectionId: conn.id });
     }
   }
 
@@ -305,7 +306,7 @@ export async function POST(req: Request, { params }: { params: { provider: strin
 
         if (clerkWebhookSecret) {
           if (!svixId || !svixTimestamp || !svixSignature) {
-            console.error("[Clerk Webhook] Missing svix headers");
+            logger.error("webhook:clerk", "Missing svix headers");
             return NextResponse.json({ error: "Missing signature headers" }, { status: 401 });
           }
 
@@ -313,16 +314,16 @@ export async function POST(req: Request, { params }: { params: { provider: strin
           const timestampSec = parseInt(svixTimestamp, 10);
           const now = Math.floor(Date.now() / 1000);
           if (Math.abs(now - timestampSec) > 300) {
-            console.error("[Clerk Webhook] Timestamp too old");
+            logger.error("webhook:clerk", "Timestamp expired", { age: Math.abs(now - timestampSec) });
             return NextResponse.json({ error: "Timestamp expired" }, { status: 401 });
           }
 
           if (!verifySvixSignature(rawBody, svixId, svixTimestamp, svixSignature, clerkWebhookSecret)) {
-            console.error("[Clerk Webhook] Invalid signature");
+            logger.error("webhook:clerk", "Invalid signature");
             return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
           }
         } else {
-          console.warn("[Clerk Webhook] CLERK_WEBHOOK_SECRET not set — skipping verification");
+          logger.warn("webhook:clerk", "CLERK_WEBHOOK_SECRET not set — skipping verification");
         }
 
         const result = await handleClerkWebhook(body as ClerkUserEvent);
@@ -335,16 +336,16 @@ export async function POST(req: Request, { params }: { params: { provider: strin
 
         if (stripeWebhookSecret) {
           if (!stripeSignature) {
-            console.error("[Stripe Webhook] Missing stripe-signature header");
+            logger.error("webhook:stripe", "Missing stripe-signature header");
             return NextResponse.json({ error: "Missing signature" }, { status: 401 });
           }
 
           if (!verifyStripeSignature(rawBody, stripeSignature, stripeWebhookSecret)) {
-            console.error("[Stripe Webhook] Invalid signature");
+            logger.error("webhook:stripe", "Invalid signature");
             return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
           }
         } else {
-          console.warn("[Stripe Webhook] STRIPE_WEBHOOK_SECRET not set — skipping verification");
+          logger.warn("webhook:stripe", "STRIPE_WEBHOOK_SECRET not set — skipping verification");
         }
 
         const result = await handleStripeWebhook(body as Record<string, unknown>);
@@ -356,7 +357,7 @@ export async function POST(req: Request, { params }: { params: { provider: strin
         if (ouraSecret) {
           const providedSig = headersList.get("x-oura-signature");
           if (!providedSig || !verifyHmacSignature(rawBody, providedSig, ouraSecret)) {
-            console.error("[Oura Webhook] Invalid or missing signature");
+            logger.error("webhook:oura", "Invalid or missing signature");
             return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
           }
         }
@@ -370,7 +371,7 @@ export async function POST(req: Request, { params }: { params: { provider: strin
         if (whoopSecret) {
           const providedSig = headersList.get("x-whoop-signature");
           if (!providedSig || !verifyHmacSignature(rawBody, providedSig, whoopSecret)) {
-            console.error("[WHOOP Webhook] Invalid or missing signature");
+            logger.error("webhook:whoop", "Invalid or missing signature");
             return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
           }
         }
@@ -389,7 +390,7 @@ export async function POST(req: Request, { params }: { params: { provider: strin
         if (withingsSecret) {
           const providedSig = headersList.get("x-withings-signature");
           if (!providedSig || !verifyHmacSignature(rawBody, providedSig, withingsSecret)) {
-            console.error("[Withings Webhook] Invalid or missing signature");
+            logger.error("webhook:withings", "Invalid or missing signature");
             return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
           }
         }
@@ -402,7 +403,9 @@ export async function POST(req: Request, { params }: { params: { provider: strin
         return NextResponse.json({ error: "Unknown provider" }, { status: 404 });
     }
   } catch (error) {
-    console.error(`[Webhook] Error processing ${provider} webhook:`, error);
+    logger.error("webhook", `Error processing ${provider} webhook`, {
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json(
       { error: "Webhook processing failed" },
       { status: 500 }

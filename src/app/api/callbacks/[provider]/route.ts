@@ -3,6 +3,7 @@ import { db } from "@/server/db";
 import { deviceConnections } from "@/server/db/schema";
 import { PROVIDERS, getProviderEnvKeys } from "@/lib/integrations/devices/providers";
 import { eq, and } from "drizzle-orm";
+import { logger } from "@/lib/middleware/logger";
 
 /**
  * OAuth Callback Handler
@@ -26,7 +27,7 @@ export async function GET(
     // Handle OAuth errors from provider
     if (error) {
       const errorDescription = url.searchParams.get("error_description") || error;
-      console.error(`[OAuth] ${providerId} error: ${errorDescription}`);
+      logger.error("oauth", `${providerId} error: ${errorDescription}`);
       return NextResponse.redirect(
         new URL(`/settings?error=${encodeURIComponent(errorDescription)}`, req.url)
       );
@@ -45,7 +46,7 @@ export async function GET(
       const stateBuffer = Buffer.from(state, "base64");
       decodedState = JSON.parse(stateBuffer.toString("utf-8"));
     } catch (err) {
-      console.error("[OAuth] Failed to decode state:", err);
+      logger.error("oauth", "Failed to decode state", { error: err instanceof Error ? err.message : "Unknown" });
       return NextResponse.redirect(
         new URL("/settings?error=Invalid state parameter", req.url)
       );
@@ -55,7 +56,7 @@ export async function GET(
 
     // Verify state provider matches URL provider
     if (stateProvider !== providerId) {
-      console.error(`[OAuth] Provider mismatch: ${stateProvider} vs ${providerId}`);
+      logger.error("oauth", "Provider mismatch", { stateProvider, urlProvider: providerId });
       return NextResponse.redirect(
         new URL("/settings?error=Provider mismatch", req.url)
       );
@@ -64,7 +65,7 @@ export async function GET(
     // Get provider configuration
     const providerConfig = PROVIDERS[providerId];
     if (!providerConfig) {
-      console.error(`[OAuth] Unknown provider: ${providerId}`);
+      logger.error("oauth", "Unknown provider", { provider: providerId });
       return NextResponse.redirect(
         new URL("/settings?error=Unknown provider", req.url)
       );
@@ -76,7 +77,7 @@ export async function GET(
     const clientSecret = process.env[envKeys.clientSecret];
 
     if (!clientId || !clientSecret) {
-      console.error(`[OAuth] Missing credentials for ${providerId}`);
+      logger.error("oauth", "Missing credentials", { provider: providerId });
       return NextResponse.redirect(
         new URL("/settings?error=Provider not configured", req.url)
       );
@@ -97,9 +98,7 @@ export async function GET(
 
     if (!tokenRes.ok) {
       const error = await tokenRes.text();
-      console.error(
-        `[OAuth] Token exchange failed for ${providerId}: ${tokenRes.status} ${error}`
-      );
+      logger.error("oauth", "Token exchange failed", { provider: providerId, status: tokenRes.status });
       return NextResponse.redirect(
         new URL(`/settings?error=${encodeURIComponent("Token exchange failed")}`, req.url)
       );
@@ -116,7 +115,7 @@ export async function GET(
       : providerConfig.scopes;
 
     if (!accessToken) {
-      console.error(`[OAuth] No access token in response from ${providerId}`);
+      logger.error("oauth", "No access token in response", { provider: providerId });
       return NextResponse.redirect(
         new URL("/settings?error=No access token received", req.url)
       );
@@ -153,7 +152,7 @@ export async function GET(
         })
         .where(eq(deviceConnections.id, existingConnection[0].id));
 
-      console.log(`[OAuth] Updated device connection for ${providerId}/${userId}`);
+      logger.info("oauth", "Updated device connection", { provider: providerId, userId });
     } else {
       // Insert new connection
       await db.insert(deviceConnections).values({
@@ -166,7 +165,7 @@ export async function GET(
         status: "connected",
       });
 
-      console.log(`[OAuth] Created device connection for ${providerId}/${userId}`);
+      logger.info("oauth", "Created device connection", { provider: providerId, userId });
     }
 
     // Redirect to settings with success
@@ -174,7 +173,7 @@ export async function GET(
       new URL(`/settings?connected=${providerId}`, req.url)
     );
   } catch (err) {
-    console.error("[OAuth] Callback handler error:", err);
+    logger.error("oauth", "Callback handler error", { error: err instanceof Error ? err.message : "Unknown" });
     return NextResponse.redirect(
       new URL(
         `/settings?error=${encodeURIComponent("An error occurred during authentication")}`,

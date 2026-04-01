@@ -1,4 +1,5 @@
 import { z } from "zod";
+import crypto from "crypto";
 import { router, clientProcedure } from "@/server/trpc";
 
 // In-memory import history (production would use DB)
@@ -25,7 +26,7 @@ export const clientImportsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const id = `imp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      const id = `imp_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
       const record = {
         id,
         userId: ctx.dbUserId,

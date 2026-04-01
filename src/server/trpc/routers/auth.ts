@@ -3,6 +3,7 @@ import { router, publicProcedure, protectedProcedure } from "@/server/trpc";
 import { users, clientProfiles, trainerProfiles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { auth as clerkAuth, currentUser, clerkClient } from "@clerk/nextjs/server";
+import { logger } from "@/lib/middleware/logger";
 
 export const authRouter = router({
   /**
@@ -42,7 +43,7 @@ export const authRouter = router({
           return { user: updated, created: false };
         }
       } catch (e) {
-        console.error("[ensureUser] Failed to sync role from Clerk:", e);
+        logger.error("auth", "Failed to sync role from Clerk", { error: e instanceof Error ? e.message : "Unknown" });
       }
       return { user: existing, created: false };
     }

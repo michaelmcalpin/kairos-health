@@ -8,6 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { constructWebhookEvent, processWebhookEvent } from "@/lib/integrations/stripe";
+import { logger } from "@/lib/middleware/logger";
 
 export async function POST(req: Request) {
   const signature = req.headers.get("stripe-signature");
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[Stripe Webhook] Error:", message);
+    logger.error("webhook:stripe", "Processing error", { error: message });
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

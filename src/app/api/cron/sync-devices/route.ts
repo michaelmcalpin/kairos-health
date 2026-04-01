@@ -13,6 +13,7 @@ import { db } from "@/server/db";
 import { deviceConnections } from "@/server/db/schema";
 import { eq, and, lt, or } from "drizzle-orm";
 import { syncEngine } from "@/lib/integrations/devices/sync-engine";
+import { logger } from "@/lib/middleware/logger";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max for Vercel Pro
@@ -44,14 +45,14 @@ export async function GET(req: Request) {
       ),
     });
 
-    console.log(`[Cron] Found ${connectionsToSync.length} connections to sync`);
+    logger.info("cron", `Found ${connectionsToSync.length} connections to sync`);
 
     // Process each connection
     for (const conn of connectionsToSync) {
       try {
         // Check and refresh token if needed
         if (syncEngine.isTokenExpired(conn)) {
-          console.log(`[Cron] Refreshing token for ${conn.provider} (${conn.id})`);
+          logger.info("cron", `Refreshing token for ${conn.provider}`, { connectionId: conn.id });
           await syncEngine.refreshToken(conn);
         }
 
@@ -71,7 +72,7 @@ export async function GET(req: Request) {
         });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
-        console.error(`[Cron] Failed to sync ${conn.provider} (${conn.id}):`, errorMsg);
+        logger.error("cron", `Failed to sync ${conn.provider}`, { connectionId: conn.id, error: errorMsg });
         results.push({
           provider: conn.provider,
           userId: conn.clientId,
@@ -85,9 +86,12 @@ export async function GET(req: Request) {
     const totalErrors = results.reduce((sum, r) => sum + r.errors.length, 0);
     const durationMs = Date.now() - startTime;
 
-    console.log(
-      `[Cron] Sync complete: ${connectionsToSync.length} connections, ${totalSynced} records, ${totalErrors} errors, ${durationMs}ms`,
-    );
+    logger.info("cron", "Sync complete", {
+      connections: connectionsToSync.length,
+      totalRecords: totalSynced,
+      totalErrors,
+      durationMs,
+    });
 
     return NextResponse.json({
       success: true,
@@ -98,7 +102,7 @@ export async function GET(req: Request) {
       results,
     });
   } catch (err) {
-    console.error("[Cron] Sync devices failed:", err);
+    logger.error("cron", "Sync devices failed", { error: err instanceof Error ? err.message : "Unknown error" });
     return NextResponse.json(
       { error: "Sync failed", message: err instanceof Error ? err.message : "Unknown error" },
       { status: 500 },
