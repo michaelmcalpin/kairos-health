@@ -7,8 +7,9 @@ import {
   alerts,
   sleepSessions,
   glucoseReadings,
+  appointments,
 } from "@/server/db/schema";
-import { eq, desc, and, sql, gte } from "drizzle-orm";
+import { eq, desc, and, sql, gte, between } from "drizzle-orm";
 
 // ─── Tier pricing for revenue calculation ─────────────────────
 const TIER_PRICING: Record<string, number> = {
@@ -16,16 +17,6 @@ const TIER_PRICING: Record<string, number> = {
   tier2: 900,
   tier3: 450,
 };
-
-// ─── Seeded random for schedule generation ────────────────────
-// (No appointments table yet — schedule is server-generated demo data)
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed * 9301 + 49297) * 233280;
-  return x - Math.floor(x);
-}
-function seededInt(seed: number, min: number, max: number): number {
-  return Math.floor(seededRandom(seed) * (max - min + 1)) + min;
-}
 
 export const coachDashboardRouter = router({
   /**
@@ -42,7 +33,7 @@ export const coachDashboardRouter = router({
         endDate: z.string(),
       })
     )
-    .query(async ({ ctx }) => {
+    .query(async ({ ctx, input }) => {
       const trainerId = ctx.dbUserId;
 
       // ── Fetch active client relationships ──────────────────
@@ -116,10 +107,18 @@ export const coachDashboardRouter = router({
         : 0;
       const revenue = clientDetails.reduce((s, c) => s + (TIER_PRICING[c.tier] ?? 450), 0);
 
-      // Session count — will come from appointments table in the future
-      const dateSeed = hashStr(ctx.dbUserId);
-      const totalSessions = seededInt(dateSeed + 1, 12, 28);
-      const avgResponse = seededInt(dateSeed + 15, 5, 20);
+      // Real session count from appointments table
+      const sessionsResult = await ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.coachId, trainerId),
+            gte(appointments.date, sql`${input.startDate}::date`),
+            sql`${appointments.date} <= ${input.endDate}::date`,
+          )
+        );
+      const totalSessions = Number(sessionsResult[0]?.count ?? 0);
 
       type KPI = {
         label: string;
@@ -134,46 +133,38 @@ export const coachDashboardRouter = router({
         {
           label: "Active Clients",
           value: totalClients,
-          trend: "up",
-          trendValue: `+${Math.min(totalClients, seededInt(dateSeed + 10, 1, 3))} this month`,
+          trend: "flat",
+          trendValue: `${totalClients} total`,
           icon: "users",
         },
         {
           label: "Pending Alerts",
           value: pendingAlerts,
-          trend: pendingAlerts > 3 ? "up" : "down",
-          trendValue: pendingAlerts > 3 ? `+${seededInt(dateSeed + 11, 1, 3)}` : `-${seededInt(dateSeed + 11, 1, 3)}`,
+          trend: pendingAlerts > 3 ? "up" : "flat",
+          trendValue: `${pendingAlerts} active`,
           icon: "bell",
         },
         {
           label: "Sessions",
           value: totalSessions,
-          trend: "up",
-          trendValue: `+${seededInt(dateSeed + 12, 2, 8)}`,
+          trend: "flat",
+          trendValue: "this period",
           icon: "calendar",
         },
         {
           label: "Avg Health Score",
           value: avgHealthScore,
           unit: "/100",
-          trend: "up",
-          trendValue: `+${seededInt(dateSeed + 13, 1, 6)} pts`,
+          trend: "flat",
+          trendValue: "across clients",
           icon: "trending",
         },
         {
           label: "Revenue",
           value: `$${revenue.toLocaleString()}`,
-          trend: "up",
-          trendValue: `+${seededInt(dateSeed + 14, 5, 15)}%`,
+          trend: "flat",
+          trendValue: "monthly",
           icon: "dollar",
-        },
-        {
-          label: "Avg Response",
-          value: avgResponse,
-          unit: "min",
-          trend: "down",
-          trendValue: `-${seededInt(dateSeed + 16, 2, 8)} min`,
-          icon: "clock",
         },
       ];
 
@@ -193,21 +184,41 @@ export const coachDashboardRouter = router({
           status: c.status,
         }));
 
-      // ── Today's Schedule (server-generated until appointments table) ──
-      const sessionTypes = ["Check-in", "Protocol Review", "Lab Review", "Follow-up", "Assessment"];
-      const scheduleCount = Math.min(seededInt(dateSeed + 30, 3, 6), Math.max(1, totalClients));
-      const todaySchedule = Array.from({ length: scheduleCount }, (_, i) => {
-        const hour = 8 + Math.floor(seededRandom(dateSeed + 40 + i) * 9);
-        const minute = Math.floor(seededRandom(dateSeed + 50 + i) * 4) * 15;
-        const clientIdx = Math.min(i, clientDetails.length - 1);
-        const client = clientDetails[clientIdx];
-        return {
-          id: `sched_${i}`,
-          time: `${hour > 12 ? hour - 12 : hour}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`,
-          client: client?.name ?? "Client",
-          type: sessionTypes[seededInt(dateSeed + 70 + i, 0, sessionTypes.length - 1)],
-        };
-      }).sort((a, b) => a.time.localeCompare(b.time));
+      // ── Today's Schedule from real appointments ──────────────
+      const today = new Date().toISOString().split("T")[0];
+      const todayAppointments = await ctx.db.query.appointments.findMany({
+        where: and(
+          eq(appointments.coachId, trainerId),
+          sql`${appointments.date}::text = ${today}`,
+        ),
+      });
+
+      const todaySchedule = await Promise.all(
+        todayAppointments.map(async (appt) => {
+          const clientUser = await ctx.db.query.users.findFirst({
+            where: eq(users.id, appt.clientId),
+          });
+          const clientName = clientUser
+            ? `${clientUser.firstName ?? ""} ${clientUser.lastName ?? ""}`.trim() || clientUser.email
+            : "Client";
+
+          // Format time from 24h "HH:MM" to 12h
+          const [h, m] = appt.startTime.split(":").map(Number);
+          const ampm = h >= 12 ? "PM" : "AM";
+          const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+          const timeStr = `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+
+          return {
+            id: appt.id,
+            time: timeStr,
+            client: clientName,
+            type: appt.sessionType ?? "Follow-up",
+          };
+        })
+      );
+
+      // Sort by time
+      todaySchedule.sort((a, b) => a.time.localeCompare(b.time));
 
       return { kpis, priorityClients, todaySchedule };
     }),
@@ -323,12 +334,3 @@ export const coachDashboardRouter = router({
   }),
 });
 
-// ─── Helpers ──────────────────────────────────────────────────
-
-function hashStr(s: string): number {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) {
-    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
-}

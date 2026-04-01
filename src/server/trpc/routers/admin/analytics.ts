@@ -3,7 +3,7 @@
  *
  * tRPC endpoints for platform analytics: growth, engagement,
  * retention, coach performance, revenue metrics, and platform health.
- * All anchored to real DB counts with computed time-series visualizations.
+ * All data is derived from real DB aggregations.
  */
 
 import { z } from "zod";
@@ -13,29 +13,23 @@ import {
   trainerProfiles,
   trainerClientRelationships,
   clientProfiles,
+  dailyCheckins,
+  messages,
+  healthGoals,
+  appointments,
+  trainerReviews,
+  subscriptions,
+  mealLogs,
+  workoutLogs,
+  adherenceLogs,
+  sleepSessions,
+  glucoseReadings,
+  deviceConnections,
 } from "@/server/db/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, gte, lte, between, count as drizzleCount } from "drizzle-orm";
 
-// ─── Seeded Random (for time-series visualization data) ──────────
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed * 9301 + 49297) * 233280;
-  return x - Math.floor(x);
-}
-function seededInt(seed: number, min: number, max: number): number {
-  return Math.floor(seededRandom(seed) * (max - min + 1)) + min;
-}
-function seededFloat(seed: number, min: number, max: number, decimals = 1): number {
-  const val = seededRandom(seed) * (max - min) + min;
-  const factor = Math.pow(10, decimals);
-  return Math.round(val * factor) / factor;
-}
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
-}
+// ─── Date Helpers ───────────────────────────────────────────────
+
 function getMonthsBetween(start: string, end: string): string[] {
   const months: string[] = [];
   const startDate = new Date(start + "T00:00:00");
@@ -54,6 +48,7 @@ function getMonthsBetween(start: string, end: string): string[] {
   }
   return months;
 }
+
 function getDaysBetween(start: string, end: string): string[] {
   const days: string[] = [];
   const current = new Date(start + "T00:00:00");
@@ -64,6 +59,7 @@ function getDaysBetween(start: string, end: string): string[] {
   }
   return days;
 }
+
 function getMonthLabel(dateStr: string): string {
   const [year, month] = dateStr.split("-").map(Number);
   return new Date(year, month - 1, 15).toLocaleDateString("en-US", { month: "short", year: "numeric" });
@@ -71,18 +67,14 @@ function getMonthLabel(dateStr: string): string {
 
 const tierPricing: Record<string, number> = { tier1: 499, tier2: 249, tier3: 99 };
 
-const FEATURE_NAMES = [
-  "Daily Check-ins", "Goal Tracking", "Health Insights", "Coach Messaging",
-  "Supplement Logging", "Glucose Monitoring", "Sleep Tracking",
-  "Nutrition Logging", "Workout Logging", "Lab Results",
-];
-
 const dateRangeInput = z.object({
   startDate: z.string(),
   endDate: z.string(),
 });
 
-// ─── Helper: get real DB counts ─────────────────────────────────
+// ─── Real DB Aggregation Helpers ────────────────────────────────
+
+/** Core user/revenue counts from real data */
 async function getRealCounts(db: any) {
   const userCounts = await db
     .select({ role: users.role, count: sql<number>`count(*)` })
@@ -94,7 +86,6 @@ async function getRealCounts(db: any) {
   const totalClients = roleMap.get("client") ?? 0;
   const totalTrainers = roleMap.get("trainer") ?? 0;
 
-  // Active clients by tier
   const tierBreakdown = await db
     .select({ tier: clientProfiles.tier, count: sql<number>`count(*)` })
     .from(clientProfiles)
@@ -113,6 +104,202 @@ async function getRealCounts(db: any) {
   return { totalUsers, totalClients, totalTrainers, mrr, tierCounts };
 }
 
+/** Count users created per month within a date range */
+async function getUserGrowthByMonth(db: any, startDate: string, endDate: string) {
+  const rows = await db
+    .select({
+      month: sql<string>`to_char(${users.createdAt}, 'YYYY-MM')`,
+      role: users.role,
+      count: sql<number>`count(*)`,
+    })
+    .from(users)
+    .where(
+      and(
+        gte(users.createdAt, sql`${startDate}::date`),
+        lte(users.createdAt, sql`(${endDate}::date + interval '1 month')`)
+      )
+    )
+    .groupBy(sql`to_char(${users.createdAt}, 'YYYY-MM')`, users.role);
+
+  const monthMap = new Map<string, { clients: number; trainers: number; others: number }>();
+  for (const row of rows) {
+    const existing = monthMap.get(row.month) ?? { clients: 0, trainers: 0, others: 0 };
+    const c = Number(row.count);
+    if (row.role === "client") existing.clients += c;
+    else if (row.role === "trainer") existing.trainers += c;
+    else existing.others += c;
+    monthMap.set(row.month, existing);
+  }
+  return monthMap;
+}
+
+/** Count daily check-ins per day within a date range */
+async function getCheckinsByDay(db: any, startDate: string, endDate: string) {
+  const rows = await db
+    .select({
+      date: sql<string>`${dailyCheckins.date}::text`,
+      count: sql<number>`count(distinct ${dailyCheckins.clientId})`,
+    })
+    .from(dailyCheckins)
+    .where(
+      and(
+        gte(dailyCheckins.date, sql`${startDate}::date`),
+        lte(dailyCheckins.date, sql`${endDate}::date`)
+      )
+    )
+    .groupBy(dailyCheckins.date);
+
+  return new Map<string, number>(rows.map((r: any) => [r.date, Number(r.count)]));
+}
+
+/** Count messages sent per day within a date range */
+async function getMessagesByDay(db: any, startDate: string, endDate: string) {
+  const rows = await db
+    .select({
+      date: sql<string>`to_char(${messages.createdAt}, 'YYYY-MM-DD')`,
+      count: sql<number>`count(*)`,
+    })
+    .from(messages)
+    .where(
+      and(
+        gte(messages.createdAt, sql`${startDate}::date`),
+        lte(messages.createdAt, sql`(${endDate}::date + interval '1 day')`)
+      )
+    )
+    .groupBy(sql`to_char(${messages.createdAt}, 'YYYY-MM-DD')`);
+
+  return new Map<string, number>(rows.map((r: any) => [r.date, Number(r.count)]));
+}
+
+/** Count goal updates per day */
+async function getGoalUpdatesByDay(db: any, startDate: string, endDate: string) {
+  const rows = await db
+    .select({
+      date: sql<string>`to_char(${healthGoals.updatedAt}, 'YYYY-MM-DD')`,
+      count: sql<number>`count(*)`,
+    })
+    .from(healthGoals)
+    .where(
+      and(
+        gte(healthGoals.updatedAt, sql`${startDate}::date`),
+        lte(healthGoals.updatedAt, sql`(${endDate}::date + interval '1 day')`)
+      )
+    )
+    .groupBy(sql`to_char(${healthGoals.updatedAt}, 'YYYY-MM-DD')`);
+
+  return new Map<string, number>(rows.map((r: any) => [r.date, Number(r.count)]));
+}
+
+/** Feature usage: count distinct users who used each feature in the date range */
+async function getFeatureUsageCounts(db: any, startDate: string, endDate: string, totalClients: number) {
+  const dateFilter = (col: any) =>
+    and(gte(col, sql`${startDate}::date`), lte(col, sql`${endDate}::date`));
+  const tsFilter = (col: any) =>
+    and(gte(col, sql`${startDate}::date`), lte(col, sql`(${endDate}::date + interval '1 day')`));
+
+  // Run all feature counts in parallel
+  const [checkinUsers, mealUsers, workoutUsers, supplementUsers, sleepUsers, glucoseUsers, goalUsers, messageUsers] =
+    await Promise.all([
+      db.select({ count: sql<number>`count(distinct ${dailyCheckins.clientId})` }).from(dailyCheckins).where(dateFilter(dailyCheckins.date)),
+      db.select({ count: sql<number>`count(distinct ${mealLogs.clientId})` }).from(mealLogs).where(dateFilter(mealLogs.date)),
+      db.select({ count: sql<number>`count(distinct ${workoutLogs.clientId})` }).from(workoutLogs).where(dateFilter(workoutLogs.date)),
+      db.select({ count: sql<number>`count(distinct ${adherenceLogs.clientId})` }).from(adherenceLogs).where(dateFilter(adherenceLogs.date)),
+      db.select({ count: sql<number>`count(distinct ${sleepSessions.clientId})` }).from(sleepSessions).where(dateFilter(sleepSessions.date)),
+      db.select({ count: sql<number>`count(distinct ${glucoseReadings.clientId})` }).from(glucoseReadings).where(tsFilter(glucoseReadings.timestamp)),
+      db.select({ count: sql<number>`count(distinct ${healthGoals.clientId})` }).from(healthGoals).where(tsFilter(healthGoals.updatedAt)),
+      db.select({ count: sql<number>`count(distinct ${messages.senderId})` }).from(messages).where(tsFilter(messages.createdAt)),
+    ]);
+
+  const base = Math.max(1, totalClients);
+  const features = [
+    { feature: "Daily Check-ins", users: Number(checkinUsers[0]?.count ?? 0) },
+    { feature: "Nutrition Logging", users: Number(mealUsers[0]?.count ?? 0) },
+    { feature: "Workout Logging", users: Number(workoutUsers[0]?.count ?? 0) },
+    { feature: "Supplement Logging", users: Number(supplementUsers[0]?.count ?? 0) },
+    { feature: "Sleep Tracking", users: Number(sleepUsers[0]?.count ?? 0) },
+    { feature: "Glucose Monitoring", users: Number(glucoseUsers[0]?.count ?? 0) },
+    { feature: "Goal Tracking", users: Number(goalUsers[0]?.count ?? 0) },
+    { feature: "Coach Messaging", users: Number(messageUsers[0]?.count ?? 0) },
+  ];
+
+  return features.map((f) => ({
+    feature: f.feature,
+    usageRate: Math.round((f.users / base) * 1000) / 10,
+    activeUsers: f.users,
+    trend: "stable" as "up" | "down" | "stable", // Would need prior-period comparison for real trend
+    changePercent: 0,
+  })).sort((a, b) => b.usageRate - a.usageRate);
+}
+
+/** Cohort retention: users grouped by signup month, check activity in subsequent months */
+async function getCohortRetention(db: any, startDate: string, endDate: string) {
+  // Get users grouped by signup month
+  const cohortUsers = await db
+    .select({
+      month: sql<string>`to_char(${users.createdAt}, 'YYYY-MM')`,
+      userId: users.id,
+    })
+    .from(users)
+    .where(
+      and(
+        eq(users.role, "client"),
+        gte(users.createdAt, sql`${startDate}::date`),
+        lte(users.createdAt, sql`(${endDate}::date + interval '1 month')`)
+      )
+    );
+
+  // Group user IDs by cohort month
+  const cohortMap = new Map<string, string[]>();
+  for (const row of cohortUsers) {
+    const existing = cohortMap.get(row.month) ?? [];
+    existing.push(row.userId);
+    cohortMap.set(row.month, existing);
+  }
+
+  // For each cohort, check how many users had check-ins in subsequent months
+  const months = getMonthsBetween(startDate, endDate);
+  const cohorts = [];
+
+  for (const [cohortMonth, userIds] of Array.from(cohortMap.entries())) {
+    if (userIds.length === 0) continue;
+    const cohortIndex = months.indexOf(cohortMonth);
+    if (cohortIndex < 0) continue;
+
+    const retention: number[] = [100]; // Month 0 is always 100%
+    const maxMonths = Math.min(7, months.length - cohortIndex);
+
+    for (let m = 1; m < maxMonths; m++) {
+      const checkMonth = months[cohortIndex + m];
+      if (!checkMonth) break;
+
+      // Count how many cohort users had a check-in in this month
+      const activeResult = await db
+        .select({ count: sql<number>`count(distinct ${dailyCheckins.clientId})` })
+        .from(dailyCheckins)
+        .where(
+          and(
+            sql`${dailyCheckins.clientId} IN (${sql.join(userIds.map(id => sql`${id}::uuid`), sql`, `)})`,
+            sql`to_char(${dailyCheckins.date}, 'YYYY-MM') = ${checkMonth}`
+          )
+        );
+
+      const activeCount = Number(activeResult[0]?.count ?? 0);
+      retention.push(Math.round((activeCount / userIds.length) * 1000) / 10);
+    }
+
+    cohorts.push({
+      cohort: cohortMonth,
+      label: getMonthLabel(cohortMonth),
+      totalUsers: userIds.length,
+      retention,
+    });
+  }
+
+  return cohorts;
+}
+
+// ─── Analytics Router ───────────────────────────────────────────
+
 export const adminAnalyticsRouter = router({
   /** Full analytics dashboard in one call */
   getDashboard: adminProcedure
@@ -120,15 +307,16 @@ export const adminAnalyticsRouter = router({
     .query(async ({ ctx, input }) => {
       const db = ctx.db;
       const counts = await getRealCounts(db);
-      const baseSeed = hashString(input.startDate);
 
-      // Build all sections
-      const growth = buildGrowth(input, counts, baseSeed);
-      const engagement = buildEngagement(input, counts, baseSeed);
-      const retention = buildRetention(input, baseSeed);
-      const coachPerformance = await buildCoachPerformance(db, baseSeed);
-      const platformHealth = buildPlatformHealth();
-      const revenue = buildRevenue(input, counts, baseSeed);
+      const [growth, engagement, retention, coachPerformance, platformHealth, revenue] =
+        await Promise.all([
+          buildGrowth(db, input, counts),
+          buildEngagement(db, input, counts),
+          buildRetention(db, input),
+          buildCoachPerformance(db, input),
+          buildPlatformHealth(db),
+          buildRevenue(input, counts),
+        ]);
 
       return {
         growth,
@@ -145,31 +333,107 @@ export const adminAnalyticsRouter = router({
   getKPIs: adminProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const counts = await getRealCounts(ctx.db);
-      const baseSeed = hashString(input.startDate + "kpis");
-      const trainerCount = counts.totalTrainers;
+      const db = ctx.db;
+      const counts = await getRealCounts(db);
+
+      // Get period-over-period comparison for trends
+      const periodLength = Math.max(
+        1,
+        Math.round(
+          (new Date(input.endDate).getTime() - new Date(input.startDate).getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+      );
+      const prevStart = new Date(new Date(input.startDate).getTime() - periodLength * 86400000)
+        .toISOString()
+        .split("T")[0];
+      const prevEnd = new Date(new Date(input.startDate).getTime() - 86400000)
+        .toISOString()
+        .split("T")[0];
+
+      // Users created in current vs previous period
+      const [currentNewUsers, prevNewUsers] = await Promise.all([
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(users)
+          .where(
+            and(
+              gte(users.createdAt, sql`${input.startDate}::date`),
+              lte(users.createdAt, sql`(${input.endDate}::date + interval '1 day')`)
+            )
+          ),
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(users)
+          .where(
+            and(
+              gte(users.createdAt, sql`${prevStart}::date`),
+              lte(users.createdAt, sql`(${prevEnd}::date + interval '1 day')`)
+            )
+          ),
+      ]);
+
+      const curNew = Number(currentNewUsers[0]?.count ?? 0);
+      const prvNew = Number(prevNewUsers[0]?.count ?? 0);
+      const userTrend = prvNew > 0 ? Math.round(((curNew - prvNew) / prvNew) * 1000) / 10 : 0;
+
+      // Active clients (those with a check-in in the period)
+      const activeClientsResult = await db
+        .select({ count: sql<number>`count(distinct ${dailyCheckins.clientId})` })
+        .from(dailyCheckins)
+        .where(
+          and(
+            gte(dailyCheckins.date, sql`${input.startDate}::date`),
+            lte(dailyCheckins.date, sql`${input.endDate}::date`)
+          )
+        );
+      const activeClients = Number(activeClientsResult[0]?.count ?? 0);
+
+      // Inactive users in the period (clients who didn't check in)
+      const inactiveResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(users)
+        .where(
+          and(
+            eq(users.role, "client"),
+            eq(users.status, "active"),
+            sql`${users.id} NOT IN (
+              SELECT DISTINCT ${dailyCheckins.clientId} FROM ${dailyCheckins}
+              WHERE ${dailyCheckins.date} >= ${input.startDate}::date
+              AND ${dailyCheckins.date} <= ${input.endDate}::date
+            )`
+          )
+        );
+      const inactiveClients = Number(inactiveResult[0]?.count ?? 0);
+      const churnRate =
+        counts.totalClients > 0
+          ? Math.round((inactiveClients / counts.totalClients) * 1000) / 10
+          : 0;
 
       return [
         {
           label: "Total Users",
           value: String(counts.totalUsers),
           numericValue: counts.totalUsers,
-          trend: seededFloat(baseSeed, 3, 15),
-          trendLabel: "this period",
+          trend: userTrend,
+          trendLabel: "vs prior period",
           icon: "users",
         },
         {
           label: "Active Clients",
-          value: String(counts.totalClients),
-          numericValue: counts.totalClients,
-          trend: seededFloat(baseSeed + 1, 2, 12),
-          trendLabel: "this month",
+          value: String(activeClients),
+          numericValue: activeClients,
+          trend:
+            counts.totalClients > 0
+              ? Math.round((activeClients / counts.totalClients) * 1000) / 10
+              : 0,
+          trendLabel: "engagement rate",
           icon: "heart",
         },
         {
           label: "Active Coaches",
-          value: String(trainerCount),
-          numericValue: trainerCount,
+          value: String(counts.totalTrainers),
+          numericValue: counts.totalTrainers,
           trend: 0,
           trendLabel: "stable",
           icon: "star",
@@ -178,24 +442,24 @@ export const adminAnalyticsRouter = router({
           label: "MRR",
           value: `$${counts.mrr.toLocaleString()}`,
           numericValue: counts.mrr,
-          trend: seededFloat(baseSeed + 3, 5, 18),
-          trendLabel: "monthly growth",
+          trend: 0, // Would need historical subscription data for real MRR trend
+          trendLabel: "current",
           icon: "dollar",
         },
         {
           label: "Churn Rate",
-          value: `${seededFloat(baseSeed + 4, 2, 6)}%`,
-          numericValue: seededFloat(baseSeed + 4, 2, 6),
-          trend: seededFloat(baseSeed + 5, -2, 1),
-          trendLabel: "30-day cohort",
+          value: `${churnRate}%`,
+          numericValue: churnRate,
+          trend: 0,
+          trendLabel: "this period",
           icon: "trending",
         },
         {
-          label: "NPS Score",
-          value: String(seededInt(baseSeed + 6, 65, 80)),
-          numericValue: seededInt(baseSeed + 6, 65, 80),
-          trend: seededFloat(baseSeed + 7, -3, 5),
-          trendLabel: "last 30 days",
+          label: "New Signups",
+          value: String(curNew),
+          numericValue: curNew,
+          trend: userTrend,
+          trendLabel: "vs prior period",
           icon: "star",
         },
       ];
@@ -206,7 +470,7 @@ export const adminAnalyticsRouter = router({
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       const counts = await getRealCounts(ctx.db);
-      return buildGrowth(input, counts, hashString(input.startDate));
+      return buildGrowth(ctx.db, input, counts);
     }),
 
   /** Engagement metrics */
@@ -214,147 +478,165 @@ export const adminAnalyticsRouter = router({
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       const counts = await getRealCounts(ctx.db);
-      return buildEngagement(input, counts, hashString(input.startDate + "engagement"));
+      return buildEngagement(ctx.db, input, counts);
     }),
 
   /** Cohort retention data */
   getCohortRetention: adminProcedure
     .input(dateRangeInput)
-    .query(async ({ input }) => {
-      return buildRetention(input, hashString(input.startDate + "retention"));
+    .query(async ({ ctx, input }) => {
+      return buildRetention(ctx.db, input);
     }),
 
   /** Coach performance rankings */
   getCoachPerformance: adminProcedure
     .input(dateRangeInput)
-    .query(async ({ ctx }) => {
-      return buildCoachPerformance(ctx.db, hashString("coaches"));
+    .query(async ({ ctx, input }) => {
+      return buildCoachPerformance(ctx.db, input);
     }),
 
   /** Platform health metrics */
-  getPlatformHealth: adminProcedure
-    .query(async () => {
-      return buildPlatformHealth();
-    }),
+  getPlatformHealth: adminProcedure.query(async ({ ctx }) => {
+    return buildPlatformHealth(ctx.db);
+  }),
 
   /** Revenue analytics by tier */
   getRevenue: adminProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       const counts = await getRealCounts(ctx.db);
-      return buildRevenue(input, counts, hashString(input.startDate + "revenue"));
+      return buildRevenue(input, counts);
     }),
 });
 
 // ─── Builder Functions ──────────────────────────────────────────
 
-function buildGrowth(
+async function buildGrowth(
+  db: any,
   range: { startDate: string; endDate: string },
   counts: { totalUsers: number; totalClients: number; totalTrainers: number },
-  baseSeed: number,
 ) {
   const months = getMonthsBetween(range.startDate, range.endDate);
-  let cumulative = Math.max(10, counts.totalUsers - months.length * seededInt(baseSeed, 5, 15));
+  const growthData = await getUserGrowthByMonth(db, range.startDate, range.endDate);
 
-  const dataPoints = months.map((month, i) => {
-    const monthSeed = baseSeed + i * 7;
-    const newClients = seededInt(monthSeed + 1, 3, Math.max(5, Math.round(counts.totalClients * 0.15)));
-    const newCoaches = seededInt(monthSeed + 2, 0, 2);
-    const newUsers = newClients + newCoaches + seededInt(monthSeed + 3, 0, 2);
-    const churned = seededInt(monthSeed + 4, 0, Math.max(1, Math.floor(cumulative * 0.03)));
-    cumulative += newUsers - churned;
+  // Get cumulative user count at start of range
+  const preExistingResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(users)
+    .where(sql`${users.createdAt} < ${range.startDate}::date`);
+  let cumulative = Number(preExistingResult[0]?.count ?? 0);
 
-    return { date: month, newUsers, cumulativeUsers: cumulative, newClients, newCoaches, churned };
+  // Count users who became inactive (status changed from active) per month
+  // For now, churn is estimated as users with status != 'active' who were created before the month
+  const dataPoints = months.map((month) => {
+    const monthData = growthData.get(month) ?? { clients: 0, trainers: 0, others: 0 };
+    const newClients = monthData.clients;
+    const newCoaches = monthData.trainers;
+    const newUsers = newClients + newCoaches + monthData.others;
+    cumulative += newUsers;
+
+    return {
+      date: month,
+      newUsers,
+      cumulativeUsers: cumulative,
+      newClients,
+      newCoaches,
+      churned: 0, // Real churn tracking requires status change history
+    };
   });
-
-  // Adjust last point to match real count
-  if (dataPoints.length > 0) {
-    dataPoints[dataPoints.length - 1].cumulativeUsers = counts.totalUsers;
-  }
 
   const totalNew = dataPoints.reduce((s, d) => s + d.newUsers, 0);
   const totalChurned = dataPoints.reduce((s, d) => s + d.churned, 0);
-  const firstCum = dataPoints.length > 1 ? dataPoints[0].cumulativeUsers - dataPoints[0].newUsers : counts.totalUsers;
-  const growthRate = firstCum > 0 ? Math.round(((counts.totalUsers - firstCum) / firstCum) * 1000) / 10 : 0;
+  const startCumulative = dataPoints.length > 0
+    ? dataPoints[0].cumulativeUsers - dataPoints[0].newUsers
+    : counts.totalUsers;
+  const growthRate =
+    startCumulative > 0
+      ? Math.round(((counts.totalUsers - startCumulative) / startCumulative) * 1000) / 10
+      : 0;
 
   return {
     totalUsers: counts.totalUsers,
     newUsersThisPeriod: totalNew,
     growthRate,
-    churnRate: counts.totalUsers > 0 ? Math.round((totalChurned / counts.totalUsers) * 1000) / 10 : 0,
+    churnRate:
+      counts.totalUsers > 0
+        ? Math.round((totalChurned / counts.totalUsers) * 1000) / 10
+        : 0,
     netGrowth: totalNew - totalChurned,
     dataPoints,
   };
 }
 
-function buildEngagement(
+async function buildEngagement(
+  db: any,
   range: { startDate: string; endDate: string },
   counts: { totalClients: number },
-  baseSeed: number,
 ) {
   const days = getDaysBetween(range.startDate, range.endDate);
-  const baseDAU = Math.max(5, Math.round(counts.totalClients * 0.6));
 
-  const dataPoints = days.map((date, i) => {
-    const daySeed = baseSeed + i * 13;
-    const dayOfWeek = new Date(date).getDay();
-    const weekendFactor = dayOfWeek === 0 || dayOfWeek === 6 ? 0.6 : 1.0;
-    return {
-      date,
-      dailyActiveUsers: Math.round((baseDAU + seededInt(daySeed + 1, -5, 8)) * weekendFactor),
-      checkins: Math.round((baseDAU * 0.7 + seededInt(daySeed + 2, -3, 5)) * weekendFactor),
-      insightsViewed: seededInt(daySeed + 3, 10, Math.max(15, baseDAU)),
-      messagesExchanged: seededInt(daySeed + 4, 5, Math.max(10, Math.round(baseDAU * 0.6))),
-      goalsUpdated: seededInt(daySeed + 5, 2, Math.max(5, Math.round(baseDAU * 0.3))),
-    };
-  });
+  // Fetch real daily activity data in parallel
+  const [checkinMap, messageMap, goalMap] = await Promise.all([
+    getCheckinsByDay(db, range.startDate, range.endDate),
+    getMessagesByDay(db, range.startDate, range.endDate),
+    getGoalUpdatesByDay(db, range.startDate, range.endDate),
+  ]);
 
-  const avgDAU = dataPoints.length > 0 ? Math.round(dataPoints.reduce((s, d) => s + d.dailyActiveUsers, 0) / dataPoints.length) : 0;
-  const avgCheckins = dataPoints.length > 0 ? Math.round(dataPoints.reduce((s, d) => s + d.checkins, 0) / dataPoints.length) : 0;
+  const dataPoints = days.map((date) => ({
+    date,
+    dailyActiveUsers: checkinMap.get(date) ?? 0,
+    checkins: checkinMap.get(date) ?? 0,
+    insightsViewed: 0, // No insights view tracking table yet
+    messagesExchanged: messageMap.get(date) ?? 0,
+    goalsUpdated: goalMap.get(date) ?? 0,
+  }));
 
-  const featureUsage = FEATURE_NAMES.map((feature, i) => {
-    const usageRate = seededFloat(baseSeed + i * 17, 35, 95);
-    const changePercent = seededFloat(baseSeed + i * 19, -8, 12);
-    const trend: "up" | "down" | "stable" = changePercent > 2 ? "up" : changePercent < -2 ? "down" : "stable";
-    return { feature, usageRate, trend, changePercent };
-  }).sort((a, b) => b.usageRate - a.usageRate);
+  const avgDAU =
+    dataPoints.length > 0
+      ? Math.round(dataPoints.reduce((s, d) => s + d.dailyActiveUsers, 0) / dataPoints.length)
+      : 0;
+  const avgCheckins =
+    dataPoints.length > 0
+      ? Math.round(dataPoints.reduce((s, d) => s + d.checkins, 0) / dataPoints.length)
+      : 0;
+
+  // Feature usage from real data
+  const featureUsage = await getFeatureUsageCounts(
+    db,
+    range.startDate,
+    range.endDate,
+    counts.totalClients,
+  );
 
   return {
     avgDailyActiveUsers: avgDAU,
     avgCheckinRate: avgDAU > 0 ? Math.round((avgCheckins / avgDAU) * 100) : 0,
-    avgSessionDuration: seededFloat(baseSeed + 99, 8, 18),
+    avgSessionDuration: 0, // No session duration tracking yet
     featureUsage,
     dataPoints,
   };
 }
 
-function buildRetention(
+async function buildRetention(
+  db: any,
   range: { startDate: string; endDate: string },
-  baseSeed: number,
 ) {
-  const months = getMonthsBetween(range.startDate, range.endDate);
-  const cohortMonths = months.length >= 3 ? months.slice(0, -1) : months;
-
-  const cohorts = cohortMonths.map((month, i) => {
-    const cohortSeed = baseSeed + i * 23;
-    const totalUsers = seededInt(cohortSeed, 10, 30);
-    const decayRate = seededFloat(cohortSeed + 2, 5, 12);
-    const maxMonths = Math.min(7, months.length - i);
-    const retention: number[] = [100];
-    for (let m = 1; m < maxMonths; m++) {
-      const drop = decayRate * Math.pow(0.7, m - 1);
-      const noise = seededFloat(cohortSeed + m * 3, -2, 2);
-      retention.push(Math.max(25, Math.round((retention[m - 1] - drop + noise) * 10) / 10));
-    }
-    return { cohort: month, label: getMonthLabel(month), totalUsers, retention };
-  });
+  const cohorts = await getCohortRetention(db, range.startDate, range.endDate);
 
   const r30 = cohorts.filter((c) => c.retention.length >= 2).map((c) => c.retention[1]);
   const r90 = cohorts.filter((c) => c.retention.length >= 4).map((c) => c.retention[3]);
-  const avg30 = r30.length > 0 ? Math.round(r30.reduce((a, b) => a + b, 0) / r30.length * 10) / 10 : 0;
-  const avg90 = r90.length > 0 ? Math.round(r90.reduce((a, b) => a + b, 0) / r90.length * 10) / 10 : 0;
+  const avg30 =
+    r30.length > 0
+      ? Math.round((r30.reduce((a, b) => a + b, 0) / r30.length) * 10) / 10
+      : 0;
+  const avg90 =
+    r90.length > 0
+      ? Math.round((r90.reduce((a, b) => a + b, 0) / r90.length) * 10) / 10
+      : 0;
 
-  const sorted = [...cohorts].filter((c) => c.retention.length >= 2).sort((a, b) => b.retention[1] - a.retention[1]);
+  const sorted = [...cohorts]
+    .filter((c) => c.retention.length >= 2)
+    .sort((a, b) => b.retention[1] - a.retention[1]);
 
   return {
     avgRetention30Day: avg30,
@@ -365,29 +647,62 @@ function buildRetention(
   };
 }
 
-async function buildCoachPerformance(db: any, baseSeed: number) {
+async function buildCoachPerformance(
+  db: any,
+  range: { startDate: string; endDate: string },
+) {
   const trainers = await db.query.users.findMany({
     where: eq(users.role, "trainer"),
   });
 
   const coaches = await Promise.all(
-    trainers.map(async (trainer: any, i: number) => {
-      const coachSeed = baseSeed + i * 31;
+    trainers.map(async (trainer: any) => {
       const profile = await db.query.trainerProfiles.findFirst({
         where: eq(trainerProfiles.userId, trainer.id),
       });
+
+      // Active client count
       const clientCountResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(trainerClientRelationships)
         .where(
           and(
             eq(trainerClientRelationships.trainerId, trainer.id),
-            eq(trainerClientRelationships.status, "active")
-          )
+            eq(trainerClientRelationships.status, "active"),
+          ),
         );
       const activeClients = Number(clientCountResult[0]?.count ?? 0);
+
+      // Sessions (appointments) this period
+      const sessionsResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.coachId, trainer.id),
+            gte(appointments.date, sql`${range.startDate}::date`),
+            lte(appointments.date, sql`${range.endDate}::date`),
+          ),
+        );
+      const sessionsThisPeriod = Number(sessionsResult[0]?.count ?? 0);
+
+      // Reviews
+      const reviewResult = await db
+        .select({
+          avgRating: sql<number>`coalesce(avg(${trainerReviews.rating}), 0)`,
+          reviewCount: sql<number>`count(*)`,
+        })
+        .from(trainerReviews)
+        .where(eq(trainerReviews.trainerId, trainer.id));
+
+      const avgReviewRating = Number(reviewResult[0]?.avgRating ?? 0);
+      const reviewCount = Number(reviewResult[0]?.reviewCount ?? 0);
+
       const capacity = profile?.capacity ?? 25;
-      const rating = profile?.rating ?? seededFloat(coachSeed + 8, 3.5, 5.0);
+      const rating =
+        reviewCount > 0
+          ? Math.round(avgReviewRating * 10) / 10
+          : profile?.rating ?? 0;
 
       return {
         coachId: trainer.id,
@@ -395,124 +710,127 @@ async function buildCoachPerformance(db: any, baseSeed: number) {
         activeClients,
         capacity,
         utilizationRate: capacity > 0 ? Math.round((activeClients / capacity) * 100) : 0,
-        avgClientHealthScore: Math.round(rating * 18 * 10) / 10, // scale 0-100 based on rating
-        clientRetention: seededFloat(coachSeed + 4, 78, 100),
-        avgResponseTime: seededInt(coachSeed + 5, 15, 120),
-        sessionsThisPeriod: seededInt(coachSeed + 6, 10, 40),
+        avgClientHealthScore: Math.round(rating * 18 * 10) / 10, // Scale 0-100 from 5-star rating
+        clientRetention: 0, // Would need historical relationship data to compute
+        avgResponseTime: 0, // Would need message response time tracking
+        sessionsThisPeriod,
         revenueGenerated: activeClients * 200,
-        rating: Math.round(rating * 10) / 10,
-        reviewCount: profile?.reviewCount ?? seededInt(coachSeed + 9, 5, 30),
+        rating,
+        reviewCount: reviewCount > 0 ? reviewCount : (profile?.reviewCount ?? 0),
       };
-    })
+    }),
   );
 
-  const sorted = coaches.sort((a: any, b: any) => b.avgClientHealthScore - a.avgClientHealthScore);
-  const avgUtil = sorted.length > 0 ? Math.round(sorted.reduce((s: number, c: any) => s + c.utilizationRate, 0) / sorted.length) : 0;
-  const avgHealth = sorted.length > 0 ? Math.round(sorted.reduce((s: number, c: any) => s + c.avgClientHealthScore, 0) / sorted.length * 10) / 10 : 0;
-  const avgRetention = sorted.length > 0 ? Math.round(sorted.reduce((s: number, c: any) => s + c.clientRetention, 0) / sorted.length * 10) / 10 : 0;
+  const sorted = coaches.sort(
+    (a: any, b: any) => b.avgClientHealthScore - a.avgClientHealthScore,
+  );
+  const avgUtil =
+    sorted.length > 0
+      ? Math.round(
+          sorted.reduce((s: number, c: any) => s + c.utilizationRate, 0) / sorted.length,
+        )
+      : 0;
+  const avgHealth =
+    sorted.length > 0
+      ? Math.round(
+          (sorted.reduce((s: number, c: any) => s + c.avgClientHealthScore, 0) / sorted.length) *
+            10,
+        ) / 10
+      : 0;
 
   return {
     totalCoaches: sorted.length,
     avgUtilization: avgUtil,
     avgClientHealthScore: avgHealth,
-    avgRetention,
+    avgRetention: 0,
     coaches: sorted,
   };
 }
 
-function buildPlatformHealth() {
-  const seed = Math.floor(Date.now() / 3600000);
-  const uid = () => `anl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+async function buildPlatformHealth(db: any) {
+  // Real counts from DB to show actual platform usage
+  const [totalUsers, totalConnections, recentSyncs] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` }).from(users),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(deviceConnections)
+      .where(eq(deviceConnections.status, "connected")),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(deviceConnections)
+      .where(
+        and(
+          eq(deviceConnections.status, "connected"),
+          gte(deviceConnections.lastSyncAt, sql`now() - interval '1 hour'`),
+        ),
+      ),
+  ]);
 
-  const uptime = {
-    name: "API Uptime",
-    value: `${seededFloat(seed + 1, 99.8, 99.99, 2)}%`,
-    numericValue: seededFloat(seed + 1, 99.8, 99.99, 2),
-    unit: "%",
-    status: "excellent" as const,
-    threshold: { excellent: 99.9, good: 99.5, degraded: 99.0 },
+  const connectedDevices = Number(totalConnections[0]?.count ?? 0);
+  const recentlyActive = Number(recentSyncs[0]?.count ?? 0);
+
+  return {
+    uptime: {
+      name: "API Uptime",
+      value: "N/A",
+      numericValue: 0,
+      unit: "%",
+      status: "good" as const,
+      threshold: { excellent: 99.9, good: 99.5, degraded: 99.0 },
+    },
+    responseTime: {
+      name: "Avg Response Time",
+      value: "N/A",
+      numericValue: 0,
+      unit: "ms",
+      status: "good" as const,
+      threshold: { excellent: 100, good: 200, degraded: 500 },
+    },
+    errorRate: {
+      name: "Error Rate",
+      value: "N/A",
+      numericValue: 0,
+      unit: "%",
+      status: "good" as const,
+      threshold: { excellent: 0.05, good: 0.1, degraded: 0.5 },
+    },
+    activeConnections: {
+      name: "Connected Devices",
+      value: String(connectedDevices),
+      numericValue: connectedDevices,
+      unit: "devices",
+      status: "good" as const,
+      threshold: { excellent: 50, good: 150, degraded: 300 },
+    },
+    alerts: [] as Array<{
+      id: string;
+      severity: "info" | "warning" | "critical";
+      message: string;
+      timestamp: string;
+      resolved: boolean;
+    }>,
   };
-
-  const responseTimeVal = seededInt(seed + 2, 85, 200);
-  const responseTime = {
-    name: "Avg Response Time",
-    value: `${responseTimeVal} ms`,
-    numericValue: responseTimeVal,
-    unit: "ms",
-    status: (responseTimeVal <= 100 ? "excellent" : responseTimeVal <= 200 ? "good" : responseTimeVal <= 500 ? "degraded" : "critical") as "excellent" | "good" | "degraded" | "critical",
-    threshold: { excellent: 100, good: 200, degraded: 500 },
-  };
-
-  const errorRateVal = seededFloat(seed + 3, 0.01, 0.08, 2);
-  const errorRate = {
-    name: "Error Rate",
-    value: `${errorRateVal}%`,
-    numericValue: errorRateVal,
-    unit: "%",
-    status: (errorRateVal <= 0.05 ? "excellent" : errorRateVal <= 0.1 ? "good" : errorRateVal <= 0.5 ? "degraded" : "critical") as "excellent" | "good" | "degraded" | "critical",
-    threshold: { excellent: 0.05, good: 0.1, degraded: 0.5 },
-  };
-
-  const activeConnections = {
-    name: "Active Connections",
-    value: `${seededInt(seed + 4, 40, 120)}`,
-    numericValue: seededInt(seed + 4, 40, 120),
-    unit: "connections",
-    status: "good" as const,
-    threshold: { excellent: 50, good: 150, degraded: 300 },
-  };
-
-  const alerts: any[] = [];
-  if (responseTimeVal > 150) {
-    alerts.push({
-      id: uid(),
-      severity: "warning",
-      message: `Elevated response time detected (${responseTime.value}). Investigating database query optimization.`,
-      timestamp: new Date().toISOString(),
-      resolved: false,
-    });
-  }
-  if (errorRateVal > 0.05) {
-    alerts.push({
-      id: uid(),
-      severity: "info",
-      message: `Error rate slightly above baseline (${errorRate.value}). Monitoring for patterns.`,
-      timestamp: new Date().toISOString(),
-      resolved: false,
-    });
-  }
-
-  return { uptime, responseTime, errorRate, activeConnections, alerts };
 }
 
 function buildRevenue(
   range: { startDate: string; endDate: string },
   counts: { mrr: number; tierCounts: Record<string, number> },
-  baseSeed: number,
 ) {
   const months = getMonthsBetween(range.startDate, range.endDate);
   const tier1Count = counts.tierCounts["tier1"] ?? 0;
   const tier2Count = counts.tierCounts["tier2"] ?? 0;
   const tier3Count = counts.tierCounts["tier3"] ?? 0;
 
-  const dataPoints = months.map((month, i) => {
-    const growthFactor = 0.7 + (i / Math.max(1, months.length - 1)) * 0.3;
-    const jitter = 1 + (seededFloat(baseSeed + i * 11, -5, 5) / 100);
-
-    return {
-      date: month,
-      tier1Revenue: Math.round(tier1Count * tierPricing.tier1 * growthFactor * jitter),
-      tier2Revenue: Math.round(tier2Count * tierPricing.tier2 * growthFactor * jitter),
-      tier3Revenue: Math.round(tier3Count * tierPricing.tier3 * growthFactor * jitter),
-      totalRevenue: Math.round(counts.mrr * growthFactor * jitter),
-    };
-  });
-
-  const latest = dataPoints[dataPoints.length - 1];
-  const prev = dataPoints.length >= 2 ? dataPoints[dataPoints.length - 2] : null;
-  const growthRate = prev && prev.totalRevenue > 0
-    ? Math.round(((latest.totalRevenue - prev.totalRevenue) / prev.totalRevenue) * 1000) / 10
-    : 0;
+  // Revenue is computed from current tier distribution
+  // Each month shows the tier-based MRR (current snapshot applied to the month)
+  // In production, this would query a payments/invoices table for historical accuracy
+  const dataPoints = months.map((month) => ({
+    date: month,
+    tier1Revenue: tier1Count * tierPricing.tier1,
+    tier2Revenue: tier2Count * tierPricing.tier2,
+    tier3Revenue: tier3Count * tierPricing.tier3,
+    totalRevenue: counts.mrr,
+  }));
 
   const totalRevenue = dataPoints.reduce((s, d) => s + d.totalRevenue, 0);
   const totalT1 = dataPoints.reduce((s, d) => s + d.tier1Revenue, 0);
@@ -525,11 +843,26 @@ function buildRevenue(
     arr: counts.mrr * 12,
     avgRevenuePerUser: totalClients > 0 ? Math.round(counts.mrr / totalClients) : 0,
     revenueByTier: [
-      { tier: "tier1", revenue: totalT1, count: tier1Count, percentage: totalRevenue > 0 ? Math.round((totalT1 / totalRevenue) * 100) : 0 },
-      { tier: "tier2", revenue: totalT2, count: tier2Count, percentage: totalRevenue > 0 ? Math.round((totalT2 / totalRevenue) * 100) : 0 },
-      { tier: "tier3", revenue: totalT3, count: tier3Count, percentage: totalRevenue > 0 ? Math.round((totalT3 / totalRevenue) * 100) : 0 },
+      {
+        tier: "tier1",
+        revenue: totalT1,
+        count: tier1Count,
+        percentage: totalRevenue > 0 ? Math.round((totalT1 / totalRevenue) * 100) : 0,
+      },
+      {
+        tier: "tier2",
+        revenue: totalT2,
+        count: tier2Count,
+        percentage: totalRevenue > 0 ? Math.round((totalT2 / totalRevenue) * 100) : 0,
+      },
+      {
+        tier: "tier3",
+        revenue: totalT3,
+        count: tier3Count,
+        percentage: totalRevenue > 0 ? Math.round((totalT3 / totalRevenue) * 100) : 0,
+      },
     ],
-    revenueGrowthRate: growthRate,
+    revenueGrowthRate: 0, // Would need historical payment records for real trend
     dataPoints,
   };
 }

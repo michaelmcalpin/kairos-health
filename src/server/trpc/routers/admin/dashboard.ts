@@ -8,26 +8,7 @@ import {
   subscriptions,
   auditLogs,
 } from "@/server/db/schema";
-import { eq, desc, sql, and, ilike, or } from "drizzle-orm";
-
-// ─── Seeded random for supplemental values ─────────────────────
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed * 9301 + 49297) * 233280;
-  return x - Math.floor(x);
-}
-function seededInt(seed: number, min: number, max: number): number {
-  return Math.floor(seededRandom(seed) * (max - min + 1)) + min;
-}
-function seededFloat(seed: number, min: number, max: number): number {
-  return Math.round((seededRandom(seed) * (max - min) + min) * 10) / 10;
-}
-function hashStr(s: string): number {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) {
-    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
-}
+import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
 
 export const adminDashboardRouter = router({
   /**
@@ -45,8 +26,6 @@ export const adminDashboardRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const baseSeed = hashStr(input.startDate);
-
       // ── User counts by role ────────────────────────────────
       const userCounts = await ctx.db
         .select({ role: users.role, count: sql<number>`count(*)` })
@@ -73,6 +52,44 @@ export const adminDashboardRouter = router({
         mrr: totalClients * 200, // simplified estimate
       };
 
+      // ── Period-over-period trend for new signups ────────────
+      const periodLength = Math.max(
+        1,
+        Math.round(
+          (new Date(input.endDate).getTime() - new Date(input.startDate).getTime()) / 86400000
+        )
+      );
+      const prevStart = new Date(new Date(input.startDate).getTime() - periodLength * 86400000)
+        .toISOString().split("T")[0];
+
+      const [curNewResult, prevNewResult] = await Promise.all([
+        ctx.db
+          .select({ count: sql<number>`count(*)` })
+          .from(users)
+          .where(
+            and(
+              eq(users.role, "client"),
+              gte(users.createdAt, sql`${input.startDate}::date`),
+              lte(users.createdAt, sql`(${input.endDate}::date + interval '1 day')`)
+            )
+          ),
+        ctx.db
+          .select({ count: sql<number>`count(*)` })
+          .from(users)
+          .where(
+            and(
+              eq(users.role, "client"),
+              gte(users.createdAt, sql`${prevStart}::date`),
+              lte(users.createdAt, sql`${input.startDate}::date`)
+            )
+          ),
+      ]);
+
+      const curNew = Number(curNewResult[0]?.count ?? 0);
+      const prvNew = Number(prevNewResult[0]?.count ?? 0);
+      const clientTrend = curNew >= prvNew ? "up" as const : "down" as const;
+      const clientTrendValue = curNew >= prvNew ? `+${curNew - prvNew} this period` : `${curNew - prvNew} this period`;
+
       // ── KPIs ───────────────────────────────────────────────
       type KPI = {
         label: string;
@@ -87,8 +104,8 @@ export const adminDashboardRouter = router({
         {
           label: "Total Clients",
           value: totalClients.toString(),
-          trend: "up",
-          trendValue: `+${seededInt(baseSeed + 10, 3, 12)} this month`,
+          trend: clientTrend,
+          trendValue: clientTrendValue,
           icon: "users",
         },
         {
@@ -99,28 +116,12 @@ export const adminDashboardRouter = router({
         {
           label: "Monthly Revenue",
           value: `$${((totalClients * 200) / 1000).toFixed(1)}K`,
-          trend: "up",
-          trendValue: `+${seededInt(baseSeed + 12, 8, 25)}%`,
           icon: "dollar",
           highlight: true,
         },
         {
-          label: "Supplement Revenue",
-          value: `$${seededFloat(baseSeed + 13, 4.0, 8.0)}K`,
-          trend: "up",
-          trendValue: `+${seededInt(baseSeed + 14, 10, 20)}%`,
-          icon: "trending",
-        },
-        {
-          label: "Platform Health",
-          value: `${seededFloat(baseSeed + 15, 99.2, 99.9)}`,
-          icon: "shield",
-        },
-        {
           label: "Active Subs",
           value: activeSubscriptions.toString(),
-          trend: "up",
-          trendValue: `+${seededInt(baseSeed + 16, 1, 5)} this week`,
           icon: "activity",
         },
       ];
