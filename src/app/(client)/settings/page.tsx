@@ -157,7 +157,7 @@ export default function SettingsPage() {
       setSaveMessage("Changes saved successfully");
       setTimeout(() => setSaveMessage(""), 3000);
     } catch (error) {
-      console.error("Failed to save changes:", error);
+      // Error is already shown to user via setSaveMessage
       setSaveMessage("Failed to save changes. Please try again.");
       setTimeout(() => setSaveMessage(""), 3000);
     }

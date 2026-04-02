@@ -12,7 +12,9 @@ export default function ClientError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[KAIROS] Client portal error:", error);
+    if (process.env.NODE_ENV === "development") {
+      console.error("[KAIROS] Client portal error:", error);
+    }
   }, [error]);
 
   return (

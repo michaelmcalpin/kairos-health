@@ -80,7 +80,7 @@ export default function GlucosePage() {
         notes: "",
       });
     } catch (error) {
-      console.error("Error saving glucose reading:", error);
+      // Error is shown to user via alert
       alert("Failed to save glucose reading. Please try again.");
     }
   };

@@ -57,6 +57,7 @@ export default function CoachSchedulePage() {
   // Mutations
   const createMutation = trpc.coach.schedule.createAppointment.useMutation();
   const updateStatusMutation = trpc.coach.schedule.updateStatus.useMutation();
+  const saveNotesMutation = trpc.coach.schedule.saveSessionNotes.useMutation();
 
   // Transform tRPC calendar data { weekStart, weekEnd, days: Record<string, appt[]> } into CalendarDay[]
   const calendarDays = useMemo(() => {
@@ -176,8 +177,19 @@ export default function CoachSchedulePage() {
               );
             }}
             onSaveNotes={(notes) => {
-              // TODO: Implement notes saving via tRPC if available
-              setSelectedAppointment(null);
+              if (selectedAppointment) {
+                saveNotesMutation.mutate(
+                  {
+                    appointmentId: selectedAppointment.id,
+                    summary: notes.summary,
+                    keyFindings: notes.keyFindings,
+                    actionItems: notes.actionItems,
+                    nextSessionFocus: notes.nextSessionFocus,
+                    privateNotes: notes.privateNotes,
+                  },
+                  { onSuccess: () => setSelectedAppointment(null) }
+                );
+              }
             }}
             onClose={() => setSelectedAppointment(null)}
           />

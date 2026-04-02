@@ -1,11 +1,12 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { logger } from "@/lib/middleware/logger";
 import * as schema from "./schema";
 
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
-  console.error("[DB] DATABASE_URL is not set — DB queries will fail");
+  logger.error("db", "DATABASE_URL environment variable not set");
 }
 
 const isProduction = process.env.NODE_ENV === "production";

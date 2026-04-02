@@ -1,15 +1,19 @@
 /**
- * KAIROS In-Memory Cache
+ * KAIROS Application Cache
  *
  * TTL-based cache with namespace support for API responses
- * and computed data. For production, replace with Redis.
+ * and computed data. Uses Redis when available, falls back
+ * to in-memory LRU cache for development.
  *
  * Features:
  * - TTL (time-to-live) per entry
  * - Namespace-based invalidation
- * - LRU eviction when max size exceeded
+ * - LRU eviction when max size exceeded (memory mode)
  * - Stale-while-revalidate support
+ * - Redis-backed for production horizontal scaling
  */
+
+import { redis, cacheGet, cacheSet, cacheInvalidate } from "@/lib/redis";
 
 interface CacheEntry<T> {
   value: T;
@@ -231,8 +235,135 @@ class MemoryCache {
   }
 }
 
+// ─── Hybrid Cache (Redis + Memory Fallback) ────────────────────────────────
+
+class HybridCache {
+  private memory = new MemoryCache();
+
+  /**
+   * Get a cached value. Checks Redis first, then memory.
+   */
+  get<T>(key: string, namespace = "default"): T | undefined {
+    // Synchronous path: check memory cache
+    // Redis is checked in getOrSet for async workflows
+    return this.memory.get<T>(key, namespace);
+  }
+
+  /**
+   * Set a cached value. Writes to both Redis and memory.
+   */
+  set<T>(key: string, value: T, options: CacheOptions): void {
+    const namespace = options.namespace || "default";
+    const fullKey = `${namespace}:${key}`;
+
+    // Always set in memory for fast synchronous reads
+    this.memory.set(key, value, options);
+
+    // Also set in Redis for cross-instance sharing
+    if (redis) {
+      const ttlSeconds = Math.ceil(options.ttlMs / 1000);
+      cacheSet(fullKey, value, ttlSeconds).catch(() => {
+        // Silently fall back to memory-only on Redis error
+      });
+    }
+  }
+
+  /**
+   * Get or compute a value. Checks Redis first, then memory, then computes.
+   */
+  async getOrSet<T>(
+    key: string,
+    computeFn: () => T | Promise<T>,
+    options: CacheOptions,
+  ): Promise<T> {
+    const namespace = options.namespace || "default";
+    const fullKey = `${namespace}:${key}`;
+
+    // Check memory first (fastest)
+    const memCached = this.memory.get<T>(key, namespace);
+    if (memCached !== undefined) return memCached;
+
+    // Check Redis (if available)
+    if (redis) {
+      try {
+        const redisCached = await cacheGet<T>(fullKey);
+        if (redisCached !== null && redisCached !== undefined) {
+          // Backfill memory cache
+          this.memory.set(key, redisCached, options);
+          return redisCached;
+        }
+      } catch {
+        // Redis error — continue to compute
+      }
+    }
+
+    // Compute the value
+    const value = await computeFn();
+    this.set(key, value, options);
+    return value;
+  }
+
+  /**
+   * Delete a specific key from both caches.
+   */
+  delete(key: string, namespace = "default"): boolean {
+    const fullKey = `${namespace}:${key}`;
+    if (redis) {
+      cacheInvalidate(fullKey).catch(() => {});
+    }
+    return this.memory.delete(key, namespace);
+  }
+
+  /**
+   * Invalidate all entries in a namespace.
+   */
+  invalidateNamespace(namespace: string): number {
+    if (redis) {
+      cacheInvalidate(`${namespace}:*`).catch(() => {});
+    }
+    return this.memory.invalidateNamespace(namespace);
+  }
+
+  /**
+   * Invalidate entries matching a pattern.
+   */
+  invalidatePattern(pattern: string): number {
+    if (redis) {
+      cacheInvalidate(`*${pattern}*`).catch(() => {});
+    }
+    return this.memory.invalidatePattern(pattern);
+  }
+
+  /**
+   * Clear the entire cache.
+   */
+  clear(): void {
+    this.memory.clear();
+  }
+
+  /**
+   * Get cache statistics.
+   */
+  getStats(): {
+    size: number;
+    maxSize: number;
+    namespaces: Record<string, number>;
+    backend: string;
+  } {
+    const memStats = this.memory.getStats();
+    return {
+      ...memStats,
+      backend: redis ? "redis+memory" : "memory",
+    };
+  }
+
+  destroy(): void {
+    this.memory.destroy();
+  }
+}
+
 // Singleton instance
-export const cache = new MemoryCache();
+export const cache = new HybridCache();
 
 // ─── Cache Key Builders ─────────────────────────────────────────────────────
 

@@ -1,6 +1,8 @@
 // ─── Goal Tracking Types ────────────────────────────────────────
 // Measurable health goals with progress tracking and milestones
 
+import crypto from "crypto";
+
 export type GoalCategory =
   | "glucose"
   | "sleep"
@@ -267,5 +269,5 @@ export interface GoalProgress {
 }
 
 export function uid(): string {
-  return `goal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `goal_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
 }

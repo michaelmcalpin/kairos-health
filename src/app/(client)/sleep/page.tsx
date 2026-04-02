@@ -140,7 +140,7 @@ export default function SleepPage() {
       // Clear success message after 3 seconds
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
-      console.error("Error saving sleep entry:", error);
+      // Error is already shown via mutation's onError or to user
     }
   };
 

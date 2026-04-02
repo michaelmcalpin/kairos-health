@@ -171,6 +171,16 @@ export const bodyMeasurements = pgTable("body_measurements", {
   source: varchar("source", { length: 50 }),
 });
 
+export const bloodPressureReadings = pgTable("blood_pressure_readings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  date: date("date").notNull(),
+  systolic: integer("systolic").notNull(),
+  diastolic: integer("diastolic").notNull(),
+  source: varchar("source", { length: 50 }).default("manual"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("bp_client_date_idx").on(t.clientId, t.date)]);
+
 export const temperatureReadings = pgTable("temperature_readings", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id").notNull().references(() => users.id),

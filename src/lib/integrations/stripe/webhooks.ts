@@ -7,6 +7,7 @@
  */
 
 import type Stripe from "stripe";
+import { logger } from "@/lib/middleware/logger";
 import { db } from "@/server/db";
 import { subscriptions, auditLogs } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
@@ -23,7 +24,7 @@ async function handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
   const tier = metadata?.kairos_tier;
 
   if (!userId || !tier) {
-    console.warn("[Stripe Webhook] Missing metadata on checkout session:", session.id);
+    logger.warn("stripe", "Missing metadata on checkout session", { sessionId: session.id });
     return;
   }
 
@@ -183,8 +184,8 @@ export async function processWebhookEvent(event: Stripe.Event): Promise<void> {
   const handler = handlers[event.type];
   if (handler) {
     await handler(event);
-    console.log(`[Stripe Webhook] Processed: ${event.type}`);
+    logger.info("stripe", "Processed webhook event", { eventType: event.type });
   } else {
-    console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
+    logger.info("stripe", "Unhandled webhook event type", { eventType: event.type });
   }
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { bodyMeasurements, heartRateReadings } from "@/server/db/schema";
+import { bodyMeasurements, heartRateReadings, bloodPressureReadings } from "@/server/db/schema";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
@@ -95,8 +95,6 @@ export const clientMeasurementsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // TODO: Create blood pressure schema table to store systolicBP and diastolicBP
-      // For now, these values are accepted but not persisted
       const measurementDate =
         input.date ?? new Date().toISOString().split("T")[0];
 
@@ -118,6 +116,7 @@ export const clientMeasurementsRouter = router({
         .returning();
 
       let hrStored = false;
+      let bpStored = false;
 
       // Insert heart rate if provided
       if (input.restingHR !== undefined && input.restingHR !== null) {
@@ -132,6 +131,18 @@ export const clientMeasurementsRouter = router({
         hrStored = true;
       }
 
+      // Insert blood pressure if both systolic and diastolic provided
+      if (input.systolicBP !== undefined && input.diastolicBP !== undefined) {
+        await ctx.db.insert(bloodPressureReadings).values({
+          clientId: ctx.dbUserId,
+          date: measurementDate,
+          systolic: input.systolicBP,
+          diastolic: input.diastolicBP,
+          source: input.source,
+        });
+        bpStored = true;
+      }
+
       return {
         measurement: measurementResult[0],
         vitals: {
@@ -140,6 +151,7 @@ export const clientMeasurementsRouter = router({
           restingHR: input.restingHR ?? null,
         },
         hrStored,
+        bpStored,
       };
     }),
 });

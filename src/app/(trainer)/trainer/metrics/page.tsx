@@ -44,41 +44,43 @@ export default function CoachMetricsPage() {
     const stats = clientStatsQuery.data;
     const revenue = revenueSummaryQuery.data;
 
+    const urgentAlerts = alertsSummaryQuery.data?.urgent || 0;
+
     return [
       {
         label: "Total Clients",
         value: stats.totalClients.toString(),
         icon: "users",
         trend: "up" as const,
-        trendValue: "+12%",
+        trendValue: `${stats.totalClients} active`,
       },
       {
         label: "Avg Health Score",
         value: stats.avgHealthScore.toFixed(1),
         icon: "target",
-        trend: "up" as const,
-        trendValue: "+5%",
+        trend: stats.avgHealthScore >= 70 ? ("up" as const) : ("down" as const),
+        trendValue: stats.avgHealthScore >= 70 ? "on track" : "needs focus",
       },
       {
         label: "Avg Adherence",
         value: `${stats.avgAdherence.toFixed(0)}%`,
         icon: "award",
         trend: stats.avgAdherence > 75 ? ("up" as const) : ("down" as const),
-        trendValue: stats.avgAdherence > 75 ? "+3%" : "-2%",
+        trendValue: stats.avgAdherence > 75 ? "strong" : "needs focus",
       },
       {
         label: "Monthly Revenue",
         value: `$${(revenue.totalMonthlyRevenue / 1000).toFixed(1)}k`,
         icon: "dollar",
         trend: "up" as const,
-        trendValue: "+8%",
+        trendValue: "current",
       },
       {
         label: "Active Alerts",
-        value: (alertsSummaryQuery.data?.urgent || 0).toString(),
+        value: urgentAlerts.toString(),
         icon: "trending",
-        trend: (alertsSummaryQuery.data?.urgent || 0) > 0 ? ("down" as const) : ("up" as const),
-        trendValue: (alertsSummaryQuery.data?.urgent || 0) > 0 ? "-2" : "stable",
+        trend: urgentAlerts > 0 ? ("down" as const) : ("up" as const),
+        trendValue: urgentAlerts > 0 ? `${urgentAlerts} urgent` : "all clear",
       },
     ];
   }, [clientStatsQuery.data, revenueSummaryQuery.data, alertsSummaryQuery.data]);
@@ -125,7 +127,7 @@ export default function CoachMetricsPage() {
         id: client.id,
         name: client.name || "Unknown",
         issue: (client.healthScore || 0) < 60 ? "Low health score" : "Low adherence",
-        daysSinceContact: Math.floor(Math.random() * 7) + 1,
+        healthScore: client.healthScore || 0,
       }));
   }, [clientsListQuery.data]);
 
@@ -149,34 +151,45 @@ export default function CoachMetricsPage() {
     };
   }, [clientStatsQuery.data, clientsListQuery.data]);
 
-  // Build session metrics
+  // Build session metrics from client adherence data
   const sessionMetrics = useMemo(() => {
-    if (!clientsListQuery.data) return { totalSessions: 0, avgDuration: 0, completionRate: 0, noShowRate: 0 };
+    if (!clientsListQuery.data) return { totalClients: 0, avgAdherence: 0, onTrackCount: 0, atRiskCount: 0 };
 
-    // Since tRPC doesn't provide this directly, we'll calculate from available data
-    const avgAdherence = clientsListQuery.data.reduce((sum, c) => sum + (c.adherence || 0), 0) / (clientsListQuery.data.length || 1);
+    const clients = clientsListQuery.data;
+    const avgAdherence = clients.reduce((sum, c) => sum + (c.adherence || 0), 0) / (clients.length || 1);
+    const onTrackCount = clients.filter((c) => (c.adherence || 0) >= 75).length;
+    const atRiskCount = clients.filter((c) => (c.adherence || 0) < 50).length;
 
     return {
-      totalSessions: Math.floor(clientsListQuery.data.length * 4),
-      avgDuration: 45,
-      completionRate: Math.round(avgAdherence),
-      noShowRate: Math.round(100 - avgAdherence),
+      totalClients: clients.length,
+      avgAdherence: Math.round(avgAdherence),
+      onTrackCount,
+      atRiskCount,
     };
   }, [clientsListQuery.data]);
 
-  // Monthly trends (placeholder - real implementation would fetch historical data)
+  // Monthly trends derived from current revenue (flat projection until historical data is available)
   const monthlyTrend = useMemo(() => {
-    if (!revenueSummaryQuery.data) return [];
+    if (!revenueSummaryQuery.data || !clientsListQuery.data) return [];
 
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
-    const avgMonthlyRevenue = revenueSummaryQuery.data.totalMonthlyRevenue / 6;
+    const now = new Date();
+    const monthlyRevenue = revenueSummaryQuery.data.totalMonthlyRevenue;
+    const clientCount = clientsListQuery.data.length;
+    // Estimated sessions: ~4 per client per month
+    const estimatedSessions = clientCount * 4;
 
-    return months.map((month) => ({
-      month,
-      revenue: Math.floor(avgMonthlyRevenue * (0.8 + Math.random() * 0.4)),
-      sessions: Math.floor(Math.random() * 20 + 15),
-    }));
-  }, [revenueSummaryQuery.data]);
+    // Show last 6 months with current data as the baseline
+    const months: { month: string; revenue: number; sessions: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        month: d.toLocaleDateString("en-US", { month: "short" }),
+        revenue: monthlyRevenue,
+        sessions: estimatedSessions,
+      });
+    }
+    return months;
+  }, [revenueSummaryQuery.data, clientsListQuery.data]);
 
   // Build protocol data (derived from available stats)
   const protocols = useMemo(() => {
@@ -479,8 +492,8 @@ export default function CoachMetricsPage() {
                         <p className="text-red-300 text-xs">{client.issue}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-kairos-silver-dark text-xs font-semibold">{client.daysSinceContact}d</p>
-                        <p className="text-kairos-silver-dark text-xs">since contact</p>
+                        <p className="text-red-400 text-sm font-bold">{client.healthScore}</p>
+                        <p className="text-kairos-silver-dark text-xs">score</p>
                       </div>
                     </div>
                   ))
@@ -610,21 +623,22 @@ export default function CoachMetricsPage() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="p-4 bg-kairos-dark border border-kairos-border rounded-kairos-sm">
-                  <p className="text-kairos-silver-dark text-xs mb-2">Total Sessions (MTD)</p>
-                  <p className="text-kairos-gold font-bold text-xl">{sessionMetrics.totalSessions}</p>
+                  <p className="text-kairos-silver-dark text-xs mb-2">Total Clients</p>
+                  <p className="text-kairos-gold font-bold text-xl">{sessionMetrics.totalClients}</p>
                 </div>
                 <div className="p-4 bg-kairos-dark border border-kairos-border rounded-kairos-sm">
-                  <p className="text-kairos-silver-dark text-xs mb-2">Avg Duration</p>
-                  <p className="text-kairos-gold font-bold text-xl">{sessionMetrics.avgDuration}m</p>
-                  <p className="text-kairos-silver-dark text-xs mt-1">per session</p>
+                  <p className="text-kairos-silver-dark text-xs mb-2">Avg Adherence</p>
+                  <p className="text-kairos-gold font-bold text-xl">{sessionMetrics.avgAdherence}%</p>
                 </div>
                 <div className="p-4 bg-kairos-dark border border-kairos-border rounded-kairos-sm">
-                  <p className="text-kairos-silver-dark text-xs mb-2">Completion Rate</p>
-                  <p className="text-kairos-gold font-bold text-xl">{sessionMetrics.completionRate}%</p>
+                  <p className="text-kairos-silver-dark text-xs mb-2">On Track</p>
+                  <p className="text-kairos-gold font-bold text-xl">{sessionMetrics.onTrackCount}</p>
+                  <p className="text-kairos-silver-dark text-xs mt-1">clients ≥75%</p>
                 </div>
                 <div className="p-4 bg-kairos-dark border border-kairos-border rounded-kairos-sm">
-                  <p className="text-kairos-silver-dark text-xs mb-2">No-Show Rate</p>
-                  <p className="text-kairos-gold font-bold text-xl">{sessionMetrics.noShowRate}%</p>
+                  <p className="text-kairos-silver-dark text-xs mb-2">At Risk</p>
+                  <p className="text-red-400 font-bold text-xl">{sessionMetrics.atRiskCount}</p>
+                  <p className="text-kairos-silver-dark text-xs mt-1">clients &lt;50%</p>
                 </div>
               </div>
             )}

@@ -6,6 +6,9 @@
  * When scaling horizontally, replace with Redis pub/sub.
  */
 
+import crypto from "crypto";
+import { logger } from "@/lib/middleware/logger";
+
 // ─── Event Types ────────────────────────────────────────────────────────────
 
 export type RealtimeEventType =
@@ -109,7 +112,7 @@ class EventBus {
     types: RealtimeEventType[] | "*",
     handler: EventHandler
   ): string {
-    const id = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const id = `sub_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
     this.subscriptions.set(id, { id, userId, types, handler });
     return id;
   }
@@ -141,7 +144,8 @@ class EventBus {
         try {
           sub.handler(event);
         } catch (err) {
-          console.error(`[EventBus] Handler error for ${sub.id}:`, err);
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          logger.error("realtime", "Event handler error", { subscriptionId: sub.id, eventType: event.type, error: errorMsg });
         }
       }
     }
@@ -177,7 +181,7 @@ export function createRealtimeEvent<T>(
   payload: T
 ): RealtimeEvent<T> {
   return {
-    id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `evt_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
     type,
     timestamp: new Date().toISOString(),
     userId,

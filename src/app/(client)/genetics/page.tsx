@@ -242,7 +242,7 @@ export default function GeneticsPage() {
               </p>
               <label className="kairos-btn-outline px-4 py-2 rounded-kairos-sm text-sm font-body cursor-pointer inline-block">
                 Browse Files
-                <input type="file" accept=".pdf" className="hidden" onChange={() => console.log("PDF selected")} />
+                <input type="file" accept=".pdf" className="hidden" onChange={() => {}} />
               </label>
             </div>
           )}

@@ -2,6 +2,8 @@
 // Real-time messaging between trainers and clients with threads,
 // read receipts, typing indicators, and AI trainer support.
 
+import crypto from "crypto";
+
 // ─── Core Types ────────────────────────────────────────────────────────
 
 export type MessageRole = "client" | "coach" | "ai_coach" | "system";
@@ -168,7 +170,7 @@ export const SYSTEM_MESSAGES: Record<SystemMessageType, string> = {
 // ─── Helpers ────────────────────────────────────────────────────────────
 
 export function uid(): string {
-  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
 }
 
 export function createMessage(

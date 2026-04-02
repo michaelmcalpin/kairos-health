@@ -14,7 +14,9 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[KAIROS] Global error:", error);
+    if (process.env.NODE_ENV === "development") {
+      console.error("[KAIROS] Global error:", error);
+    }
   }, [error]);
 
   return (

@@ -148,7 +148,7 @@ export default function LabsPage() {
         });
       }
     } catch (error) {
-      console.error("Error saving lab results:", error);
+      // Error is shown to user via alert
       alert("Failed to save lab results. Please try again.");
     }
   };

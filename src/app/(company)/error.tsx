@@ -12,7 +12,9 @@ export default function CompanyError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[KAIROS] Company portal error:", error);
+    if (process.env.NODE_ENV === "development") {
+      console.error("[KAIROS] Company portal error:", error);
+    }
   }, [error]);
 
   return (

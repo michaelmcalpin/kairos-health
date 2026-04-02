@@ -111,7 +111,7 @@ export default function MeasurementsPage() {
       });
       setShowForm(false);
     } catch (error) {
-      console.error("Failed to save measurement:", error);
+      // Error is already shown via mutation's onError handler
     }
   };
 

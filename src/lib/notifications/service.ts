@@ -16,6 +16,7 @@ import type {
 } from "./types";
 import { DEFAULT_PREFERENCES } from "./types";
 import { NOTIFICATION_TEMPLATES, interpolateTemplate } from "./templates";
+import { logger } from "@/lib/middleware/logger";
 import type { Database } from "@/server/db";
 import {
   notifications as notificationsTable,
@@ -356,17 +357,20 @@ function deliverToChannel(db: Database, notification: Notification, channel: Del
           status = "failed";
         }
       } else if (channel === "push") {
-        // TODO: Integrate FCM / APNs push provider
-        status = "sent";
+        // Push notifications require FCM/APNs integration (not yet configured)
+        // Mark as pending until a push provider is connected
+        status = "pending";
       } else if (channel === "sms") {
-        // TODO: Integrate Twilio SMS provider
-        status = "sent";
+        // SMS delivery requires Twilio integration (not yet configured)
+        // Mark as pending until an SMS provider is connected
+        status = "pending";
       } else {
         // in_app — already persisted in DB, no external delivery needed
         status = "delivered";
       }
     } catch (err) {
-      console.error(`[NOTIFY] Delivery to ${channel} failed for ${notification.id}:`, err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      logger.error("notifications", "Delivery channel failed", { channel, notificationId: notification.id, error: errorMsg });
       status = "failed";
     }
 

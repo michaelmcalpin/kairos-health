@@ -1,6 +1,8 @@
 // ─── Data Import Pipeline Types ─────────────────────────────────
 // Supports CSV and JSON imports for health data categories
 
+import crypto from "crypto";
+
 export type ImportFormat = "csv" | "json";
 
 export type ImportCategory =
@@ -195,7 +197,7 @@ export function createImportSession(
 ): ImportSession {
   const now = new Date().toISOString();
   return {
-    id: `imp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `imp_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`,
     category,
     format: fileName.endsWith(".json") ? "json" : "csv",
     fileName,

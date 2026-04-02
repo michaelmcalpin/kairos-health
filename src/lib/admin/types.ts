@@ -1,6 +1,8 @@
 // ─── Admin User Management Types ──────────────────────────────────────
 // Platform user administration, role management, audit logging.
 
+import crypto from "crypto";
+
 export type UserRole = "client" | "trainer" | "company_admin" | "super_admin";
 export type UserStatus = "active" | "inactive" | "suspended" | "onboarding";
 export type SubscriptionTier = "tier1" | "tier2" | "tier3";
@@ -138,7 +140,7 @@ export interface PlatformUserStats {
 // ─── Helpers ────────────────────────────────────────────────────────
 
 export function uid(): string {
-  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
 }
 
 export const ROLE_LABELS: Record<UserRole, string> = {

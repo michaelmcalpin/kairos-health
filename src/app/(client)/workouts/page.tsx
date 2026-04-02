@@ -101,9 +101,6 @@ export default function WorkoutsPage() {
       });
       setShowLogForm(false);
     },
-    onError: (error) => {
-      console.error("Failed to save workout:", error);
-    },
   });
 
   const handleSaveWorkout = () => {

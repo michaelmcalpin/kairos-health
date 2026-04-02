@@ -5,6 +5,8 @@
  * consistent error handling across API routes and tRPC procedures.
  */
 
+import { logger } from "@/lib/middleware/logger";
+
 // ─── Error Codes ────────────────────────────────────────────────────────────
 
 export const ERROR_CODES = {
@@ -153,7 +155,8 @@ export function handleApiError(error: unknown): { status: number; body: object }
   }
 
   // Unknown errors
-  console.error("[KAIROS API Error]", error);
+  const errorMsg = error instanceof Error ? error.message : String(error);
+  logger.error("errors", "Unhandled API error", { error: errorMsg });
   const fallback = Errors.internal();
   return { status: fallback.statusCode, body: fallback.toJSON() };
 }

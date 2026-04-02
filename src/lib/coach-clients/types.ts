@@ -2,8 +2,10 @@
 // Types for the coach's view of their client roster, health metrics,
 // protocols, alerts, and activity feeds.
 
+import crypto from "crypto";
+
 export function uid(): string {
-  return `cc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `cc_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
 }
 
 // ─── Client Tier & Status ──────────────────────────────────────

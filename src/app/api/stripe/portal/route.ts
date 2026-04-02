@@ -7,6 +7,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/middleware/logger";
 import { createBillingPortalSession } from "@/lib/integrations/stripe";
 
 export async function POST(req: Request) {
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ url });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[Stripe Portal] Error:", message);
+    logger.error("stripe", "Portal error", { error: message });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

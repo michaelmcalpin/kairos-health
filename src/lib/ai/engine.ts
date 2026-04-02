@@ -6,6 +6,7 @@
  * to Claude/GPT for richer natural-language insights when configured.
  */
 
+import crypto from "crypto";
 import type {
   HealthInsight,
   InsightSeverity,
@@ -24,7 +25,7 @@ import type {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function uid(): string {
-  return `ins_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `ins_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
 }
 
 function makeInsight(

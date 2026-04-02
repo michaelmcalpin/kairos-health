@@ -12,6 +12,7 @@ import type {
   SyncState,
   DataType,
 } from "./types";
+import { logger } from "@/lib/middleware/logger";
 import { PROVIDERS } from "./providers";
 import { db } from "@/server/db";
 import {
@@ -74,7 +75,8 @@ export class DeviceSyncEngine {
         const r = await this.syncConnection(conn);
         results.push(...r);
       } catch (err) {
-        console.error(`[SyncEngine] Failed to sync ${conn.provider} for ${userId}:`, err);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        logger.error("devices", "Failed to sync device", { provider: conn.provider, userId, error: errorMsg });
       }
     }
     return results;
@@ -296,7 +298,7 @@ export class DeviceSyncEngine {
 
         default: {
           // For providers without full implementation yet, return placeholder
-          console.log(`[SyncEngine] Sync not yet implemented for ${connection.provider}:${dataType}`);
+          logger.info("devices", "Sync not yet implemented for provider", { provider: connection.provider, dataType });
         }
       }
     } catch (err) {
@@ -356,7 +358,7 @@ export class DeviceSyncEngine {
       })
       .where(eq(deviceConnections.id, connection.id));
 
-    console.log(`[SyncEngine] Token refreshed for ${connection.provider} (connection: ${connection.id})`);
+    logger.info("devices", "Token refreshed for provider", { provider: connection.provider, connectionId: connection.id });
   }
 
   /**

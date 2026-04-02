@@ -116,9 +116,6 @@ export default function NutritionPage() {
     onSuccess: () => {
       handleCloseModal();
     },
-    onError: (error) => {
-      console.error("Failed to save meal:", error);
-    },
   });
 
   const handleAddMeal = () => {

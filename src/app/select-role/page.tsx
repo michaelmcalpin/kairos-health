@@ -93,7 +93,9 @@ function SelectRoleContent() {
     onError: () => {
       // DB may be unreachable — still allow the page to proceed
       // so the user isn't stuck on a spinner forever
-      console.error("[select-role] ensureUser failed — DB may be unreachable");
+      if (process.env.NODE_ENV === "development") {
+        console.error("[select-role] ensureUser failed — DB may be unreachable");
+      }
       setSynced(true);
     },
   });

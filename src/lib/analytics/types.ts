@@ -1,8 +1,10 @@
 // ─── Platform Analytics Types ────────────────────────────────────
 // Types for admin analytics: growth, engagement, retention, coach performance
 
+import crypto from "crypto";
+
 export function uid(): string {
-  return `anl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `anl_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
 }
 
 // ─── Time Periods ──────────────────────────────────────────────

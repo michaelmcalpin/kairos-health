@@ -11,6 +11,7 @@
  */
 
 import { Resend } from "resend";
+import { logger } from "@/lib/middleware/logger";
 import type { EmailBrandConfig } from "@/lib/company-ops/brand";
 import {
   buildWelcomeEmail,
@@ -76,7 +77,8 @@ export interface SendEmailResult {
 export async function sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
   // In development without RESEND_API_KEY, log and return success
   if (!process.env.RESEND_API_KEY) {
-    console.log(`[EMAIL] Would send to ${Array.isArray(options.to) ? options.to.join(", ") : options.to}: ${options.subject}`);
+    const recipients = Array.isArray(options.to) ? options.to.join(", ") : options.to;
+    logger.info("email", "Development mode: would send email", { recipients, subject: options.subject });
     return { success: true, messageId: `dev_${Date.now()}` };
   }
 
@@ -92,14 +94,14 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     });
 
     if (result.error) {
-      console.error("[EMAIL] Resend error:", result.error);
+      logger.error("email", "Resend API error", { error: result.error.message, subject: options.subject });
       return { success: false, error: result.error.message };
     }
 
     return { success: true, messageId: result.data?.id };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown email error";
-    console.error("[EMAIL] Send failed:", message);
+    logger.error("email", "Send failed", { error: message, subject: options.subject });
     return { success: false, error: message };
   }
 }

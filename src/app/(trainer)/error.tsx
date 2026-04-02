@@ -12,7 +12,9 @@ export default function CoachError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[KAIROS] Trainer portal error:", error);
+    if (process.env.NODE_ENV === "development") {
+      console.error("[KAIROS] Trainer portal error:", error);
+    }
   }, [error]);
 
   return (
