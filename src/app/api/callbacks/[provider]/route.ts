@@ -168,6 +168,11 @@ export async function GET(
       ? new Date(Date.now() + expiresIn * 1000)
       : null;
 
+    // Cast to the proper enum type for Drizzle
+    type DeviceProvider = "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit";
+    const typedProvider = providerId as DeviceProvider;
+    const typedScopes = (scopes ?? []) as string[];
+
     // Upsert device connection
     // First check if connection already exists
     const existingConnection = await db
@@ -176,7 +181,7 @@ export async function GET(
       .where(
         and(
           eq(deviceConnections.clientId, userId),
-          eq(deviceConnections.provider, providerId as any)
+          eq(deviceConnections.provider, typedProvider)
         )
       )
       .limit(1);
@@ -188,8 +193,8 @@ export async function GET(
         .set({
           accessTokenEnc: accessToken,
           refreshTokenEnc: refreshToken || null,
-          scopes: scopes as any,
-          tokenExpiresAt: tokenExpiresAt as any,
+          scopes: typedScopes,
+          tokenExpiresAt,
           status: "connected",
         })
         .where(eq(deviceConnections.id, existingConnection[0].id));
@@ -198,12 +203,12 @@ export async function GET(
     } else {
       // Insert new connection
       await db.insert(deviceConnections).values({
-        clientId: userId as any,
-        provider: providerId as any,
+        clientId: userId,
+        provider: typedProvider,
         accessTokenEnc: accessToken,
         refreshTokenEnc: refreshToken || null,
-        scopes: scopes as any,
-        tokenExpiresAt: tokenExpiresAt as any,
+        scopes: typedScopes,
+        tokenExpiresAt,
         status: "connected",
       });
 

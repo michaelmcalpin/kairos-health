@@ -13,6 +13,21 @@ function getEnvVar(name: string, defaultValue?: string): string {
   return value;
 }
 
+/**
+ * Get an env var that is REQUIRED in production.  In development, falls
+ * back to `devDefault` so the app can run without every secret configured.
+ */
+function requireInProd(name: string, devDefault = ""): string {
+  const value = process.env[name];
+  if (value) return value;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      `[KAIROS] FATAL: Required environment variable "${name}" is not set in production.`
+    );
+  }
+  return devDefault;
+}
+
 function getEnvBool(name: string, defaultValue: boolean): boolean {
   const value = process.env[name];
   if (value === undefined) return defaultValue;
@@ -35,20 +50,31 @@ export const env = {
   IS_PRODUCTION: process.env.NODE_ENV === "production",
   IS_DEVELOPMENT: process.env.NODE_ENV !== "production",
 
-  // Database
-  DATABASE_URL: getEnvVar("DATABASE_URL", "postgresql://localhost:5432/kairos"),
+  // Database — required in production
+  DATABASE_URL: requireInProd("DATABASE_URL", "postgresql://localhost:5432/kairos"),
 
-  // Auth (Clerk)
-  CLERK_SECRET_KEY: getEnvVar("CLERK_SECRET_KEY", ""),
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: getEnvVar("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", ""),
+  // Auth (Clerk) — required in production
+  CLERK_SECRET_KEY: requireInProd("CLERK_SECRET_KEY"),
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: requireInProd("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"),
 
-  // Stripe
-  STRIPE_SECRET_KEY: getEnvVar("STRIPE_SECRET_KEY", ""),
-  STRIPE_WEBHOOK_SECRET: getEnvVar("STRIPE_WEBHOOK_SECRET", ""),
+  // Clerk routing URLs
+  NEXT_PUBLIC_CLERK_SIGN_IN_URL: getEnvVar("NEXT_PUBLIC_CLERK_SIGN_IN_URL", "/sign-in"),
+  NEXT_PUBLIC_CLERK_SIGN_UP_URL: getEnvVar("NEXT_PUBLIC_CLERK_SIGN_UP_URL", "/sign-up"),
+  NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: getEnvVar("NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL", "/dashboard"),
+  NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: getEnvVar("NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL", "/onboarding"),
 
-  // Webhooks
-  CLERK_WEBHOOK_SECRET: getEnvVar("CLERK_WEBHOOK_SECRET", ""),
-  CRON_SECRET: getEnvVar("CRON_SECRET", ""),
+  // Stripe — required in production
+  STRIPE_SECRET_KEY: requireInProd("STRIPE_SECRET_KEY"),
+  STRIPE_WEBHOOK_SECRET: requireInProd("STRIPE_WEBHOOK_SECRET"),
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: getEnvVar("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", ""),
+
+  // Redis (optional — falls back to in-memory cache)
+  REDIS_URL: getEnvVar("REDIS_URL", ""),
+
+  // Webhooks — required in production
+  CLERK_WEBHOOK_SECRET: requireInProd("CLERK_WEBHOOK_SECRET"),
+  CRON_SECRET: requireInProd("CRON_SECRET"),
+  GARMIN_WEBHOOK_SECRET: getEnvVar("GARMIN_WEBHOOK_SECRET", ""),
 
   // Email (Resend)
   RESEND_API_KEY: getEnvVar("RESEND_API_KEY", ""),

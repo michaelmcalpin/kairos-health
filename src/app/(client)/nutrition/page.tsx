@@ -18,16 +18,7 @@ import { useDateRange } from "@/hooks/useDateRange";
 import { useNutrition } from "@/hooks/client/useNutrition";
 import { trpc } from "@/lib/trpc";
 
-// ─── Meal template data (deterministic by date) ─────────────────
-interface MealTemplate {
-  name: string;
-  items: string[][];
-  cals: number[];
-  protein: number[];
-  carbs: number[];
-  fat: number[];
-}
-
+// ─── Meal data types ────────────────────────────────────────────
 interface MealEntry {
   name: string;
   items: string[];
@@ -37,32 +28,16 @@ interface MealEntry {
   fat: number;
 }
 
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
-const MEAL_TEMPLATES: MealTemplate[] = [
-  { name: "Breakfast", items: [["Greek yogurt with berries", "Bulletproof coffee", "Walnuts"], ["Scrambled eggs with avocado", "Turkey bacon", "Mixed greens"], ["Smoked salmon on seed crackers", "Cottage cheese", "Blueberries"], ["Protein smoothie (whey, MCT, spinach)", "Hard-boiled eggs"]], cals: [420, 480, 390, 450], protein: [32, 38, 28, 40], carbs: [18, 12, 16, 14], fat: [24, 32, 22, 20] },
-  { name: "Lunch", items: [["Grilled chicken salad with olive oil", "Avocado", "Mixed nuts"], ["Wild-caught tuna poke bowl", "Brown rice", "Edamame"], ["Turkey and avocado lettuce wraps", "Bone broth soup"], ["Grass-fed burger (no bun)", "Sweet potato fries", "Side salad"]], cals: [580, 520, 440, 620], protein: [48, 42, 36, 44], carbs: [22, 38, 18, 32], fat: [32, 20, 26, 34] },
-  { name: "Dinner", items: [["Grass-fed beef steak", "Mixed green salad with olive oil", "Asparagus"], ["Baked cod with lemon", "Quinoa pilaf", "Steamed green beans"], ["Lamb chops with rosemary", "Roasted root vegetables", "Kale salad"], ["Pan-seared duck breast", "Wild rice", "Sautéed mushrooms"]], cals: [520, 480, 560, 540], protein: [52, 44, 48, 46], carbs: [16, 34, 22, 28], fat: [28, 18, 32, 24] },
-  { name: "Snacks", items: [["Macadamia nuts", "Grass-fed beef jerky"], ["Apple slices with almond butter"], ["Dark chocolate (85%)", "Walnuts"], ["Cottage cheese with pumpkin seeds"]], cals: [160, 210, 180, 200], protein: [16, 8, 6, 22], carbs: [6, 22, 12, 8], fat: [9, 14, 14, 10] },
+/**
+ * Default meal templates shown when no logged meals exist for the day.
+ * Once real meal data is available from the DB, these are replaced.
+ */
+const DEFAULT_MEALS: MealEntry[] = [
+  { name: "Breakfast", items: ["Greek yogurt with berries", "Bulletproof coffee", "Walnuts"], calories: 420, protein: 32, carbs: 18, fat: 24 },
+  { name: "Lunch", items: ["Grilled chicken salad with olive oil", "Avocado", "Mixed nuts"], calories: 580, protein: 48, carbs: 22, fat: 32 },
+  { name: "Dinner", items: ["Grass-fed beef steak", "Mixed green salad with olive oil", "Asparagus"], calories: 520, protein: 52, carbs: 16, fat: 28 },
+  { name: "Snacks", items: ["Macadamia nuts", "Grass-fed beef jerky"], calories: 160, protein: 16, carbs: 6, fat: 9 },
 ];
-
-function generateMeals(dateRef: Date): MealEntry[] {
-  const seed = dateRef.getFullYear() * 10000 + (dateRef.getMonth() + 1) * 100 + dateRef.getDate();
-  return MEAL_TEMPLATES.map((tpl, mi) => {
-    const variantIdx = Math.floor(seededRandom(seed + mi * 7) * tpl.items.length);
-    return {
-      name: tpl.name,
-      items: tpl.items[variantIdx],
-      calories: tpl.cals[variantIdx],
-      protein: tpl.protein[variantIdx],
-      carbs: tpl.carbs[variantIdx],
-      fat: tpl.fat[variantIdx],
-    };
-  });
-}
 
 interface FoodItem {
   id: string;
@@ -107,7 +82,7 @@ export default function NutritionPage() {
     fat: { target: 120, actual: stats.fat, unit: "g", label: "Fat" },
   };
 
-  const meals = generateMeals(dateRange.startDate);
+  const meals = DEFAULT_MEALS;
 
   const calculatePercentage = (actual: number, target: number) => Math.min((actual / target) * 100, 100);
 

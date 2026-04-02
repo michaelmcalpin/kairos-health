@@ -14,31 +14,35 @@ export default function ClientDashboard() {
     useDateRange({ initialPeriod: "day" });
 
   // Real tRPC queries
-  const { data: overview, isLoading: overviewLoading } = trpc.clientPortal.dashboard.getOverview.useQuery(
-    undefined,
-    { staleTime: 30_000, refetchOnWindowFocus: false }
-  );
+  const { data: overview, isLoading: overviewLoading, isError: overviewError, refetch: refetchOverview } =
+    trpc.clientPortal.dashboard.getOverview.useQuery(undefined, {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      retry: 2,
+    });
 
-  const { data: healthScore } = trpc.clientPortal.dashboard.getHealthScore.useQuery(
-    undefined,
-    { staleTime: 60_000, refetchOnWindowFocus: false }
-  );
+  const { data: healthScore } = trpc.clientPortal.dashboard.getHealthScore.useQuery(undefined, {
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
 
   const { data: recentAlerts = [] } = trpc.clientPortal.dashboard.getRecentActivity.useQuery(
     { limit: 5 },
-    { staleTime: 30_000, refetchOnWindowFocus: false }
+    { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 }
   );
 
-  const { data: protocol } = trpc.clientPortal.dashboard.getActiveProtocol.useQuery(
-    undefined,
-    { staleTime: 30_000, refetchOnWindowFocus: false }
-  );
+  const { data: protocol } = trpc.clientPortal.dashboard.getActiveProtocol.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
 
   const startStr = dateRange.startDate.toISOString().split("T")[0];
   const endStr = dateRange.endDate.toISOString().split("T")[0];
   const { data: dailySummaries = [] } = trpc.clientPortal.dashboard.getDailySummaries.useQuery(
     { startDate: startStr, endDate: endStr },
-    { staleTime: 30_000, refetchOnWindowFocus: false, enabled: period !== "day" }
+    { staleTime: 30_000, refetchOnWindowFocus: false, enabled: period !== "day", retry: 1 }
   );
 
   // Derived values
@@ -72,6 +76,29 @@ export default function ClientDashboard() {
         <div className="text-center space-y-3">
           <Loader2 className="w-8 h-8 animate-spin text-kairos-gold mx-auto" />
           <p className="text-sm font-body text-kairos-silver-dark">Loading your dashboard…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (overviewError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center max-w-sm space-y-3">
+          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
+            <Bell size={24} className="text-red-400" />
+          </div>
+          <h3 className="font-heading font-semibold text-white">Unable to load dashboard</h3>
+          <p className="text-sm font-body text-kairos-silver-dark">
+            We couldn&apos;t fetch your health data. This could be a temporary connection issue.
+          </p>
+          <button
+            onClick={() => refetchOverview()}
+            className="kairos-btn-gold text-sm px-6 py-2 inline-flex items-center gap-2"
+          >
+            <Loader2 size={14} /> Retry
+          </button>
         </div>
       </div>
     );

@@ -8,15 +8,15 @@ import { useSleep } from "@/hooks/client/useSleep";
 import { Moon, Clock, Zap, Brain, TrendingUp, Sun, Plus, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
-// ─── Sleep stages generator (deterministic by date) ─────────────
+// ─── Sleep stages (typical pattern, shown when no device data available) ────
 interface SleepStageBlock { stage: string; duration: number; }
 
-function seededRandom(seed: number): number {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
-const BASE_STAGES: SleepStageBlock[] = [
+/**
+ * Returns a typical sleep-stage timeline.  Once real device data
+ * (e.g. Oura, Whoop) is available the visualisation should use that
+ * instead of this static pattern.
+ */
+const TYPICAL_STAGES: SleepStageBlock[] = [
   { stage: "light", duration: 25 }, { stage: "deep", duration: 35 },
   { stage: "light", duration: 15 }, { stage: "rem", duration: 20 },
   { stage: "light", duration: 10 }, { stage: "awake", duration: 5 },
@@ -29,12 +29,8 @@ const BASE_STAGES: SleepStageBlock[] = [
   { stage: "awake", duration: 5 }, { stage: "light", duration: 20 },
 ];
 
-function generateSleepStages(dateRef: Date): SleepStageBlock[] {
-  const seed = dateRef.getFullYear() * 10000 + (dateRef.getMonth() + 1) * 100 + dateRef.getDate();
-  return BASE_STAGES.map((block, i) => {
-    const jitter = Math.round((seededRandom(seed + i * 3) - 0.5) * 10);
-    return { stage: block.stage, duration: Math.max(2, block.duration + jitter) };
-  });
+function getSleepStages(): SleepStageBlock[] {
+  return TYPICAL_STAGES;
 }
 
 const stageColors: Record<string, string> = {
@@ -358,7 +354,7 @@ export default function SleepPage() {
             <h3 className="font-heading font-semibold text-white mb-4">Sleep Stages — {formattedRange}</h3>
             <div className="space-y-1">
               {(() => {
-                const stages = generateSleepStages(dateRange.startDate);
+                const stages = getSleepStages();
                 const totalMin = stages.reduce((s, b) => s + b.duration, 0);
                 return (
                   <div>
