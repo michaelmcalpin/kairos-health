@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { users, clientProfiles, trainerProfiles, deviceConnections, syncLogs } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/middleware/logger";
+import { checkBodySize, MAX_WEBHOOK_BODY_BYTES } from "@/lib/middleware/sanitize";
 
 type ValidRole = "client" | "trainer" | "company_admin" | "super_admin";
 const VALID_ROLES: ValidRole[] = ["client", "trainer", "company_admin", "super_admin"];
@@ -281,6 +282,43 @@ async function handleDeviceWebhook(
   return { success: true, action: `${provider}_webhook_processed` };
 }
 
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+const isProduction = process.env.NODE_ENV === "production";
+
+/**
+ * In production, webhook secrets are REQUIRED.  In development they are
+ * optional so you can test without configuring every provider.
+ */
+function requireSecret(provider: string, secret: string | undefined): NextResponse | null {
+  if (secret) return null;
+  if (isProduction) {
+    logger.error(`webhook:${provider}`, "Webhook secret not configured in production — rejecting request");
+    return NextResponse.json({ error: "Webhook verification unavailable" }, { status: 500 });
+  }
+  logger.warn(`webhook:${provider}`, "Webhook secret not set — skipping verification (dev only)");
+  return null;
+}
+
+function verifyDeviceProvider(
+  provider: string,
+  rawBody: string,
+  headersList: Headers,
+  headerName: string,
+  envVar: string | undefined,
+): NextResponse | null {
+  const rejection = requireSecret(provider, envVar);
+  if (rejection) return rejection;
+  if (envVar) {
+    const providedSig = headersList.get(headerName);
+    if (!providedSig || !verifyHmacSignature(rawBody, providedSig, envVar)) {
+      logger.error(`webhook:${provider}`, "Invalid or missing signature");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+  }
+  return null;
+}
+
 // ─── Route Handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: Request, { params }: { params: { provider: string } }) {
@@ -288,6 +326,13 @@ export async function POST(req: Request, { params }: { params: { provider: strin
   const headersList = await headers();
 
   try {
+    // Reject oversized payloads before reading the body
+    const sizeErr = checkBodySize(req.headers.get("content-length"), MAX_WEBHOOK_BODY_BYTES);
+    if (sizeErr) {
+      logger.warn("webhook", sizeErr, { provider });
+      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+    }
+
     // Read raw body for signature verification, then parse
     const rawBody = await req.text();
     let body: unknown;
@@ -303,6 +348,9 @@ export async function POST(req: Request, { params }: { params: { provider: strin
         const svixTimestamp = headersList.get("svix-timestamp");
         const svixSignature = headersList.get("svix-signature");
         const clerkWebhookSecret = process.env.CLERK_WEBHOOK_SECRET;
+
+        const secretReject = requireSecret("clerk", clerkWebhookSecret);
+        if (secretReject) return secretReject;
 
         if (clerkWebhookSecret) {
           if (!svixId || !svixTimestamp || !svixSignature) {
@@ -322,8 +370,6 @@ export async function POST(req: Request, { params }: { params: { provider: strin
             logger.error("webhook:clerk", "Invalid signature");
             return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
           }
-        } else {
-          logger.warn("webhook:clerk", "CLERK_WEBHOOK_SECRET not set — skipping verification");
         }
 
         const result = await handleClerkWebhook(body as ClerkUserEvent);
@@ -333,6 +379,9 @@ export async function POST(req: Request, { params }: { params: { provider: strin
       case "stripe": {
         const stripeSignature = headersList.get("stripe-signature");
         const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+        const secretReject = requireSecret("stripe", stripeWebhookSecret);
+        if (secretReject) return secretReject;
 
         if (stripeWebhookSecret) {
           if (!stripeSignature) {
@@ -344,8 +393,6 @@ export async function POST(req: Request, { params }: { params: { provider: strin
             logger.error("webhook:stripe", "Invalid signature");
             return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
           }
-        } else {
-          logger.warn("webhook:stripe", "STRIPE_WEBHOOK_SECRET not set — skipping verification");
         }
 
         const result = await handleStripeWebhook(body as Record<string, unknown>);
@@ -353,48 +400,29 @@ export async function POST(req: Request, { params }: { params: { provider: strin
       }
 
       case "oura": {
-        const ouraSecret = process.env.OURA_WEBHOOK_SECRET;
-        if (ouraSecret) {
-          const providedSig = headersList.get("x-oura-signature");
-          if (!providedSig || !verifyHmacSignature(rawBody, providedSig, ouraSecret)) {
-            logger.error("webhook:oura", "Invalid or missing signature");
-            return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-          }
-        }
-
+        const err = verifyDeviceProvider("oura", rawBody, headersList, "x-oura-signature", process.env.OURA_WEBHOOK_SECRET);
+        if (err) return err;
         const result = await handleDeviceWebhook("oura", body as DeviceWebhookPayload);
         return NextResponse.json(result);
       }
 
       case "whoop": {
-        const whoopSecret = process.env.WHOOP_WEBHOOK_SECRET;
-        if (whoopSecret) {
-          const providedSig = headersList.get("x-whoop-signature");
-          if (!providedSig || !verifyHmacSignature(rawBody, providedSig, whoopSecret)) {
-            logger.error("webhook:whoop", "Invalid or missing signature");
-            return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-          }
-        }
-
+        const err = verifyDeviceProvider("whoop", rawBody, headersList, "x-whoop-signature", process.env.WHOOP_WEBHOOK_SECRET);
+        if (err) return err;
         const result = await handleDeviceWebhook("whoop", body as DeviceWebhookPayload);
         return NextResponse.json(result);
       }
 
       case "garmin": {
+        const err = verifyDeviceProvider("garmin", rawBody, headersList, "x-garmin-signature", process.env.GARMIN_WEBHOOK_SECRET);
+        if (err) return err;
         const result = await handleDeviceWebhook("garmin", body as DeviceWebhookPayload);
         return NextResponse.json(result);
       }
 
       case "withings": {
-        const withingsSecret = process.env.WITHINGS_WEBHOOK_SECRET;
-        if (withingsSecret) {
-          const providedSig = headersList.get("x-withings-signature");
-          if (!providedSig || !verifyHmacSignature(rawBody, providedSig, withingsSecret)) {
-            logger.error("webhook:withings", "Invalid or missing signature");
-            return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-          }
-        }
-
+        const err = verifyDeviceProvider("withings", rawBody, headersList, "x-withings-signature", process.env.WITHINGS_WEBHOOK_SECRET);
+        if (err) return err;
         const result = await handleDeviceWebhook("withings", body as DeviceWebhookPayload);
         return NextResponse.json(result);
       }

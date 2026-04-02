@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useCallback } from "react";
 import { X, CheckCircle, AlertTriangle, Info, AlertCircle } from "lucide-react";
 import { cn } from "@/utils/cn";
 
+let toastCounter = 0;
+
 type ToastType = "success" | "error" | "warning" | "info";
 
 interface Toast {
@@ -35,7 +37,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const addToast = useCallback((message: string, type: ToastType = "info") => {
-    const id = Date.now().toString() + Math.random().toString(36).slice(2);
+    const id = `toast-${Date.now()}-${++toastCounter}`;
     setToasts((prev) => [...prev, { id, message, type }]);
 
     // Auto-dismiss after 4 seconds

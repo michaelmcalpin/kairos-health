@@ -51,7 +51,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   injection: 'text-red-400 border-red-500/30 bg-red-500/10',
 };
 
-const uid = () => `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+let uidCounter = 0;
+const uid = () => `${Date.now().toString(36)}_${(++uidCounter).toString(36)}`;
 
 export const SupplementsTab: React.FC<SupplementsTabProps> = ({ data, onChange }) => {
   const supplements = (Array.isArray(data.supplementItems) ? data.supplementItems : []) as SupplementItem[];

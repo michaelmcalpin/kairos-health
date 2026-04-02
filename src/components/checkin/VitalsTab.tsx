@@ -22,7 +22,8 @@ const POSE_OPTIONS = [
   { id: 'back', label: 'Back', emoji: '🧍' },
 ] as const;
 
-const uid = () => `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+let uidCounter = 0;
+const uid = () => `${Date.now().toString(36)}_${(++uidCounter).toString(36)}`;
 
 export const VitalsTab: React.FC<VitalsTabProps> = ({
   data,

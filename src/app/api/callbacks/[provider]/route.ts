@@ -1,9 +1,23 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { db } from "@/server/db";
 import { deviceConnections } from "@/server/db/schema";
 import { PROVIDERS, getProviderEnvKeys } from "@/lib/integrations/devices/providers";
 import { eq, and } from "drizzle-orm";
 import { logger } from "@/lib/middleware/logger";
+
+const isProduction = process.env.NODE_ENV === "production";
+const MAX_STATE_AGE_MS = 10 * 60 * 1000; // 10 minutes
+
+function verifyOAuthState(statePayload: string, providedSig: string): boolean {
+  const secret = process.env.CLERK_SECRET_KEY || process.env.OAUTH_STATE_SECRET || "dev-only-fallback";
+  const expected = crypto.createHmac("sha256", secret).update(statePayload, "utf8").digest("hex");
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(providedSig, "hex"));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * OAuth Callback Handler
@@ -40,11 +54,39 @@ export async function GET(
       );
     }
 
-    // Decode state to get userId and provider
-    let decodedState: { userId: string; provider: string };
+    // Decode and verify HMAC-signed state
+    let decodedState: { userId: string; provider: string; timestamp?: number };
     try {
       const stateBuffer = Buffer.from(state, "base64");
-      decodedState = JSON.parse(stateBuffer.toString("utf-8"));
+      const outer = JSON.parse(stateBuffer.toString("utf-8"));
+
+      // New signed format: { payload: string, sig: string }
+      if (outer.payload && outer.sig) {
+        if (!verifyOAuthState(outer.payload, outer.sig)) {
+          logger.error("oauth", "State HMAC verification failed");
+          return NextResponse.redirect(
+            new URL("/settings?error=Invalid state signature", req.url)
+          );
+        }
+        decodedState = JSON.parse(outer.payload);
+      } else {
+        // Legacy unsigned format — reject in production
+        if (isProduction) {
+          logger.error("oauth", "Unsigned OAuth state rejected in production");
+          return NextResponse.redirect(
+            new URL("/settings?error=Invalid state parameter", req.url)
+          );
+        }
+        decodedState = outer;
+      }
+
+      // Reject stale state tokens (10 min max)
+      if (decodedState.timestamp && Date.now() - decodedState.timestamp > MAX_STATE_AGE_MS) {
+        logger.error("oauth", "OAuth state expired", { age: Date.now() - decodedState.timestamp });
+        return NextResponse.redirect(
+          new URL("/settings?error=Authorization link expired, please try again", req.url)
+        );
+      }
     } catch (err) {
       logger.error("oauth", "Failed to decode state", { error: err instanceof Error ? err.message : "Unknown" });
       return NextResponse.redirect(

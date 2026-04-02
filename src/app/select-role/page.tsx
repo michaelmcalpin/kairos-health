@@ -7,6 +7,7 @@ import type { UserRole } from "@/lib/company-ops/types";
 import { useCompanyBrand, useCompanyList, CompanyBrandProvider } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
 import { ROLE_HOME } from "@/lib/hooks/useAuthRole";
+import { reportError } from "@/lib/error-reporting";
 
 const ROLE_META: Record<
   UserRole,
@@ -93,9 +94,7 @@ function SelectRoleContent() {
     onError: () => {
       // DB may be unreachable — still allow the page to proceed
       // so the user isn't stuck on a spinner forever
-      if (process.env.NODE_ENV === "development") {
-        console.error("[select-role] ensureUser failed — DB may be unreachable");
-      }
+      reportError(new Error("ensureUser failed — DB may be unreachable"), { portal: "select-role" });
       setSynced(true);
     },
   });

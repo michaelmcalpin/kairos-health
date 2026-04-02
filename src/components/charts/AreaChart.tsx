@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { useThemeColors } from "@/lib/theme";
 
 /**
@@ -36,6 +37,7 @@ export function AreaChart({
   showValues = false,
   className = "",
 }: AreaChartProps) {
+  const instanceId = useId();
   const tc = useThemeColors();
   const resolvedStrokeColor = strokeColor ?? tc.accent;
   const resolvedFillColor = fillColor ?? tc.accent;
@@ -61,7 +63,7 @@ export function AreaChart({
 
   const areaPath = `${linePath} L ${points[points.length - 1].x} ${padding.top + chartHeight} L ${points[0].x} ${padding.top + chartHeight} Z`;
 
-  const gradientId = `area-grad-${Math.random().toString(36).slice(2, 8)}`;
+  const gradientId = `area-grad-${instanceId.replace(/:/g, "")}`;
 
   return (
     <svg

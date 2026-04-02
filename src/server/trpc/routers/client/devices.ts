@@ -1,8 +1,18 @@
 import { z } from "zod";
+import crypto from "crypto";
 import { router, clientProcedure } from "@/server/trpc";
 import { deviceConnections, syncLogs } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { PROVIDERS } from "@/lib/integrations/devices/providers";
+
+/**
+ * Sign OAuth state with HMAC to prevent tampering.  Uses CLERK_SECRET_KEY
+ * as the signing key (always available in the server context).
+ */
+function signOAuthState(payload: string): string {
+  const secret = process.env.CLERK_SECRET_KEY || process.env.OAUTH_STATE_SECRET || "dev-only-fallback";
+  return crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
+}
 
 const providerEnum = z.enum(["oura", "apple_health", "dexcom", "garmin", "whoop", "withings", "fitbit"]);
 
@@ -79,14 +89,14 @@ export const clientDevicesRouter = router({
       // Build redirect URI
       const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/callbacks/${input.provider}`;
 
-      // Encode state with userId and provider
-      const state = Buffer.from(
-        JSON.stringify({
-          userId: ctx.dbUserId,
-          provider: input.provider,
-          timestamp: Date.now(),
-        })
-      ).toString("base64");
+      // Encode state with userId, provider, and HMAC signature to prevent tampering
+      const statePayload = JSON.stringify({
+        userId: ctx.dbUserId,
+        provider: input.provider,
+        timestamp: Date.now(),
+      });
+      const sig = signOAuthState(statePayload);
+      const state = Buffer.from(JSON.stringify({ payload: statePayload, sig })).toString("base64");
 
       // Build authorization URL
       const authUrl = new URL(providerConfig.oauthUrl);

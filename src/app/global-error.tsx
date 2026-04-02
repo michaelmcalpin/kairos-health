@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportError } from "@/lib/error-reporting";
 
 /**
  * Global error boundary — catches errors in the root layout itself.
@@ -14,9 +15,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[KAIROS] Global error:", error);
-    }
+    reportError(error, { portal: "global" });
   }, [error]);
 
   return (

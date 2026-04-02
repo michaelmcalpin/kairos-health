@@ -19,11 +19,17 @@ export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max for Vercel Pro
 
 export async function GET(req: Request) {
-  // Verify cron secret to prevent unauthorized triggers
+  // Verify cron secret — REQUIRED in production
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
 
+  if (!cronSecret && process.env.NODE_ENV === "production") {
+    logger.error("cron", "CRON_SECRET not configured in production — rejecting request");
+    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+  }
+
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    logger.warn("cron", "Unauthorized cron request");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

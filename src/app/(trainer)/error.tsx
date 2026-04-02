@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
+import { reportError } from "@/lib/error-reporting";
 
 export default function CoachError({
   error,
@@ -12,9 +13,7 @@ export default function CoachError({
   reset: () => void;
 }) {
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[KAIROS] Trainer portal error:", error);
-    }
+    reportError(error, { portal: "trainer" });
   }, [error]);
 
   return (
