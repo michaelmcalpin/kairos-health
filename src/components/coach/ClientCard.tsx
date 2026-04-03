@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type { CoachClientSummary } from "@/lib/coach-clients/types";
 import {
   TIER_LABELS,
@@ -13,7 +14,7 @@ interface ClientCardProps {
   onClick?: () => void;
 }
 
-export function ClientCard({ client, onClick }: ClientCardProps) {
+export const ClientCard = React.memo(function ClientCard({ client, onClick }: ClientCardProps) {
   const trendIcon = client.scoreTrend === "up" ? "↑" : client.scoreTrend === "down" ? "↓" : "→";
   const trendColor = client.scoreTrend === "up" ? "text-green-400" : client.scoreTrend === "down" ? "text-red-400" : "text-gray-400";
 
@@ -83,4 +84,4 @@ export function ClientCard({ client, onClick }: ClientCardProps) {
       </div>
     </div>
   );
-}
+});

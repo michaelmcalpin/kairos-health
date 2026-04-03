@@ -182,7 +182,7 @@ export default function SleepPage() {
         <div className="kairos-card border border-kairos-gold/50">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-heading font-semibold text-white">Add Sleep Entry</h3>
-            <button onClick={handleCancel} className="text-kairos-silver-dark hover:text-white transition-colors">
+            <button onClick={handleCancel} className="text-kairos-silver-dark hover:text-white transition-colors" aria-label="Close form">
               <X size={20} />
             </button>
           </div>

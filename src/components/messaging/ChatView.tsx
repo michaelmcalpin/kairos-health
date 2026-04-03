@@ -101,6 +101,7 @@ export function ChatView({
           <button
             onClick={onBack}
             className="text-gray-400 hover:text-white transition-colors lg:hidden"
+            aria-label="Back to conversations"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M12 4l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -255,6 +256,7 @@ export function ChatView({
           <button
             onClick={() => setReplyTo(null)}
             className="text-gray-500 hover:text-gray-300"
+            aria-label="Clear reply"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -291,6 +293,7 @@ export function ChatView({
                 : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
             }`}
             title="Quick replies"
+            aria-label="Quick replies"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M14 8a6 6 0 01-6 6H3l1.5-1.5A6 6 0 1114 8z" stroke="currentColor" strokeWidth="1.5" />
@@ -319,6 +322,7 @@ export function ChatView({
                 : "bg-gray-800 text-gray-600 cursor-not-allowed"
             }`}
             title="Send"
+            aria-label="Send message"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M14 2L7 9M14 2l-4 12-3-5-5-3 12-4z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

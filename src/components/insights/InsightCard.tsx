@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type { HealthInsight } from "@/lib/ai/types";
 
 // ─── Severity Styles ─────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@ interface InsightCardProps {
   onToggle?: () => void;
 }
 
-export function InsightCard({ insight, expanded = false, onToggle }: InsightCardProps) {
+export const InsightCard = React.memo(function InsightCard({ insight, expanded = false, onToggle }: InsightCardProps) {
   const config = severityConfig[insight.severity];
 
   return (
@@ -146,4 +147,4 @@ export function InsightCard({ insight, expanded = false, onToggle }: InsightCard
       )}
     </div>
   );
-}
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dumbbell, Search, Star, Users, MoreVertical, Mail, Plus,
   ArrowUpDown, BarChart3, X, Copy, Check,
@@ -272,7 +272,14 @@ function TrainerRow({
       </td>
       <td className="px-6 py-3">
         <div className="flex items-center gap-2 justify-center">
-          <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+          <div
+            className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden"
+            role="progressbar"
+            aria-valuenow={usagePct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`Trainer capacity: ${t.clientCount} of ${t.capacity} clients`}
+          >
             <div
               className="h-full rounded-full"
               style={{
@@ -338,6 +345,16 @@ function InviteTrainerModal({
 
   const inviteLink = `${typeof window !== "undefined" ? window.location.origin : ""}/join/${companyName.toLowerCase().replace(/\s+/g, "-")}`;
 
+  useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
   function handleSendInvite() {
     if (!email.trim()) return;
     setSent(true);
@@ -353,7 +370,7 @@ function InviteTrainerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-kairos-card border border-kairos-border rounded-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-kairos-card border border-kairos-border rounded-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-heading font-bold text-xl text-white">Invite Trainer</h3>
           <button onClick={onClose} className="p-1 rounded text-gray-400 hover:text-white transition-colors">
@@ -445,6 +462,16 @@ function TrainerDetailDrawer({
 }) {
   if (!trainer) return null;
 
+  useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
   const usagePct = trainer.capacity > 0 ? Math.round((trainer.clientCount / trainer.capacity) * 100) : 0;
 
   return (
@@ -452,6 +479,8 @@ function TrainerDetailDrawer({
       <div
         className="w-full max-w-lg bg-kairos-card border-l border-kairos-border h-full overflow-y-auto animate-fade-in"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
       >
         <div className="p-6">
           {/* Header */}
@@ -511,7 +540,14 @@ function TrainerDetailDrawer({
               <p className="text-xs text-kairos-silver-dark">Client Capacity</p>
               <p className="text-xs text-white font-heading">{trainer.clientCount}/{trainer.capacity}</p>
             </div>
-            <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className="w-full h-2 bg-gray-800 rounded-full overflow-hidden"
+              role="progressbar"
+              aria-valuenow={usagePct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Client capacity: ${trainer.clientCount} of ${trainer.capacity} clients assigned`}
+            >
               <div
                 className="h-full rounded-full transition-all"
                 style={{

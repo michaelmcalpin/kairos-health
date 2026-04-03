@@ -114,6 +114,7 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="text-kairos-silver-dark hover:text-white transition-colors p-1"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>

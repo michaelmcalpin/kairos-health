@@ -47,13 +47,13 @@ export function TopBar({ title, subtitle, alertCount = 0, showSearch = true, cla
       {/* Right: Actions */}
       <div className="flex items-center gap-4">
         {showSearch && (
-          <button className="text-kairos-silver-dark hover:text-white transition-colors p-2">
+          <button className="text-kairos-silver-dark hover:text-white transition-colors p-2" aria-label="Search">
             <Search size={18} />
           </button>
         )}
 
         {/* Alert Bell */}
-        <button className="relative text-kairos-silver-dark hover:text-white transition-colors p-2">
+        <button className="relative text-kairos-silver-dark hover:text-white transition-colors p-2" aria-label={`Notifications${alertCount > 0 ? ` (${alertCount} unread)` : ""}`}>
           <Bell size={18} />
           {alertCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-[9px] font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
@@ -67,6 +67,7 @@ export function TopBar({ title, subtitle, alertCount = 0, showSearch = true, cla
           onClick={handleSignOut}
           className="text-kairos-silver-dark hover:text-white transition-colors p-2"
           title="Sign out"
+          aria-label="Sign out"
         >
           <LogOut size={18} />
         </button>

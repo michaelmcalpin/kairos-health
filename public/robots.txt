@@ -1,0 +1,17 @@
+# KAIROS Health — Crawler Configuration
+# Most of the app is behind authentication, so only index the public pages.
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /trainer/
+Disallow: /super-admin/
+Disallow: /company/
+Disallow: /settings
+Disallow: /onboarding
+Disallow: /select-role
+Disallow: /checkin
+Disallow: /dev/
+
+Sitemap: https://kairos.health/sitemap.xml

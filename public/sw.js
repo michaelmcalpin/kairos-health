@@ -23,6 +23,15 @@ const PRECACHE_URLS = [
   "/icons/icon-512x512.svg",
 ];
 
+// ─── Message Handler ────────────────────────────────────────────────────────
+// Allows the UpdateBanner component to trigger skipWaiting on demand.
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 // ─── Install ─────────────────────────────────────────────────────────────────
 
 self.addEventListener("install", (event) => {
@@ -30,7 +39,6 @@ self.addEventListener("install", (event) => {
     caches
       .open(STATIC_CACHE)
       .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
   );
 });
 

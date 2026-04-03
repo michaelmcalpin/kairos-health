@@ -309,6 +309,7 @@ class HybridCache {
   delete(key: string, namespace = "default"): boolean {
     const fullKey = `${namespace}:${key}`;
     if (redis) {
+      // Redis invalidation is best-effort; memory cache is the source of truth
       cacheInvalidate(fullKey).catch(() => {});
     }
     return this.memory.delete(key, namespace);
@@ -319,6 +320,7 @@ class HybridCache {
    */
   invalidateNamespace(namespace: string): number {
     if (redis) {
+      // Best-effort Redis flush — failure still clears the in-memory layer below
       cacheInvalidate(`${namespace}:*`).catch(() => {});
     }
     return this.memory.invalidateNamespace(namespace);
@@ -329,6 +331,7 @@ class HybridCache {
    */
   invalidatePattern(pattern: string): number {
     if (redis) {
+      // Best-effort Redis pattern invalidation — memory cache is authoritative
       cacheInvalidate(`*${pattern}*`).catch(() => {});
     }
     return this.memory.invalidatePattern(pattern);

@@ -345,6 +345,7 @@ export default function NutritionPage() {
                 <button key={i} onClick={() => setWaterGlasses(i + 1)}
                   className={`w-12 h-12 rounded-kairos-sm border-2 transition-all ${i < waterGlasses ? "bg-kairos-gold border-kairos-gold" : "border-kairos-border bg-kairos-royal-surface hover:border-kairos-gold"}`}
                   title={`Glass ${i + 1}`}
+                  aria-label={`Water glass ${i + 1}`}
                 >
                   <Droplets className={`w-5 h-5 mx-auto ${i < waterGlasses ? "text-kairos-royal" : "text-kairos-silver-dark"}`} />
                 </button>
@@ -399,6 +400,7 @@ export default function NutritionPage() {
               <button
                 onClick={handleCloseModal}
                 className="text-kairos-silver-dark hover:text-white transition-colors"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>

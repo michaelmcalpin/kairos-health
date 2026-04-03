@@ -274,7 +274,19 @@ export default function AnalyticsPage() {
                   .map((c) => {
                     const util = c.maxClients > 0 ? Math.round((c.clientCount / c.maxClients) * 100) : 0;
                     return (
-                      <tr key={c.id} className="border-b border-kairos-border/50 hover:bg-kairos-card-hover transition-colors cursor-pointer" onClick={() => setSelectedCompany(c.id)}>
+                      <tr
+                        key={c.id}
+                        className="border-b border-kairos-border/50 hover:bg-kairos-card-hover transition-colors cursor-pointer"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedCompany(c.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedCompany(c.id);
+                          }
+                        }}
+                      >
                         <td className="py-3">
                           <div className="flex items-center gap-2">
                             <div className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: c.brandColor }}>

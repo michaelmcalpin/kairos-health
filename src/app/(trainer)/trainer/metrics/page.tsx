@@ -319,7 +319,14 @@ export default function CoachMetricsPage() {
                       <span className="kairos-label text-sm text-kairos-silver-dark">{item.range}</span>
                     </div>
                     <div className="flex-1">
-                      <div className="relative h-8 bg-kairos-dark border border-kairos-border rounded-kairos-sm overflow-hidden">
+                      <div
+                        className="relative h-8 bg-kairos-dark border border-kairos-border rounded-kairos-sm overflow-hidden"
+                        role="progressbar"
+                        aria-valuenow={item.percentage}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label={`Health score ${item.range}: ${item.count} clients (${item.percentage}%)`}
+                      >
                         <div
                           className="h-full bg-gradient-to-r from-kairos-gold to-amber-500 flex items-center justify-end pr-3 transition-all duration-500"
                           style={{ width: `${Math.max(item.percentage * 2, item.count > 0 ? 8 : 0)}%` }}
@@ -530,7 +537,14 @@ export default function CoachMetricsPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="kairos-label text-xs mb-2">Adherence Rate</p>
-                        <div className="w-full h-2 bg-kairos-dark border border-kairos-border rounded-full overflow-hidden">
+                        <div
+                          className="w-full h-2 bg-kairos-dark border border-kairos-border rounded-full overflow-hidden"
+                          role="progressbar"
+                          aria-valuenow={protocol.adherenceRate}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`Adherence rate: ${protocol.adherenceRate}%`}
+                        >
                           <div
                             className="h-full bg-gradient-to-r from-kairos-gold to-amber-500 transition-all"
                             style={{ width: `${protocol.adherenceRate}%` }}
@@ -540,7 +554,14 @@ export default function CoachMetricsPage() {
                       </div>
                       <div>
                         <p className="kairos-label text-xs mb-2">Outcome Score</p>
-                        <div className="w-full h-2 bg-kairos-dark border border-kairos-border rounded-full overflow-hidden">
+                        <div
+                          className="w-full h-2 bg-kairos-dark border border-kairos-border rounded-full overflow-hidden"
+                          role="progressbar"
+                          aria-valuenow={Math.round((protocol.outcomeScore / 10) * 100)}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`Outcome score: ${protocol.outcomeScore.toFixed(1)} out of 10`}
+                        >
                           <div
                             className="h-full bg-gradient-to-r from-kairos-gold to-amber-500 transition-all"
                             style={{ width: `${(protocol.outcomeScore / 10) * 100}%` }}
@@ -576,20 +597,30 @@ export default function CoachMetricsPage() {
                       { label: "On-Track Clients", val: clientSegments.onTrack, color: "bg-kairos-gold", textColor: "text-kairos-gold" },
                       { label: "Needs Attention", val: clientSegments.needsAttention, color: "bg-red-400", textColor: "text-red-400" },
                       { label: "Inactive", val: clientSegments.inactive, color: "bg-kairos-silver-dark", textColor: "text-kairos-silver-dark" },
-                    ].map((seg) => (
-                      <div key={seg.label} className="p-4 bg-kairos-dark border border-kairos-border rounded-kairos-sm">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-kairos-silver-dark text-sm">{seg.label}</span>
-                          <span className={`${seg.textColor} font-bold`}>{seg.val}/{clientSegments.total}</span>
-                        </div>
-                        <div className="w-full h-2 bg-kairos-royal-surface rounded-full overflow-hidden">
+                    ].map((seg) => {
+                      const percentage = clientSegments.total > 0 ? Math.round((seg.val / clientSegments.total) * 100) : 0;
+                      return (
+                        <div key={seg.label} className="p-4 bg-kairos-dark border border-kairos-border rounded-kairos-sm">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-kairos-silver-dark text-sm">{seg.label}</span>
+                            <span className={`${seg.textColor} font-bold`}>{seg.val}/{clientSegments.total}</span>
+                          </div>
                           <div
-                            className={`h-full ${seg.color}`}
-                            style={{ width: `${clientSegments.total > 0 ? (seg.val / clientSegments.total) * 100 : 0}%` }}
-                          />
+                            className="w-full h-2 bg-kairos-royal-surface rounded-full overflow-hidden"
+                            role="progressbar"
+                            aria-valuenow={percentage}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label={`${seg.label}: ${seg.val} of ${clientSegments.total} clients`}
+                          >
+                            <div
+                              className={`h-full ${seg.color}`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 

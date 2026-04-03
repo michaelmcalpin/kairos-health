@@ -230,7 +230,7 @@ export default function CoachSchedulePage() {
           <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-kairos-border">
               <h2 className="font-heading font-bold text-lg text-white">New Appointment</h2>
-              <button onClick={() => setShowNewAppt(false)} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
+              <button onClick={() => setShowNewAppt(false)} className="text-kairos-silver-dark hover:text-white" aria-label="Close modal"><X size={20} /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>

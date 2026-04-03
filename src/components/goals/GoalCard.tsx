@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import type { HealthGoal, GoalProgress } from "@/lib/goals/types";
 import { useThemeColors } from "@/lib/theme";
 import { GoalProgressRing } from "./GoalProgressRing";
@@ -34,7 +34,7 @@ const TREND_COLORS: Record<string, string> = {
   stable: "#6B7280",
 };
 
-export function GoalCard({ goal, onAddCheckpoint, onPause, onResume }: GoalCardProps) {
+export const GoalCard = React.memo(function GoalCard({ goal, onAddCheckpoint, onPause, onResume }: GoalCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [checkpointValue, setCheckpointValue] = useState("");
   const [checkpointNote, setCheckpointNote] = useState("");
@@ -298,4 +298,4 @@ export function GoalCard({ goal, onAddCheckpoint, onPause, onResume }: GoalCardP
       )}
     </div>
   );
-}
+});

@@ -134,7 +134,18 @@ export default function CoachAlertsPage() {
             const isExpanded = expanded === alert.id;
             return (
               <div key={alert.id} className="kairos-card">
-                <div className="flex items-start gap-3 cursor-pointer" onClick={() => setExpanded(isExpanded ? null : alert.id)}>
+                <div
+                  className="flex items-start gap-3 cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setExpanded(isExpanded ? null : alert.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setExpanded(isExpanded ? null : alert.id);
+                    }
+                  }}
+                >
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${alert.priority === "urgent" ? "bg-red-500/20" : alert.priority === "action" ? "bg-orange-500/20" : "bg-kairos-card-hover"}`}>
                     <span className={`text-xs font-heading font-bold ${config.color}`}>{alert.clientName?.split(" ").map((n: string) => n[0]).join("").toUpperCase() || "?"}</span>
                   </div>

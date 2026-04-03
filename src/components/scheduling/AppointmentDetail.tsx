@@ -146,7 +146,7 @@ export function AppointmentDetail({
             </p>
           </div>
         </div>
-        <button onClick={onClose} className="text-gray-500 hover:text-white">
+        <button onClick={onClose} className="text-gray-500 hover:text-white" aria-label="Close appointment detail">
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>

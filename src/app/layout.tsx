@@ -3,12 +3,28 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { TRPCProvider } from "@/lib/providers";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ThemeProvider } from "@/lib/theme";
+import { UpdateBanner } from "@/components/pwa/UpdateBanner";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "KAIROS | Private Health Management",
   description: "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",
   manifest: "/manifest.json",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://kairos.health"),
+  openGraph: {
+    title: "KAIROS | Private Health Management",
+    description: "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",
+    siteName: "KAIROS Health",
+    type: "website",
+    locale: "en_US",
+    images: [{ url: "/icons/icon-512x512.svg", width: 512, height: 512, alt: "KAIROS Health" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "KAIROS | Private Health Management",
+    description: "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",
+    images: ["/icons/icon-512x512.svg"],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -35,7 +51,10 @@ export default function RootLayout({
         <ClerkProvider>
           <TRPCProvider>
             <ThemeProvider>
-              <ToastProvider>{children}</ToastProvider>
+              <ToastProvider>
+                <UpdateBanner />
+                {children}
+              </ToastProvider>
             </ThemeProvider>
           </TRPCProvider>
         </ClerkProvider>

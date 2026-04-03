@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -292,7 +292,14 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <span className="text-xs text-gray-500">Progress</span>
                 <span className="text-sm font-heading font-bold text-kairos-gold">{client.protocol.progress}%</span>
               </div>
-              <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden"
+                role="progressbar"
+                aria-valuenow={client.protocol.progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Protocol progress: ${client.protocol.progress}% complete`}
+              >
                 <div className="h-full rounded-full transition-all" style={{ backgroundColor: tc.accent, width: `${client.protocol.progress}%` }} />
               </div>
             </div>
@@ -366,6 +373,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 onClick={handleAddNote}
                 disabled={!noteText.trim() || addNoteMutation.isPending}
                 className="px-3 py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 text-kairos-gold border border-kairos-gold/30 bg-kairos-gold/10 hover:bg-kairos-gold/20"
+                aria-label="Send note"
               >
                 <Send size={14} />
               </button>
@@ -382,10 +390,10 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                     <div className="flex items-center justify-between mt-2">
                       <p className="text-[10px] text-gray-500">{formatRelativeTime(note.createdAt)}</p>
                       <div className="flex gap-1">
-                        <button onClick={() => handlePinNote(note.id)} className="p-1 text-gray-500 hover:text-kairos-gold transition-colors">
+                        <button onClick={() => handlePinNote(note.id)} className="p-1 text-gray-500 hover:text-kairos-gold transition-colors" aria-label={note.pinned ? "Unpin note" : "Pin note"}>
                           <Pin size={12} className={note.pinned ? "text-kairos-gold" : ""} />
                         </button>
-                        <button onClick={() => handleDeleteNote(note.id)} className="p-1 text-gray-500 hover:text-red-400 transition-colors">
+                        <button onClick={() => handleDeleteNote(note.id)} className="p-1 text-gray-500 hover:text-red-400 transition-colors" aria-label="Delete note">
                           <Trash2 size={12} />
                         </button>
                       </div>
@@ -425,6 +433,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                         disabled={resolveAlertMutation.isPending}
                         className="p-1.5 text-gray-500 hover:text-green-400 transition-colors shrink-0"
                         title="Resolve"
+                        aria-label="Resolve alert"
                       >
                         <CheckCircle size={16} />
                       </button>
@@ -507,59 +516,23 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
       {/* Protocol Adjustment Modal */}
       {showProtocolModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-kairos-border">
-              <h2 className="font-heading font-bold text-lg text-white">Adjust Protocol</h2>
-              <button onClick={() => setShowProtocolModal(false)} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-kairos-silver-dark">Adjust the training and supplement protocol for <span className="text-white font-semibold">{client.name}</span>.</p>
-              {protocolSaved && (
-                <div className="p-3 rounded-kairos-sm bg-green-500/10 border border-green-500/20">
-                  <p className="text-sm text-green-400 font-medium">Protocol changes saved successfully.</p>
-                </div>
-              )}
-              <div>
-                <label className="kairos-label mb-1 block">Protocol Notes</label>
-                <textarea value={protocolNotes} onChange={(e) => setProtocolNotes(e.target.value)} placeholder="Describe the protocol changes..." className="kairos-input w-full h-28 resize-none" />
-              </div>
-              <div>
-                <label className="kairos-label mb-1 block">Priority</label>
-                <select value={protocolPriority} onChange={(e) => setProtocolPriority(e.target.value)} className="kairos-input w-full">
-                  <option>Normal</option>
-                  <option>High — Review within 24h</option>
-                  <option>Urgent — Immediate attention</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-3 p-6 border-t border-kairos-border">
-              <button
-                onClick={() => {
-                  setShowProtocolModal(false);
-                  setProtocolSaved(false);
-                }}
-                disabled={updateProtocolMutation.isPending}
-                className="kairos-btn-outline flex-1 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  updateProtocolMutation.mutate({
-                    clientId: params.id,
-                    notes: protocolNotes.trim(),
-                    priority: protocolPriority as "Normal" | "High — Review within 24h" | "Urgent — Immediate attention",
-                  });
-                }}
-                disabled={!protocolNotes.trim() || updateProtocolMutation.isPending}
-                className="kairos-btn-gold flex-1 disabled:opacity-50 relative"
-              >
-                {updateProtocolMutation.isPending ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ProtocolModal
+          clientName={client?.name || "Client"}
+          protocolNotes={protocolNotes}
+          setProtocolNotes={setProtocolNotes}
+          protocolPriority={protocolPriority}
+          setProtocolPriority={setProtocolPriority}
+          protocolSaved={protocolSaved}
+          onClose={() => setShowProtocolModal(false)}
+          onSave={() => {
+            updateProtocolMutation.mutate({
+              clientId: params.id,
+              notes: protocolNotes.trim(),
+              priority: protocolPriority as "Normal" | "High — Review within 24h" | "Urgent — Immediate attention",
+            });
+          }}
+          isSaving={updateProtocolMutation.isPending}
+        />
       )}
 
       {/* Full History Panel */}
@@ -585,6 +558,85 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ProtocolModal({
+  clientName,
+  protocolNotes,
+  setProtocolNotes,
+  protocolPriority,
+  setProtocolPriority,
+  protocolSaved,
+  onClose,
+  onSave,
+  isSaving,
+}: {
+  clientName: string;
+  protocolNotes: string;
+  setProtocolNotes: (value: string) => void;
+  protocolPriority: string;
+  setProtocolPriority: (value: string) => void;
+  protocolSaved: boolean;
+  onClose: () => void;
+  onSave: () => void;
+  isSaving: boolean;
+}) {
+  useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="flex items-center justify-between p-6 border-b border-kairos-border">
+          <h2 className="font-heading font-bold text-lg text-white">Adjust Protocol</h2>
+          <button onClick={onClose} className="text-kairos-silver-dark hover:text-white" aria-label="Close modal"><X size={20} /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-kairos-silver-dark">Adjust the training and supplement protocol for <span className="text-white font-semibold">{clientName}</span>.</p>
+          {protocolSaved && (
+            <div className="p-3 rounded-kairos-sm bg-green-500/10 border border-green-500/20">
+              <p className="text-sm text-green-400 font-medium">Protocol changes saved successfully.</p>
+            </div>
+          )}
+          <div>
+            <label className="kairos-label mb-1 block">Protocol Notes</label>
+            <textarea value={protocolNotes} onChange={(e) => setProtocolNotes(e.target.value)} placeholder="Describe the protocol changes..." className="kairos-input w-full h-28 resize-none" />
+          </div>
+          <div>
+            <label className="kairos-label mb-1 block">Priority</label>
+            <select value={protocolPriority} onChange={(e) => setProtocolPriority(e.target.value)} className="kairos-input w-full">
+              <option>Normal</option>
+              <option>High — Review within 24h</option>
+              <option>Urgent — Immediate attention</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-3 p-6 border-t border-kairos-border">
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="kairos-btn-outline flex-1 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSave}
+            disabled={!protocolNotes.trim() || isSaving}
+            className="kairos-btn-gold flex-1 disabled:opacity-50 relative"
+          >
+            {isSaving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

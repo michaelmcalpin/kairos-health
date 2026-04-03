@@ -71,6 +71,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               <button
                 onClick={() => dismiss(t.id)}
                 className="text-kairos-silver-dark hover:text-white transition-colors flex-shrink-0"
+                aria-label="Dismiss notification"
               >
                 <X size={14} />
               </button>
