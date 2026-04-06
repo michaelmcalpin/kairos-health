@@ -18,6 +18,18 @@ import { logger } from "@/lib/middleware/logger";
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max for Vercel Pro
 
+/** Per-connection timeout: 30 seconds. Prevents a single slow provider from consuming the entire cron window. */
+const CONNECTION_TIMEOUT_MS = 30_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout after ${ms}ms syncing ${label}`)), ms),
+    ),
+  ]);
+}
+
 export async function GET(req: Request) {
   // Verify cron secret — REQUIRED in production
   const authHeader = req.headers.get("authorization");
@@ -56,14 +68,20 @@ export async function GET(req: Request) {
     // Process each connection
     for (const conn of connectionsToSync) {
       try {
+        const syncLabel = `${conn.provider}:${conn.id}`;
+
         // Check and refresh token if needed
         if (syncEngine.isTokenExpired(conn)) {
           logger.info("cron", `Refreshing token for ${conn.provider}`, { connectionId: conn.id });
-          await syncEngine.refreshToken(conn);
+          await withTimeout(syncEngine.refreshToken(conn), CONNECTION_TIMEOUT_MS, syncLabel);
         }
 
-        // Run sync
-        const syncResults = await syncEngine.syncConnection(conn);
+        // Run sync with per-connection timeout
+        const syncResults = await withTimeout(
+          syncEngine.syncConnection(conn),
+          CONNECTION_TIMEOUT_MS,
+          syncLabel,
+        );
         const totalRecords = syncResults.reduce(
           (sum, r) => sum + r.recordsInserted + r.recordsUpdated,
           0,

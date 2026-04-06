@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { reportError } from "@/lib/error-reporting";
 
 export interface ServiceWorkerStatus {
   isSupported: boolean;
@@ -50,7 +51,9 @@ export function useServiceWorker(): ServiceWorkerStatus & { applyUpdate: () => v
         });
       })
       .catch((error) => {
-        console.warn("[KAIROS] Service worker registration failed:", error);
+        reportError(error instanceof Error ? error : new Error(String(error)), {
+          portal: "service-worker",
+        });
       });
   }, []);
 

@@ -6,7 +6,6 @@ import { PROVIDERS, getProviderEnvKeys } from "@/lib/integrations/devices/provid
 import { eq, and } from "drizzle-orm";
 import { logger } from "@/lib/middleware/logger";
 
-const isProduction = process.env.NODE_ENV === "production";
 const MAX_STATE_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
 function verifyOAuthState(statePayload: string, providedSig: string): boolean {
@@ -60,25 +59,20 @@ export async function GET(
       const stateBuffer = Buffer.from(state, "base64");
       const outer = JSON.parse(stateBuffer.toString("utf-8"));
 
-      // New signed format: { payload: string, sig: string }
-      if (outer.payload && outer.sig) {
-        if (!verifyOAuthState(outer.payload, outer.sig)) {
-          logger.error("oauth", "State HMAC verification failed");
-          return NextResponse.redirect(
-            new URL("/settings?error=Invalid state signature", req.url)
-          );
-        }
-        decodedState = JSON.parse(outer.payload);
-      } else {
-        // Legacy unsigned format — reject in production
-        if (isProduction) {
-          logger.error("oauth", "Unsigned OAuth state rejected in production");
-          return NextResponse.redirect(
-            new URL("/settings?error=Invalid state parameter", req.url)
-          );
-        }
-        decodedState = outer;
+      // Require HMAC-signed format: { payload: string, sig: string }
+      if (!outer.payload || !outer.sig) {
+        logger.error("oauth", "Unsigned OAuth state rejected — HMAC signature required");
+        return NextResponse.redirect(
+          new URL("/settings?error=Invalid state parameter", req.url)
+        );
       }
+      if (!verifyOAuthState(outer.payload, outer.sig)) {
+        logger.error("oauth", "State HMAC verification failed");
+        return NextResponse.redirect(
+          new URL("/settings?error=Invalid state signature", req.url)
+        );
+      }
+      decodedState = JSON.parse(outer.payload);
 
       // Reject stale state tokens (10 min max)
       if (decodedState.timestamp && Date.now() - decodedState.timestamp > MAX_STATE_AGE_MS) {

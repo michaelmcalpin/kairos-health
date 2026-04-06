@@ -55,6 +55,7 @@ export function ProfileStep({ data, onChange, onContinue, onBack }: ProfileStepP
             <label className="block text-sm text-gray-400 mb-1">First Name</label>
             <input
               type="text"
+              maxLength={100}
               value={data.firstName ?? ""}
               onChange={(e) => handleChange("firstName", e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-kairos-gold focus:outline-none transition"
@@ -65,6 +66,7 @@ export function ProfileStep({ data, onChange, onContinue, onBack }: ProfileStepP
             <label className="block text-sm text-gray-400 mb-1">Last Name</label>
             <input
               type="text"
+              maxLength={100}
               value={data.lastName ?? ""}
               onChange={(e) => handleChange("lastName", e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-kairos-gold focus:outline-none transition"
@@ -78,6 +80,7 @@ export function ProfileStep({ data, onChange, onContinue, onBack }: ProfileStepP
           <label className="block text-sm text-gray-400 mb-1">Date of Birth</label>
           <input
             type="date"
+            max={new Date().toISOString().split("T")[0]}
             value={data.dateOfBirth ?? ""}
             onChange={(e) => handleChange("dateOfBirth", e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:border-kairos-gold focus:outline-none transition"

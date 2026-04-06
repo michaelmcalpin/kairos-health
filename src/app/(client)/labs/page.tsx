@@ -125,6 +125,7 @@ export default function LabsPage() {
         await uploadPdfMutation.mutateAsync({ panelName: "Lab Results", provider: "unknown", pdfUrl });
       } else if (activeTab === "url") {
         if (!urlInput.trim()) { alert("Please enter a valid URL"); return; }
+        try { new URL(urlInput); } catch { alert("Please enter a valid URL (e.g. https://...)"); return; }
         await importUrlMutation.mutateAsync({ panelName: "Lab Results", provider: "unknown", sourceUrl: urlInput });
       } else if (activeTab === "manual") {
         if (!manualForm.labName || !manualForm.date || manualForm.tests.length === 0) {
@@ -267,18 +268,18 @@ export default function LabsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-white font-body text-sm font-medium mb-2">Lab Name</label>
-                    <input type="text" value={manualForm.labName} onChange={(e) => setManualForm({ ...manualForm, labName: e.target.value })} placeholder="e.g., Quest Diagnostics"
+                    <input type="text" maxLength={150} value={manualForm.labName} onChange={(e) => setManualForm({ ...manualForm, labName: e.target.value })} placeholder="e.g., Quest Diagnostics"
                       className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-white font-body text-sm font-medium mb-2">Requesting Doctor</label>
-                    <input type="text" value={manualForm.requestingDoctor} onChange={(e) => setManualForm({ ...manualForm, requestingDoctor: e.target.value })} placeholder="Doctor's name"
+                    <input type="text" maxLength={150} value={manualForm.requestingDoctor} onChange={(e) => setManualForm({ ...manualForm, requestingDoctor: e.target.value })} placeholder="Doctor's name"
                       className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none" />
                   </div>
                 </div>
                 <div>
                   <label className="block text-white font-body text-sm font-medium mb-2">Test Date</label>
-                  <input type="date" value={manualForm.date} onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })}
+                  <input type="date" max={new Date().toISOString().split("T")[0]} value={manualForm.date} onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })}
                     className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none" />
                 </div>
                 <div className="bg-kairos-royal-surface/50 p-4 rounded-kairos-sm border border-kairos-border">
@@ -286,12 +287,12 @@ export default function LabsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-white font-body text-sm font-medium mb-2">Test Name</label>
-                      <input type="text" value={currentTest.testName || ""} onChange={(e) => setCurrentTest({ ...currentTest, testName: e.target.value })} placeholder="e.g., Glucose"
+                      <input type="text" maxLength={100} value={currentTest.testName || ""} onChange={(e) => setCurrentTest({ ...currentTest, testName: e.target.value })} placeholder="e.g., Glucose"
                         className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none" />
                     </div>
                     <div>
                       <label className="block text-white font-body text-sm font-medium mb-2">Result Value</label>
-                      <input type="text" value={currentTest.resultValue || ""} onChange={(e) => setCurrentTest({ ...currentTest, resultValue: e.target.value })} placeholder="e.g., 95 mg/dL"
+                      <input type="text" maxLength={50} value={currentTest.resultValue || ""} onChange={(e) => setCurrentTest({ ...currentTest, resultValue: e.target.value })} placeholder="e.g., 95 mg/dL"
                         className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none" />
                     </div>
                   </div>

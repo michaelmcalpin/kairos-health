@@ -88,6 +88,9 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
           </label>
           <input
             type="number"
+            min={50}
+            max={800}
+            step={0.1}
             value={(data.weight as number) || 0}
             onChange={(e) => onChange('weight', e.target.value ? parseFloat(e.target.value) : null)}
             placeholder="180"
@@ -104,7 +107,9 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
             </label>
             <input
               type="number"
-              step="0.5"
+              min={0}
+              max={24}
+              step={0.5}
               value={(data.sleepHours as number) || 0}
               onChange={(e) => onChange('sleepHours', e.target.value ? parseFloat(e.target.value) : null)}
               placeholder="7.5"
@@ -138,6 +143,8 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
             </label>
             <input
               type="number"
+              min={0}
+              max={300}
               value={(data.hrv as number) || 0}
               onChange={(e) => onChange('hrv', e.target.value ? parseInt(e.target.value) : null)}
               placeholder="45"
@@ -169,6 +176,8 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
           </label>
           <input
             type="number"
+            min={0}
+            max={200000}
             value={(data.steps as number) || 0}
             onChange={(e) => onChange('steps', e.target.value ? parseInt(e.target.value) : null)}
             placeholder="8500"

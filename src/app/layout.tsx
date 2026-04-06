@@ -7,7 +7,10 @@ import { UpdateBanner } from "@/components/pwa/UpdateBanner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "KAIROS | Private Health Management",
+  title: {
+    default: "KAIROS | Private Health Management",
+    template: "%s | KAIROS",
+  },
   description: "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",
   manifest: "/manifest.json",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://kairos.health"),

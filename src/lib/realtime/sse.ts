@@ -14,6 +14,7 @@ export interface SSEOptions {
   eventTypes?: RealtimeEventType[] | "*";
   lastEventId?: string;
   heartbeatInterval?: number; // ms, default 30000
+  maxConnectionMs?: number; // ms, default 300000 (5 min) — prevents orphaned connections on serverless
 }
 
 /**
@@ -34,10 +35,17 @@ export interface SSEOptions {
  * ```
  */
 export function createSSEStream(options: SSEOptions): ReadableStream {
-  const { userId, eventTypes = "*", lastEventId, heartbeatInterval = 30000 } = options;
+  const {
+    userId,
+    eventTypes = "*",
+    lastEventId,
+    heartbeatInterval = 30000,
+    maxConnectionMs = 300_000, // 5 minutes — serverless functions have limited lifetimes
+  } = options;
 
   let subscriptionId: string | null = null;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  let maxLifetimeTimer: ReturnType<typeof setTimeout> | null = null;
 
   return new ReadableStream({
     start(controller) {
@@ -78,6 +86,13 @@ export function createSSEStream(options: SSEOptions): ReadableStream {
         send("heartbeat", JSON.stringify({ time: Date.now() }));
       }, heartbeatInterval);
 
+      // Close stream after max lifetime to prevent orphaned connections on serverless
+      maxLifetimeTimer = setTimeout(() => {
+        send("reconnect", JSON.stringify({ reason: "max_lifetime", retryMs: 1000 }));
+        cleanup();
+        try { controller.close(); } catch { /* already closed */ }
+      }, maxConnectionMs);
+
       // Cleanup function
       function cleanup() {
         if (subscriptionId) {
@@ -88,15 +103,25 @@ export function createSSEStream(options: SSEOptions): ReadableStream {
           clearInterval(heartbeatTimer);
           heartbeatTimer = null;
         }
+        if (maxLifetimeTimer) {
+          clearTimeout(maxLifetimeTimer);
+          maxLifetimeTimer = null;
+        }
       }
     },
 
     cancel() {
       if (subscriptionId) {
         eventBus.unsubscribe(subscriptionId);
+        subscriptionId = null;
       }
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+      if (maxLifetimeTimer) {
+        clearTimeout(maxLifetimeTimer);
+        maxLifetimeTimer = null;
       }
     },
   });

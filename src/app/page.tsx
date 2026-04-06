@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "Private Health Management",
+  description:
+    "Clinical-grade biometric tracking, AI coaching, and personalized longevity protocols. Join KAIROS today.",
+};
 import { Shield, Activity, Brain, Zap, Droplets, Moon, FlaskConical, Timer, Check, Star, ArrowRight, ChevronRight } from "lucide-react";
 
 export default async function HomePage() {

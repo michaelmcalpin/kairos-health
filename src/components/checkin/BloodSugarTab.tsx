@@ -105,11 +105,17 @@ export const BloodSugarTab: React.FC<BloodSugarTabProps> = ({ readings, onAdd })
           <label className="text-sm font-body text-kairos-silver">Blood Sugar (mg/dL)</label>
           <input
             type="number"
+            min={20}
+            max={600}
+            step={1}
             value={formData.valueMgdl}
             onChange={(e) => setFormData({ ...formData, valueMgdl: e.target.value })}
             placeholder="95"
             className="kairos-input w-full"
           />
+          {formData.valueMgdl && (Number(formData.valueMgdl) < 20 || Number(formData.valueMgdl) > 600) && (
+            <p className="text-xs text-red-400">Value must be between 20–600 mg/dL</p>
+          )}
         </div>
 
         {/* Meal Description */}
@@ -117,6 +123,7 @@ export const BloodSugarTab: React.FC<BloodSugarTabProps> = ({ readings, onAdd })
           <label className="text-sm font-body text-kairos-silver">Meal Description (optional)</label>
           <input
             type="text"
+            maxLength={200}
             value={formData.mealDescription}
             onChange={(e) => setFormData({ ...formData, mealDescription: e.target.value })}
             placeholder="e.g., Eggs and toast"

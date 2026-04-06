@@ -6,6 +6,7 @@ import { users, clientProfiles, trainerProfiles, deviceConnections, syncLogs } f
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/middleware/logger";
 import { checkBodySize, MAX_WEBHOOK_BODY_BYTES } from "@/lib/middleware/sanitize";
+import { applyRateLimit, RATE_LIMITS } from "@/lib/middleware/rate-limit";
 
 type ValidRole = "client" | "trainer" | "company_admin" | "super_admin";
 const VALID_ROLES: ValidRole[] = ["client", "trainer", "company_admin", "super_admin"];
@@ -322,6 +323,9 @@ function verifyDeviceProvider(
 // ─── Route Handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: Request, { params }: { params: { provider: string } }) {
+  const rl = await applyRateLimit(req, RATE_LIMITS.webhook);
+  if (!rl.allowed && rl.response) return rl.response;
+
   const { provider } = params;
   const headersList = await headers();
 

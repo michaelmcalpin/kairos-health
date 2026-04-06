@@ -59,3 +59,32 @@ export function checkBodySize(
   }
   return null;
 }
+
+/**
+ * Verify that a mutation request originates from our own app.
+ *
+ * Compares the `Origin` header (falling back to `Referer`) against
+ * NEXT_PUBLIC_APP_URL.  Returns null if the check passes, or a
+ * descriptive error string if the origin is foreign.
+ *
+ * Webhook routes should NOT use this — they come from external services.
+ */
+export function checkOrigin(req: Request): string | null {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) return null; // skip in dev when URL isn't configured
+
+  const origin = req.headers.get("origin");
+  const referer = req.headers.get("referer");
+  const source = origin || (referer ? new URL(referer).origin : null);
+
+  if (!source) {
+    // Browsers always send Origin on POST; missing header is suspicious
+    return "Missing Origin header";
+  }
+
+  if (source !== new URL(appUrl).origin) {
+    return `Origin mismatch: ${source}`;
+  }
+
+  return null;
+}

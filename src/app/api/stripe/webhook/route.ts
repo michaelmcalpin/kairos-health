@@ -9,8 +9,12 @@
 import { NextResponse } from "next/server";
 import { constructWebhookEvent, processWebhookEvent } from "@/lib/integrations/stripe";
 import { logger } from "@/lib/middleware/logger";
+import { applyRateLimit, RATE_LIMITS } from "@/lib/middleware/rate-limit";
 
 export async function POST(req: Request) {
+  const rl = await applyRateLimit(req, RATE_LIMITS.webhook);
+  if (!rl.allowed && rl.response) return rl.response;
+
   const signature = req.headers.get("stripe-signature");
   if (!signature) {
     return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });

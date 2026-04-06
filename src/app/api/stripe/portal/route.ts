@@ -9,8 +9,18 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/middleware/logger";
 import { createBillingPortalSession } from "@/lib/integrations/stripe";
+import { applyRateLimit, RATE_LIMITS } from "@/lib/middleware/rate-limit";
+import { checkOrigin } from "@/lib/middleware/sanitize";
 
 export async function POST(req: Request) {
+  const rl = await applyRateLimit(req, RATE_LIMITS.checkout);
+  if (!rl.allowed && rl.response) return rl.response;
+
+  const originErr = checkOrigin(req);
+  if (originErr) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
