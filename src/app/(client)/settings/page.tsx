@@ -10,6 +10,7 @@ import {
   Trash2,
   Save,
   Palette,
+  AlertTriangle,
 } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
@@ -17,7 +18,8 @@ import { trpc } from "@/lib/trpc";
 
 export default function SettingsPage() {
   // tRPC queries
-  const { data: settingsData, isLoading: isLoadingSettings } = trpc.clientPortal.settings.getSettings.useQuery();
+  const settingsQuery = trpc.clientPortal.settings.getSettings.useQuery();
+  const { data: settingsData, isLoading: isLoadingSettings } = settingsQuery;
   const meQuery = trpc.auth.me.useQuery();
 
   // tRPC mutations
@@ -170,6 +172,25 @@ export default function SettingsPage() {
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-kairos-gold"></div>
           <p className="mt-4 text-kairos-silver-dark">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (settingsQuery.isError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center max-w-sm space-y-3">
+          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
+            <AlertTriangle size={24} className="text-red-400" />
+          </div>
+          <h3 className="font-heading font-semibold text-white">Unable to load settings</h3>
+          <p className="text-sm font-body text-kairos-silver-dark">
+            We couldn&apos;t fetch your settings. Please try again.
+          </p>
+          <button onClick={() => settingsQuery.refetch()} className="kairos-btn-gold text-sm px-6 py-2">
+            Retry
+          </button>
         </div>
       </div>
     );

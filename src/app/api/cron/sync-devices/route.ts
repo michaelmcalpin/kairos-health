@@ -128,7 +128,7 @@ export async function GET(req: Request) {
   } catch (err) {
     logger.error("cron", "Sync devices failed", { error: err instanceof Error ? err.message : "Unknown error" });
     return NextResponse.json(
-      { error: "Sync failed", message: err instanceof Error ? err.message : "Unknown error" },
+      { error: err instanceof Error ? err.message : "Sync failed" },
       { status: 500 },
     );
   }

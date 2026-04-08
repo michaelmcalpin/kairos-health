@@ -4,6 +4,7 @@ import { TRPCProvider } from "@/lib/providers";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ThemeProvider } from "@/lib/theme";
 import { UpdateBanner } from "@/components/pwa/UpdateBanner";
+import { GlobalErrorCatcher } from "@/components/GlobalErrorCatcher";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -55,6 +56,7 @@ export default function RootLayout({
           <TRPCProvider>
             <ThemeProvider>
               <ToastProvider>
+                <GlobalErrorCatcher />
                 <UpdateBanner />
                 {children}
               </ToastProvider>

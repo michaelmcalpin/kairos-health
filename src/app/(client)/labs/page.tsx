@@ -63,9 +63,14 @@ export default function LabsPage() {
   });
 
   // tRPC queries
-  const { data: ordersData = [] } = trpc.clientPortal.labs.listOrders.useQuery({ limit: 10 }, { staleTime: 30_000 });
-  const { data: biomarkersData = [] } = trpc.clientPortal.labs.listBiomarkers.useQuery(undefined, { staleTime: 30_000 });
-  const { data: summaryData } = trpc.clientPortal.labs.summary.useQuery(undefined, { staleTime: 30_000 });
+  const ordersQuery = trpc.clientPortal.labs.listOrders.useQuery({ limit: 10 }, { staleTime: 30_000 });
+  const biomarkersQuery = trpc.clientPortal.labs.listBiomarkers.useQuery(undefined, { staleTime: 30_000 });
+  const summaryQuery = trpc.clientPortal.labs.summary.useQuery(undefined, { staleTime: 30_000 });
+  const { data: ordersData = [] } = ordersQuery;
+  const { data: biomarkersData = [] } = biomarkersQuery;
+  const { data: summaryData } = summaryQuery;
+  const labsError = ordersQuery.isError || biomarkersQuery.isError || summaryQuery.isError;
+  const labsRefetch = () => { ordersQuery.refetch(); biomarkersQuery.refetch(); summaryQuery.refetch(); };
 
   // tRPC mutations
   const utils = trpc.useUtils();
@@ -169,6 +174,25 @@ export default function LabsPage() {
       default: return "bg-kairos-card border-kairos-border text-kairos-silver-dark";
     }
   };
+
+  if (labsError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center max-w-sm space-y-3">
+          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
+            <AlertTriangle size={24} className="text-red-400" />
+          </div>
+          <h3 className="font-heading font-semibold text-white">Unable to load lab results</h3>
+          <p className="text-sm font-body text-kairos-silver-dark">
+            We couldn&apos;t fetch your lab data. Please try again.
+          </p>
+          <button onClick={labsRefetch} className="kairos-btn-gold text-sm px-6 py-2">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fade-in">

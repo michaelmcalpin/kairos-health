@@ -17,6 +17,7 @@ export function NetworkStatusBar() {
       const timer = setTimeout(() => setShowReconnected(false), 3000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [isOnline, wasOffline]);
 
   if (!isOnline) {

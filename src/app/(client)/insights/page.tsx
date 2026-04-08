@@ -72,7 +72,8 @@ export default function InsightsPage() {
     endDate: dateRange.endDate.toISOString().split("T")[0],
   }), [dateRange]);
 
-  const { data: insightsData } = trpc.clientPortal.insights.getAll.useQuery(range, { staleTime: 30_000 });
+  const insightsQuery = trpc.clientPortal.insights.getAll.useQuery(range, { staleTime: 30_000 });
+  const { data: insightsData } = insightsQuery;
 
   const insights = (insightsData?.insights ?? []).map((i) => ({
     ...i,
@@ -88,6 +89,25 @@ export default function InsightsPage() {
     ? Math.min(10, Math.round(insights.filter((i) => i.severity === "positive").length / Math.max(insights.length, 1) * 10))
     : 0;
   const trend = insights.length > 0 ? "+0.5" : "0";
+
+  if (insightsQuery.isError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center max-w-sm space-y-3">
+          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
+            <Brain size={24} className="text-red-400" />
+          </div>
+          <h3 className="font-heading font-semibold text-white">Unable to load insights</h3>
+          <p className="text-sm font-body text-kairos-silver-dark">
+            We couldn&apos;t fetch your health insights. Please try again.
+          </p>
+          <button onClick={() => insightsQuery.refetch()} className="kairos-btn-gold text-sm px-6 py-2">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

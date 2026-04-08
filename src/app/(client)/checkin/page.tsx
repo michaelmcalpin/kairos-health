@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Activity, UtensilsCrossed, Dumbbell, Smile, Droplet, Ruler, Save, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Activity, UtensilsCrossed, Dumbbell, Smile, Droplet, Ruler, Save, Loader2, AlertTriangle } from "lucide-react";
 import { VitalsTab } from "@/components/checkin/VitalsTab";
 import { MealsTab } from "@/components/checkin/MealsTab";
 import { ActivityTab } from "@/components/checkin/ActivityTab";
@@ -42,10 +42,11 @@ export default function CheckinPage() {
   const dateStr = selectedDate.toISOString().split("T")[0];
 
   // tRPC queries — use getByDate which works for any date
-  const { data: checkinData, isLoading: isLoadingCheckin } = trpc.clientPortal.checkin.getByDate.useQuery(
+  const checkinQuery = trpc.clientPortal.checkin.getByDate.useQuery(
     { date: dateStr },
     { enabled: !!dateStr }
   );
+  const { data: checkinData, isLoading: isLoadingCheckin } = checkinQuery;
   const submitMutation = trpc.clientPortal.checkin.submit.useMutation();
 
   // Load check-in data when query returns or date changes
@@ -119,6 +120,25 @@ export default function CheckinPage() {
         <div className="text-center">
           <Loader2 className="inline animate-spin text-kairos-gold" size={32} />
           <p className="text-kairos-silver mt-4">Loading check-in data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (checkinQuery.isError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center max-w-sm space-y-3">
+          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
+            <AlertTriangle size={24} className="text-red-400" />
+          </div>
+          <h3 className="font-heading font-semibold text-white">Unable to load check-in</h3>
+          <p className="text-sm font-body text-kairos-silver-dark">
+            We couldn&apos;t fetch your check-in data. Please try again.
+          </p>
+          <button onClick={() => checkinQuery.refetch()} className="kairos-btn-gold text-sm px-6 py-2">
+            Retry
+          </button>
         </div>
       </div>
     );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Heart, Dumbbell, Building2, Shield, ArrowRight } from "lucide-react";
 import type { UserRole } from "@/lib/company-ops/types";
@@ -310,7 +310,13 @@ function SelectRoleContent() {
 export default function SelectRolePage() {
   return (
     <CompanyBrandProvider>
-      <SelectRoleContent />
+      <Suspense fallback={
+        <div className="min-h-screen bg-kairos-royal-dark flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-kairos-gold border-t-transparent rounded-full animate-spin" />
+        </div>
+      }>
+        <SelectRoleContent />
+      </Suspense>
     </CompanyBrandProvider>
   );
 }

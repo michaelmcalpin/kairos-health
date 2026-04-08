@@ -5,7 +5,7 @@ import { KPICard } from "@/components/ui/KPICard";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useSleep } from "@/hooks/client/useSleep";
-import { Moon, Clock, Zap, Brain, TrendingUp, Sun, Plus, X } from "lucide-react";
+import { Moon, Clock, Zap, Brain, TrendingUp, Sun, Plus, X, AlertTriangle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 // ─── Sleep stages (typical pattern, shown when no device data available) ────
@@ -44,7 +44,7 @@ export default function SleepPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "day" });
 
-  const { records: sleepRecords, weeklySummaries, lastRecord, stats: sleepStats } = useSleep(dateRange);
+  const { records: sleepRecords, weeklySummaries, lastRecord, stats: sleepStats, isError, refetch } = useSleep(dateRange);
 
   const displayRecord = lastRecord || { score: 0, total: 0, deep: 0, rem: 0, light: 0, awake: 0, bedtime: "--", wake: "--" };
 
@@ -153,6 +153,25 @@ export default function SleepPage() {
       notes: "",
     });
   };
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center max-w-sm space-y-3">
+          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
+            <AlertTriangle size={24} className="text-red-400" />
+          </div>
+          <h3 className="font-heading font-semibold text-white">Unable to load sleep data</h3>
+          <p className="text-sm font-body text-kairos-silver-dark">
+            We couldn&apos;t fetch your sleep records. Please try again.
+          </p>
+          <button onClick={() => refetch()} className="kairos-btn-gold text-sm px-6 py-2">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

@@ -20,14 +20,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });
   }
 
+  let eventType = "unknown";
   try {
     const body = await req.text();
     const event = constructWebhookEvent(body, signature);
+    eventType = event.type;
+    const startMs = Date.now();
     await processWebhookEvent(event);
+    logger.info("webhook:stripe", "Event processed", {
+      eventType,
+      eventId: event.id,
+      durationMs: Date.now() - startMs,
+    });
     return NextResponse.json({ received: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    logger.error("webhook:stripe", "Processing error", { error: message });
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    logger.error("webhook:stripe", "Processing error", {
+      error: message,
+      eventType,
+      ip,
+    });
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

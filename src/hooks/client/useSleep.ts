@@ -41,21 +41,19 @@ export interface UseSleepReturn {
   lastRecord: SleepRecord | null;
   stats: SleepStats;
   isLoading: boolean;
+  isError: boolean;
+  refetch: () => void;
 }
 
 export function useSleep(dateRange: DateRange): UseSleepReturn {
   const startDate = dateRange.startDate.toISOString().split("T")[0];
   const endDate = dateRange.endDate.toISOString().split("T")[0];
 
-  const { data: rawRecords, isLoading: recordsLoading } = trpc.clientPortal.sleep.list.useQuery({
-    startDate,
-    endDate,
-  });
+  const recordsQuery = trpc.clientPortal.sleep.list.useQuery({ startDate, endDate });
+  const { data: rawRecords, isLoading: recordsLoading } = recordsQuery;
 
-  const { data: rawStats, isLoading: statsLoading } = trpc.clientPortal.sleep.stats.useQuery({
-    startDate,
-    endDate,
-  });
+  const statsQuery = trpc.clientPortal.sleep.stats.useQuery({ startDate, endDate });
+  const { data: rawStats, isLoading: statsLoading } = statsQuery;
 
   const records = useMemo<SleepRecord[]>(() => {
     if (!rawRecords) return [];
@@ -136,5 +134,13 @@ export function useSleep(dateRange: DateRange): UseSleepReturn {
     };
   }, [rawStats, records]);
 
-  return { records, weeklySummaries, lastRecord, stats, isLoading: recordsLoading || statsLoading };
+  return {
+    records,
+    weeklySummaries,
+    lastRecord,
+    stats,
+    isLoading: recordsLoading || statsLoading,
+    isError: recordsQuery.isError || statsQuery.isError,
+    refetch: () => { recordsQuery.refetch(); statsQuery.refetch(); },
+  };
 }

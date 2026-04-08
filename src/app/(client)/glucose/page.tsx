@@ -13,7 +13,7 @@ export default function GlucosePage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "day" });
 
-  const { readings: rawReadings, dailySummaries, weeklySummaries, stats } = useGlucose(dateRange);
+  const { readings: rawReadings, dailySummaries, weeklySummaries, stats, isError, refetch } = useGlucose(dateRange);
   const themeColors = useThemeColors();
 
   // tRPC mutation
@@ -108,6 +108,25 @@ export default function GlucosePage() {
 
   const zoneTop = padding.top + plotH - ((140 - yMin) / (yMax - yMin)) * plotH;
   const zoneBottom = padding.top + plotH - ((70 - yMin) / (yMax - yMin)) * plotH;
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center max-w-sm space-y-3">
+          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
+            <AlertTriangle size={24} className="text-red-400" />
+          </div>
+          <h3 className="font-heading font-semibold text-white">Unable to load glucose data</h3>
+          <p className="text-sm font-body text-kairos-silver-dark">
+            We couldn&apos;t fetch your glucose readings. Please try again.
+          </p>
+          <button onClick={() => refetch()} className="kairos-btn-gold text-sm px-6 py-2">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

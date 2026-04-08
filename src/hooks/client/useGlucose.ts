@@ -45,26 +45,22 @@ export interface UseGlucoseReturn {
   weeklySummaries: WeeklyGlucoseSummary[];
   stats: GlucoseStats;
   isLoading: boolean;
+  isError: boolean;
+  refetch: () => void;
 }
 
 export function useGlucose(dateRange: DateRange): UseGlucoseReturn {
   const startDate = dateRange.startDate.toISOString().split("T")[0];
   const endDate = dateRange.endDate.toISOString().split("T")[0];
 
-  const { data: rawReadings, isLoading: readingsLoading } = trpc.clientPortal.glucose.list.useQuery({
-    startDate,
-    endDate,
-  });
+  const readingsQuery = trpc.clientPortal.glucose.list.useQuery({ startDate, endDate });
+  const { data: rawReadings, isLoading: readingsLoading } = readingsQuery;
 
-  const { data: rawStats, isLoading: statsLoading } = trpc.clientPortal.glucose.stats.useQuery({
-    startDate,
-    endDate,
-  });
+  const statsQuery = trpc.clientPortal.glucose.stats.useQuery({ startDate, endDate });
+  const { data: rawStats, isLoading: statsLoading } = statsQuery;
 
-  const { data: rawDailyAverages, isLoading: dailyLoading } = trpc.clientPortal.glucose.dailyAverages.useQuery({
-    startDate,
-    endDate,
-  });
+  const dailyQuery = trpc.clientPortal.glucose.dailyAverages.useQuery({ startDate, endDate });
+  const { data: rawDailyAverages, isLoading: dailyLoading } = dailyQuery;
 
   const readings = useMemo<GlucoseReading[]>(() => {
     if (!rawReadings) return [];
@@ -148,5 +144,7 @@ export function useGlucose(dateRange: DateRange): UseGlucoseReturn {
     weeklySummaries,
     stats,
     isLoading: readingsLoading || statsLoading || dailyLoading,
+    isError: readingsQuery.isError || statsQuery.isError || dailyQuery.isError,
+    refetch: () => { readingsQuery.refetch(); statsQuery.refetch(); dailyQuery.refetch(); },
   };
 }
