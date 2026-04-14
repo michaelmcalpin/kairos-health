@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
 import {
   trainerClientRelationships,
@@ -454,7 +455,7 @@ export const coachClientsRouter = router({
       });
 
       if (!protocol) {
-        throw new Error("No active protocol found for this client");
+        throw new TRPCError({ code: "NOT_FOUND", message: "No active protocol found for this client" });
       }
 
       // Create a coach note to record the protocol adjustment

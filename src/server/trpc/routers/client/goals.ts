@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import { healthGoals, goalMilestones, goalCheckpoints } from "@/server/db/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -216,7 +217,7 @@ export const clientGoalsRouter = router({
       const goal = await ctx.db.query.healthGoals.findFirst({
         where: and(eq(healthGoals.id, input.goalId), eq(healthGoals.clientId, ctx.dbUserId)),
       });
-      if (!goal) throw new Error("Goal not found");
+      if (!goal) throw new TRPCError({ code: "NOT_FOUND", message: "Goal not found" });
 
       const now = new Date();
 

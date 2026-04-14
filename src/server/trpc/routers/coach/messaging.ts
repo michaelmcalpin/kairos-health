@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure as coachProcedure } from "@/server/trpc";
 import { conversations, messages, users } from "@/server/db/schema";
-import { eq, and, desc, sql, isNull, ilike } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, ilike, inArray } from "drizzle-orm";
 
 export const coachMessagingRouter = router({
   // List all conversations for the coach
@@ -32,44 +33,60 @@ export const coachMessagingRouter = router({
         ? `${coachUser.firstName ?? ""} ${coachUser.lastName ?? ""}`.trim() || coachUser.email
         : "Coach";
 
-      // Enrich with client names
-      const enriched = await Promise.all(
-        convs.map(async (c) => {
-          const client = await ctx.db.query.users.findFirst({
-            where: eq(users.id, c.clientId),
-          });
-          const clientName = client
-            ? `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || client.email
-            : "Client";
+      // Batch-load client users and last messages to avoid N+1
+      const clientIds = Array.from(new Set(convs.map((c) => c.clientId)));
+      const convIds = convs.map((c) => c.id);
 
-          const lastMsg = await ctx.db.query.messages.findFirst({
-            where: eq(messages.conversationId, c.id),
-            orderBy: desc(messages.createdAt),
-          });
+      const [clientRows, allMessages] = await Promise.all([
+        clientIds.length > 0
+          ? ctx.db.query.users.findMany({ where: inArray(users.id, clientIds) })
+          : Promise.resolve([]),
+        convIds.length > 0
+          ? ctx.db.query.messages.findMany({
+              where: inArray(messages.conversationId, convIds),
+              orderBy: desc(messages.createdAt),
+            })
+          : Promise.resolve([]),
+      ]);
 
-          const lastMessage = lastMsg
-            ? {
-                body: lastMsg.body,
-                senderName: lastMsg.senderRole === "coach" ? coachName : clientName,
-                senderRole: lastMsg.senderRole as "client" | "coach" | "ai_coach" | "system",
-                createdAt: lastMsg.createdAt?.toISOString() ?? new Date().toISOString(),
-              }
-            : null;
+      const clientMap = new Map(clientRows.map((c) => [c.id, c]));
+      // Pick first (most recent) message per conversation since results are ordered desc
+      const lastMessageMap = new Map<string, typeof allMessages[number]>();
+      for (const m of allMessages) {
+        if (!lastMessageMap.has(m.conversationId)) {
+          lastMessageMap.set(m.conversationId, m);
+        }
+      }
 
-          return {
-            id: c.id,
-            coachId: c.trainerId ?? null,
-            clientId: c.clientId,
-            coachName,
-            clientName,
-            isAiCoach: c.isAiTrainer ?? false,
-            unreadCount: c.unreadCountTrainer ?? 0,
-            lastMessage,
-            createdAt: c.lastMessageAt?.toISOString() ?? new Date().toISOString(),
-            updatedAt: c.lastMessageAt?.toISOString() ?? new Date().toISOString(),
-          };
-        })
-      );
+      const enriched = convs.map((c) => {
+        const client = clientMap.get(c.clientId);
+        const clientName = client
+          ? `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() || client.email
+          : "Client";
+
+        const lastMsg = lastMessageMap.get(c.id);
+        const lastMessage = lastMsg
+          ? {
+              body: lastMsg.body,
+              senderName: lastMsg.senderRole === "coach" ? coachName : clientName,
+              senderRole: lastMsg.senderRole as "client" | "coach" | "ai_coach" | "system",
+              createdAt: lastMsg.createdAt?.toISOString() ?? new Date().toISOString(),
+            }
+          : null;
+
+        return {
+          id: c.id,
+          coachId: c.trainerId ?? null,
+          clientId: c.clientId,
+          coachName,
+          clientName,
+          isAiCoach: c.isAiTrainer ?? false,
+          unreadCount: c.unreadCountTrainer ?? 0,
+          lastMessage,
+          createdAt: c.lastMessageAt?.toISOString() ?? new Date().toISOString(),
+          updatedAt: c.lastMessageAt?.toISOString() ?? new Date().toISOString(),
+        };
+      });
 
       return enriched;
     }),
@@ -84,7 +101,7 @@ export const coachMessagingRouter = router({
           eq(conversations.trainerId, ctx.dbUserId),
         ),
       });
-      if (!conv) throw new Error("Conversation not found");
+      if (!conv) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
       return conv;
     }),
 
@@ -135,7 +152,7 @@ export const coachMessagingRouter = router({
           eq(conversations.trainerId, ctx.dbUserId),
         ),
       });
-      if (!conv) throw new Error("Conversation not found");
+      if (!conv) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
 
       const conditions = [eq(messages.conversationId, input.conversationId)];
       if (input.before) {
@@ -167,7 +184,7 @@ export const coachMessagingRouter = router({
           eq(conversations.trainerId, ctx.dbUserId),
         ),
       });
-      if (!conv) throw new Error("Conversation not found");
+      if (!conv) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
 
       const [msg] = await ctx.db
         .insert(messages)

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import { geneticProfiles, geneticMarkers, geneticPathwayScores } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -118,7 +119,7 @@ export const clientGeneticsRouter = router({
       });
 
       if (!profile) {
-        throw new Error("Profile not found or unauthorized");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Profile not found or unauthorized" });
       }
 
       const marker = await ctx.db.insert(geneticMarkers).values({

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
 import { appointments, sessionNotes, coachAvailability, trainerProfiles, users, notificationPreferences } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
@@ -201,7 +202,7 @@ export const coachScheduleRouter = router({
           eq(appointments.coachId, ctx.dbUserId),
         ),
       });
-      if (!appt) throw new Error("Appointment not found");
+      if (!appt) throw new TRPCError({ code: "NOT_FOUND", message: "Appointment not found" });
       return appt;
     }),
 
@@ -271,7 +272,7 @@ export const coachScheduleRouter = router({
         )
         .returning();
 
-      if (!updated) throw new Error("Appointment not found");
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Appointment not found" });
       return updated;
     }),
 
@@ -291,7 +292,7 @@ export const coachScheduleRouter = router({
           eq(appointments.coachId, ctx.dbUserId),
         ),
       });
-      if (!appt) throw new Error("Appointment not found");
+      if (!appt) throw new TRPCError({ code: "NOT_FOUND", message: "Appointment not found" });
 
       const [updated] = await ctx.db
         .update(appointments)
@@ -437,7 +438,7 @@ export const coachScheduleRouter = router({
           eq(appointments.coachId, ctx.dbUserId),
         ),
       });
-      if (!appt) throw new Error("Appointment not found");
+      if (!appt) throw new TRPCError({ code: "NOT_FOUND", message: "Appointment not found" });
 
       // Upsert
       const existing = await ctx.db.query.sessionNotes.findFirst({

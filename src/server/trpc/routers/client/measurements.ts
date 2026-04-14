@@ -53,7 +53,7 @@ export const clientMeasurementsRouter = router({
         hipsInches: z.number().min(20).max(80).optional(),
         rightBicepInches: z.number().min(5).max(30).optional(),
         rightThighInches: z.number().min(10).max(50).optional(),
-        source: z.string().default("manual"),
+        source: z.string().max(50).default("manual"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -88,7 +88,7 @@ export const clientMeasurementsRouter = router({
         hipsInches: z.number().min(20).max(80).optional(),
         rightBicepInches: z.number().min(5).max(30).optional(),
         rightThighInches: z.number().min(10).max(50).optional(),
-        source: z.string().default("manual"),
+        source: z.string().max(50).default("manual"),
         systolicBP: z.number().min(60).max(250).optional(),
         diastolicBP: z.number().min(30).max(150).optional(),
         restingHR: z.number().min(30).max(220).optional(),

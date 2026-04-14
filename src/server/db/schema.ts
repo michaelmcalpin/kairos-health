@@ -206,7 +206,10 @@ export const labOrders = pgTable("lab_orders", {
   panelName: varchar("panel_name", { length: 255 }),
   status: varchar("status", { length: 50 }).default("ordered"),
   orderedAt: timestamp("ordered_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("lab_orders_client_idx").on(t.clientId),
+  index("lab_orders_trainer_idx").on(t.trainerId),
+]);
 
 export const labResults = pgTable("lab_results", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -248,7 +251,10 @@ export const supplementProtocols = pgTable("supplement_protocols", {
   version: integer("version").notNull().default(1),
   status: protocolStatusEnum("status").notNull().default("active"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("supp_protocols_client_idx").on(t.clientId, t.status),
+  index("supp_protocols_trainer_idx").on(t.trainerId),
+]);
 
 export const protocolItems = pgTable("protocol_items", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -306,7 +312,7 @@ export const workoutPrograms = pgTable("workout_programs", {
   durationWeeks: integer("duration_weeks"),
   schedule: jsonb("schedule").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [index("workout_programs_trainer_idx").on(t.trainerId)]);
 
 export const workoutSessions = pgTable("workout_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -345,7 +351,10 @@ export const fastingProtocols = pgTable("fasting_protocols", {
   activeDays: jsonb("active_days").$type<number[]>().default([0, 1, 2, 3, 4, 5, 6]),
   status: varchar("status", { length: 20 }).default("active"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("fasting_protocols_client_idx").on(t.clientId, t.status),
+  index("fasting_protocols_trainer_idx").on(t.trainerId),
+]);
 
 export const fastingLogs = pgTable("fasting_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -438,7 +447,10 @@ export const mealPlans = pgTable("meal_plans", {
   macroTargets: jsonb("macro_targets").$type<{ calories: number; protein: number; carbs: number; fat: number; fiber: number }>(),
   status: varchar("status", { length: 20 }).default("active"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("meal_plans_client_idx").on(t.clientId, t.status),
+  index("meal_plans_trainer_idx").on(t.trainerId),
+]);
 
 export const mealTemplates = pgTable("meal_templates", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -564,7 +576,10 @@ export const conversations = pgTable("conversations", {
   lastMessageAt: timestamp("last_message_at"),
   unreadCountTrainer: integer("unread_count_trainer").default(0),
   unreadCountClient: integer("unread_count_client").default(0),
-});
+}, (t) => [
+  index("conv_trainer_idx").on(t.trainerId, t.lastMessageAt),
+  index("conv_client_idx").on(t.clientId, t.lastMessageAt),
+]);
 
 export const messages = pgTable("messages", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -610,7 +625,10 @@ export const trainerReviews = pgTable("trainer_reviews", {
   reviewText: text("review_text"),
   coachResponse: text("coach_response"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("trainer_reviews_trainer_idx").on(t.trainerId),
+  index("trainer_reviews_client_idx").on(t.clientId),
+]);
 
 export const subscriptions = pgTable("subscriptions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -621,7 +639,7 @@ export const subscriptions = pgTable("subscriptions", {
   status: subscriptionStatusEnum("status").notNull().default("active"),
   currentPeriodEnd: timestamp("current_period_end"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [index("subscriptions_user_idx").on(t.userId)]);
 
 export const clientTransfers = pgTable("client_transfers", {
   id: varchar("id", { length: 20 }).primaryKey(), // CT-XXXX format

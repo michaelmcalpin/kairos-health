@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import { dailyCheckins } from "@/server/db/schema";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
@@ -189,11 +190,11 @@ export const clientCheckinRouter = router({
       });
 
       if (!existing) {
-        throw new Error("Check-in not found");
+        throw new TRPCError({ code: "NOT_FOUND", message: "Check-in not found" });
       }
 
       if (existing.clientId !== ctx.dbUserId) {
-        throw new Error("Unauthorized: check-in does not belong to this user");
+        throw new TRPCError({ code: "FORBIDDEN", message: "Unauthorized: check-in does not belong to this user" });
       }
 
       // Build update object with only provided fields

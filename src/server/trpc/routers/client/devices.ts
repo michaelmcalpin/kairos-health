@@ -1,16 +1,18 @@
 import { z } from "zod";
 import crypto from "crypto";
+import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import { deviceConnections, syncLogs } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { PROVIDERS } from "@/lib/integrations/devices/providers";
+import { env } from "@/lib/config/env";
 
 /**
  * Sign OAuth state with HMAC to prevent tampering.  Uses CLERK_SECRET_KEY
  * as the signing key (always available in the server context).
  */
 function signOAuthState(payload: string): string {
-  const secret = process.env.CLERK_SECRET_KEY || process.env.OAUTH_STATE_SECRET || "dev-only-fallback";
+  const secret = env.CLERK_SECRET_KEY || "dev-only-fallback";
   return crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
 }
 
@@ -75,19 +77,27 @@ export const clientDevicesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const providerConfig = PROVIDERS[input.provider];
       if (!providerConfig) {
-        throw new Error(`Provider ${input.provider} not found`);
+        throw new TRPCError({ code: "NOT_FOUND", message: `Provider ${input.provider} not found` });
       }
 
-      // Get OAuth credentials from environment
-      const envKeyPrefix = input.provider.toUpperCase();
-      const clientId = process.env[`${envKeyPrefix}_CLIENT_ID`];
+      // Get OAuth credentials from typed env
+      const providerClientIds: Record<typeof input.provider, string> = {
+        oura: env.OURA_CLIENT_ID,
+        dexcom: env.DEXCOM_CLIENT_ID,
+        whoop: env.WHOOP_CLIENT_ID,
+        fitbit: env.FITBIT_CLIENT_ID,
+        withings: env.WITHINGS_CLIENT_ID,
+        garmin: "",
+        apple_health: "",
+      };
+      const clientId = providerClientIds[input.provider];
 
       if (!clientId) {
-        throw new Error(`Missing OAuth configuration for ${input.provider}`);
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Missing OAuth configuration for ${input.provider}` });
       }
 
       // Build redirect URI
-      const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/callbacks/${input.provider}`;
+      const redirectUri = `${env.APP_URL}/api/callbacks/${input.provider}`;
 
       // Encode state with userId, provider, and HMAC signature to prevent tampering
       const statePayload = JSON.stringify({
@@ -132,7 +142,7 @@ export const clientDevicesRouter = router({
       });
 
       if (!connection) {
-        throw new Error(`Connection for ${input.provider} not found`);
+        throw new TRPCError({ code: "NOT_FOUND", message: `Connection for ${input.provider} not found` });
       }
 
       // Update connection status and clear tokens
@@ -166,13 +176,14 @@ export const clientDevicesRouter = router({
       });
 
       if (!connection) {
-        throw new Error(`Connection for ${input.provider} not found`);
+        throw new TRPCError({ code: "NOT_FOUND", message: `Connection for ${input.provider} not found` });
       }
 
       if (connection.status !== "connected") {
-        throw new Error(
-          `Device ${input.provider} is not connected. Status: ${connection.status}`
-        );
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Device ${input.provider} is not connected. Status: ${connection.status}`,
+        });
       }
 
       // Create sync log entry

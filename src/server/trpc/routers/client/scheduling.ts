@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import { appointments, sessionNotes, coachAvailability, users } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
@@ -52,7 +53,7 @@ export const clientSchedulingRouter = router({
           eq(appointments.clientId, ctx.dbUserId),
         ),
       });
-      if (!appt) throw new Error("Appointment not found");
+      if (!appt) throw new TRPCError({ code: "NOT_FOUND", message: "Appointment not found" });
       return appt;
     }),
 
@@ -198,7 +199,7 @@ export const clientSchedulingRouter = router({
         )
         .returning();
 
-      if (!updated) throw new Error("Appointment not found");
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Appointment not found" });
       return updated;
     }),
 

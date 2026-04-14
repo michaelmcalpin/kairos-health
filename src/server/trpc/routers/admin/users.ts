@@ -8,7 +8,7 @@ import {
   trainerClientRelationships,
   auditLogs,
 } from "@/server/db/schema";
-import { eq, and, sql, or, desc, asc, ilike, gte } from "drizzle-orm";
+import { eq, and, sql, or, desc, asc, ilike, gte, inArray } from "drizzle-orm";
 
 export const adminUsersRouter = router({
   // List users with pagination and filters
@@ -71,84 +71,100 @@ export const adminUsersRouter = router({
         .limit(pageSize)
         .offset((page - 1) * pageSize);
 
+      // Batch-load related data to avoid N+1 queries
+      const companyIds = Array.from(new Set(userRows.map((u) => u.companyId).filter((id): id is string => !!id)));
+      const clientIds = userRows.filter((u) => u.role === "client").map((u) => u.id);
+      const trainerIds = userRows.filter((u) => u.role === "trainer").map((u) => u.id);
+
+      const [companyRows, clientProfileRows, trainerProfileRows, trainerCountRows] = await Promise.all([
+        companyIds.length > 0
+          ? ctx.db.select().from(companies).where(inArray(companies.id, companyIds))
+          : Promise.resolve([]),
+        clientIds.length > 0
+          ? ctx.db.select().from(clientProfiles).where(inArray(clientProfiles.userId, clientIds))
+          : Promise.resolve([]),
+        trainerIds.length > 0
+          ? ctx.db.select().from(trainerProfiles).where(inArray(trainerProfiles.userId, trainerIds))
+          : Promise.resolve([]),
+        trainerIds.length > 0
+          ? ctx.db
+              .select({
+                trainerId: trainerClientRelationships.trainerId,
+                count: sql<number>`count(*)`,
+              })
+              .from(trainerClientRelationships)
+              .where(and(
+                inArray(trainerClientRelationships.trainerId, trainerIds),
+                eq(trainerClientRelationships.status, "active"),
+              ))
+              .groupBy(trainerClientRelationships.trainerId)
+          : Promise.resolve([]),
+      ]);
+
+      const companyMap = new Map(companyRows.map((c) => [c.id, c.name]));
+      const clientProfileMap = new Map(clientProfileRows.map((cp) => [cp.userId, cp]));
+      const trainerProfileMap = new Map(trainerProfileRows.map((tp) => [tp.userId, tp]));
+      const trainerCountMap = new Map(trainerCountRows.map((r) => [r.trainerId, Number(r.count ?? 0)]));
+
       // Enrich with company name and profile info
-      const enriched = await Promise.all(
-        userRows.map(async (u) => {
-          let companyName: string | null = null;
-          if (u.companyId) {
-            const company = await ctx.db.query.companies.findFirst({
-              where: eq(companies.id, u.companyId),
-            });
-            companyName = company?.name ?? null;
+      const enriched = userRows.map((u) => {
+        const companyName = u.companyId ? companyMap.get(u.companyId) ?? null : null;
+
+        let subscription = null;
+        let profile = null;
+
+        if (u.role === "client") {
+          const cp = clientProfileMap.get(u.id);
+          if (cp) {
+            // Filter by tier if requested
+            if (tier !== "all" && cp.tier !== tier) return null;
+            subscription = {
+              tier: cp.tier as "tier1" | "tier2" | "tier3",
+              status: "active" as const,
+              currentPeriodEnd: null,
+              stripeCustomerId: null,
+            };
+            profile = {
+              goals: (cp.goals as string[]) ?? [],
+              onboardingCompleted: cp.onboardingCompleted ?? false,
+              dateOfBirth: cp.dateOfBirth,
+            };
           }
-
-          let subscription = null;
-          let profile = null;
-
-          if (u.role === "client") {
-            const cp = await ctx.db.query.clientProfiles.findFirst({
-              where: eq(clientProfiles.userId, u.id),
-            });
-            if (cp) {
-              // Filter by tier if requested
-              if (tier !== "all" && cp.tier !== tier) return null;
-              subscription = {
-                tier: cp.tier as "tier1" | "tier2" | "tier3",
-                status: "active" as const,
-                currentPeriodEnd: null,
-                stripeCustomerId: null,
-              };
-              profile = {
-                goals: (cp.goals as string[]) ?? [],
-                onboardingCompleted: cp.onboardingCompleted ?? false,
-                dateOfBirth: cp.dateOfBirth,
-              };
-            }
-          } else if (u.role === "trainer") {
-            const tp = await ctx.db.query.trainerProfiles.findFirst({
-              where: eq(trainerProfiles.userId, u.id),
-            });
-            if (tp) {
-              const [clientCount] = await ctx.db
-                .select({ count: sql<number>`count(*)` })
-                .from(trainerClientRelationships)
-                .where(and(
-                  eq(trainerClientRelationships.trainerId, u.id),
-                  eq(trainerClientRelationships.status, "active")
-                ));
-              profile = {
-                specialties: (tp.specialties as string[]) ?? [],
-                capacity: tp.capacity ?? 25,
-                currentClients: Number(clientCount?.count ?? 0),
-                acceptingClients: tp.acceptingClients ?? true,
-                rating: tp.rating ?? 0,
-                reviewCount: tp.reviewCount ?? 0,
-                monthlyRate: tp.monthlyRate ? Number(tp.monthlyRate) : undefined,
-              };
-            }
+        } else if (u.role === "trainer") {
+          const tp = trainerProfileMap.get(u.id);
+          if (tp) {
+            profile = {
+              specialties: (tp.specialties as string[]) ?? [],
+              capacity: tp.capacity ?? 25,
+              currentClients: trainerCountMap.get(u.id) ?? 0,
+              acceptingClients: tp.acceptingClients ?? true,
+              rating: tp.rating ?? 0,
+              reviewCount: tp.reviewCount ?? 0,
+              monthlyRate: tp.monthlyRate ? Number(tp.monthlyRate) : undefined,
+            };
           }
+        }
 
-          // Skip if tier filter didn't match for non-client roles
-          if (tier !== "all" && u.role !== "client") return null;
+        // Skip if tier filter didn't match for non-client roles
+        if (tier !== "all" && u.role !== "client") return null;
 
-          return {
-            id: u.id,
-            email: u.email,
-            firstName: u.firstName ?? "",
-            lastName: u.lastName ?? "",
-            role: u.role as "client" | "trainer" | "company_admin" | "super_admin",
-            status: u.status as "active" | "inactive" | "suspended" | "onboarding",
-            avatarUrl: u.avatarUrl,
-            companyId: u.companyId,
-            companyName,
-            createdAt: u.createdAt.toISOString(),
-            updatedAt: u.updatedAt.toISOString(),
-            lastLoginAt: null,
-            subscription,
-            profile,
-          };
-        })
-      );
+        return {
+          id: u.id,
+          email: u.email,
+          firstName: u.firstName ?? "",
+          lastName: u.lastName ?? "",
+          role: u.role as "client" | "trainer" | "company_admin" | "super_admin",
+          status: u.status as "active" | "inactive" | "suspended" | "onboarding",
+          avatarUrl: u.avatarUrl,
+          companyId: u.companyId,
+          companyName,
+          createdAt: u.createdAt.toISOString(),
+          updatedAt: u.updatedAt.toISOString(),
+          lastLoginAt: null,
+          subscription,
+          profile,
+        };
+      });
 
       const filtered = enriched.filter((u): u is NonNullable<typeof u> => u !== null);
 

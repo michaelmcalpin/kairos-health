@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import { conversations, messages, users } from "@/server/db/schema";
 import { eq, and, desc, sql, isNull, ilike, or } from "drizzle-orm";
@@ -90,7 +91,7 @@ export const clientMessagingRouter = router({
           eq(conversations.clientId, ctx.dbUserId),
         ),
       });
-      if (!conv) throw new Error("Conversation not found");
+      if (!conv) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
       return conv;
     }),
 
@@ -151,7 +152,7 @@ export const clientMessagingRouter = router({
           eq(conversations.clientId, ctx.dbUserId),
         ),
       });
-      if (!conv) throw new Error("Conversation not found");
+      if (!conv) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
 
       const conditions = [eq(messages.conversationId, input.conversationId)];
       if (input.before) {
@@ -184,7 +185,7 @@ export const clientMessagingRouter = router({
           eq(conversations.clientId, ctx.dbUserId),
         ),
       });
-      if (!conv) throw new Error("Conversation not found");
+      if (!conv) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
 
       const [msg] = await ctx.db
         .insert(messages)
