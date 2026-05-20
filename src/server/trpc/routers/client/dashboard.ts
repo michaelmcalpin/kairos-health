@@ -11,85 +11,123 @@ import {
   supplementProtocols,
   protocolItems,
   adherenceLogs,
+  bodyMeasurements,
+  activitySummaries,
+  fastingProtocols,
+  workoutPrograms,
+  clientWorkoutAssignments,
 } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 
 export const clientDashboardRouter = router({
-  // Get dashboard overview KPIs
+  // ── Dashboard overview KPIs ──────────────────────────────
   getOverview: clientProcedure.query(async ({ ctx }) => {
     const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // Get client profile
-    const profile = await ctx.db.query.clientProfiles.findFirst({
-      where: eq(clientProfiles.userId, ctx.dbUserId),
-    });
+    // Batch-load everything in parallel
+    const [
+      profile,
+      latestGlucose,
+      latestHR,
+      latestHRV,
+      latestSleep,
+      unreadAlertRows,
+      latestCheckin,
+      todayCheckin,
+      latestBody,
+      todayGlucoseRows,
+    ] = await Promise.all([
+      ctx.db.query.clientProfiles.findFirst({
+        where: eq(clientProfiles.userId, ctx.dbUserId),
+      }),
+      ctx.db.query.glucoseReadings.findFirst({
+        where: eq(glucoseReadings.clientId, ctx.dbUserId),
+        orderBy: desc(glucoseReadings.timestamp),
+      }),
+      ctx.db.query.heartRateReadings.findFirst({
+        where: eq(heartRateReadings.clientId, ctx.dbUserId),
+        orderBy: desc(heartRateReadings.timestamp),
+      }),
+      ctx.db.query.hrvReadings.findFirst({
+        where: eq(hrvReadings.clientId, ctx.dbUserId),
+        orderBy: desc(hrvReadings.timestamp),
+      }),
+      ctx.db.query.sleepSessions.findFirst({
+        where: eq(sleepSessions.clientId, ctx.dbUserId),
+        orderBy: desc(sleepSessions.date),
+      }),
+      ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(alerts)
+        .where(and(eq(alerts.clientId, ctx.dbUserId), eq(alerts.status, "active"))),
+      ctx.db.query.dailyCheckins.findFirst({
+        where: eq(dailyCheckins.clientId, ctx.dbUserId),
+        orderBy: desc(dailyCheckins.date),
+      }),
+      ctx.db.query.dailyCheckins.findFirst({
+        where: and(
+          eq(dailyCheckins.clientId, ctx.dbUserId),
+          gte(dailyCheckins.date, twentyFourHoursAgo.toISOString().split("T")[0]),
+        ),
+        orderBy: desc(dailyCheckins.date),
+      }),
+      ctx.db.query.bodyMeasurements.findFirst({
+        where: eq(bodyMeasurements.clientId, ctx.dbUserId),
+        orderBy: desc(bodyMeasurements.date),
+      }),
+      // Today's glucose readings for spike analysis
+      ctx.db.query.glucoseReadings.findMany({
+        where: and(
+          eq(glucoseReadings.clientId, ctx.dbUserId),
+          gte(glucoseReadings.timestamp, new Date(todayStr)),
+        ),
+        orderBy: glucoseReadings.timestamp,
+      }),
+    ]);
 
-    // Latest glucose reading
-    const latestGlucose = await ctx.db.query.glucoseReadings.findFirst({
-      where: eq(glucoseReadings.clientId, ctx.dbUserId),
-      orderBy: desc(glucoseReadings.timestamp),
-    });
+    // Glucose spike analysis: count readings >140 mg/dL as spikes
+    const SPIKE_THRESHOLD = 140;
+    const IN_RANGE_LOW = 70;
+    const IN_RANGE_HIGH = 140;
+    let glucoseSpikes = 0;
+    let glucoseTimeInRange: number | null = null;
 
-    // Latest heart rate
-    const latestHR = await ctx.db.query.heartRateReadings.findFirst({
-      where: eq(heartRateReadings.clientId, ctx.dbUserId),
-      orderBy: desc(heartRateReadings.timestamp),
-    });
-
-    // Latest HRV
-    const latestHRV = await ctx.db.query.hrvReadings.findFirst({
-      where: eq(hrvReadings.clientId, ctx.dbUserId),
-      orderBy: desc(hrvReadings.timestamp),
-    });
-
-    // Latest sleep session
-    const latestSleep = await ctx.db.query.sleepSessions.findFirst({
-      where: eq(sleepSessions.clientId, ctx.dbUserId),
-      orderBy: desc(sleepSessions.date),
-    });
-
-    // Unread alerts count
-    const unreadAlerts = await ctx.db
-      .select({ count: sql<number>`count(*)` })
-      .from(alerts)
-      .where(
-        and(
-          eq(alerts.clientId, ctx.dbUserId),
-          eq(alerts.status, "active")
-        )
-      );
-
-    // Latest check-in (for weight, calories, steps)
-    const latestCheckin = await ctx.db.query.dailyCheckins.findFirst({
-      where: eq(dailyCheckins.clientId, ctx.dbUserId),
-      orderBy: desc(dailyCheckins.date),
-    });
-
-    // Today's check-in specifically
-    const todayCheckin = await ctx.db.query.dailyCheckins.findFirst({
-      where: and(
-        eq(dailyCheckins.clientId, ctx.dbUserId),
-        gte(dailyCheckins.date, twentyFourHoursAgo.toISOString().split("T")[0])
-      ),
-      orderBy: desc(dailyCheckins.date),
-    });
+    if (todayGlucoseRows.length > 0) {
+      // Count contiguous spike episodes
+      let inSpike = false;
+      for (const reading of todayGlucoseRows) {
+        const val = Number(reading.valueMgdl);
+        if (val > SPIKE_THRESHOLD) {
+          if (!inSpike) {
+            glucoseSpikes++;
+            inSpike = true;
+          }
+        } else {
+          inSpike = false;
+        }
+      }
+      // Time in range percentage
+      const inRangeCount = todayGlucoseRows.filter(
+        (r) => Number(r.valueMgdl) >= IN_RANGE_LOW && Number(r.valueMgdl) <= IN_RANGE_HIGH,
+      ).length;
+      glucoseTimeInRange = Math.round((inRangeCount / todayGlucoseRows.length) * 100);
+    }
 
     return {
       profile,
       kpis: {
         weight: latestCheckin?.weight
           ? { value: latestCheckin.weight, date: latestCheckin.date }
+          : latestBody?.weightLbs
+            ? { value: latestBody.weightLbs, date: latestBody.date }
+            : null,
+        bodyFat: latestBody?.bodyFatPct
+          ? { value: latestBody.bodyFatPct, date: latestBody.date }
           : null,
         sleep: latestSleep
-          ? {
-              duration: latestSleep.totalMinutes,
-              quality: latestSleep.score,
-              timestamp: latestSleep.date,
-            }
-          : null,
-        calories: latestCheckin?.totalCalories
-          ? { value: latestCheckin.totalCalories, date: latestCheckin.date }
+          ? { duration: latestSleep.totalMinutes, quality: latestSleep.score, timestamp: latestSleep.date }
           : null,
         heartRate: latestHR
           ? { value: latestHR.bpm, timestamp: latestHR.timestamp }
@@ -97,20 +135,82 @@ export const clientDashboardRouter = router({
         glucose: latestGlucose
           ? { value: latestGlucose.valueMgdl, unit: "mg/dL", timestamp: latestGlucose.timestamp }
           : null,
+        glucoseSpikes,
+        glucoseTimeInRange,
         hrv: latestHRV
           ? { value: latestHRV.rmssd, timestamp: latestHRV.timestamp }
           : null,
         steps: latestCheckin?.steps
           ? { value: latestCheckin.steps, date: latestCheckin.date }
           : null,
-        unreadAlerts: Number(unreadAlerts[0]?.count ?? 0),
+        bmCount: todayCheckin?.bmCount ?? null,
+        unreadAlerts: Number(unreadAlertRows[0]?.count ?? 0),
         checkedInToday: !!todayCheckin,
-        healthScore: null, // Computed metric — will be added in Sprint 2
       },
     };
   }),
 
-  // Get recent activity feed
+  // ── Today's protocols (fasting, exercise, etc.) ──────────
+  getTodayProtocols: clientProcedure.query(async ({ ctx }) => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const dayOfWeek = now.getDay(); // 0=Sun
+
+    // Fasting protocol
+    const fastingProto = await ctx.db.query.fastingProtocols.findFirst({
+      where: and(
+        eq(fastingProtocols.clientId, ctx.dbUserId),
+        eq(fastingProtocols.status, "active"),
+      ),
+      orderBy: desc(fastingProtocols.createdAt),
+    });
+
+    let fasting = null;
+    if (fastingProto) {
+      const activeDays = (fastingProto.activeDays as number[]) ?? [0, 1, 2, 3, 4, 5, 6];
+      const isToday = activeDays.includes(dayOfWeek);
+      if (isToday) {
+        const feedStart = fastingProto.feedingStartHour ?? 12;
+        const feedEnd = fastingProto.feedingEndHour ?? 20;
+        fasting = {
+          type: fastingProto.type,
+          feedingStart: feedStart,
+          feedingEnd: feedEnd,
+          isActive: currentHour >= feedStart && currentHour < feedEnd,
+        };
+      }
+    }
+
+    // Active workout assignment
+    const todayStr = now.toISOString().split("T")[0];
+    const assignment = await ctx.db.query.clientWorkoutAssignments.findFirst({
+      where: and(
+        eq(clientWorkoutAssignments.clientId, ctx.dbUserId),
+        eq(clientWorkoutAssignments.status, "active"),
+      ),
+    });
+
+    let exercise: { stepGoal: number; workout: { name: string; description: string | null } | null } = {
+      stepGoal: 10000,
+      workout: null,
+    };
+
+    if (assignment) {
+      const program = await ctx.db.query.workoutPrograms.findFirst({
+        where: eq(workoutPrograms.id, assignment.programId),
+      });
+      if (program) {
+        exercise.workout = {
+          name: program.name,
+          description: program.description,
+        };
+      }
+    }
+
+    return { fasting, exercise };
+  }),
+
+  // ── Recent activity feed ─────────────────────────────────
   getRecentActivity: clientProcedure
     .input(z.object({ limit: z.number().min(1).max(50).default(10) }))
     .query(async ({ ctx, input }) => {
@@ -131,12 +231,12 @@ export const clientDashboardRouter = router({
       }));
     }),
 
-  // Get active protocol summary
+  // ── Active protocol summary ──────────────────────────────
   getActiveProtocol: clientProcedure.query(async ({ ctx }) => {
     const protocol = await ctx.db.query.supplementProtocols.findFirst({
       where: and(
         eq(supplementProtocols.clientId, ctx.dbUserId),
-        eq(supplementProtocols.status, "active")
+        eq(supplementProtocols.status, "active"),
       ),
       orderBy: desc(supplementProtocols.createdAt),
     });
@@ -147,14 +247,13 @@ export const clientDashboardRouter = router({
       where: eq(protocolItems.protocolId, protocol.id),
     });
 
-    // Get today's adherence for this protocol
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const todayAdherence = await ctx.db.query.adherenceLogs.findMany({
       where: and(
         eq(adherenceLogs.clientId, ctx.dbUserId),
-        gte(adherenceLogs.date, today.toISOString().split("T")[0])
+        gte(adherenceLogs.date, today.toISOString().split("T")[0]),
       ),
     });
 
@@ -168,18 +267,12 @@ export const clientDashboardRouter = router({
     };
   }),
 
-  // Get daily summaries for a date range (glucose, sleep, adherence per day)
+  // ── Daily summaries for date range ───────────────────────
   getDailySummaries: clientProcedure
-    .input(
-      z.object({
-        startDate: z.string(), // YYYY-MM-DD
-        endDate: z.string(),
-      })
-    )
+    .input(z.object({ startDate: z.string(), endDate: z.string() }))
     .query(async ({ ctx, input }) => {
       const { startDate, endDate } = input;
 
-      // Glucose daily averages + time-in-range
       const glucoseDaily = await ctx.db
         .select({
           date: sql<string>`DATE(${glucoseReadings.timestamp})`.as("date"),
@@ -194,27 +287,25 @@ export const clientDashboardRouter = router({
           and(
             eq(glucoseReadings.clientId, ctx.dbUserId),
             gte(glucoseReadings.timestamp, new Date(startDate)),
-            lte(glucoseReadings.timestamp, new Date(endDate + "T23:59:59"))
-          )
+            lte(glucoseReadings.timestamp, new Date(endDate + "T23:59:59")),
+          ),
         )
         .groupBy(sql`DATE(${glucoseReadings.timestamp})`)
         .orderBy(sql`DATE(${glucoseReadings.timestamp})`);
 
-      // Sleep per day
       const sleepDaily = await ctx.db.query.sleepSessions.findMany({
         where: and(
           eq(sleepSessions.clientId, ctx.dbUserId),
           gte(sleepSessions.date, startDate),
-          lte(sleepSessions.date, endDate)
+          lte(sleepSessions.date, endDate),
         ),
         orderBy: sleepSessions.date,
       });
 
-      // Adherence per day: count logged vs total protocol items
       const protocol = await ctx.db.query.supplementProtocols.findFirst({
         where: and(
           eq(supplementProtocols.clientId, ctx.dbUserId),
-          eq(supplementProtocols.status, "active")
+          eq(supplementProtocols.status, "active"),
         ),
         orderBy: desc(supplementProtocols.createdAt),
       });
@@ -236,8 +327,8 @@ export const clientDashboardRouter = router({
             and(
               eq(adherenceLogs.clientId, ctx.dbUserId),
               gte(adherenceLogs.date, startDate),
-              lte(adherenceLogs.date, endDate)
-            )
+              lte(adherenceLogs.date, endDate),
+            ),
           )
           .groupBy(adherenceLogs.date)
           .orderBy(adherenceLogs.date);
@@ -249,15 +340,17 @@ export const clientDashboardRouter = router({
         }));
       }
 
-      // Build date map
       const sleepMap = new Map(sleepDaily.map((s) => [s.date, s]));
       const adherenceMap = new Map(adherenceDaily.map((a) => [a.date, a]));
 
-      const summaries = glucoseDaily.map((g) => {
+      return glucoseDaily.map((g) => {
         const dateStr = String(g.date);
         const sleep = sleepMap.get(dateStr);
         const adh = adherenceMap.get(dateStr);
-        const timeInRange = g.count > 0 ? Math.round((Number(g.inRangeCount) / Number(g.count)) * 100) : 0;
+        const timeInRange =
+          g.count > 0
+            ? Math.round((Number(g.inRangeCount) / Number(g.count)) * 100)
+            : 0;
 
         return {
           date: dateStr,
@@ -266,16 +359,12 @@ export const clientDashboardRouter = router({
           sleep: sleep?.totalMinutes
             ? { totalHrs: parseFloat((sleep.totalMinutes / 60).toFixed(1)), score: sleep.score }
             : null,
-          adherence: adh
-            ? Math.round((adh.taken / Math.max(adh.total, 1)) * 100)
-            : null,
+          adherence: adh ? Math.round((adh.taken / Math.max(adh.total, 1)) * 100) : null,
         };
       });
-
-      return summaries;
     }),
 
-  // Get computed health score
+  // ── Computed health score ────────────────────────────────
   getHealthScore: clientProcedure.query(async ({ ctx }) => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -286,19 +375,13 @@ export const clientDashboardRouter = router({
         .select({ avg: sql<number>`ROUND(AVG(${glucoseReadings.valueMgdl}))` })
         .from(glucoseReadings)
         .where(
-          and(
-            eq(glucoseReadings.clientId, ctx.dbUserId),
-            gte(glucoseReadings.timestamp, sevenDaysAgo)
-          )
+          and(eq(glucoseReadings.clientId, ctx.dbUserId), gte(glucoseReadings.timestamp, sevenDaysAgo)),
         ),
       ctx.db
         .select({ avg: sql<number>`ROUND(AVG(${sleepSessions.score}))` })
         .from(sleepSessions)
         .where(
-          and(
-            eq(sleepSessions.clientId, ctx.dbUserId),
-            gte(sleepSessions.date, sevenDaysStr)
-          )
+          and(eq(sleepSessions.clientId, ctx.dbUserId), gte(sleepSessions.date, sevenDaysStr)),
         ),
       ctx.db.query.hrvReadings.findFirst({
         where: eq(hrvReadings.clientId, ctx.dbUserId),
@@ -306,17 +389,13 @@ export const clientDashboardRouter = router({
       }),
     ]);
 
-    // Derive health score: baseline 75, +/- based on sleep, glucose, HRV
     let score = 75;
     const avgGlucose = Number(avgGlucoseResult[0]?.avg ?? 95);
     const avgSleep = Number(avgSleepResult[0]?.avg ?? 70);
     const hrv = latestHrv?.rmssd ?? 40;
 
-    // Sleep contribution: score 80+ adds up to +8, below 60 subtracts up to -10
     score += avgSleep >= 80 ? 8 : avgSleep >= 70 ? 4 : avgSleep >= 60 ? 0 : -10;
-    // Glucose contribution: 70-100 optimal (+5), 100-120 ok (0), >120 bad (-8)
     score += avgGlucose >= 70 && avgGlucose <= 100 ? 5 : avgGlucose <= 120 ? 0 : -8;
-    // HRV contribution: >50 good (+7), 30-50 ok (+2), <30 poor (-5)
     score += hrv > 50 ? 7 : hrv >= 30 ? 2 : -5;
 
     return { score: Math.min(100, Math.max(0, score)), avgGlucose, avgSleep, hrv };

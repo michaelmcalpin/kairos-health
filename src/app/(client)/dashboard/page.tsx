@@ -1,36 +1,122 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { KPICard } from "@/components/ui/KPICard";
-import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
-import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
-import { Droplets, Heart, Brain, Moon, Bell, CheckCircle, Loader2, Scale, Flame, Footprints } from "lucide-react";
-import { useCompanyBrand } from "@/lib/company-ops";
+import {
+  Scale,
+  Moon,
+  Brain,
+  Footprints,
+  Droplets,
+  Loader2,
+  Bell,
+  Utensils,
+  Dumbbell,
+  Pill,
+  Syringe,
+  Camera,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  ChevronRight,
+} from "lucide-react";
 
+/* ─── Small reusable metric row ─────────────────────────── */
+function MetricRow({
+  label,
+  value,
+  unit,
+  sub,
+}: {
+  label: string;
+  value: string | number;
+  unit?: string;
+  sub?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-sm font-body text-kairos-silver-dark">{label}</span>
+      <div className="text-right">
+        <span className="text-sm font-heading font-semibold text-white">
+          {value}
+          {unit && <span className="text-xs text-kairos-silver-dark ml-1">{unit}</span>}
+        </span>
+        {sub && <p className="text-[10px] text-kairos-silver-dark">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Section header inside a panel ─────────────────────── */
+function SectionHeader({
+  icon,
+  title,
+  color = "text-kairos-gold",
+}: {
+  icon: React.ReactNode;
+  title: string;
+  color?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 mb-2 mt-4 first:mt-0">
+      <span className={color}>{icon}</span>
+      <h4 className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">
+        {title}
+      </h4>
+    </div>
+  );
+}
+
+/* ─── Protocol to-do card ───────────────────────────────── */
+function ProtocolCard({
+  icon,
+  title,
+  children,
+  color = "text-kairos-gold",
+  onNavigate,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+  color?: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-kairos-border bg-kairos-card-hover/30 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className={color}>{icon}</span>
+          <h4 className="text-sm font-heading font-semibold text-white">{title}</h4>
+        </div>
+        {onNavigate && (
+          <button
+            onClick={onNavigate}
+            className="text-kairos-gold hover:text-kairos-gold-light transition-colors"
+          >
+            <ChevronRight size={16} />
+          </button>
+        )}
+      </div>
+      <div className="text-sm font-body text-kairos-silver-dark space-y-1">{children}</div>
+    </div>
+  );
+}
+
+/* ━━━ Main Dashboard ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 export default function ClientDashboard() {
   const router = useRouter();
-  const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
-    useDateRange({ initialPeriod: "day" });
 
-  // Real tRPC queries
-  const { data: overview, isLoading: overviewLoading, isError: overviewError, refetch: refetchOverview } =
-    trpc.clientPortal.dashboard.getOverview.useQuery(undefined, {
-      staleTime: 30_000,
-      refetchOnWindowFocus: false,
-      retry: 2,
-    });
-
-  const { data: healthScore } = trpc.clientPortal.dashboard.getHealthScore.useQuery(undefined, {
-    staleTime: 60_000,
+  // ── Data queries ─────────────────────────────────────────
+  const {
+    data: overview,
+    isLoading: overviewLoading,
+    isError: overviewError,
+    refetch: refetchOverview,
+  } = trpc.clientPortal.dashboard.getOverview.useQuery(undefined, {
+    staleTime: 30_000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 2,
   });
-
-  const { data: recentAlerts = [] } = trpc.clientPortal.dashboard.getRecentActivity.useQuery(
-    { limit: 5 },
-    { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 }
-  );
 
   const { data: protocol } = trpc.clientPortal.dashboard.getActiveProtocol.useQuery(undefined, {
     staleTime: 30_000,
@@ -38,38 +124,17 @@ export default function ClientDashboard() {
     retry: 1,
   });
 
-  const startStr = dateRange.startDate.toISOString().split("T")[0];
-  const endStr = dateRange.endDate.toISOString().split("T")[0];
-  const { data: dailySummaries = [] } = trpc.clientPortal.dashboard.getDailySummaries.useQuery(
-    { startDate: startStr, endDate: endStr },
-    { staleTime: 30_000, refetchOnWindowFocus: false, enabled: period !== "day", retry: 1 }
-  );
+  const { data: todayData } = trpc.clientPortal.dashboard.getTodayProtocols.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
 
-  // Derived values
+  // ── Derived values ───────────────────────────────────────
   const kpis = overview?.kpis;
-  const protocolItems = protocol?.items ?? [];
-  const todayAdherence = protocol?.todayAdherence;
-  const doneCount = todayAdherence?.completed ?? 0;
-  const totalCount = (todayAdherence?.total ?? protocolItems.length) || 1;
+  const tp = todayData;
 
-  // White-label branding
-  const { brand } = useCompanyBrand();
-  const isWhiteLabel = brand.id !== "kairos";
-  const accentColor = isWhiteLabel ? brand.brandColor : undefined;
-
-  // Format relative time for alerts
-  function formatRelativeTime(date: Date | string | null): string {
-    if (!date) return "";
-    const ms = Date.now() - new Date(date).getTime();
-    const mins = Math.floor(ms / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    return `${days}d ago`;
-  }
-
-  // Loading skeleton
+  // ── Loading ──────────────────────────────────────────────
   if (overviewLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -81,267 +146,283 @@ export default function ClientDashboard() {
     );
   }
 
-  // Error state
+  // ── Error ────────────────────────────────────────────────
   if (overviewError) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center max-w-sm space-y-3">
           <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
-            <Bell size={24} className="text-red-400" />
+            <AlertTriangle size={24} className="text-red-400" />
           </div>
           <h3 className="font-heading font-semibold text-white">Unable to load dashboard</h3>
           <p className="text-sm font-body text-kairos-silver-dark">
-            We couldn&apos;t fetch your health data. This could be a temporary connection issue.
+            We couldn&apos;t fetch your health data. Please try again.
           </p>
           <button
             onClick={() => refetchOverview()}
-            className="kairos-btn-gold text-sm px-6 py-2 inline-flex items-center gap-2"
+            className="kairos-btn-gold text-sm px-6 py-2"
           >
-            <Loader2 size={14} /> Retry
+            Retry
           </button>
         </div>
       </div>
     );
   }
 
+  // ── Supplement items grouped by time of day ─────────────
+  const supplementItems = protocol?.items?.filter((i) => i.category === "supplement") ?? [];
+  const peptideItems = protocol?.items?.filter(
+    (i) => i.category === "peptide" || i.category === "injection"
+  ) ?? [];
+
+  const supplementsByTime = {
+    morning: supplementItems.filter((i) => i.timeOfDay?.toLowerCase().includes("morning") || i.timeOfDay?.toLowerCase().includes("am")),
+    midday: supplementItems.filter((i) => i.timeOfDay?.toLowerCase().includes("midday") || i.timeOfDay?.toLowerCase().includes("noon") || i.timeOfDay?.toLowerCase().includes("afternoon")),
+    evening: supplementItems.filter((i) => i.timeOfDay?.toLowerCase().includes("evening") || i.timeOfDay?.toLowerCase().includes("pm") || i.timeOfDay?.toLowerCase().includes("night")),
+  };
+  // Anything not matched goes to morning
+  const assignedIds = new Set([...supplementsByTime.morning, ...supplementsByTime.midday, ...supplementsByTime.evening].map((i) => i.id));
+  const unassigned = supplementItems.filter((i) => !assignedIds.has(i.id));
+  supplementsByTime.morning = [...supplementsByTime.morning, ...unassigned];
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Welcome Banner */}
-      <div
-        className="kairos-card"
-        style={accentColor ? { borderColor: accentColor + "30" } : { borderColor: "rgba(var(--k-accent), 0.2)" }}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-heading font-bold text-xl text-white mb-1">Welcome back</h2>
-            <p className="text-sm font-body text-kairos-silver-dark">
-              {isWhiteLabel
-                ? <>{brand.name} &mdash; your health overview for {formattedRange}</>
-                : <>Here&apos;s your health overview for {formattedRange}</>}
-            </p>
-          </div>
-          <div
-            className="text-xs font-heading font-semibold px-3 py-1 rounded-full flex items-center gap-1"
-            style={accentColor
-              ? { backgroundColor: accentColor + "20", color: accentColor }
-              : { backgroundColor: "rgba(var(--k-accent), 0.2)", color: "rgb(var(--k-accent))" }}
+    <div className="animate-fade-in">
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="font-heading font-bold text-2xl text-white">Dashboard</h1>
+        <p className="text-sm font-body text-kairos-silver-dark mt-1">
+          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+        </p>
+      </div>
+
+      {/* ━━━ Two-column layout ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* ── LEFT: Biometrics ──────────────────────────────── */}
+        <div className="kairos-card space-y-1">
+          <h2 className="font-heading font-bold text-lg text-white mb-2">Biometrics</h2>
+
+          {/* Body Composition */}
+          <SectionHeader icon={<Scale size={14} />} title="Body Composition" />
+          <MetricRow
+            label="Weight"
+            value={kpis?.weight?.value ?? "—"}
+            unit="lbs"
+          />
+          <MetricRow
+            label="Body Fat"
+            value={kpis?.bodyFat?.value ?? "—"}
+            unit="%"
+          />
+
+          <div className="border-t border-kairos-border my-3" />
+
+          {/* Sleep & Recovery */}
+          <SectionHeader icon={<Moon size={14} />} title="Sleep & Recovery" color="text-blue-400" />
+          <MetricRow
+            label="Sleep Score"
+            value={kpis?.sleep?.quality ?? "—"}
+            unit="/100"
+          />
+          <MetricRow
+            label="HRV"
+            value={kpis?.hrv?.value ? Math.round(Number(kpis.hrv.value)) : "—"}
+            unit="ms"
+          />
+          <MetricRow
+            label="Hours"
+            value={kpis?.sleep?.duration ? (Number(kpis.sleep.duration) / 60).toFixed(1) : "—"}
+            unit="hrs"
+          />
+
+          <div className="border-t border-kairos-border my-3" />
+
+          {/* Movement */}
+          <SectionHeader icon={<Footprints size={14} />} title="Movement" color="text-green-400" />
+          <MetricRow
+            label="Steps"
+            value={kpis?.steps?.value ? Number(kpis.steps.value).toLocaleString() : "—"}
+          />
+
+          <div className="border-t border-kairos-border my-3" />
+
+          {/* Glucose */}
+          <SectionHeader icon={<Droplets size={14} />} title="Glucose" color="text-amber-400" />
+          <MetricRow
+            label="Average"
+            value={kpis?.glucose?.value ?? "—"}
+            unit="mg/dL"
+          />
+          <MetricRow
+            label="Spikes"
+            value={kpis?.glucoseSpikes ?? "—"}
+          />
+          <MetricRow
+            label="Time in Range"
+            value={kpis?.glucoseTimeInRange != null ? `${kpis.glucoseTimeInRange}%` : "—"}
+          />
+
+          <div className="border-t border-kairos-border my-3" />
+
+          {/* Toilet */}
+          <SectionHeader icon={<CheckCircle size={14} />} title="Toilet" color="text-purple-400" />
+          <MetricRow
+            label="Bowel Movements"
+            value={kpis?.bmCount ?? "—"}
+          />
+        </div>
+
+        {/* ── RIGHT: Today's Protocols ──────────────────────── */}
+        <div className="space-y-4">
+          <h2 className="font-heading font-bold text-lg text-white">Today&apos;s Protocols</h2>
+
+          {/* Nutrition / Fasting */}
+          <ProtocolCard
+            icon={<Utensils size={16} />}
+            title="Nutrition / Fasting"
+            color="text-orange-400"
+            onNavigate={() => router.push("/meals")}
           >
-            <CheckCircle size={12} />
-            All Systems Active
-          </div>
-        </div>
-      </div>
-
-      <DateRangeNavigator
-        availablePeriods={["day", "week", "month"]}
-        selectedPeriod={period}
-        onPeriodChange={setPeriod}
-        formattedRange={formattedRange}
-        isCurrent={isCurrent}
-        canForward={canForward}
-        onBack={goBack}
-        onForward={goForward}
-        onToday={goToToday}
-      />
-
-      {/* Primary KPIs — most controllable items first */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard
-          label="Weight"
-          value={kpis?.weight?.value ?? "—"}
-          unit="lbs"
-          trend="flat"
-          trendValue="Latest"
-          icon={<Scale size={16} />}
-          highlight
-          accentColor={accentColor}
-        />
-        <KPICard
-          label="Sleep"
-          value={kpis?.sleep?.duration ? (kpis.sleep.duration / 60).toFixed(1) : "—"}
-          unit="hrs"
-          trend={kpis?.sleep?.duration && kpis.sleep.duration >= 420 ? "up" : "down"}
-          trendValue={kpis?.sleep ? `Score: ${kpis.sleep.quality ?? "—"}` : "No data"}
-          icon={<Moon size={16} />}
-        />
-        <KPICard
-          label="Health Score"
-          value={healthScore?.score ?? "—"}
-          unit="/100"
-          trend={healthScore && healthScore.score >= 80 ? "up" : "flat"}
-          trendValue={healthScore ? `7-day avg` : ""}
-          highlight
-          accentColor={accentColor}
-        />
-        <KPICard
-          label="Calories"
-          value={kpis?.calories?.value ? Math.round(kpis.calories.value) : "—"}
-          unit="kcal"
-          trend="flat"
-          trendValue="Today"
-          icon={<Flame size={16} />}
-        />
-        <KPICard
-          label="Heart Rate"
-          value={kpis?.heartRate?.value ?? "—"}
-          unit="bpm"
-          trend="flat"
-          trendValue="Latest"
-          icon={<Heart size={16} />}
-        />
-        <KPICard
-          label="Glucose"
-          value={kpis?.glucose?.value ?? "—"}
-          unit="mg/dL"
-          trend={kpis?.glucose && kpis.glucose.value <= 100 ? "flat" : "up"}
-          trendValue={kpis?.glucose && kpis.glucose.value <= 100 ? "Stable" : "Elevated"}
-          icon={<Droplets size={16} />}
-        />
-      </div>
-
-      {/* Secondary KPIs — monitoring & awareness */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          label="Steps"
-          value={kpis?.steps?.value ?? "—"}
-          unit="steps"
-          trend="flat"
-          trendValue="Today"
-          icon={<Footprints size={16} />}
-        />
-        <KPICard
-          label="HRV"
-          value={kpis?.hrv?.value ? Math.round(kpis.hrv.value) : "—"}
-          unit="ms"
-          trend={kpis?.hrv && kpis.hrv.value > 50 ? "up" : "flat"}
-          trendValue={kpis?.hrv && kpis.hrv.value > 50 ? "Good" : "Average"}
-          icon={<Brain size={16} />}
-        />
-        <KPICard
-          label="Checked In"
-          value={kpis?.checkedInToday ? "Yes" : "No"}
-          trend={kpis?.checkedInToday ? "up" : "down"}
-          trendValue={kpis?.checkedInToday ? "Complete" : "Pending"}
-          icon={<CheckCircle size={16} />}
-        />
-        <KPICard
-          label="Alerts"
-          value={kpis?.unreadAlerts ?? 0}
-          unit="active"
-          icon={<Bell size={16} />}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Protocol / Adherence view */}
-        <div className="lg:col-span-2 kairos-card">
-          {period === "day" ? (
-            <>
-              <h3 className="font-heading font-semibold text-white mb-4">Today&apos;s Protocol</h3>
-              {protocolItems.length === 0 ? (
-                <p className="text-sm font-body text-kairos-silver-dark">No active protocol found.</p>
-              ) : (
-                <>
-                  <div className="space-y-3">
-                    {protocolItems.map((item) => {
-                      const taken = protocol?.todayAdherence
-                        ? doneCount > protocolItems.indexOf(item)
-                        : false;
-                      return (
-                        <div key={item.id} className="flex items-center gap-3 py-2 px-3 rounded-kairos-sm hover:bg-kairos-card-hover transition-colors">
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                            taken ? "border-green-500 bg-green-500/20" : "border-kairos-border"
-                          }`}>
-                            {taken && <CheckCircle size={12} className="text-green-400" />}
-                          </div>
-                          <span className="text-xs font-body text-kairos-silver-dark w-16">{item.timeOfDay ?? "—"}</span>
-                          <span className={`text-sm font-body ${taken ? "text-kairos-silver-dark line-through" : "text-white"}`}>
-                            {item.name} — {item.dosage}{item.unit}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-4 pt-3 border-t border-kairos-border">
-                    <p className="text-xs font-body text-kairos-silver-dark">
-                      {doneCount} of {totalCount} completed — <span className="text-kairos-gold">{Math.round((doneCount / totalCount) * 100)}% adherence today</span>
-                    </p>
-                  </div>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <h3 className="font-heading font-semibold text-white mb-4">Daily Summary — {formattedRange}</h3>
-              {dailySummaries.length === 0 ? (
-                <p className="text-sm font-body text-kairos-silver-dark">No data for this period.</p>
-              ) : (
-                <div className="space-y-2">
-                  {dailySummaries.slice(0, period === "week" ? 7 : 14).map((day, i) => (
-                    <div key={i} className="flex items-center gap-4 py-2 px-3 rounded-kairos-sm hover:bg-kairos-card-hover transition-colors">
-                      <span className="text-xs font-heading text-kairos-silver-dark w-10">{day.dateLabel}</span>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1">
-                            <Droplets size={12} className="text-kairos-gold" />
-                            <span className="text-xs font-body text-white">{day.glucose.avg} mg/dL</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Moon size={12} className="text-blue-400" />
-                            <span className="text-xs font-body text-white">{day.sleep ? `${day.sleep.totalHrs}h` : "—"}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <CheckCircle size={12} className="text-green-400" />
-                            <span className="text-xs font-body text-white">{day.adherence !== null ? `${day.adherence}%` : "—"}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <span className={`text-xs font-heading font-semibold px-2 py-0.5 rounded-full ${
-                        day.glucose.timeInRange >= 85 ? "bg-green-500/15 text-green-400" :
-                        day.glucose.timeInRange >= 70 ? "bg-kairos-gold/15 text-kairos-gold" :
-                        "bg-red-500/15 text-red-400"
-                      }`}>{day.glucose.timeInRange}% IR</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {dailySummaries.length > 0 && (
-                <div className="mt-4 pt-3 border-t border-kairos-border">
-                  <p className="text-xs font-body text-kairos-silver-dark">
-                    Avg glucose: <span className="text-white font-heading font-semibold">
-                      {Math.round(dailySummaries.reduce((s, d) => s + d.glucose.avg, 0) / dailySummaries.length)} mg/dL
-                    </span>
+            {tp?.fasting ? (
+              <>
+                <p className="text-white font-semibold text-xs mb-1">
+                  {tp.fasting.type.replace("_", ":")} Fast
+                </p>
+                <p>
+                  Eating window:{" "}
+                  <span className="text-white">
+                    {tp.fasting.feedingStart}:00 – {tp.fasting.feedingEnd}:00
+                  </span>
+                </p>
+                {tp.fasting.isActive && (
+                  <p className="text-green-400 text-xs mt-1 flex items-center gap-1">
+                    <Clock size={10} /> Currently in eating window
                   </p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Recent Alerts */}
-        <div className="kairos-card">
-          <h3 className="font-heading font-semibold text-white mb-4">Recent Alerts</h3>
-          <div className="space-y-3">
-            {recentAlerts.length === 0 ? (
-              <p className="text-sm font-body text-kairos-silver-dark">No recent alerts.</p>
+                )}
+              </>
             ) : (
-              recentAlerts.slice(0, 5).map((alert) => (
-                <div key={alert.id} className="flex items-start gap-3 py-2">
-                  <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                    alert.priority === "urgent" ? "bg-red-400" :
-                    alert.priority === "action" ? "bg-yellow-400" : "bg-blue-400"
-                  }`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-body text-white truncate">{alert.title}</p>
-                    <p className="text-xs font-body text-kairos-silver-dark">{formatRelativeTime(alert.createdAt)}</p>
-                  </div>
-                </div>
-              ))
+              <p>No fasting protocol scheduled today.</p>
             )}
-          </div>
-          <button onClick={() => router.push("/alerts")} className="mt-4 text-xs font-heading font-semibold text-kairos-gold hover:text-kairos-gold-light transition-colors">
-            View All Alerts →
-          </button>
+          </ProtocolCard>
+
+          {/* Exercise */}
+          <ProtocolCard
+            icon={<Dumbbell size={16} />}
+            title="Exercise"
+            color="text-green-400"
+            onNavigate={() => router.push("/workouts")}
+          >
+            <MetricRow
+              label="Step Goal"
+              value={tp?.exercise?.stepGoal ? Number(tp.exercise.stepGoal).toLocaleString() : "10,000"}
+              sub={
+                kpis?.steps?.value
+                  ? `${Number(kpis.steps.value).toLocaleString()} done`
+                  : undefined
+              }
+            />
+            {tp?.exercise?.workout ? (
+              <div className="mt-2 p-2 rounded-lg bg-green-500/10 border border-green-500/20">
+                <p className="text-white text-xs font-semibold">{tp.exercise.workout.name}</p>
+                {tp.exercise.workout.description && (
+                  <p className="text-xs mt-0.5">{tp.exercise.workout.description}</p>
+                )}
+              </div>
+            ) : (
+              <p className="mt-1">No workout assigned today.</p>
+            )}
+          </ProtocolCard>
+
+          {/* Supplements */}
+          <ProtocolCard
+            icon={<Pill size={16} />}
+            title="Supplements"
+            color="text-cyan-400"
+            onNavigate={() => router.push("/supplements")}
+          >
+            {supplementItems.length === 0 ? (
+              <p>No supplement protocol active.</p>
+            ) : (
+              <div className="space-y-2">
+                {(["morning", "midday", "evening"] as const).map((time) => {
+                  const items = supplementsByTime[time];
+                  if (items.length === 0) return null;
+                  return (
+                    <div key={time}>
+                      <p className="text-[10px] font-heading font-bold uppercase tracking-wider text-kairos-silver-dark mb-1">
+                        {time === "morning" ? "☀️ Morning" : time === "midday" ? "🌤 Midday" : "🌙 Evening"}
+                      </p>
+                      {items.map((item) => (
+                        <p key={item.id} className="text-xs text-white pl-4">
+                          {item.name} — {item.dosage}{item.unit}
+                        </p>
+                      ))}
+                    </div>
+                  );
+                })}
+                {protocol?.todayAdherence && (
+                  <p className="text-[10px] text-kairos-gold mt-1">
+                    {protocol.todayAdherence.completed}/{protocol.todayAdherence.total} taken today
+                  </p>
+                )}
+              </div>
+            )}
+          </ProtocolCard>
+
+          {/* Peptides */}
+          <ProtocolCard
+            icon={<Syringe size={16} />}
+            title="Peptides"
+            color="text-violet-400"
+            onNavigate={() => router.push("/supplements")}
+          >
+            {peptideItems.length === 0 ? (
+              <p>No peptides prescribed.</p>
+            ) : (
+              <div className="space-y-1">
+                {peptideItems.map((item) => (
+                  <div key={item.id} className="flex justify-between items-center">
+                    <span className="text-xs text-white">{item.name}</span>
+                    <span className="text-xs text-kairos-silver-dark">
+                      {item.dosage}{item.unit} · {item.frequency ?? "as directed"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ProtocolCard>
+
+          {/* Photos & Check-in */}
+          <ProtocolCard
+            icon={<Camera size={16} />}
+            title="Photos & Check-in"
+            color="text-pink-400"
+            onNavigate={() => router.push("/checkin")}
+          >
+            <div className="flex items-center justify-between">
+              <span>Daily check-in</span>
+              {kpis?.checkedInToday ? (
+                <span className="text-green-400 text-xs flex items-center gap-1">
+                  <CheckCircle size={12} /> Complete
+                </span>
+              ) : (
+                <button
+                  onClick={() => router.push("/checkin")}
+                  className="text-xs text-kairos-gold font-semibold hover:text-kairos-gold-light"
+                >
+                  Check in now →
+                </button>
+              )}
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span>Progress photo</span>
+              <button
+                onClick={() => router.push("/progress-photos")}
+                className="text-xs text-kairos-gold font-semibold hover:text-kairos-gold-light"
+              >
+                Upload →
+              </button>
+            </div>
+          </ProtocolCard>
         </div>
       </div>
     </div>
