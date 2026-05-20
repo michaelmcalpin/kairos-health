@@ -902,6 +902,29 @@ export const geneticPathwayScores = pgTable("genetic_pathway_scores", {
   index("genetic_pathway_scores_client_idx").on(t.clientId),
 ]);
 
+// ======================== CLINICAL DOCUMENTS ========================
+export const clinicalDocTypeEnum = pgEnum("clinical_doc_type", [
+  "dexa_scan", "gut_biome", "medical_record",
+]);
+
+export const clinicalDocuments = pgTable("clinical_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  docType: clinicalDocTypeEnum("doc_type").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  sourceFileName: varchar("source_file_name", { length: 255 }),
+  status: varchar("status", { length: 50 }).notNull().default("pending"),
+  parsedData: jsonb("parsed_data").$type<Record<string, unknown>>(),
+  notes: text("notes"),
+  reportDate: timestamp("report_date"),
+  providerName: varchar("provider_name", { length: 255 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("clinical_docs_client_idx").on(t.clientId),
+  index("clinical_docs_type_idx").on(t.clientId, t.docType),
+]);
+
 // ======================== CONTENT MANAGEMENT ========================
 export const contentCategoryEnum = pgEnum("content_category", ["protocols", "articles", "videos", "guides"]);
 export const contentStatusEnum = pgEnum("content_status", ["published", "draft", "review", "archived"]);
