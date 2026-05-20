@@ -29,11 +29,21 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Settings,
   ClipboardCheck,
   Building2,
   BookOpen,
   Dna,
+  Activity,
+  Footprints,
+  Microscope,
+  Scan,
+  Bug,
+  FileHeart,
+  Tablets,
+  Sparkles,
+  Syringe,
 } from "lucide-react";
 
 export type NavItem = {
@@ -61,17 +71,47 @@ interface SidebarProps {
 export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl, companyBrandColor, showPoweredBy }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
+    // Default: expand the section containing the active route
+    const initial: Record<string, boolean> = {};
+    const sections: Record<string, NavItem[]> = {};
+    items.forEach((item) => {
+      const section = item.section ?? "Main";
+      if (!sections[section]) sections[section] = [];
+      sections[section].push(item);
+    });
+    Object.entries(sections).forEach(([sectionName, sectionItems]) => {
+      const hasActive = sectionItems.some(
+        (item) => pathname === item.href || pathname.startsWith(item.href + "/")
+      );
+      initial[sectionName] = hasActive;
+    });
+    // Always expand Overview by default
+    initial["Overview"] = true;
+    return initial;
+  });
 
   const displayName = companyName || "KAIROS";
   const displaySubtitle = companyName ? "Health Platform" : "Private Health";
 
-  // Group items by section
+  // Group items by section (preserving order from items array)
+  const sectionOrder: string[] = [];
   const sections: Record<string, NavItem[]> = {};
   items.forEach((item) => {
     const section = item.section ?? "Main";
-    if (!sections[section]) sections[section] = [];
+    if (!sections[section]) {
+      sections[section] = [];
+      sectionOrder.push(section);
+    }
     sections[section].push(item);
   });
+
+  const toggleSection = (sectionName: string) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [sectionName]: !prev[sectionName],
+    }));
+  };
 
   return (
     <aside
@@ -131,42 +171,82 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-        {Object.entries(sections).map(([sectionName, sectionItems]) => (
-          <div key={sectionName}>
-            {!collapsed && (
-              <p className="kairos-label px-3 mb-1.5">{sectionName}</p>
-            )}
-            <ul className="space-y-0.5">
-              {sectionItems.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
+        {sectionOrder.map((sectionName) => {
+          const sectionItems = sections[sectionName];
+          const isExpanded = expandedSections[sectionName] ?? false;
+          const hasActiveChild = sectionItems.some(
+            (item) => pathname === item.href || pathname.startsWith(item.href + "/")
+          );
+          const sectionBadgeTotal = sectionItems.reduce((sum, item) => sum + (item.badge ?? 0), 0);
+
+          return (
+            <div key={sectionName}>
+              {/* Collapsible Section Header */}
+              {!collapsed ? (
+                <button
+                  onClick={() => toggleSection(sectionName)}
+                  className={cn(
+                    "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-heading font-bold uppercase tracking-wider transition-colors",
+                    hasActiveChild
+                      ? "text-kairos-gold"
+                      : "text-kairos-silver-dark hover:text-white"
+                  )}
+                >
+                  <span>{sectionName}</span>
+                  <div className="flex items-center gap-1.5">
+                    {!isExpanded && sectionBadgeTotal > 0 && (
+                      <span className="bg-danger text-white text-[9px] font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+                        {sectionBadgeTotal > 99 ? "99+" : sectionBadgeTotal}
+                      </span>
+                    )}
+                    <ChevronDown
+                      size={14}
                       className={cn(
-                        "kairos-sidebar-item",
-                        isActive && "active",
-                        collapsed && "justify-center px-2"
+                        "transition-transform duration-200",
+                        isExpanded ? "rotate-0" : "-rotate-90"
                       )}
-                      title={collapsed ? item.label : undefined}
-                    >
-                      {item.icon}
-                      {!collapsed && (
-                        <span className="flex-1">{item.label}</span>
-                      )}
-                      {!collapsed && item.badge !== undefined && item.badge > 0 && (
-                        <span className="bg-danger text-white text-[10px] font-heading font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                          {item.badge > 99 ? "99+" : item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+                    />
+                  </div>
+                </button>
+              ) : (
+                <div className="h-px bg-kairos-border mx-2 my-2" />
+              )}
+
+              {/* Section Items */}
+              {(collapsed || isExpanded) && (
+                <ul className="space-y-0.5">
+                  {sectionItems.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          className={cn(
+                            "kairos-sidebar-item",
+                            isActive && "active",
+                            collapsed ? "justify-center px-2" : "pl-5"
+                          )}
+                          title={collapsed ? item.label : undefined}
+                        >
+                          {item.icon}
+                          {!collapsed && (
+                            <span className="flex-1">{item.label}</span>
+                          )}
+                          {!collapsed && item.badge !== undefined && item.badge > 0 && (
+                            <span className="bg-danger text-white text-[10px] font-heading font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                              {item.badge > 99 ? "99+" : item.badge}
+                            </span>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Footer */}
@@ -189,23 +269,34 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
 
 // ─── Client Nav ──────────────────────────────────────────────────
 export const clientNavItems: NavItem[] = [
+  // Overview
   { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
-  { label: "Check-in", href: "/checkin", icon: <ClipboardCheck size={18} />, section: "Overview" },
   { label: "Alerts", href: "/alerts", icon: <Bell size={18} />, section: "Overview" },
-  { label: "Insights", href: "/insights", icon: <Brain size={18} />, section: "Overview" },
   { label: "Chat", href: "/chat", icon: <MessageSquare size={18} />, section: "Overview" },
-  { label: "Measurements", href: "/measurements", icon: <Ruler size={18} />, section: "Biometrics" },
-  { label: "Sleep", href: "/sleep", icon: <Moon size={18} />, section: "Biometrics" },
+  { label: "Insights", href: "/insights", icon: <Brain size={18} />, section: "Overview" },
+
+  // Biometrics
+  { label: "Body Comp", href: "/measurements", icon: <Ruler size={18} />, section: "Biometrics" },
+  { label: "Sleep & Recovery", href: "/sleep", icon: <Moon size={18} />, section: "Biometrics" },
+  { label: "Movement", href: "/workouts", icon: <Footprints size={18} />, section: "Biometrics" },
   { label: "Glucose", href: "/glucose", icon: <Droplets size={18} />, section: "Biometrics" },
-  { label: "Labs", href: "/labs", icon: <FlaskConical size={18} />, section: "Biometrics" },
-  { label: "Genetics", href: "/genetics", icon: <Dna size={18} />, section: "Biometrics" },
+
+  // Clinical Reports
+  { label: "Blood Labs", href: "/labs", icon: <FlaskConical size={18} />, section: "Clinical Reports" },
+  { label: "Genetics", href: "/genetics", icon: <Dna size={18} />, section: "Clinical Reports" },
+  { label: "DexaScan", href: "/dexascan", icon: <Scan size={18} />, section: "Clinical Reports" },
+  { label: "Gut Biome", href: "/gut-biome", icon: <Bug size={18} />, section: "Clinical Reports" },
+  { label: "Medical Record", href: "/medical-record", icon: <FileHeart size={18} />, section: "Clinical Reports" },
+
+  // Protocols
+  { label: "Nutrition / Fasting", href: "/nutrition", icon: <UtensilsCrossed size={18} />, section: "Protocols" },
+  { label: "Exercise", href: "/workouts", icon: <Dumbbell size={18} />, section: "Protocols" },
   { label: "Supplements", href: "/supplements", icon: <Pill size={18} />, section: "Protocols" },
-  { label: "Workouts", href: "/workouts", icon: <Dumbbell size={18} />, section: "Protocols" },
-  { label: "Fasting", href: "/fasting", icon: <Timer size={18} />, section: "Protocols" },
-  { label: "Nutrition", href: "/nutrition", icon: <UtensilsCrossed size={18} />, section: "Protocols" },
-  { label: "Payments", href: "/payments", icon: <CreditCard size={18} />, section: "Account" },
-  { label: "Marketplace", href: "/marketplace", icon: <Store size={18} />, section: "Account" },
-  { label: "Settings", href: "/settings", icon: <Settings size={18} />, section: "Account" },
+  { label: "Peptides", href: "/peptides", icon: <Syringe size={18} />, section: "Protocols" },
+  { label: "Medications", href: "/medications", icon: <Tablets size={18} />, section: "Protocols" },
+
+  // AI Analysis
+  { label: "Reports", href: "/ai-reports", icon: <Sparkles size={18} />, section: "AI Analysis" },
 ];
 
 // ─── Trainer Nav ─────────────────────────────────────────────────

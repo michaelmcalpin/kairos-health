@@ -19,7 +19,11 @@ import {
   CheckCircle,
   AlertTriangle,
   ChevronRight,
+  MessageSquare,
+  Activity,
+  Info,
 } from "lucide-react";
+import { cn } from "@/utils/cn";
 
 /* ─── Small reusable metric row ─────────────────────────── */
 function MetricRow({
@@ -129,6 +133,11 @@ export default function ClientDashboard() {
     refetchOnWindowFocus: false,
     retry: 1,
   });
+
+  const { data: alertsData } = trpc.clientPortal.alerts.list.useQuery(
+    { status: "active", limit: 5, offset: 0 },
+    { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 }
+  );
 
   // ── Derived values ───────────────────────────────────────
   const kpis = overview?.kpis;
@@ -425,6 +434,90 @@ export default function ClientDashboard() {
           </ProtocolCard>
         </div>
       </div>
+
+      {/* ━━━ Alerts Panel ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {alertsData && alertsData.alerts.length > 0 && (
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Bell size={18} className="text-kairos-gold" />
+              <h2 className="font-heading font-bold text-lg text-white">
+                Alerts
+                <span className="ml-2 text-xs font-heading font-bold text-kairos-gold bg-kairos-gold/10 rounded-full px-2 py-0.5">
+                  {alertsData.total}
+                </span>
+              </h2>
+            </div>
+            <button
+              onClick={() => router.push("/alerts")}
+              className="text-xs text-kairos-gold font-semibold hover:text-kairos-gold-light transition-colors"
+            >
+              View all →
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {alertsData.alerts.map((alert) => {
+              const priorityStyles: Record<string, string> = {
+                urgent: "border-l-red-500 bg-red-500/5",
+                action: "border-l-amber-500 bg-amber-500/5",
+                info: "border-l-blue-400 bg-blue-400/5",
+              };
+              const priorityIcons: Record<string, React.ReactNode> = {
+                urgent: <AlertTriangle size={14} className="text-red-400" />,
+                action: <Activity size={14} className="text-amber-400" />,
+                info: <Info size={14} className="text-blue-400" />,
+              };
+              const typeIcons: Record<string, React.ReactNode> = {
+                glucose: <Droplets size={14} className="text-amber-400" />,
+                heart_rate: <Activity size={14} className="text-red-400" />,
+                hrv: <Activity size={14} className="text-purple-400" />,
+                sleep: <Moon size={14} className="text-blue-400" />,
+                coach: <MessageSquare size={14} className="text-green-400" />,
+                ai: <Brain size={14} className="text-violet-400" />,
+                labs: <CheckCircle size={14} className="text-cyan-400" />,
+                system: <Bell size={14} className="text-kairos-silver-dark" />,
+              };
+
+              return (
+                <button
+                  key={alert.id}
+                  onClick={() => router.push(`/alerts?id=${alert.id}`)}
+                  className={cn(
+                    "w-full text-left rounded-xl border border-kairos-border border-l-[3px] p-4 transition-colors hover:bg-kairos-card-hover/50",
+                    priorityStyles[alert.priority] ?? "border-l-kairos-border bg-kairos-card-hover/20"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      {typeIcons[alert.type] ?? priorityIcons[alert.priority] ?? <Bell size={14} className="text-kairos-silver-dark" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-heading font-semibold text-white truncate">
+                        {alert.title}
+                      </p>
+                      {alert.message && (
+                        <p className="text-xs font-body text-kairos-silver-dark mt-0.5 line-clamp-2">
+                          {alert.message}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-kairos-silver-dark mt-1">
+                        {new Date(alert.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                    <ChevronRight size={14} className="text-kairos-silver-dark mt-1 flex-shrink-0" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
