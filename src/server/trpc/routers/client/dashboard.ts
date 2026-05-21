@@ -12,6 +12,7 @@ import {
   protocolItems,
   adherenceLogs,
   bodyMeasurements,
+  bloodPressureReadings,
   activitySummaries,
   fastingProtocols,
   workoutPrograms,
@@ -37,6 +38,7 @@ export const clientDashboardRouter = router({
       latestCheckin,
       todayCheckin,
       latestBody,
+      latestBP,
       todayGlucoseRows,
     ] = await Promise.all([
       ctx.db.query.clientProfiles.findFirst({
@@ -76,6 +78,11 @@ export const clientDashboardRouter = router({
       ctx.db.query.bodyMeasurements.findFirst({
         where: eq(bodyMeasurements.clientId, ctx.dbUserId),
         orderBy: desc(bodyMeasurements.date),
+      }),
+      // Latest blood pressure
+      ctx.db.query.bloodPressureReadings.findFirst({
+        where: eq(bloodPressureReadings.clientId, ctx.dbUserId),
+        orderBy: desc(bloodPressureReadings.date),
       }),
       // Today's glucose readings for spike analysis
       ctx.db.query.glucoseReadings.findMany({
@@ -139,6 +146,9 @@ export const clientDashboardRouter = router({
         glucoseTimeInRange,
         hrv: latestHRV
           ? { value: latestHRV.rmssd, timestamp: latestHRV.timestamp }
+          : null,
+        bloodPressure: latestBP
+          ? { systolic: latestBP.systolic, diastolic: latestBP.diastolic, pulse: latestBP.pulse, date: latestBP.date }
           : null,
         steps: latestCheckin?.steps
           ? { value: latestCheckin.steps, date: latestCheckin.date }
@@ -363,6 +373,43 @@ export const clientDashboardRouter = router({
         };
       });
     }),
+
+  // ── 7-day sparkline data for dashboard ───────────────────
+  getSparklines: clientProcedure.query(async ({ ctx }) => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenStr = sevenDaysAgo.toISOString().split("T")[0];
+
+    const [sleepRows, glucoseRows, bpRows] = await Promise.all([
+      ctx.db.query.sleepSessions.findMany({
+        where: and(eq(sleepSessions.clientId, ctx.dbUserId), gte(sleepSessions.date, sevenStr)),
+        orderBy: sleepSessions.date,
+        columns: { date: true, totalMinutes: true, score: true },
+      }),
+      ctx.db
+        .select({
+          date: sql<string>`DATE(${glucoseReadings.timestamp})`.as("date"),
+          avg: sql<number>`ROUND(AVG(${glucoseReadings.valueMgdl}))`.as("avg"),
+        })
+        .from(glucoseReadings)
+        .where(
+          and(eq(glucoseReadings.clientId, ctx.dbUserId), gte(glucoseReadings.timestamp, sevenDaysAgo)),
+        )
+        .groupBy(sql`DATE(${glucoseReadings.timestamp})`)
+        .orderBy(sql`DATE(${glucoseReadings.timestamp})`),
+      ctx.db.query.bloodPressureReadings.findMany({
+        where: and(eq(bloodPressureReadings.clientId, ctx.dbUserId), gte(bloodPressureReadings.date, sevenStr)),
+        orderBy: bloodPressureReadings.date,
+        columns: { date: true, systolic: true, diastolic: true },
+      }),
+    ]);
+
+    return {
+      sleep: sleepRows.map((s) => ({ date: s.date, hours: s.totalMinutes ? +(s.totalMinutes / 60).toFixed(1) : null, score: s.score })),
+      glucose: glucoseRows.map((g) => ({ date: String(g.date), avg: Number(g.avg) })),
+      bp: bpRows.map((b) => ({ date: b.date, sys: b.systolic, dia: b.diastolic })),
+    };
+  }),
 
   // ── Computed health score ────────────────────────────────
   getHealthScore: clientProcedure.query(async ({ ctx }) => {
