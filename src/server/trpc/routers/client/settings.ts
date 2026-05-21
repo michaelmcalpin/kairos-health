@@ -9,10 +9,31 @@
 
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { users, notificationPreferences } from "@/server/db/schema";
+import { users, notificationPreferences, clientProfiles } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
 export const clientSettingsRouter = router({
+  /**
+   * Get feature toggles for the current client.
+   * Returns resolved toggles with gender-based defaults applied.
+   * cycleTracker: default ON for female, OFF for male (overridable by admin).
+   */
+  getFeatureToggles: clientProcedure.query(async ({ ctx }) => {
+    const profile = await ctx.db.query.clientProfiles.findFirst({
+      where: eq(clientProfiles.userId, ctx.dbUserId),
+    });
+
+    const stored = (profile?.featureToggles as Record<string, boolean>) ?? {};
+    const gender = profile?.gender?.toLowerCase() ?? "male";
+
+    // Apply defaults — admin overrides take precedence
+    const defaults: Record<string, boolean> = {
+      cycleTracker: gender === "female",
+    };
+
+    return { ...defaults, ...stored };
+  }),
+
   /**
    * Get current user's settings (profile + notification preferences)
    */

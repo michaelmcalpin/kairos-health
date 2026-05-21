@@ -73,6 +73,8 @@ export const clientProfiles = pgTable("client_profiles", {
   goals: jsonb("goals").$type<string[]>().default([]),
   onboardingStep: integer("onboarding_step").default(1),
   onboardingCompleted: boolean("onboarding_completed").default(false),
+  /** Per-client feature toggles (e.g. { cycleTracker: true }) — admin-editable */
+  featureToggles: jsonb("feature_toggles").$type<Record<string, boolean>>().default({}),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

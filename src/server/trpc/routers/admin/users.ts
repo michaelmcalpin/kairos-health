@@ -318,6 +318,43 @@ export const adminUsersRouter = router({
       };
     }),
 
+  /**
+   * Update per-client feature toggles (e.g. cycleTracker on/off).
+   * Defaults: cycleTracker = ON for female, OFF for male.
+   */
+  updateFeatureToggles: adminProcedure
+    .input(
+      z.object({
+        userId: z.string(),
+        toggles: z.record(z.string(), z.boolean()),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Merge new toggles with existing
+      const existing = await ctx.db.query.clientProfiles.findFirst({
+        where: eq(clientProfiles.userId, input.userId),
+      });
+      if (!existing) throw new Error("Client profile not found");
+
+      const currentToggles = (existing.featureToggles as Record<string, boolean>) ?? {};
+      const merged = { ...currentToggles, ...input.toggles };
+
+      await ctx.db
+        .update(clientProfiles)
+        .set({ featureToggles: merged })
+        .where(eq(clientProfiles.userId, input.userId));
+
+      await ctx.db.insert(auditLogs).values({
+        userId: ctx.dbUserId,
+        action: "user.feature_toggles_updated",
+        resourceType: "user",
+        resourceId: input.userId,
+        metadata: { toggles: input.toggles },
+      });
+
+      return merged;
+    }),
+
   // Get platform user stats
   getStats: adminProcedure
     .input(z.object({ companyId: z.string().optional() }).optional())
