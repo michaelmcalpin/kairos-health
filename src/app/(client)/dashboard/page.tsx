@@ -407,219 +407,208 @@ export default function ClientDashboard() {
         )}
       </div>
 
-      {/* ━━━ KPI Cards Grid ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard
-          icon={<Scale size={14} />}
-          label="Weight"
-          value={kpis?.weight?.value ?? "—"}
-          unit="lbs"
-          subtitle={kpis?.bodyFat?.value ? `Body fat: ${kpis.bodyFat.value}%` : undefined}
-          color="text-kairos-gold"
-          onClick={() => router.push("/measurements")}
-        />
-        <KPICard
-          icon={<Moon size={14} />}
-          label="Sleep"
-          value={kpis?.sleep?.duration ? (Number(kpis.sleep.duration) / 60).toFixed(1) : "—"}
-          unit="hrs"
-          subtitle={kpis?.sleep?.quality ? `Score: ${kpis.sleep.quality}/100` : undefined}
-          color="text-blue-400"
-          sparkData={sleepSparkData}
-          sparkColor="#60a5fa"
-          onClick={() => router.push("/sleep")}
-        />
-        <KPICard
-          icon={<Droplets size={14} />}
-          label="Glucose"
-          value={kpis?.glucose?.value ?? "—"}
-          unit="mg/dL"
-          subtitle={kpis?.glucoseTimeInRange != null ? `${kpis.glucoseTimeInRange}% in range` : undefined}
-          color="text-amber-400"
-          sparkData={glucoseSparkData}
-          sparkColor="#f59e0b"
-          onClick={() => router.push("/glucose")}
-        />
-        <KPICard
-          icon={<Heart size={14} />}
-          label="Blood Pressure"
-          value={kpis?.bloodPressure ? `${kpis.bloodPressure.systolic}/${kpis.bloodPressure.diastolic}` : "—"}
-          unit="mmHg"
-          subtitle={
-            kpis?.bloodPressure
-              ? getBPLabel(kpis.bloodPressure.systolic, kpis.bloodPressure.diastolic).label
-              : undefined
-          }
-          color="text-red-400"
-          sparkData={bpSysSparkData}
-          sparkColor="#f87171"
-          onClick={() => router.push("/blood-pressure")}
-        />
-      </div>
-
-      {/* ━━━ Secondary metrics row ━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="kairos-card p-3 text-center">
-          <Footprints size={14} className="text-green-400 mx-auto mb-1" />
-          <p className="text-lg font-heading font-bold text-white">
-            {kpis?.steps?.value ? Number(kpis.steps.value).toLocaleString() : "—"}
-          </p>
-          <p className="text-[10px] font-body text-kairos-silver-dark">Steps</p>
-        </div>
-        <div className="kairos-card p-3 text-center">
-          <Brain size={14} className="text-purple-400 mx-auto mb-1" />
-          <p className="text-lg font-heading font-bold text-white">
-            {kpis?.hrv?.value ? Math.round(Number(kpis.hrv.value)) : "—"}
-          </p>
-          <p className="text-[10px] font-body text-kairos-silver-dark">HRV (ms)</p>
-        </div>
-        <div className="kairos-card p-3 text-center">
-          <Activity size={14} className="text-red-400 mx-auto mb-1" />
-          <p className="text-lg font-heading font-bold text-white">
-            {kpis?.heartRate?.value ?? "—"}
-          </p>
-          <p className="text-[10px] font-body text-kairos-silver-dark">Heart Rate</p>
-        </div>
-        <div className="kairos-card p-3 text-center">
-          <Droplets size={14} className="text-amber-400 mx-auto mb-1" />
-          <p className="text-lg font-heading font-bold text-white">
-            {kpis?.glucoseSpikes ?? 0}
-          </p>
-          <p className="text-[10px] font-body text-kairos-silver-dark">Glucose Spikes</p>
-        </div>
-        <div className="kairos-card p-3 text-center">
-          <CheckCircle size={14} className="text-cyan-400 mx-auto mb-1" />
-          <p className="text-lg font-heading font-bold text-white">
-            {protocol?.todayAdherence ? `${protocol.todayAdherence.completed}/${protocol.todayAdherence.total}` : "—"}
-          </p>
-          <p className="text-[10px] font-body text-kairos-silver-dark">Supps Taken</p>
-        </div>
-        <div className="kairos-card p-3 text-center">
-          <CheckCircle size={14} className="text-purple-400 mx-auto mb-1" />
-          <p className="text-lg font-heading font-bold text-white">
-            {kpis?.bmCount ?? "—"}
-          </p>
-          <p className="text-[10px] font-body text-kairos-silver-dark">Bowel Mvmts</p>
-        </div>
-      </div>
-
-      {/* ━━━ Two-column: Trends + Protocols ━━━━━━━━━━━━━━━━ */}
+      {/* ━━━ Two-column: Biometrics + Protocols ━━━━━━━━━━━━ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ── LEFT: 7-Day Trends ─────────────────────────── */}
+        {/* ── LEFT: Biometrics ──────────────────────────── */}
         <div className="space-y-4">
-          <h2 className="font-heading font-bold text-lg text-white">7-Day Trends</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-heading font-bold text-lg text-white">Biometrics</h2>
+            <button
+              onClick={() => router.push("/measurements")}
+              className="text-xs text-kairos-gold font-semibold hover:text-kairos-gold-light transition-colors"
+            >
+              View all →
+            </button>
+          </div>
 
-          {/* Sleep Trend */}
-          {sparklines?.sleep && sparklines.sleep.length > 0 && (
-            <div className="kairos-card p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Moon size={14} className="text-blue-400" />
-                <h4 className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">Sleep</h4>
+          {/* Body Composition */}
+          <button
+            onClick={() => router.push("/measurements")}
+            className="w-full kairos-card p-4 text-left hover:border-kairos-gold/30 transition-colors group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-kairos-gold/10 flex items-center justify-center text-kairos-gold">
+                  <Scale size={14} />
+                </div>
+                <span className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">Body Composition</span>
               </div>
-              <div className="flex items-end gap-1" style={{ height: 80 }}>
-                {sparklines.sleep.map((s, i) => {
-                  const hours = s.hours ?? 0;
-                  const maxH = Math.max(...sparklines.sleep.map((x) => x.hours ?? 0), 1);
-                  const barH = Math.max((hours / maxH) * 64, 2);
-                  const isGood = hours >= 7;
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-[9px] font-body text-kairos-silver-dark">{hours}h</span>
-                      <div
-                        className={cn(
-                          "w-full rounded-t-sm transition-all",
-                          isGood ? "bg-blue-400" : "bg-blue-400/40"
-                        )}
-                        style={{ height: barH }}
-                      />
-                      <span className="text-[8px] font-body text-kairos-silver-dark">
-                        {new Date(s.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "narrow" })}
-                      </span>
-                    </div>
-                  );
-                })}
+              <ChevronRight size={14} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xl font-heading font-bold text-white">{kpis?.weight?.value ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">lbs</span></p>
+                <p className="text-[10px] font-body text-kairos-silver-dark">Weight</p>
+              </div>
+              <div>
+                <p className="text-xl font-heading font-bold text-white">{kpis?.bodyFat?.value ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">%</span></p>
+                <p className="text-[10px] font-body text-kairos-silver-dark">Body Fat</p>
               </div>
             </div>
-          )}
+          </button>
 
-          {/* Glucose Trend */}
-          {sparklines?.glucose && sparklines.glucose.length > 0 && (
-            <div className="kairos-card p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Droplets size={14} className="text-amber-400" />
-                <h4 className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">Glucose Avg</h4>
+          {/* Sleep */}
+          <button
+            onClick={() => router.push("/sleep")}
+            className="w-full kairos-card p-4 text-left hover:border-kairos-gold/30 transition-colors group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-400/10 flex items-center justify-center text-blue-400">
+                  <Moon size={14} />
+                </div>
+                <span className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">Sleep</span>
               </div>
-              <div className="flex items-end gap-1" style={{ height: 80 }}>
-                {sparklines.glucose.map((g, i) => {
-                  const maxG = Math.max(...sparklines.glucose.map((x) => x.avg), 1);
-                  const minG = Math.min(...sparklines.glucose.map((x) => x.avg));
-                  const range = maxG - minG || 1;
-                  const barH = Math.max(((g.avg - minG) / range) * 50 + 14, 6);
-                  const inRange = g.avg >= 70 && g.avg <= 100;
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-[9px] font-body text-kairos-silver-dark">{g.avg}</span>
-                      <div
-                        className={cn(
-                          "w-full rounded-t-sm transition-all",
-                          inRange ? "bg-amber-400" : "bg-amber-400/40"
-                        )}
-                        style={{ height: barH }}
-                      />
-                      <span className="text-[8px] font-body text-kairos-silver-dark">
-                        {new Date(g.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "narrow" })}
-                      </span>
-                    </div>
-                  );
-                })}
+              <div className="flex items-center gap-2">
+                {sleepSparkData.length >= 2 && <Sparkline data={sleepSparkData} color="#60a5fa" width={64} height={24} />}
+                <ChevronRight size={14} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
               </div>
             </div>
-          )}
-
-          {/* BP Trend */}
-          {sparklines?.bp && sparklines.bp.length > 0 && (
-            <div className="kairos-card p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Heart size={14} className="text-red-400" />
-                <h4 className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">Blood Pressure</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xl font-heading font-bold text-white">{kpis?.sleep?.duration ? (Number(kpis.sleep.duration) / 60).toFixed(1) : "—"}<span className="text-xs text-kairos-silver-dark ml-1">hrs</span></p>
+                <p className="text-[10px] font-body text-kairos-silver-dark">Duration</p>
               </div>
-              <div className="space-y-1">
-                {sparklines.bp.map((b, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="text-[9px] font-body text-kairos-silver-dark w-8">
-                      {new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" })}
-                    </span>
-                    <div className="flex-1 flex items-center gap-2">
-                      <div className="flex-1 h-3 bg-kairos-royal-surface rounded-full overflow-hidden flex">
-                        <div
-                          className="h-full bg-red-400 rounded-full"
-                          style={{ width: `${Math.min((b.sys / 200) * 100, 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-heading font-semibold text-white w-16 text-right">
-                        {b.sys}/{b.dia}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+              <div>
+                <p className="text-xl font-heading font-bold text-white">{kpis?.sleep?.quality ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">/100</span></p>
+                <p className="text-[10px] font-body text-kairos-silver-dark">Quality</p>
               </div>
             </div>
-          )}
+          </button>
 
-          {/* Show empty state if no trend data */}
-          {(!sparklines?.sleep?.length && !sparklines?.glucose?.length && !sparklines?.bp?.length) && (
-            <div className="kairos-card p-8 text-center">
-              <Activity size={24} className="text-kairos-silver-dark mx-auto mb-2" />
-              <p className="text-sm font-body text-kairos-silver-dark">
-                Trend data will appear as you log health metrics over the week.
+          {/* Glucose */}
+          <button
+            onClick={() => router.push("/glucose")}
+            className="w-full kairos-card p-4 text-left hover:border-kairos-gold/30 transition-colors group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-400/10 flex items-center justify-center text-amber-400">
+                  <Droplets size={14} />
+                </div>
+                <span className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">Glucose</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {glucoseSparkData.length >= 2 && <Sparkline data={glucoseSparkData} color="#f59e0b" width={64} height={24} />}
+                <ChevronRight size={14} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xl font-heading font-bold text-white">{kpis?.glucose?.value ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">mg/dL</span></p>
+                <p className="text-[10px] font-body text-kairos-silver-dark">Latest</p>
+              </div>
+              <div>
+                <p className="text-xl font-heading font-bold text-white">{kpis?.glucoseTimeInRange ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">%</span></p>
+                <p className="text-[10px] font-body text-kairos-silver-dark">Time in Range</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Blood Pressure */}
+          <button
+            onClick={() => router.push("/blood-pressure")}
+            className="w-full kairos-card p-4 text-left hover:border-kairos-gold/30 transition-colors group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-red-400/10 flex items-center justify-center text-red-400">
+                  <Heart size={14} />
+                </div>
+                <span className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">Blood Pressure</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {bpSysSparkData.length >= 2 && <Sparkline data={bpSysSparkData} color="#f87171" width={64} height={24} />}
+                <ChevronRight size={14} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xl font-heading font-bold text-white">
+                  {kpis?.bloodPressure ? `${kpis.bloodPressure.systolic}/${kpis.bloodPressure.diastolic}` : "—"}
+                  <span className="text-xs text-kairos-silver-dark ml-1">mmHg</span>
+                </p>
+                <p className="text-[10px] font-body text-kairos-silver-dark">Latest</p>
+              </div>
+              <div>
+                {kpis?.bloodPressure && (
+                  <p className={cn("text-sm font-heading font-semibold", getBPLabel(kpis.bloodPressure.systolic, kpis.bloodPressure.diastolic).color)}>
+                    {getBPLabel(kpis.bloodPressure.systolic, kpis.bloodPressure.diastolic).label}
+                  </p>
+                )}
+                <p className="text-[10px] font-body text-kairos-silver-dark">Status</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Secondary Metrics Row */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => router.push("/workouts")}
+              className="kairos-card p-3 text-left hover:border-kairos-gold/30 transition-colors group"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <Footprints size={14} className="text-green-400" />
+                <ChevronRight size={12} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
+              </div>
+              <p className="text-lg font-heading font-bold text-white">
+                {kpis?.steps?.value ? Number(kpis.steps.value).toLocaleString() : "—"}
               </p>
-            </div>
-          )}
+              <p className="text-[10px] font-body text-kairos-silver-dark">Steps Today</p>
+            </button>
+            <button
+              onClick={() => router.push("/sleep")}
+              className="kairos-card p-3 text-left hover:border-kairos-gold/30 transition-colors group"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <Brain size={14} className="text-purple-400" />
+                <ChevronRight size={12} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
+              </div>
+              <p className="text-lg font-heading font-bold text-white">
+                {kpis?.hrv?.value ? Math.round(Number(kpis.hrv.value)) : "—"}<span className="text-xs text-kairos-silver-dark ml-1">ms</span>
+              </p>
+              <p className="text-[10px] font-body text-kairos-silver-dark">HRV</p>
+            </button>
+            <button
+              onClick={() => router.push("/sleep")}
+              className="kairos-card p-3 text-left hover:border-kairos-gold/30 transition-colors group"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <Activity size={14} className="text-red-400" />
+                <ChevronRight size={12} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
+              </div>
+              <p className="text-lg font-heading font-bold text-white">
+                {kpis?.heartRate?.value ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">bpm</span>
+              </p>
+              <p className="text-[10px] font-body text-kairos-silver-dark">Heart Rate</p>
+            </button>
+            <button
+              onClick={() => router.push("/glucose")}
+              className="kairos-card p-3 text-left hover:border-kairos-gold/30 transition-colors group"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <Droplets size={14} className="text-amber-400" />
+                <ChevronRight size={12} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
+              </div>
+              <p className="text-lg font-heading font-bold text-white">
+                {kpis?.glucoseSpikes ?? 0}
+              </p>
+              <p className="text-[10px] font-body text-kairos-silver-dark">Glucose Spikes</p>
+            </button>
+          </div>
         </div>
 
         {/* ── RIGHT: Today's Protocols ───────────────────── */}
         <div className="space-y-4">
-          <h2 className="font-heading font-bold text-lg text-white">Today&apos;s Protocols</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-heading font-bold text-lg text-white">Today&apos;s Protocols</h2>
+            <button
+              onClick={() => router.push("/supplements")}
+              className="text-xs text-kairos-gold font-semibold hover:text-kairos-gold-light transition-colors"
+            >
+              View all →
+            </button>
+          </div>
 
           {/* Nutrition / Fasting */}
           <ProtocolCard

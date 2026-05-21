@@ -45,7 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Home", icon: <HomeIcon /> },
   { href: "/glucose", label: "Glucose", icon: <GlucoseIcon /> },
   { href: "/sleep", label: "Sleep", icon: <SleepIcon /> },
-  { href: "/insights", label: "Insights", icon: <InsightsIcon /> },
+  { href: "/insights", label: "Sherpa", icon: <InsightsIcon /> },
   { href: "/more", label: "More", icon: <MoreIcon /> },
 ];
 

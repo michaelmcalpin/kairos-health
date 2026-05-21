@@ -273,7 +273,7 @@ export const clientNavItems: NavItem[] = [
   // Overview (Alerts moved to TopBar bell icon)
   { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
   { label: "Chat", href: "/chat", icon: <MessageSquare size={18} />, section: "Overview" },
-  { label: "Insights", href: "/insights", icon: <Brain size={18} />, section: "Overview" },
+  { label: "Insight Sherpa", href: "/insights", icon: <Brain size={18} />, section: "Overview" },
 
   // Biometrics
   { label: "Body Comp", href: "/measurements", icon: <Ruler size={18} />, section: "Biometrics" },

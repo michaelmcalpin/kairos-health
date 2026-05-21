@@ -114,9 +114,9 @@ export default function InsightsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-white mb-1">AI Health Insights</h1>
+          <h1 className="text-3xl font-heading font-bold text-white mb-1">Insight Sherpa</h1>
           <p className="text-kairos-silver-dark font-body text-sm">
-            Personalized intelligence from your biometric data
+            Your AI guide to personalized health intelligence
           </p>
         </div>
         <div className="text-xs font-heading font-semibold px-3 py-1 rounded-full bg-kairos-gold/20 text-kairos-gold flex items-center gap-1">

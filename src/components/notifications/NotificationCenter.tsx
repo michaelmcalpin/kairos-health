@@ -15,7 +15,7 @@ interface NotificationCenterProps {
 const CATEGORY_FILTERS: { value: NotificationCategory | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "health_alert", label: "Health" },
-  { value: "insight", label: "Insights" },
+  { value: "insight", label: "Insight Sherpa" },
   { value: "coach_message", label: "Trainer" },
   { value: "appointment", label: "Appointments" },
   { value: "billing", label: "Billing" },
