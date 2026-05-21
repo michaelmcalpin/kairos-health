@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useClerk, UserButton } from "@clerk/nextjs";
 import { Bell, Search, LogOut } from "lucide-react";
 import { cn } from "@/utils/cn";
+import { trpc } from "@/lib/trpc";
 
 interface TopBarProps {
   title: string;
@@ -14,8 +16,17 @@ interface TopBarProps {
   brandColor?: string;
 }
 
-export function TopBar({ title, subtitle, alertCount = 0, showSearch = true, className, brandColor }: TopBarProps) {
+export function TopBar({ title, subtitle, alertCount, showSearch = true, className, brandColor }: TopBarProps) {
+  const router = useRouter();
   const { signOut } = useClerk();
+
+  // Fetch unread alert count for the badge
+  const { data: unreadData } = trpc.clientPortal.alerts.unreadCount.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
+  const badgeCount = alertCount ?? unreadData?.count ?? 0;
 
   function handleSignOut() {
     // Clear saved role on sign-out
@@ -52,12 +63,16 @@ export function TopBar({ title, subtitle, alertCount = 0, showSearch = true, cla
           </button>
         )}
 
-        {/* Alert Bell */}
-        <button className="relative text-kairos-silver-dark hover:text-white transition-colors p-2" aria-label={`Notifications${alertCount > 0 ? ` (${alertCount} unread)` : ""}`}>
+        {/* Alert Bell — navigates to /alerts */}
+        <button
+          onClick={() => router.push("/alerts")}
+          className="relative text-kairos-silver-dark hover:text-white transition-colors p-2"
+          aria-label={`Notifications${badgeCount > 0 ? ` (${badgeCount} unread)` : ""}`}
+        >
           <Bell size={18} />
-          {alertCount > 0 && (
+          {badgeCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-[9px] font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
-              {alertCount > 99 ? "99+" : alertCount}
+              {badgeCount > 99 ? "99+" : badgeCount}
             </span>
           )}
         </button>

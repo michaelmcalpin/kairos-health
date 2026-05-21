@@ -270,9 +270,8 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
 
 // ─── Client Nav ──────────────────────────────────────────────────
 export const clientNavItems: NavItem[] = [
-  // Overview
+  // Overview (Alerts moved to TopBar bell icon)
   { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
-  { label: "Alerts", href: "/alerts", icon: <Bell size={18} />, section: "Overview" },
   { label: "Chat", href: "/chat", icon: <MessageSquare size={18} />, section: "Overview" },
   { label: "Insights", href: "/insights", icon: <Brain size={18} />, section: "Overview" },
 
