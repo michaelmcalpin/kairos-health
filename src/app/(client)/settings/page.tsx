@@ -11,6 +11,10 @@ import {
   Save,
   Palette,
   AlertTriangle,
+  FileText,
+  Heart,
+  ExternalLink,
+  Calendar,
 } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
@@ -50,11 +54,16 @@ export default function SettingsPage() {
     profileVisibility: "Trainer Only",
   });
 
+  const [cycleTracker, setCycleTracker] = useState(false);
+
   const [devices, setDevices] = useState([
     { id: "oura", name: "Oura Ring", status: "connected" },
     { id: "apple", name: "Apple Watch", status: "connected" },
     { id: "dexcom", name: "Dexcom CGM", status: "not connected" },
   ]);
+
+  // Document repository query
+  const docsQuery = trpc.clientPortal.clinicalDocs.listAll.useQuery();
 
   // Hydrate form with user data from database on load
   useEffect(() => {
@@ -445,13 +454,16 @@ export default function SettingsPage() {
             Choose your preferred visual theme for the Everist.ai dashboard.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {(Object.keys(THEMES) as ThemeId[]).map((id) => {
               const t = THEMES[id];
               const isActive = theme === id;
-              const swatches = id === "warm-slate"
-                ? ["#3A3A3C", "#C9A89A", "#FAF5F0", "#8B6F65"]
-                : ["#122055", "#D4AF37", "#E0E0E0", "#9E9E9E"];
+              const swatchMap: Record<ThemeId, string[]> = {
+                summit: ["#0A1628", "#4A90D9", "#C0C5CE", "#050D18"],
+                "warm-slate": ["#3A3A3C", "#C9A89A", "#FAF5F0", "#8B6F65"],
+                "classic-royal": ["#122055", "#D4AF37", "#E0E0E0", "#9E9E9E"],
+              };
+              const swatches = swatchMap[id];
               return (
                 <button
                   key={id}
@@ -480,6 +492,121 @@ export default function SettingsPage() {
               );
             })}
           </div>
+        </div>
+
+        {/* Health Tracking Options */}
+        <div className="kairos-card rounded-kairos-sm p-8 mb-6 bg-kairos-card border border-kairos-border">
+          <div className="flex items-center gap-3 mb-6">
+            <Heart className="w-6 h-6 text-kairos-gold" />
+            <h2 className="font-heading text-2xl text-kairos-gold">Health Tracking</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border">
+              <div>
+                <span className="font-body text-kairos-silver-dark font-medium">Cycle Tracker</span>
+                <p className="text-xs text-gray-400 mt-1">
+                  Enable menstrual cycle tracking for hormone-aware health insights
+                </p>
+              </div>
+              <button
+                onClick={() => setCycleTracker(!cycleTracker)}
+                className={`relative w-12 h-6 rounded-full transition-colors ${
+                  cycleTracker
+                    ? "bg-kairos-gold"
+                    : "bg-gray-600 border border-kairos-border"
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-4 h-4 bg-kairos-card rounded-full transition-transform ${
+                    cycleTracker ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+            {cycleTracker && (
+              <div className="ml-4 p-4 bg-kairos-card-hover/50 rounded-kairos-sm border border-kairos-border/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="w-4 h-4 text-kairos-gold" />
+                  <span className="font-body text-sm text-kairos-silver-dark font-medium">Cycle Settings</span>
+                </div>
+                <p className="text-xs text-gray-400">
+                  When enabled, your dashboard and AI analysis will factor in cycle phase for supplement timing, exercise recommendations, and metabolic insights.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Document Repository */}
+        <div className="kairos-card rounded-kairos-sm p-8 mb-6 bg-kairos-card border border-kairos-border">
+          <div className="flex items-center gap-3 mb-6">
+            <FileText className="w-6 h-6 text-kairos-gold" />
+            <h2 className="font-heading text-2xl text-kairos-gold">Document Repository</h2>
+          </div>
+
+          <p className="text-sm font-body text-kairos-silver-dark mb-4">
+            All uploaded clinical documents — lab reports, DEXA scans, genetics, gut biome analyses, and medical records.
+          </p>
+
+          {docsQuery.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-kairos-gold" />
+            </div>
+          ) : docsQuery.data && docsQuery.data.length > 0 ? (
+            <div className="space-y-3">
+              {docsQuery.data.map((doc: { id: string; title: string | null; docType: string; sourceFileName: string | null; reportDate: string | Date | null; createdAt: string | Date | null }) => {
+                const typeLabels: Record<string, string> = {
+                  dexa_scan: "DEXA Scan",
+                  gut_biome: "Gut Biome",
+                  medical_record: "Medical Record",
+                  lab_result: "Lab Report",
+                  genetics: "Genetics",
+                };
+                const typeColors: Record<string, string> = {
+                  dexa_scan: "text-blue-400 bg-blue-400/10",
+                  gut_biome: "text-green-400 bg-green-400/10",
+                  medical_record: "text-purple-400 bg-purple-400/10",
+                  lab_result: "text-yellow-400 bg-yellow-400/10",
+                  genetics: "text-pink-400 bg-pink-400/10",
+                };
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border hover:border-kairos-gold/30 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <FileText className="w-5 h-5 text-kairos-gold shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-body text-kairos-silver-dark font-medium text-sm truncate">
+                          {doc.title || doc.sourceFileName || "Untitled Document"}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeColors[doc.docType] || "text-gray-400 bg-gray-400/10"}`}>
+                            {typeLabels[doc.docType] || doc.docType}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {doc.reportDate
+                              ? new Date(doc.reportDate).toLocaleDateString()
+                              : doc.createdAt
+                              ? new Date(doc.createdAt).toLocaleDateString()
+                              : ""}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <ExternalLink className="w-4 h-4 text-gray-500 shrink-0" />
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <FileText className="w-10 h-10 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No documents uploaded yet</p>
+              <p className="text-xs mt-1">Upload documents from the Genetics, DEXA Scan, Gut Biome, or Medical Records sections</p>
+            </div>
+          )}
         </div>
 
         {/* Danger Zone Section */}

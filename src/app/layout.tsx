@@ -45,10 +45,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark theme-warm-slate">
+    <html lang="en" className="dark theme-summit">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#2C2C2E" />
+        <meta name="theme-color" content="#0A1628" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />
       </head>
       <body className="min-h-screen">

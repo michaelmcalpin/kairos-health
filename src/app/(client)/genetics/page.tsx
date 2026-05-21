@@ -227,17 +227,92 @@ export default function GeneticsPage() {
     return groups;
   }, [markers]);
 
-  // ── File upload handler ─────────────────────────────────────
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  // ── File upload handler with AI parsing ────────────────────
   const handleFileUpload = useCallback(async (file: File) => {
     if (!file) return;
     setUploading(true);
+    setParseError(null);
 
-    // Create the profile record
-    uploadMutation.mutate({
-      uploadType: "pdf",
-      sourceFileName: file.name,
-    });
-  }, [uploadMutation]);
+    try {
+      // Read file as base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Send to AI parsing API
+      const response = await fetch("/api/clinical/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileBase64: base64,
+          fileName: file.name,
+          docType: "genetics",
+          mimeType: file.type || "application/pdf",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success && result.data?.parsedData?.pathways) {
+        // AI parsed successfully — create profile and add markers from pathways
+        uploadMutation.mutate({
+          uploadType: "pdf",
+          sourceFileName: file.name,
+        }, {
+          onSuccess: (newProfile) => {
+            // Add markers from AI-parsed pathways
+            const pathways = result.data.parsedData.pathways as Array<{
+              name: string;
+              riskLevel: string;
+              variants?: Array<{
+                gene: string;
+                rsid?: string;
+                genotype?: string;
+                impact?: string;
+                description?: string;
+              }>;
+            }>;
+            for (const pathway of pathways) {
+              if (pathway.variants) {
+                for (const variant of pathway.variants) {
+                  addMarkerMutation.mutate({
+                    profileId: newProfile.id,
+                    gene: variant.gene,
+                    rsId: variant.rsid || "",
+                    section: pathway.name,
+                    pathway: pathway.name,
+                    mutation: variant.genotype || "",
+                    clinicalPriority: (variant.impact === "high" ? "high" : variant.impact === "moderate" ? "medium" : "low") as "high" | "medium" | "low",
+                  });
+                }
+              }
+            }
+          },
+        });
+      } else {
+        // Fallback: save without parsed data
+        uploadMutation.mutate({
+          uploadType: "pdf",
+          sourceFileName: file.name,
+        });
+        setParseError("AI parsing returned incomplete data — profile saved for manual entry.");
+      }
+    } catch {
+      uploadMutation.mutate({
+        uploadType: "pdf",
+        sourceFileName: file.name,
+      });
+      setParseError("Could not parse file — saved for manual entry.");
+    }
+  }, [uploadMutation, addMarkerMutation]);
 
   // ── Manual entry ────────────────────────────────────────────
   const [manualForm, setManualForm] = useState({

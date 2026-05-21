@@ -85,13 +85,63 @@ export default function GutBiomePage() {
     onError: () => setUploading(false),
   });
 
-  function handleFileUpload(file: File) {
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  async function handleFileUpload(file: File) {
     setUploading(true);
-    createMutation.mutate({
-      docType: "gut_biome",
-      title: `Gut Biome Analysis — ${file.name}`,
-      sourceFileName: file.name,
-    });
+    setParseError(null);
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch("/api/clinical/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileBase64: base64,
+          fileName: file.name,
+          docType: "gut_biome",
+          mimeType: file.type || "application/pdf",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        createMutation.mutate({
+          docType: "gut_biome",
+          title: `Gut Biome Analysis — ${file.name}`,
+          sourceFileName: file.name,
+        });
+        setParseError("AI parsing failed — document saved for manual review.");
+        return;
+      }
+
+      const parsed = result.data;
+      createMutation.mutate({
+        docType: "gut_biome",
+        title: parsed.title || `Gut Biome Analysis — ${file.name}`,
+        sourceFileName: file.name,
+        providerName: parsed.providerName || undefined,
+        reportDate: parsed.reportDate || undefined,
+        parsedData: parsed.parsedData as Record<string, unknown>,
+      });
+    } catch {
+      createMutation.mutate({
+        docType: "gut_biome",
+        title: `Gut Biome Analysis — ${file.name}`,
+        sourceFileName: file.name,
+      });
+      setParseError("Could not parse file — saved for manual review.");
+    }
   }
 
   function handleManualSave() {

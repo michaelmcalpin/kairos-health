@@ -90,13 +90,67 @@ export default function DexaScanPage() {
       boneDensityTScore: "", visceralFatArea: "", restingMetabolicRate: "" });
   }
 
-  function handleFileUpload(file: File) {
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  async function handleFileUpload(file: File) {
     setUploading(true);
-    createMutation.mutate({
-      docType: "dexa_scan",
-      title: `DEXA Scan — ${file.name}`,
-      sourceFileName: file.name,
-    });
+    setParseError(null);
+
+    try {
+      // Read file as base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]); // strip data:...;base64, prefix
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Send to AI parsing API
+      const response = await fetch("/api/clinical/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileBase64: base64,
+          fileName: file.name,
+          docType: "dexa_scan",
+          mimeType: file.type || "application/pdf",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        // Fallback: save without parsed data
+        createMutation.mutate({
+          docType: "dexa_scan",
+          title: `DEXA Scan — ${file.name}`,
+          sourceFileName: file.name,
+        });
+        setParseError("AI parsing failed — document saved for manual review.");
+        return;
+      }
+
+      const parsed = result.data;
+      createMutation.mutate({
+        docType: "dexa_scan",
+        title: parsed.title || `DEXA Scan — ${file.name}`,
+        sourceFileName: file.name,
+        providerName: parsed.providerName || undefined,
+        reportDate: parsed.reportDate || undefined,
+        parsedData: parsed.parsedData as Record<string, unknown>,
+      });
+    } catch {
+      // Fallback: save without parsed data
+      createMutation.mutate({
+        docType: "dexa_scan",
+        title: `DEXA Scan — ${file.name}`,
+        sourceFileName: file.name,
+      });
+      setParseError("Could not parse file — saved for manual review.");
+    }
   }
 
   function handleManualSave() {
@@ -181,7 +235,8 @@ export default function DexaScanPage() {
               {uploading ? (
                 <div className="space-y-3">
                   <Loader2 className="w-10 h-10 text-kairos-gold animate-spin mx-auto" />
-                  <p className="text-white font-heading font-semibold">Processing DEXA scan...</p>
+                  <p className="text-white font-heading font-semibold">AI is scanning your DEXA report...</p>
+                  <p className="text-kairos-silver-dark text-xs">Extracting body composition data</p>
                 </div>
               ) : (
                 <>
@@ -240,6 +295,14 @@ export default function DexaScanPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Parse error notification */}
+      {parseError && (
+        <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-kairos-sm flex items-center justify-between">
+          <p className="text-sm text-yellow-400">{parseError}</p>
+          <button onClick={() => setParseError(null)} className="text-yellow-400 hover:text-yellow-300"><X size={14} /></button>
         </div>
       )}
 

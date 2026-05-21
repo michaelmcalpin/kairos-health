@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 
 // ─── Theme Definitions ──────────────────────────────────────────
 
-export type ThemeId = "warm-slate" | "classic-royal";
+export type ThemeId = "summit" | "warm-slate" | "classic-royal";
 
 export interface ThemeConfig {
   id: ThemeId;
@@ -13,15 +13,20 @@ export interface ThemeConfig {
 }
 
 export const THEMES: Record<ThemeId, ThemeConfig> = {
+  summit: {
+    id: "summit",
+    name: "Summit",
+    description: "Glacial Navy & Ice Blue — the official Everist.ai brand",
+  },
   "warm-slate": {
     id: "warm-slate",
     name: "Warm Slate",
-    description: "Soft cream & dusty rose — the default Everist.ai aesthetic",
+    description: "Soft cream & dusty rose — a warm, approachable feel",
   },
   "classic-royal": {
     id: "classic-royal",
     name: "Classic Royal",
-    description: "Deep royal blue & champagne gold — the original Everist.ai look",
+    description: "Deep royal blue & champagne gold — bold and luxurious",
   },
 };
 
@@ -44,6 +49,21 @@ export interface ThemeColors {
 }
 
 export const THEME_COLORS: Record<ThemeId, ThemeColors> = {
+  summit: {
+    primary: "#0A1628",
+    primaryLight: "#142238",
+    accent: "#4A90D9",
+    accentLight: "#6AAAE8",
+    accentDeep: "#3A78BE",
+    bg: "#050D18",
+    card: "#0A1628",
+    text: "#FFFFFF",
+    textSecondary: "#C0C5CE",
+    success: "#4A9D5B",
+    warning: "#D4A843",
+    danger: "#C65D5D",
+    info: "#4A90D9",
+  },
   "warm-slate": {
     primary: "#3A3A3C",
     primaryLight: "#5A5A5C",
@@ -85,9 +105,9 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "warm-slate",
+  theme: "summit",
   setTheme: () => {},
-  config: THEMES["warm-slate"],
+  config: THEMES["summit"],
 });
 
 export function useTheme(): ThemeContextValue {
@@ -105,7 +125,7 @@ export function useThemeColors(): ThemeColors {
 const STORAGE_KEY = "kairos-theme";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeId>("warm-slate");
+  const [theme, setThemeState] = useState<ThemeId>("summit");
   const [mounted, setMounted] = useState(false);
 
   // Load saved theme on mount
@@ -125,16 +145,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!mounted) return;
     const html = document.documentElement;
-    html.classList.remove("theme-warm-slate", "theme-classic-royal");
+    html.classList.remove("theme-summit", "theme-warm-slate", "theme-classic-royal");
     html.classList.add(`theme-${theme}`);
 
     // Update meta theme-color
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) {
-      meta.setAttribute(
-        "content",
-        theme === "warm-slate" ? "#2C2C2E" : "#122055"
-      );
+      const colors: Record<ThemeId, string> = {
+        summit: "#0A1628",
+        "warm-slate": "#2C2C2E",
+        "classic-royal": "#122055",
+      };
+      meta.setAttribute("content", colors[theme]);
     }
   }, [theme, mounted]);
 

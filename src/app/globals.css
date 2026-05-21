@@ -2,15 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Open+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=Open+Sans:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
 /* ═══════════════════════════════════════════════════════════════════
-   THEME: Warm Slate (Default)
+   THEME: Summit (Default — Everist.ai Brand)
+   Glacial Navy + Ice Blue + Silver Ridge
    Colors stored as space-separated RGB channels so Tailwind opacity
    modifiers (e.g. bg-kairos-gold/15) work at build time.
    ═══════════════════════════════════════════════════════════════════ */
 
 :root,
+.theme-summit {
+  /* Core palette  (R G B) */
+  --k-primary:        10 22 40;      /* #0A1628  Glacial Navy */
+  --k-primary-light:  20 34 56;      /* #142238  Glacial Navy Light */
+  --k-accent:         74 144 217;    /* #4A90D9  Ice Blue */
+  --k-accent-light:   106 170 232;   /* #6AAAE8  Ice Blue Light */
+  --k-accent-deep:    58 120 190;    /* #3A78BE  Ice Blue Deep */
+
+  /* Full-value colors (contain alpha — can't decompose) */
+  --k-accent-muted:   rgba(74,144,217,0.15);
+  --k-border:         rgba(192,197,206,0.15);
+
+  /* Backgrounds */
+  --k-bg:             5 13 24;       /* #050D18  Deep Abyss */
+  --k-card:           10 22 40;      /* #0A1628  Glacial Navy */
+  --k-card-hover:     16 30 52;      /* #101E34 */
+  --k-input:          5 13 24;       /* #050D18  Deep Abyss */
+
+  /* Text */
+  --k-text:           255 255 255;   /* #FFFFFF  Summit White */
+  --k-text-secondary: 192 197 206;   /* #C0C5CE  Silver Ridge */
+  --k-text-light:     255 255 255;   /* #FFFFFF */
+
+  /* Semantic */
+  --k-success:        74 157 91;     /* #4A9D5B */
+  --k-warning:        212 168 67;    /* #D4A843 */
+  --k-danger:         198 93 93;     /* #C65D5D */
+  --k-info:           74 144 217;    /* #4A90D9 */
+
+  /* Semantic washes (full values) */
+  --k-success-wash:   rgba(74,157,91,0.15);
+  --k-warning-wash:   rgba(212,168,67,0.15);
+  --k-danger-wash:    rgba(198,93,93,0.15);
+  --k-info-wash:      rgba(74,144,217,0.15);
+
+  /* Surfaces */
+  --k-sand:           20 34 56;      /* #142238 */
+  --k-cream:          8 16 30;       /* #08101E */
+  --k-umber:          192 197 206;   /* #C0C5CE  Silver Ridge */
+
+  /* Shadows (full values) */
+  --k-shadow:         0 4px 24px rgba(5,13,24,0.4);
+  --k-shadow-lg:      0 8px 40px rgba(5,13,24,0.5);
+  --k-accent-glow:    0 0 20px rgba(74,144,217,0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME: Warm Slate
+   ═══════════════════════════════════════════════════════════════════ */
+
 .theme-warm-slate {
   /* Core palette  (R G B) */
   --k-primary:        58 58 60;      /* #3A3A3C  Charcoal Slate */

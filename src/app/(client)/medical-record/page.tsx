@@ -63,14 +63,65 @@ export default function MedicalRecordPage() {
     onError: () => setUploading(false),
   });
 
-  function handleFileUpload(file: File) {
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  async function handleFileUpload(file: File) {
     setUploading(true);
-    createMutation.mutate({
-      docType: "medical_record",
-      title: file.name.replace(/\.(pdf|png|jpg|jpeg)$/i, ""),
-      sourceFileName: file.name,
-      parsedData: { category: "other" },
-    });
+    setParseError(null);
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const response = await fetch("/api/clinical/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileBase64: base64,
+          fileName: file.name,
+          docType: "medical_record",
+          mimeType: file.type || "application/pdf",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        createMutation.mutate({
+          docType: "medical_record",
+          title: file.name.replace(/\.(pdf|png|jpg|jpeg)$/i, ""),
+          sourceFileName: file.name,
+          parsedData: { category: "other" },
+        });
+        setParseError("AI parsing failed — document saved for manual review.");
+        return;
+      }
+
+      const parsed = result.data;
+      createMutation.mutate({
+        docType: "medical_record",
+        title: parsed.title || file.name.replace(/\.(pdf|png|jpg|jpeg)$/i, ""),
+        sourceFileName: file.name,
+        providerName: parsed.providerName || undefined,
+        reportDate: parsed.reportDate || undefined,
+        parsedData: parsed.parsedData as Record<string, unknown>,
+      });
+    } catch {
+      createMutation.mutate({
+        docType: "medical_record",
+        title: file.name.replace(/\.(pdf|png|jpg|jpeg)$/i, ""),
+        sourceFileName: file.name,
+        parsedData: { category: "other" },
+      });
+      setParseError("Could not parse file — saved for manual review.");
+    }
   }
 
   function handleManualSave() {

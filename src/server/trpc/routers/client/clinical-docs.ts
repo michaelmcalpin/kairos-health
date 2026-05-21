@@ -5,6 +5,15 @@ import { clinicalDocuments } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 export const clientClinicalDocsRouter = router({
+  // List ALL clinical documents for the user (document repository)
+  listAll: clientProcedure
+    .query(async ({ ctx }) => {
+      return ctx.db.query.clinicalDocuments.findMany({
+        where: eq(clinicalDocuments.clientId, ctx.dbUserId),
+        orderBy: desc(clinicalDocuments.createdAt),
+      });
+    }),
+
   // List all clinical documents of a given type
   list: clientProcedure
     .input(
