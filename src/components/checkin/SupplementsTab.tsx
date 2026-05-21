@@ -175,7 +175,7 @@ export const SupplementsTab: React.FC<SupplementsTabProps> = ({ data, onChange }
       if (pendingItems.length > 0 && reminderTime > now) {
         const delay = reminderTime.getTime() - now.getTime();
         const timer = setTimeout(() => {
-          new Notification(`KAIROS - ${timing} Supplements`, {
+          new Notification(`Everist.ai - ${timing} Supplements`, {
             body: `${pendingItems.length} supplement${pendingItems.length > 1 ? 's' : ''} to take: ${pendingItems.map((s) => s.name).join(', ')}`,
             icon: '/favicon.ico',
             tag: `supplement-${timing}`,

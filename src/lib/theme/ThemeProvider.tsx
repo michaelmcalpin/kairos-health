@@ -16,12 +16,12 @@ export const THEMES: Record<ThemeId, ThemeConfig> = {
   "warm-slate": {
     id: "warm-slate",
     name: "Warm Slate",
-    description: "Soft cream & dusty rose — the default KAIROS aesthetic",
+    description: "Soft cream & dusty rose — the default Everist.ai aesthetic",
   },
   "classic-royal": {
     id: "classic-royal",
     name: "Classic Royal",
-    description: "Deep royal blue & champagne gold — the original KAIROS look",
+    description: "Deep royal blue & champagne gold — the original Everist.ai look",
   },
 };
 

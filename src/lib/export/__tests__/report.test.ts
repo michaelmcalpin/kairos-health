@@ -21,7 +21,7 @@ describe("buildWeeklyReport", () => {
 
   it("generates a structured report", () => {
     const generated = buildWeeklyReport(report);
-    expect(generated.title).toBe("KAIROS Weekly Health Report");
+    expect(generated.title).toBe("Everist.ai Weekly Health Report");
     expect(generated.subtitle).toContain("2024-03-11");
     expect(generated.sections.length).toBeGreaterThan(0);
   });
@@ -54,7 +54,7 @@ describe("buildHTMLReport", () => {
     const html = buildHTMLReport(generated);
 
     expect(html).toContain("<!DOCTYPE html>");
-    expect(html).toContain("KAIROS Weekly Health Report");
+    expect(html).toContain("Everist.ai Weekly Health Report");
     expect(html).toContain("74");
     expect(html).toContain("</html>");
   });

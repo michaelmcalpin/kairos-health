@@ -411,7 +411,7 @@ export default function SettingsPage() {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-2">
-                Allow KAIROS to use anonymized data for research purposes
+                Allow Everist.ai to use anonymized data for research purposes
               </p>
             </div>
 
@@ -442,7 +442,7 @@ export default function SettingsPage() {
           </div>
 
           <p className="text-sm font-body text-kairos-silver-dark mb-4">
-            Choose your preferred visual theme for the KAIROS dashboard.
+            Choose your preferred visual theme for the Everist.ai dashboard.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

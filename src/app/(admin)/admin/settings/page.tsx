@@ -22,7 +22,7 @@ export default function AdminSettingsPage() {
 
   // Platform settings
   const [platform, setPlatform] = useState({
-    platformName: "KAIROS Health",
+    platformName: "Everist.ai Health",
     supportEmail: "support@kairos.health",
     maxClientsPerCoach: "50",
     sessionTimeout: "30",
@@ -186,7 +186,7 @@ export default function AdminSettingsPage() {
           <h2 className="font-heading text-xl font-semibold text-white">Appearance</h2>
         </div>
         <p className="text-sm font-body text-kairos-silver-dark mb-4">
-          Choose the default visual theme for the KAIROS platform.
+          Choose the default visual theme for the Everist.ai platform.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {(Object.keys(THEMES) as ThemeId[]).map((id) => {

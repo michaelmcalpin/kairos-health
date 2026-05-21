@@ -232,7 +232,7 @@ export default function TrainerSettingsPage() {
           <h2 className="font-heading text-xl font-semibold text-white">Appearance</h2>
         </div>
         <p className="text-sm font-body text-kairos-silver-dark mb-4">
-          Choose your preferred visual theme for the {isWhiteLabel ? brand.name : "KAIROS"} dashboard.
+          Choose your preferred visual theme for the {isWhiteLabel ? brand.name : "Everist.ai"} dashboard.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {(Object.keys(THEMES) as ThemeId[]).map((id) => {

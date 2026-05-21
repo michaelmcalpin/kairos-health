@@ -13,11 +13,11 @@ export function WelcomeStep({ onContinue }: WelcomeStepProps) {
       </div>
 
       <h1 className="text-3xl font-heading font-bold text-white mb-4">
-        Welcome to KAIROS
+        Welcome to Everist.ai
       </h1>
 
       <p className="text-gray-400 text-lg mb-6 leading-relaxed">
-        KAIROS is your private health management platform, designed for those who
+        Everist.ai is your private health management platform, designed for those who
         take their longevity and performance seriously. In the next few minutes,
         we&apos;ll personalize your experience.
       </p>

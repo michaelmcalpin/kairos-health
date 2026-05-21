@@ -157,7 +157,7 @@ export const PANELS: LabPanel[] = [
   },
   {
     id: "kairos_ultimate",
-    name: "KAIROS Ultimate Panel",
+    name: "Everist Ultimate Panel",
     description: "Complete health optimization panel — all biomarkers in one draw",
     biomarkers: Object.values(BIOMARKERS),
     estimatedCost: 399,

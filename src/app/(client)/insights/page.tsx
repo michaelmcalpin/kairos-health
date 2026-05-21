@@ -121,7 +121,7 @@ export default function InsightsPage() {
         </div>
         <div className="text-xs font-heading font-semibold px-3 py-1 rounded-full bg-kairos-gold/20 text-kairos-gold flex items-center gap-1">
           <Brain className="w-4 h-4" />
-          Powered by KAIROS AI
+          Powered by Everist AI
         </div>
       </div>
 

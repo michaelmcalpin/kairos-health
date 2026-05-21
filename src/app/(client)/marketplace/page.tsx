@@ -25,7 +25,7 @@ export default function Page() {
   const products = (protocolData?.items ?? []).map((item) => ({
     id: String(item.id),
     name: String(item.name ?? "Unknown"),
-    brand: "KAIROS",
+    brand: "Everist.ai",
     description: String(item.dosage ?? item.rationale ?? "Recommended by your coach"),
     price: 0,
     rating: 4.5,

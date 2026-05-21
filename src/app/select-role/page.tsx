@@ -43,7 +43,7 @@ const ROLE_META: Record<
   super_admin: {
     label: "Super Admin",
     subtitle: "Platform Administration",
-    description: "Kairos platform administration — manage companies, rules, and system configuration.",
+    description: "Everist.ai platform administration — manage companies, rules, and system configuration.",
     icon: Shield,
     colorClass: "text-purple-400 bg-purple-500/15 group-hover:bg-purple-500/25",
   },
@@ -180,7 +180,7 @@ function SelectRoleContent() {
               </h1>
             </>
           ) : (
-            <h1 className="font-heading font-bold text-xl text-kairos-gold tracking-wide mb-2">KAIROS</h1>
+            <h1 className="font-heading font-bold text-xl text-kairos-gold tracking-wide mb-2">Everist.ai</h1>
           )}
           <p className="text-xs font-body text-kairos-silver-dark animate-pulse">Loading your portal...</p>
         </div>
@@ -205,12 +205,12 @@ function SelectRoleContent() {
                 {brand.name}
               </h1>
               <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-widest">
-                Health Platform &bull; Powered by KAIROS
+                Health Platform &bull; Powered by Everist.ai
               </p>
             </>
           ) : (
             <>
-              <h1 className="font-heading font-bold text-2xl text-kairos-gold tracking-wide mb-1">KAIROS</h1>
+              <h1 className="font-heading font-bold text-2xl text-kairos-gold tracking-wide mb-1">Everist.ai</h1>
               <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-widest">
                 Private Health Management
               </p>
@@ -229,7 +229,7 @@ function SelectRoleContent() {
                   : "bg-gray-800/50 text-gray-400 hover:text-white"
               }`}
             >
-              KAIROS Default
+              Everist.ai Default
             </button>
             {companies.map((c) => (
               <button

@@ -29,7 +29,7 @@ export function CompleteStep({ state, onFinish }: CompleteStepProps) {
       </h1>
 
       <p className="text-gray-400 text-lg mb-8">
-        Welcome to KAIROS, {state.profile.firstName}. Your personalized health
+        Welcome to Everist.ai, {state.profile.firstName}. Your personalized health
         management journey begins now.
       </p>
 

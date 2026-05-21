@@ -8,7 +8,7 @@ export default function ImportPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-heading font-bold text-white">Import Data</h1>
         <p className="text-gray-400 mt-1">
-          Import health data from CSV, TSV, or JSON files into your KAIROS dashboard.
+          Import health data from CSV, TSV, or JSON files into your Everist.ai dashboard.
         </p>
       </div>
 

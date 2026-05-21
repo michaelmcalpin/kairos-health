@@ -275,7 +275,7 @@ export default function CompanySettingsPage() {
                 {/* Email footer */}
                 <div className="text-center py-3 border-t border-gray-700/50">
                   <p className="text-[10px] text-gray-500">{emailFooter}</p>
-                  <p className="text-[9px] text-gray-600 mt-1">Powered by KAIROS</p>
+                  <p className="text-[9px] text-gray-600 mt-1">Powered by Everist.ai</p>
                 </div>
               </div>
             </div>

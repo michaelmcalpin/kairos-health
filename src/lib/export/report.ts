@@ -126,7 +126,7 @@ export function buildWeeklyReport(report: WeeklyHealthReport): GeneratedReport {
   }
 
   return {
-    title: "KAIROS Weekly Health Report",
+    title: "Everist.ai Weekly Health Report",
     subtitle: `${report.weekStart} — ${report.weekEnd}`,
     generatedAt: report.generatedAt,
     sections,
@@ -206,7 +206,7 @@ export function buildHTMLReport(report: GeneratedReport): string {
   </div>
   ${sectionHTML}
   <div class="footer">
-    Generated ${new Date(report.generatedAt).toLocaleString()} &bull; KAIROS Health Platform
+    Generated ${new Date(report.generatedAt).toLocaleString()} &bull; Everist.ai Health Platform
   </div>
 </body>
 </html>`;

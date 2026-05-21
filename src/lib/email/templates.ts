@@ -16,13 +16,13 @@ import type { EmailBrandConfig } from "@/lib/company-ops/brand";
 // ─── Default Brand Constants ────────────────────────────────────────────────
 
 const DEFAULT_BRAND: EmailBrandConfig = {
-  companyName: "KAIROS",
+  companyName: "Everist.ai",
   primaryColor: "#122055",
   primaryColorDark: "#0A0F1F",
   accentColor: "#D4AF37",
   logoUrl: null,
-  fromName: "KAIROS Health",
-  footer: "KAIROS Health Management",
+  fromName: "Everist.ai Health",
+  footer: "Everist.ai Health Management",
   website: "https://kairos.health",
 };
 
@@ -56,13 +56,13 @@ export function wrapEmailLayout(
   const headerBorder = `1px solid ${lightenColor(brand.primaryColor, 30)}`;
 
   // For white-label: show company logo or name, then "Powered by Kairos" in footer
-  const isWhiteLabel = brand.companyName !== "KAIROS";
+  const isWhiteLabel = brand.companyName !== "Everist.ai";
   const headerContent = brand.logoUrl
     ? `<img src="${escapeHtml(brand.logoUrl)}" alt="${escapeHtml(brand.companyName)}" style="max-height: 40px; max-width: 200px;" />`
     : `<span style="font-family: ${FONTS.heading}; font-size: 28px; font-weight: 700; color: ${brand.accentColor}; letter-spacing: 4px;">${escapeHtml(brand.companyName)}</span>`;
 
   const footerText = isWhiteLabel
-    ? `${escapeHtml(brand.footer)}<br /><span style="color: ${COLORS.silverDark}; font-size: 10px;">Powered by KAIROS</span>`
+    ? `${escapeHtml(brand.footer)}<br /><span style="color: ${COLORS.silverDark}; font-size: 10px;">Powered by Everist.ai</span>`
     : escapeHtml(brand.footer);
 
   return `<!DOCTYPE html>

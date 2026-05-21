@@ -32,7 +32,7 @@ export default function GlobalError({
             </div>
             <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Something Went Wrong</h1>
             <p style={{ fontSize: 14, color: "#9CA3AF", marginBottom: 8 }}>
-              KAIROS encountered an unexpected error. Please try refreshing the page.
+              Everist.ai encountered an unexpected error. Please try refreshing the page.
             </p>
             {error.digest && (
               <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 24 }}>

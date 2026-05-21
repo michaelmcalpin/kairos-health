@@ -64,10 +64,10 @@ export function InstallPrompt() {
 
           <div className="flex-1 min-w-0">
             <h3 className="font-heading text-sm font-semibold text-white">
-              Install KAIROS
+              Install Everist.ai
             </h3>
             <p className="mt-0.5 text-xs text-kairos-silver-dark leading-relaxed">
-              Add KAIROS to your home screen for quick access, offline support, and push notifications.
+              Add Everist.ai to your home screen for quick access, offline support, and push notifications.
             </p>
 
             <div className="mt-3 flex items-center gap-2">

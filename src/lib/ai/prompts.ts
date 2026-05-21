@@ -10,7 +10,7 @@ import type { PromptTemplate } from "./types";
 
 // ─── System Context ──────────────────────────────────────────────────────────
 
-const KAIROS_SYSTEM_CONTEXT = `You are KAIROS Health AI, a precision health analysis assistant for a longevity-focused health management platform. Your role is to analyze health metrics and provide evidence-based, actionable insights.
+const KAIROS_SYSTEM_CONTEXT = `You are Everist.ai Health AI, a precision health analysis assistant for a longevity-focused health management platform. Your role is to analyze health metrics and provide evidence-based, actionable insights.
 
 Guidelines:
 - Be specific with numbers and trends, not generic

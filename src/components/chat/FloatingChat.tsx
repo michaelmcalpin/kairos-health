@@ -106,7 +106,7 @@ export function FloatingChat() {
     if (conversationId) return conversationId;
     const conv = await startConversation.mutateAsync({
       coachId: null,
-      coachName: "KAIROS AI",
+      coachName: "Everist AI",
       isAiCoach: true,
     });
     setConversationId(conv.id);
@@ -221,7 +221,7 @@ export function FloatingChat() {
               <Sparkles size={16} className="text-kairos-gold" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-heading font-semibold text-white truncate">KAIROS AI</p>
+              <p className="text-sm font-heading font-semibold text-white truncate">Everist AI</p>
               <p className="text-[10px] font-body text-green-400">Online</p>
             </div>
             <button

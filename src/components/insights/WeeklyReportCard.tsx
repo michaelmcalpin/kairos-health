@@ -127,7 +127,7 @@ export function WeeklyReportCard({ report }: WeeklyReportCardProps) {
       {/* Footer */}
       <div className="border-t border-gray-100 px-6 py-3 bg-gray-50">
         <p className="text-xs text-gray-400 text-center">
-          Generated {new Date(report.generatedAt).toLocaleString()} • KAIROS AI Health Engine
+          Generated {new Date(report.generatedAt).toLocaleString()} • Everist AI Health Engine
         </p>
       </div>
     </div>

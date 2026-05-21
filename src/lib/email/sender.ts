@@ -37,7 +37,7 @@ function getResend(): Resend {
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-const DEFAULT_FROM = process.env.EMAIL_FROM ?? "KAIROS Health <noreply@kairos.health>";
+const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Everist.ai <noreply@everist.ai>";
 const APP_URL = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 function resolveFrom(brand?: Partial<EmailBrandConfig>): string {
@@ -114,7 +114,7 @@ export async function sendWelcomeEmail(params: {
   brand?: Partial<EmailBrandConfig>;
 }): Promise<SendEmailResult> {
   const html = buildWelcomeEmail(params.name, params.brand);
-  const brandName = params.brand?.companyName ?? "KAIROS";
+  const brandName = params.brand?.companyName ?? "Everist.ai";
   return sendEmail({
     to: params.to,
     subject: `Welcome to ${brandName} — Your Health Journey Starts Now`,

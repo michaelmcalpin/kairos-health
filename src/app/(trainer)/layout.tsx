@@ -21,7 +21,7 @@ function TrainerShell({ children }: { children: React.ReactNode }) {
       />
       <div className="flex-1 ml-64">
         <TopBar
-          title={isWhiteLabel ? brand.name : "KAIROS"}
+          title={isWhiteLabel ? brand.name : "Everist.ai"}
           subtitle="Trainer Portal"
           brandColor={isWhiteLabel ? brand.brandColor : undefined}
         />

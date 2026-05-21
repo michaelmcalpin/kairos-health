@@ -219,7 +219,7 @@ export default function ChatPage() {
 
     const conv = await startConversation.mutateAsync({
       coachId: null,
-      coachName: "KAIROS AI",
+      coachName: "Everist AI",
       isAiCoach: true,
     });
     setConversationId(conv.id);
@@ -396,7 +396,7 @@ export default function ChatPage() {
           <Sparkles size={20} className="text-kairos-gold" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-heading font-semibold text-white">KAIROS AI Health Assistant</p>
+          <p className="text-sm font-heading font-semibold text-white">Everist AI Health Assistant</p>
           <p className="text-xs font-body text-green-400 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Powered by Claude
           </p>
@@ -421,7 +421,7 @@ export default function ChatPage() {
             <Sparkles size={36} className="text-kairos-gold" />
           </div>
           <h3 className="font-heading font-bold text-xl text-white mb-2">
-            Hi! I&apos;m your KAIROS AI assistant
+            Hi! I&apos;m your Everist AI assistant
           </h3>
           <p className="text-sm font-body text-kairos-silver-dark text-center max-w-md mb-8">
             I have access to your health data and can help with questions about nutrition, exercise,
@@ -547,7 +547,7 @@ export default function ChatPage() {
 
       {/* Disclaimer */}
       <p className="text-[10px] font-body text-kairos-silver-dark text-center mt-2">
-        KAIROS AI provides general health information. Always consult your healthcare provider before making changes to your health regimen.
+        Everist AI provides general health information. Always consult your healthcare provider before making changes to your health regimen.
       </p>
     </div>
   );

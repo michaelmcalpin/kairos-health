@@ -195,7 +195,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     category: "system",
     defaultPriority: "low",
     defaultChannels: ["in_app"],
-    titleTemplate: "KAIROS Update",
+    titleTemplate: "Everist.ai Update",
     bodyTemplate: "{{message}}",
   },
 
@@ -204,7 +204,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     category: "onboarding",
     defaultPriority: "normal",
     defaultChannels: ["in_app", "email"],
-    titleTemplate: "Welcome to KAIROS",
+    titleTemplate: "Welcome to Everist.ai",
     bodyTemplate: "Your health optimization journey begins now. Let's set up your profile and connect your first device.",
     actionUrlTemplate: "/onboarding",
     actionLabel: "Get Started",

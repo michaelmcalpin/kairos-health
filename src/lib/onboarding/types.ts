@@ -22,7 +22,7 @@ export const ONBOARDING_STEPS: OnboardingStepMeta[] = [
   {
     id: "welcome",
     index: 0,
-    title: "Welcome to KAIROS",
+    title: "Welcome to Everist.ai",
     subtitle: "Your journey to optimal health starts here",
     icon: "K",
     optional: false,
@@ -63,7 +63,7 @@ export const ONBOARDING_STEPS: OnboardingStepMeta[] = [
     id: "complete",
     index: 5,
     title: "You're All Set!",
-    subtitle: "Welcome to the KAIROS community",
+    subtitle: "Welcome to the Everist.ai community",
     icon: "✓",
     optional: false,
   },

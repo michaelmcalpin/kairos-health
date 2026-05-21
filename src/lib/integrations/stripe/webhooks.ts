@@ -44,7 +44,7 @@ async function handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
   const notification: NotificationPayload = {
     notificationId: `notif_sub_${Date.now()}`,
     title: "Subscription Activated",
-    body: `Welcome to KAIROS! Your ${tier} subscription is now active.`,
+    body: `Welcome to Everist.ai! Your ${tier} subscription is now active.`,
     category: "billing",
     actionUrl: "/payments",
     read: false,
@@ -102,7 +102,7 @@ async function handleSubscriptionDeleted(event: Stripe.Event): Promise<void> {
   const notification: NotificationPayload = {
     notificationId: `notif_cancel_${Date.now()}`,
     title: "Subscription Canceled",
-    body: "Your KAIROS subscription has been canceled. You can resubscribe anytime.",
+    body: "Your Everist.ai subscription has been canceled. You can resubscribe anytime.",
     category: "billing",
     actionUrl: "/payments",
     read: false,

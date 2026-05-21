@@ -43,7 +43,7 @@ export function ColumnMapper({
     <div className="max-w-2xl mx-auto">
       <h3 className="text-lg font-heading font-bold text-white mb-2">Column Mapping</h3>
       <p className="text-gray-400 text-sm mb-4">
-        Map your file columns to KAIROS data fields. Required fields are marked with *.
+        Map your file columns to Everist.ai data fields. Required fields are marked with *.
       </p>
 
       {missingRequired.length > 0 && (

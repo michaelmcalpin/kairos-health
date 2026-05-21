@@ -671,7 +671,7 @@ function BrandingTab({
               {form.name.charAt(0) || "?"}
             </div>
             <p style={{ color: form.brandColor }} className="font-bold text-lg">{form.emailFromName || form.name || "Company"}</p>
-            <p className="text-gray-400 text-[10px] mt-1">Health Platform &bull; Powered by KAIROS</p>
+            <p className="text-gray-400 text-[10px] mt-1">Health Platform &bull; Powered by Everist.ai</p>
             <div className="mt-4 pt-3 border-t border-gray-200">
               <p className="text-gray-500 text-[10px]">{form.emailFooter || "Footer text"}</p>
             </div>

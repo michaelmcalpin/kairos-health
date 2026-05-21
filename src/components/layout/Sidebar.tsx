@@ -92,7 +92,7 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
     return initial;
   });
 
-  const displayName = companyName || "KAIROS";
+  const displayName = companyName || "Everist.ai";
   const displaySubtitle = companyName ? "Health Platform" : "Private Health";
 
   // Group items by section (preserving order from items array)
@@ -144,7 +144,7 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
                 className="font-heading font-bold text-lg tracking-wide truncate"
                 style={{ color: companyBrandColor || undefined }}
               >
-                {companyName ? displayName : <span className="text-kairos-gold">KAIROS</span>}
+                {companyName ? displayName : <span className="text-kairos-gold">Everist.ai</span>}
               </h1>
               <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-widest">
                 {displaySubtitle}
@@ -255,11 +255,11 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
         <div className="px-4 py-3 border-t border-kairos-border">
           {showPoweredBy ? (
             <p className="text-[10px] text-kairos-silver-dark font-body">
-              Powered by <span className="text-kairos-gold font-semibold">KAIROS</span>
+              Powered by <span className="text-kairos-gold font-semibold">Everist.ai</span>
             </p>
           ) : (
             <p className="text-[10px] text-kairos-silver-dark font-body">
-              KAIROS v0.1.0
+              Everist.ai v0.1.0
             </p>
           )}
         </div>

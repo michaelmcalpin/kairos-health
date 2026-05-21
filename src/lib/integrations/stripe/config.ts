@@ -12,7 +12,7 @@ export const STRIPE_CONFIG = {
   /** Product mapping for the three KAIROS tiers */
   tiers: {
     tier1: {
-      name: "KAIROS Private",
+      name: "Everist Private",
       monthlyPriceId: process.env.STRIPE_PRICE_TIER1_MONTHLY || "price_tier1_monthly",
       annualPriceId: process.env.STRIPE_PRICE_TIER1_ANNUAL || "price_tier1_annual",
       monthlyAmount: 49900, // $499.00
@@ -26,7 +26,7 @@ export const STRIPE_CONFIG = {
       ],
     },
     tier2: {
-      name: "KAIROS Associate",
+      name: "Everist Associate",
       monthlyPriceId: process.env.STRIPE_PRICE_TIER2_MONTHLY || "price_tier2_monthly",
       annualPriceId: process.env.STRIPE_PRICE_TIER2_ANNUAL || "price_tier2_annual",
       monthlyAmount: 24900, // $249.00
@@ -40,7 +40,7 @@ export const STRIPE_CONFIG = {
       ],
     },
     tier3: {
-      name: "KAIROS AI-Guided",
+      name: "Everist AI-Guided",
       monthlyPriceId: process.env.STRIPE_PRICE_TIER3_MONTHLY || "price_tier3_monthly",
       annualPriceId: process.env.STRIPE_PRICE_TIER3_ANNUAL || "price_tier3_annual",
       monthlyAmount: 9900, // $99.00

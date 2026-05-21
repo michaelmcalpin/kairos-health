@@ -84,7 +84,7 @@ export const env = {
 
   // Email (Resend)
   RESEND_API_KEY: getEnvVar("RESEND_API_KEY", ""),
-  EMAIL_FROM: getEnvVar("EMAIL_FROM", "KAIROS Health <noreply@kairos.health>"),
+  EMAIL_FROM: getEnvVar("EMAIL_FROM", "Everist.ai <noreply@everist.ai>"),
 
   // Device Integrations (OAuth)
   OURA_CLIENT_ID: getEnvVar("OURA_CLIENT_ID", ""),

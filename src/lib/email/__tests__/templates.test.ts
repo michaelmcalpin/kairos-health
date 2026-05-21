@@ -19,7 +19,7 @@ describe("Email layout", () => {
   it("wraps content in valid HTML structure", () => {
     const html = wrapEmailLayout("<p>Hello</p>");
     expect(html).toContain("<!DOCTYPE html>");
-    expect(html).toContain("KAIROS");
+    expect(html).toContain("Everist.ai");
     expect(html).toContain("<p>Hello</p>");
     expect(html).toContain("</html>");
   });
@@ -42,7 +42,7 @@ describe("Email layout", () => {
     expect(html).toContain("Peak Health");
     expect(html).toContain("#2563EB");
     expect(html).toContain("Peak Health Management");
-    expect(html).toContain("Powered by KAIROS");
+    expect(html).toContain("Powered by Everist.ai");
   });
 
   it("shows company logo when provided", () => {
@@ -57,9 +57,9 @@ describe("Email layout", () => {
 
   it("does not show Powered by KAIROS for KAIROS brand", () => {
     const html = wrapEmailLayout("<p>Hello</p>", {
-      brand: { companyName: "KAIROS" },
+      brand: { companyName: "Everist.ai" },
     });
-    expect(html).not.toContain("Powered by KAIROS");
+    expect(html).not.toContain("Powered by Everist.ai");
   });
 });
 
@@ -130,7 +130,7 @@ describe("Email building blocks", () => {
 describe("Pre-built email templates", () => {
   it("builds welcome email", () => {
     const html = buildWelcomeEmail("Michael");
-    expect(html).toContain("Welcome to KAIROS, Michael");
+    expect(html).toContain("Welcome to Everist.ai, Michael");
     expect(html).toContain("/onboarding");
     expect(html).toContain("Complete Your Profile");
   });
@@ -141,7 +141,7 @@ describe("Pre-built email templates", () => {
       primaryColor: "#2563EB",
     });
     expect(html).toContain("Welcome to Peak Health, Bob");
-    expect(html).toContain("Powered by KAIROS");
+    expect(html).toContain("Powered by Everist.ai");
   });
 
   it("builds weekly report email", () => {

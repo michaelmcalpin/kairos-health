@@ -78,12 +78,12 @@ export function lightenHex(hex: string, amount = 0.3): string {
 // ─── Brand Resolution ────────────────────────────────────────────
 
 const KAIROS_DEFAULTS = {
-  name: "KAIROS",
+  name: "Everist.ai",
   brandColor: "#C9A89A",  // Warm Slate accent (dusty rose)
-  emailFromName: "KAIROS Health",
-  emailFooter: "KAIROS Health Management",
+  emailFromName: "Everist.ai Health",
+  emailFooter: "Everist.ai Health Management",
   website: "https://kairos.health",
-  poweredBy: "Powered by Kairos",
+  poweredBy: "Powered by Everist.ai",
 };
 
 /**
@@ -114,7 +114,7 @@ export function resolveCompanyBrand(company: Company | null | undefined): Compan
     brandColor: company.brandColor || KAIROS_DEFAULTS.brandColor,
     brandColorRgb: hexToRgbString(company.brandColor || KAIROS_DEFAULTS.brandColor),
     emailFromName: company.emailFromName || company.name,
-    emailFooter: company.emailFooter || `Powered by Kairos Health | ${company.name}`,
+    emailFooter: company.emailFooter || `Powered by Everist.ai Health | ${company.name}`,
     website: company.website || KAIROS_DEFAULTS.website,
     poweredBy: KAIROS_DEFAULTS.poweredBy,
   };

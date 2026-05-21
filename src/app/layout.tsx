@@ -9,30 +9,30 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "KAIROS | Private Health Management",
-    template: "%s | KAIROS",
+    default: "Everist.ai | Private Health Management",
+    template: "%s | Everist.ai",
   },
   description: "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",
   manifest: "/manifest.json",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://kairos.health"),
   openGraph: {
-    title: "KAIROS | Private Health Management",
+    title: "Everist.ai | Private Health Management",
     description: "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",
-    siteName: "KAIROS Health",
+    siteName: "Everist.ai Health",
     type: "website",
     locale: "en_US",
-    images: [{ url: "/icons/icon-512x512.svg", width: 512, height: 512, alt: "KAIROS Health" }],
+    images: [{ url: "/icons/icon-512x512.svg", width: 512, height: 512, alt: "Everist.ai Health" }],
   },
   twitter: {
     card: "summary",
-    title: "KAIROS | Private Health Management",
+    title: "Everist.ai | Private Health Management",
     description: "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",
     images: ["/icons/icon-512x512.svg"],
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "KAIROS",
+    title: "Everist.ai",
   },
   other: {
     "mobile-web-app-capable": "yes",

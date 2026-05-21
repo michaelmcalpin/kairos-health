@@ -1,6 +1,6 @@
 {
-  "name": "KAIROS Health Management",
-  "short_name": "KAIROS",
+  "name": "Everist.ai Health Management",
+  "short_name": "Everist.ai",
   "description": "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",
   "start_url": "/",
   "display": "standalone",
