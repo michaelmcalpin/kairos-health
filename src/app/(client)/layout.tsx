@@ -5,6 +5,7 @@ import { Sidebar, clientNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { CompanyBrandProvider, useCompanyBrand } from "@/lib/company-ops";
+import { FloatingChat } from "@/components/chat/FloatingChat";
 import { trpc } from "@/lib/trpc";
 
 /** Nav items gated behind feature toggles: label → toggle key */
@@ -53,6 +54,7 @@ function ClientShell({ children }: { children: React.ReactNode }) {
         />
         <main className="p-6">{children}</main>
       </div>
+      <FloatingChat />
     </div>
   );
 }

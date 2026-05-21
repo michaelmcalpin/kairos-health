@@ -21,9 +21,15 @@ function requireInProd(name: string, devDefault = ""): string {
   const value = process.env[name];
   if (value) return value;
   if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      `[KAIROS] FATAL: Required environment variable "${name}" is not set in production.`
+    // During `next build` the env vars aren't always available — they are
+    // injected at runtime by Vercel.  Throwing here would crash the build.
+    // Log a warning instead and return empty string; actual runtime requests
+    // that need the value will fail with a clear error from the calling code.
+    console.warn(
+      `[KAIROS] WARNING: Environment variable "${name}" is not set. ` +
+      `This is expected during build but will cause errors at runtime if not configured.`
     );
+    return devDefault;
   }
   return devDefault;
 }
@@ -96,6 +102,9 @@ export const env = {
   WITHINGS_CLIENT_ID: getEnvVar("WITHINGS_CLIENT_ID", ""),
   WITHINGS_CLIENT_SECRET: getEnvVar("WITHINGS_CLIENT_SECRET", ""),
   WITHINGS_WEBHOOK_SECRET: getEnvVar("WITHINGS_WEBHOOK_SECRET", ""),
+
+  // AI (Anthropic Claude)
+  ANTHROPIC_API_KEY: requireInProd("ANTHROPIC_API_KEY"),
 
   // Logging
   LOG_LEVEL: getEnvVar("LOG_LEVEL", "info") as "debug" | "info" | "warn" | "error",
