@@ -27,8 +27,15 @@ export const clientMeasurementsRouter = router({
         chestInches: m.chestInches,
         hipsInches: m.hipsInches,
         rightBicepInches: m.rightBicepInches,
+        leftBicepInches: m.leftBicepInches,
         rightThighInches: m.rightThighInches,
+        leftThighInches: m.leftThighInches,
+        rightCalfInches: m.rightCalfInches,
+        leftCalfInches: m.leftCalfInches,
+        neckInches: m.neckInches,
+        shouldersInches: m.shouldersInches,
         source: m.source,
+        notes: m.notes,
       }));
     }),
 
@@ -52,8 +59,15 @@ export const clientMeasurementsRouter = router({
         chestInches: z.number().min(20).max(80).optional(),
         hipsInches: z.number().min(20).max(80).optional(),
         rightBicepInches: z.number().min(5).max(30).optional(),
+        leftBicepInches: z.number().min(5).max(30).optional(),
         rightThighInches: z.number().min(10).max(50).optional(),
+        leftThighInches: z.number().min(10).max(50).optional(),
+        rightCalfInches: z.number().min(5).max(30).optional(),
+        leftCalfInches: z.number().min(5).max(30).optional(),
+        neckInches: z.number().min(8).max(30).optional(),
+        shouldersInches: z.number().min(30).max(70).optional(),
         source: z.string().max(50).default("manual"),
+        notes: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -68,8 +82,15 @@ export const clientMeasurementsRouter = router({
           chestInches: input.chestInches ?? null,
           hipsInches: input.hipsInches ?? null,
           rightBicepInches: input.rightBicepInches ?? null,
+          leftBicepInches: input.leftBicepInches ?? null,
           rightThighInches: input.rightThighInches ?? null,
+          leftThighInches: input.leftThighInches ?? null,
+          rightCalfInches: input.rightCalfInches ?? null,
+          leftCalfInches: input.leftCalfInches ?? null,
+          neckInches: input.neckInches ?? null,
+          shouldersInches: input.shouldersInches ?? null,
           source: input.source,
+          notes: input.notes,
         })
         .returning();
 
@@ -87,8 +108,15 @@ export const clientMeasurementsRouter = router({
         chestInches: z.number().min(20).max(80).optional(),
         hipsInches: z.number().min(20).max(80).optional(),
         rightBicepInches: z.number().min(5).max(30).optional(),
+        leftBicepInches: z.number().min(5).max(30).optional(),
         rightThighInches: z.number().min(10).max(50).optional(),
+        leftThighInches: z.number().min(10).max(50).optional(),
+        rightCalfInches: z.number().min(5).max(30).optional(),
+        leftCalfInches: z.number().min(5).max(30).optional(),
+        neckInches: z.number().min(8).max(30).optional(),
+        shouldersInches: z.number().min(30).max(70).optional(),
         source: z.string().max(50).default("manual"),
+        notes: z.string().optional(),
         systolicBP: z.number().min(60).max(250).optional(),
         diastolicBP: z.number().min(30).max(150).optional(),
         restingHR: z.number().min(30).max(220).optional(),
@@ -110,8 +138,15 @@ export const clientMeasurementsRouter = router({
           chestInches: input.chestInches ?? null,
           hipsInches: input.hipsInches ?? null,
           rightBicepInches: input.rightBicepInches ?? null,
+          leftBicepInches: input.leftBicepInches ?? null,
           rightThighInches: input.rightThighInches ?? null,
+          leftThighInches: input.leftThighInches ?? null,
+          rightCalfInches: input.rightCalfInches ?? null,
+          leftCalfInches: input.leftCalfInches ?? null,
+          neckInches: input.neckInches ?? null,
+          shouldersInches: input.shouldersInches ?? null,
           source: input.source,
+          notes: input.notes,
         })
         .returning();
 

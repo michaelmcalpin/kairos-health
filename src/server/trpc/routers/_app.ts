@@ -22,6 +22,7 @@ import { clientGoalsRouter } from "./client/goals";
 import { clientMessagingRouter } from "./client/messaging";
 import { clientSchedulingRouter } from "./client/scheduling";
 import { clientBloodSugarRouter } from "./client/bloodsugar";
+import { clientBloodPressureRouter } from "./client/bloodpressure";
 import { clientCycleDataRouter } from "./client/cycledata";
 import { clientSymptomsRouter } from "./client/symptoms";
 import { clientMealsRouter } from "./client/meals";
@@ -78,6 +79,7 @@ export const appRouter = router({
     messaging: clientMessagingRouter,
     scheduling: clientSchedulingRouter,
     bloodSugar: clientBloodSugarRouter,
+    bloodPressure: clientBloodPressureRouter,
     cycleData: clientCycleDataRouter,
     symptoms: clientSymptomsRouter,
     meals: clientMealsRouter,

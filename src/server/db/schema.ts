@@ -169,9 +169,17 @@ export const bodyMeasurements = pgTable("body_measurements", {
   chestInches: real("chest_inches"),
   hipsInches: real("hips_inches"),
   rightBicepInches: real("right_bicep_inches"),
+  leftBicepInches: real("left_bicep_inches"),
   rightThighInches: real("right_thigh_inches"),
+  leftThighInches: real("left_thigh_inches"),
+  rightCalfInches: real("right_calf_inches"),
+  leftCalfInches: real("left_calf_inches"),
+  neckInches: real("neck_inches"),
+  shouldersInches: real("shoulders_inches"),
   source: varchar("source", { length: 50 }),
-});
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("body_meas_client_date_idx").on(t.clientId, t.date)]);
 
 export const bloodPressureReadings = pgTable("blood_pressure_readings", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -179,6 +187,10 @@ export const bloodPressureReadings = pgTable("blood_pressure_readings", {
   date: date("date").notNull(),
   systolic: integer("systolic").notNull(),
   diastolic: integer("diastolic").notNull(),
+  pulse: integer("pulse"),
+  position: varchar("position", { length: 20 }),    // sitting | standing | lying
+  arm: varchar("arm", { length: 10 }),               // left | right
+  notes: text("notes"),
   source: varchar("source", { length: 50 }).default("manual"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [index("bp_client_date_idx").on(t.clientId, t.date)]);

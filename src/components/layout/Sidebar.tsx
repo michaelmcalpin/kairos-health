@@ -280,6 +280,7 @@ export const clientNavItems: NavItem[] = [
   { label: "Sleep & Recovery", href: "/sleep", icon: <Moon size={18} />, section: "Biometrics" },
   { label: "Movement", href: "/workouts", icon: <Footprints size={18} />, section: "Biometrics" },
   { label: "Glucose", href: "/glucose", icon: <Droplets size={18} />, section: "Biometrics" },
+  { label: "Blood Pressure", href: "/blood-pressure", icon: <Activity size={18} />, section: "Biometrics" },
   { label: "Cycle Tracker", href: "/cycle-tracker", icon: <Heart size={18} />, section: "Biometrics" },
 
   // Clinical Reports
