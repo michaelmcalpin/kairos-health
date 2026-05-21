@@ -7,7 +7,7 @@ export default function CompanyLoginPage() {
       <div className="text-center mb-8">
         <div className="mb-8">
           <h1 className="font-heading font-bold text-3xl text-kairos-gold tracking-wide mb-2">
-            Everist.ai
+            EVERIST.ai
           </h1>
           <p className="text-sm font-heading text-emerald-400 uppercase tracking-widest">
             Company Portal

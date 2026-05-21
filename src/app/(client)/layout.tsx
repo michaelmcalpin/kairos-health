@@ -48,7 +48,7 @@ function ClientShell({ children }: { children: React.ReactNode }) {
       />
       <div className="flex-1 ml-64">
         <TopBar
-          title={isWhiteLabel ? brand.name : "Everist.ai"}
+          title={isWhiteLabel ? brand.name : "EVERIST.ai"}
           subtitle={isWhiteLabel ? "Health Platform" : "Private Health Management"}
           brandColor={isWhiteLabel ? brand.brandColor : undefined}
         />

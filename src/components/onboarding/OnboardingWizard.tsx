@@ -91,7 +91,7 @@ export function OnboardingWizard({
       <div className="w-full px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="font-heading font-bold text-lg text-kairos-gold">
-            Everist.ai
+            EVERIST.ai
           </span>
         </div>
         {state.currentStep !== "welcome" && state.currentStep !== "complete" && (
@@ -161,7 +161,7 @@ export function OnboardingWizard({
       {/* Footer */}
       <div className="w-full px-6 py-4 text-center">
         <p className="text-gray-700 text-xs">
-          Everist.ai Health Management Platform
+          EVERIST.ai Health Management Platform
         </p>
       </div>
     </div>

@@ -12,7 +12,7 @@ export default function AdminLayout({
     <div className="flex min-h-screen">
       <Sidebar items={adminNavItems} userName="Admin" />
       <div className="flex-1 ml-64">
-        <TopBar title="Everist.ai" subtitle="Administration" />
+        <TopBar title="EVERIST.ai" subtitle="Administration" />
         <main className="p-6">{children}</main>
       </div>
     </div>

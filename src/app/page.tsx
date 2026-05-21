@@ -23,7 +23,7 @@ export default async function HomePage() {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 border-b border-kairos-border bg-kairos-royal-dark/95 backdrop-blur-sm">
         <div>
-          <h1 className="font-heading font-bold text-xl s>text-kairos-gold tracking-wide">Everist.ai</h1>
+          <h1 className="font-heading font-bold text-xl s>text-kairos-gold tracking-wide">EVERIST.ai</h1>
           <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-widest">
             Private Health Management
           </p>
@@ -262,7 +262,7 @@ export default async function HomePage() {
       <footer className="border-t border-kairos-border px-8 py-8">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div>
-            <span className="font-heading font-bold s>text-kairos-gold tracking-wide">Everist.ai</span>
+            <span className="font-heading font-bold s>text-kairos-gold tracking-wide">EVERIST.ai</span>
             <span className="text-xs font-body text-kairos-silver-dark ml-2">Private Health Management</span>
           </div>
           <div className="flex gap-6 text-xs font-body text-kairos-silver-dark">
@@ -271,7 +271,7 @@ export default async function HomePage() {
             <span>Contact</span>
           </div>
           <p className="text-xs font-body text-kairos-silver-dark">
-            &copy; {new Date().getFullYear()} Everist.ai. All rights reserved.
+            &copy; {new Date().getFullYear()} EVERIST.ai. All rights reserved.
           </p>
         </div>
       </footer>

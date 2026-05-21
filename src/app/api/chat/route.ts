@@ -11,21 +11,41 @@ import {
   protocolItems,
   supplementProtocols,
   bloodPressureReadings,
+  heartRateReadings,
+  hrvReadings,
+  dailyCheckins,
+  labResults,
+  biomarkerValues,
+  biomarkerDefinitions,
+  geneticProfiles,
+  geneticMarkers,
+  geneticPathwayScores,
+  clinicalDocuments,
+  symptomAssessments,
+  fastingProtocols,
+  fastingLogs,
+  mealLogs,
+  healthGoals,
+  adherenceLogs,
   conversations,
   messages,
 } from "@/server/db/schema";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc, and, gte, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Comprehensive health context builder
 // ---------------------------------------------------------------------------
 
 async function getClientContext(dbUserId: string) {
+  const now = new Date();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const thirtyDaysStr = thirtyDaysAgo.toISOString().split("T")[0];
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const sevenDaysStr = sevenDaysAgo.toISOString().split("T")[0];
 
-  // Fetch all context in parallel
+  // ── Batch 1: Core profile + biometrics ──────────────────
   const [
     user,
     profile,
@@ -34,6 +54,10 @@ async function getClientContext(dbUserId: string) {
     recentGlucose,
     recentBP,
     activeProtocol,
+    recentHR,
+    latestHRV,
+    recentCheckins,
+    latestSymptoms,
   ] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, dbUserId) }),
     db.query.clientProfiles.findFirst({ where: eq(clientProfiles.userId, dbUserId) }),
@@ -42,14 +66,14 @@ async function getClientContext(dbUserId: string) {
       orderBy: desc(bodyMeasurements.date),
     }),
     db.query.sleepSessions.findMany({
-      where: and(eq(sleepSessions.clientId, dbUserId), gte(sleepSessions.date, thirtyDaysStr)),
+      where: and(eq(sleepSessions.clientId, dbUserId), gte(sleepSessions.date, sevenDaysStr)),
       orderBy: desc(sleepSessions.date),
       limit: 7,
     }),
     db.query.glucoseReadings.findMany({
       where: and(eq(glucoseReadings.clientId, dbUserId), gte(glucoseReadings.timestamp, thirtyDaysAgo)),
       orderBy: desc(glucoseReadings.timestamp),
-      limit: 20,
+      limit: 30,
     }),
     db.query.bloodPressureReadings.findMany({
       where: and(eq(bloodPressureReadings.clientId, dbUserId), gte(bloodPressureReadings.date, thirtyDaysStr)),
@@ -59,116 +83,467 @@ async function getClientContext(dbUserId: string) {
     db.query.supplementProtocols.findFirst({
       where: and(eq(supplementProtocols.clientId, dbUserId), eq(supplementProtocols.status, "active")),
     }),
+    db.query.heartRateReadings.findMany({
+      where: and(eq(heartRateReadings.clientId, dbUserId), gte(heartRateReadings.timestamp, sevenDaysAgo)),
+      orderBy: desc(heartRateReadings.timestamp),
+      limit: 10,
+    }),
+    db.query.hrvReadings.findFirst({
+      where: eq(hrvReadings.clientId, dbUserId),
+      orderBy: desc(hrvReadings.timestamp),
+    }),
+    db.query.dailyCheckins.findMany({
+      where: and(eq(dailyCheckins.clientId, dbUserId), gte(dailyCheckins.date, sevenDaysStr)),
+      orderBy: desc(dailyCheckins.date),
+      limit: 7,
+    }),
+    db.query.symptomAssessments.findFirst({
+      where: eq(symptomAssessments.clientId, dbUserId),
+      orderBy: desc(symptomAssessments.weekStart),
+    }),
   ]);
 
-  // Fetch protocol items if active protocol exists
-  let activeItems: typeof protocolItems.$inferSelect[] = [];
+  // ── Batch 2: Clinical data (genetics, labs, docs, protocols) ──
+  const [
+    geneticProfile,
+    clinicalDocs,
+    fastingProto,
+    recentFastingLogs,
+    recentMeals,
+    activeGoals,
+  ] = await Promise.all([
+    db.query.geneticProfiles.findFirst({
+      where: and(eq(geneticProfiles.clientId, dbUserId), eq(geneticProfiles.status, "complete")),
+      orderBy: desc(geneticProfiles.createdAt),
+    }),
+    db.query.clinicalDocuments.findMany({
+      where: eq(clinicalDocuments.clientId, dbUserId),
+      orderBy: desc(clinicalDocuments.reportDate),
+      limit: 10,
+    }),
+    db.query.fastingProtocols.findFirst({
+      where: and(eq(fastingProtocols.clientId, dbUserId), eq(fastingProtocols.status, "active")),
+    }),
+    db.query.fastingLogs.findMany({
+      where: and(eq(fastingLogs.clientId, dbUserId), gte(fastingLogs.date, sevenDaysStr)),
+      orderBy: desc(fastingLogs.date),
+      limit: 7,
+    }),
+    db.query.mealLogs.findMany({
+      where: and(eq(mealLogs.clientId, dbUserId), gte(mealLogs.date, sevenDaysStr)),
+      orderBy: desc(mealLogs.date),
+      limit: 14,
+    }),
+    db.query.healthGoals.findMany({
+      where: and(eq(healthGoals.clientId, dbUserId), eq(healthGoals.status, "active")),
+      limit: 10,
+    }),
+  ]);
+
+  // ── Batch 3: Dependent queries ──────────────────────────
+  const [activeItems, geneticMarkersData, pathwayScores, latestBiomarkers] = await Promise.all([
+    activeProtocol
+      ? db.query.protocolItems.findMany({ where: eq(protocolItems.protocolId, activeProtocol.id) })
+      : Promise.resolve([]),
+    geneticProfile
+      ? db.query.geneticMarkers.findMany({
+          where: eq(geneticMarkers.profileId, geneticProfile.id),
+          limit: 100,
+        })
+      : Promise.resolve([]),
+    geneticProfile
+      ? db.query.geneticPathwayScores.findMany({
+          where: eq(geneticPathwayScores.profileId, geneticProfile.id),
+        })
+      : Promise.resolve([]),
+    // Latest biomarker values (lab results) — join through labResults for clientId
+    db
+      .select({
+        code: biomarkerValues.biomarkerCode,
+        value: biomarkerValues.value,
+        unit: biomarkerValues.unit,
+        refLow: biomarkerValues.refLow,
+        refHigh: biomarkerValues.refHigh,
+        status: biomarkerValues.status,
+        name: biomarkerDefinitions.name,
+        category: biomarkerDefinitions.category,
+      })
+      .from(biomarkerValues)
+      .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
+      .leftJoin(biomarkerDefinitions, eq(biomarkerValues.biomarkerCode, biomarkerDefinitions.code))
+      .where(eq(labResults.clientId, dbUserId))
+      .orderBy(desc(labResults.receivedAt))
+      .limit(80),
+  ]);
+
+  // ── Adherence stats ─────────────────────────────────────
+  let adherenceStats = { total: 0, taken: 0 };
   if (activeProtocol) {
-    activeItems = await db.query.protocolItems.findMany({
-      where: eq(protocolItems.protocolId, activeProtocol.id),
+    const recentAdherence = await db.query.adherenceLogs.findMany({
+      where: and(eq(adherenceLogs.clientId, dbUserId), gte(adherenceLogs.date, sevenDaysStr)),
     });
+    adherenceStats.total = recentAdherence.length;
+    adherenceStats.taken = recentAdherence.filter((a) => !a.skipped).length;
   }
 
-  const parts: string[] = [];
+  // ─────────────────────────────────────────────────────────
+  // Build the context string
+  // ─────────────────────────────────────────────────────────
+  const sections: string[] = [];
 
-  // User basics
-  if (user) {
-    parts.push(`**Client:** ${user.firstName ?? ""} ${user.lastName ?? ""}`.trim());
-  }
-  if (profile) {
-    const age = profile.dateOfBirth
-      ? Math.floor((Date.now() - new Date(profile.dateOfBirth).getTime()) / (365.25 * 86400000))
-      : null;
-    parts.push(
-      [
-        age ? `Age: ${age}` : null,
-        profile.gender ? `Gender: ${profile.gender}` : null,
-        profile.heightInches ? `Height: ${Math.floor(profile.heightInches / 12)}'${Math.round(profile.heightInches % 12)}"` : null,
-        profile.tier ? `Tier: ${profile.tier}` : null,
-        profile.goals?.length ? `Goals: ${profile.goals.join(", ")}` : null,
-      ]
-        .filter(Boolean)
-        .join(" | ")
-    );
+  // ── 1. Client Profile ───────────────────────────────────
+  if (user || profile) {
+    const profileParts: string[] = [];
+    if (user) profileParts.push(`Name: ${user.firstName ?? ""} ${user.lastName ?? ""}`.trim());
+    if (profile) {
+      const age = profile.dateOfBirth
+        ? Math.floor((Date.now() - new Date(profile.dateOfBirth).getTime()) / (365.25 * 86400000))
+        : null;
+      if (age) profileParts.push(`Age: ${age}`);
+      if (profile.gender) profileParts.push(`Gender: ${profile.gender}`);
+      if (profile.heightInches) {
+        profileParts.push(`Height: ${Math.floor(profile.heightInches / 12)}'${Math.round(profile.heightInches % 12)}"`);
+      }
+      if (profile.tier) profileParts.push(`Tier: ${profile.tier}`);
+      if (profile.goals?.length) profileParts.push(`Goals: ${profile.goals.join(", ")}`);
+    }
+    sections.push(`## CLIENT PROFILE\n${profileParts.join(" | ")}`);
   }
 
-  // Body measurements
+  // ── 2. Body Measurements ────────────────────────────────
   if (latestMeasurement) {
     const m = latestMeasurement;
-    parts.push(
-      `**Latest body measurements** (${m.date}): ` +
-        [
-          m.weightLbs ? `Weight: ${m.weightLbs} lbs` : null,
-          m.bodyFatPct ? `Body fat: ${m.bodyFatPct}%` : null,
-          m.waistInches ? `Waist: ${m.waistInches}"` : null,
-        ]
-          .filter(Boolean)
-          .join(", ")
-    );
+    const mParts = [
+      m.weightLbs ? `Weight: ${m.weightLbs} lbs` : null,
+      m.bodyFatPct ? `Body fat: ${m.bodyFatPct}%` : null,
+      m.waistInches ? `Waist: ${m.waistInches}"` : null,
+      m.chestInches ? `Chest: ${m.chestInches}"` : null,
+      m.hipsInches ? `Hips: ${m.hipsInches}"` : null,
+      m.neckInches ? `Neck: ${m.neckInches}"` : null,
+      m.shouldersInches ? `Shoulders: ${m.shouldersInches}"` : null,
+    ].filter(Boolean);
+    sections.push(`## BODY MEASUREMENTS (${m.date})\n${mParts.join(" | ")}`);
   }
 
-  // Sleep
+  // ── 3. Sleep Data ───────────────────────────────────────
   if (recentSleep.length > 0) {
-    const avgDuration =
-      recentSleep.reduce((sum: number, s) => sum + (s.totalMinutes ?? 0), 0) / recentSleep.length;
-    const scoredSleep = recentSleep.filter((s) => s.score != null);
-    const avgScore =
-      scoredSleep.length > 0
-        ? scoredSleep.reduce((sum: number, s) => sum + (s.score ?? 0), 0) / scoredSleep.length
-        : 0;
-    parts.push(
-      `**Sleep (last 7 nights):** Avg duration: ${(avgDuration / 60).toFixed(1)} hrs` +
-        (avgScore > 0 ? ` | Avg score: ${Math.round(avgScore)}/100` : "")
-    );
+    const avgDur = recentSleep.reduce((s: number, r) => s + (r.totalMinutes ?? 0), 0) / recentSleep.length;
+    const scored = recentSleep.filter((s) => s.score != null);
+    const avgScore = scored.length > 0 ? scored.reduce((s: number, r) => s + (r.score ?? 0), 0) / scored.length : null;
+    const details = recentSleep.slice(0, 5).map((s) => {
+      const parts = [`${s.date}: ${s.totalMinutes ? (s.totalMinutes / 60).toFixed(1) : "?"}hrs`];
+      if (s.score) parts.push(`score=${s.score}`);
+      if (s.deepMinutes) parts.push(`deep=${s.deepMinutes}min`);
+      if (s.remMinutes) parts.push(`REM=${s.remMinutes}min`);
+      if (s.awakeMinutes) parts.push(`awake=${s.awakeMinutes}min`);
+      return parts.join(", ");
+    });
+    let sleepSection = `## SLEEP (Last 7 Days)\nAvg duration: ${(avgDur / 60).toFixed(1)} hrs`;
+    if (avgScore) sleepSection += ` | Avg score: ${Math.round(avgScore)}/100`;
+    sleepSection += `\nRecent nights:\n${details.join("\n")}`;
+    sections.push(sleepSection);
   }
 
-  // Glucose
+  // ── 4. CGM / Glucose ────────────────────────────────────
   if (recentGlucose.length > 0) {
-    const values = recentGlucose.map((g) => g.valueMgdl);
-    const avg = values.reduce((a: number, b: number) => a + b, 0) / values.length;
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    parts.push(
-      `**Glucose (recent):** Avg: ${Math.round(avg)} mg/dL | Range: ${Math.round(min)}-${Math.round(max)} mg/dL`
+    const vals = recentGlucose.map((g) => g.valueMgdl);
+    const avg = vals.reduce((a: number, b: number) => a + b, 0) / vals.length;
+    const inRange = vals.filter((v: number) => v >= 70 && v <= 140).length;
+    const spikes = vals.filter((v: number) => v > 140).length;
+    sections.push(
+      `## GLUCOSE / CGM (Last 30 Days, ${recentGlucose.length} readings)\n` +
+      `Avg: ${Math.round(avg)} mg/dL | Range: ${Math.round(Math.min(...vals))}-${Math.round(Math.max(...vals))} mg/dL\n` +
+      `Time in range (70-140): ${Math.round((inRange / vals.length) * 100)}% | Spike readings (>140): ${spikes}`
     );
   }
 
-  // Blood Pressure
+  // ── 5. Blood Pressure ───────────────────────────────────
   if (recentBP.length > 0) {
     const avgSys = recentBP.reduce((s: number, r) => s + r.systolic, 0) / recentBP.length;
     const avgDia = recentBP.reduce((s: number, r) => s + r.diastolic, 0) / recentBP.length;
-    parts.push(
-      `**Blood Pressure (last 30 days):** Avg: ${Math.round(avgSys)}/${Math.round(avgDia)} mmHg (${recentBP.length} readings)`
+    const latest = recentBP[0];
+    let bpCat = "Normal";
+    if (avgSys > 180 || avgDia > 120) bpCat = "CRISIS";
+    else if (avgSys >= 140 || avgDia >= 90) bpCat = "Stage 2 Hypertension";
+    else if (avgSys >= 130 || avgDia >= 80) bpCat = "Stage 1 Hypertension";
+    else if (avgSys >= 120) bpCat = "Elevated";
+    sections.push(
+      `## BLOOD PRESSURE (Last 30 Days, ${recentBP.length} readings)\n` +
+      `Avg: ${Math.round(avgSys)}/${Math.round(avgDia)} mmHg | Category: ${bpCat}\n` +
+      `Latest (${latest.date}): ${latest.systolic}/${latest.diastolic} mmHg${latest.pulse ? ` | Pulse: ${latest.pulse} bpm` : ""}`
     );
   }
 
-  // Active protocol (supplements, peptides, meds)
+  // ── 6. Heart Rate & HRV ─────────────────────────────────
+  if (recentHR.length > 0 || latestHRV) {
+    const hrParts: string[] = [];
+    if (recentHR.length > 0) {
+      const avgHR = recentHR.reduce((s: number, r) => s + r.bpm, 0) / recentHR.length;
+      hrParts.push(`Avg HR (7d): ${Math.round(avgHR)} bpm | Range: ${Math.min(...recentHR.map((r) => r.bpm))}-${Math.max(...recentHR.map((r) => r.bpm))} bpm`);
+    }
+    if (latestHRV) {
+      hrParts.push(`Latest HRV (RMSSD): ${latestHRV.rmssd} ms`);
+    }
+    sections.push(`## HEART RATE & HRV\n${hrParts.join("\n")}`);
+  }
+
+  // ── 7. Lab Results / Biomarkers ─────────────────────────
+  if (latestBiomarkers.length > 0) {
+    // Deduplicate by biomarker code (keep latest)
+    const seen = new Set<string>();
+    const unique = latestBiomarkers.filter((b) => {
+      if (seen.has(b.code)) return false;
+      seen.add(b.code);
+      return true;
+    });
+
+    // Group by category
+    const byCategory: Record<string, typeof unique> = {};
+    for (const b of unique) {
+      const cat = b.category ?? "Other";
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(b);
+    }
+
+    const labLines: string[] = [];
+    for (const cat of Object.keys(byCategory)) {
+      const markers = byCategory[cat];
+      labLines.push(`**${cat}:**`);
+      for (const m of markers.slice(0, 10)) {
+        const range = m.refLow != null && m.refHigh != null ? ` (ref: ${m.refLow}-${m.refHigh})` : "";
+        const flag = m.status && m.status !== "normal" ? ` ⚠️ ${m.status.toUpperCase()}` : "";
+        labLines.push(`  ${m.name ?? m.code}: ${m.value} ${m.unit ?? ""}${range}${flag}`);
+      }
+    }
+    sections.push(`## LAB RESULTS / BIOMARKERS (Latest)\n${labLines.join("\n")}`);
+  }
+
+  // ── 8. Genetic Profile ──────────────────────────────────
+  if (geneticMarkersData.length > 0 || pathwayScores.length > 0) {
+    const genLines: string[] = [];
+
+    if (pathwayScores.length > 0) {
+      genLines.push("**Pathway Risk Summary:**");
+      for (const p of pathwayScores.sort((a, b) => (b.homozygousCount ?? 0) - (a.homozygousCount ?? 0)).slice(0, 15)) {
+        genLines.push(
+          `  ${p.pathway}: ${p.genesAffected ?? 0}/${p.genesInPathway ?? 0} genes affected (${p.homozygousCount ?? 0} homozygous, ${p.heterozygousCount ?? 0} heterozygous) — Priority: ${p.priorityLevel ?? "unknown"}`
+        );
+      }
+    }
+
+    if (geneticMarkersData.length > 0) {
+      // Show high-priority markers
+      const highPriority = geneticMarkersData
+        .filter((m) => m.clinicalPriority === "high" || m.clinicalPriority === "critical")
+        .slice(0, 20);
+      const medPriority = geneticMarkersData
+        .filter((m) => m.clinicalPriority === "medium")
+        .slice(0, 10);
+
+      if (highPriority.length > 0) {
+        genLines.push("\n**High-Priority Genetic Mutations:**");
+        for (const m of highPriority) {
+          genLines.push(`  ${m.gene} (${m.rsId ?? ""}): ${m.mutation ?? "variant"} — ${m.pathway ?? ""}`);
+          if (m.symptoms) genLines.push(`    Symptoms: ${m.symptoms}`);
+          if (m.supplementProtocol) genLines.push(`    Supplement strategy: ${m.supplementProtocol}`);
+          if (m.peptideSupport) genLines.push(`    Peptide support: ${m.peptideSupport}`);
+          if (m.dietStrategy) genLines.push(`    Diet strategy: ${m.dietStrategy}`);
+          if (m.lifestyleStrategy) genLines.push(`    Lifestyle strategy: ${m.lifestyleStrategy}`);
+        }
+      }
+
+      if (medPriority.length > 0) {
+        genLines.push("\n**Medium-Priority Genetic Mutations:**");
+        for (const m of medPriority) {
+          genLines.push(`  ${m.gene} (${m.rsId ?? ""}): ${m.mutation ?? "variant"} — ${m.pathway ?? ""}`);
+          if (m.dietStrategy) genLines.push(`    Diet: ${m.dietStrategy}`);
+          if (m.supplementProtocol) genLines.push(`    Supplements: ${m.supplementProtocol}`);
+        }
+      }
+    }
+
+    sections.push(`## GENETIC PROFILE\n${genLines.join("\n")}`);
+  }
+
+  // ── 9. Clinical Documents (DEXA, Gut Biome, Medical Records) ──
+  const dexaDocs = clinicalDocs.filter((d) => d.docType === "dexa_scan");
+  const gutDocs = clinicalDocs.filter((d) => d.docType === "gut_biome");
+  const medDocs = clinicalDocs.filter((d) => d.docType === "medical_record");
+
+  if (dexaDocs.length > 0) {
+    const latest = dexaDocs[0];
+    const parsed = latest.parsedData as Record<string, unknown> | null;
+    let dexaInfo = `**Latest DEXA Scan** (${latest.reportDate ?? "unknown date"})`;
+    if (parsed) {
+      dexaInfo += `\n${JSON.stringify(parsed, null, 0).slice(0, 1500)}`;
+    }
+    sections.push(`## DEXA SCAN\n${dexaInfo}`);
+  }
+
+  if (gutDocs.length > 0) {
+    const latest = gutDocs[0];
+    const parsed = latest.parsedData as Record<string, unknown> | null;
+    let gutInfo = `**Latest Gut Biome Report** (${latest.reportDate ?? "unknown date"})`;
+    if (parsed) {
+      gutInfo += `\n${JSON.stringify(parsed, null, 0).slice(0, 1500)}`;
+    }
+    sections.push(`## GUT BIOME\n${gutInfo}`);
+  }
+
+  if (medDocs.length > 0) {
+    const medLines = medDocs.slice(0, 5).map((d) => {
+      const parsed = d.parsedData as Record<string, unknown> | null;
+      let line = `${d.title ?? "Medical Record"} (${d.reportDate ?? "unknown"})`;
+      if (d.providerName) line += ` — ${d.providerName}`;
+      if (parsed) {
+        line += `\n  ${JSON.stringify(parsed, null, 0).slice(0, 800)}`;
+      }
+      return line;
+    });
+    sections.push(`## MEDICAL RECORDS\n${medLines.join("\n")}`);
+  }
+
+  // ── 10. Active Protocol (Supplements, Peptides, Medications) ──
   if (activeItems.length > 0) {
-    const items = activeItems.map(
-      (i: typeof protocolItems.$inferSelect) =>
-        `${i.name} ${i.dosage ?? ""}${i.frequency ? " (" + i.frequency + ")" : ""}`
-    );
-    parts.push(`**Active Protocol:** ${items.join("; ")}`);
+    const supplements = activeItems.filter((i) => i.category === "supplement");
+    const peptides = activeItems.filter((i) => i.category === "peptide" || i.category === "injection");
+    const medications = activeItems.filter((i) => i.category === "medication");
+
+    const protocolLines: string[] = [];
+
+    if (supplements.length > 0) {
+      protocolLines.push("**Supplements:**");
+      for (const s of supplements) {
+        protocolLines.push(
+          `  ${s.name}: ${s.dosage ?? ""}${s.unit ?? ""} ${s.form ?? ""} — ${s.frequency ?? "daily"}${s.timeOfDay ? ` (${s.timeOfDay})` : ""}${s.rationale ? ` | Rationale: ${s.rationale}` : ""}`
+        );
+      }
+    }
+
+    if (peptides.length > 0) {
+      protocolLines.push("**Peptides / Injections:**");
+      for (const p of peptides) {
+        protocolLines.push(
+          `  ${p.name}: ${p.dosage ?? ""}${p.unit ?? ""} ${p.route ?? ""} — ${p.frequency ?? "as directed"}${p.injectionSites ? ` | Sites: ${JSON.stringify(p.injectionSites)}` : ""}${p.rationale ? ` | Rationale: ${p.rationale}` : ""}`
+        );
+      }
+    }
+
+    if (medications.length > 0) {
+      protocolLines.push("**Medications:**");
+      for (const m of medications) {
+        protocolLines.push(
+          `  ${m.name}: ${m.dosage ?? ""}${m.unit ?? ""} — ${m.frequency ?? "as directed"}${m.rationale ? ` | Rationale: ${m.rationale}` : ""}`
+        );
+      }
+    }
+
+    if (adherenceStats.total > 0) {
+      const rate = Math.round((adherenceStats.taken / adherenceStats.total) * 100);
+      protocolLines.push(`\nAdherence (7d): ${adherenceStats.taken}/${adherenceStats.total} doses (${rate}%)`);
+    }
+
+    sections.push(`## ACTIVE PROTOCOL\n${protocolLines.join("\n")}`);
   }
 
-  return parts.length > 0 ? parts.join("\n") : "No health data available yet.";
+  // ── 11. Fasting Protocol ────────────────────────────────
+  if (fastingProto) {
+    let fastingSection = `## FASTING\nProtocol: ${fastingProto.type} | Feeding window: ${fastingProto.feedingStartHour ?? "?"}:00 – ${fastingProto.feedingEndHour ?? "?"}:00`;
+    if (recentFastingLogs.length > 0) {
+      const completedCount = recentFastingLogs.filter((l) => l.completed).length;
+      fastingSection += `\nLast 7 days: ${completedCount}/${recentFastingLogs.length} fasts completed`;
+    }
+    sections.push(fastingSection);
+  }
+
+  // ── 12. Nutrition / Meals ───────────────────────────────
+  if (recentMeals.length > 0) {
+    const avgCals = recentMeals.reduce((s: number, m) => s + (m.totalCalories ?? 0), 0) / recentMeals.length;
+    const avgProtein = recentMeals.reduce((s: number, m) => s + (m.totalProtein ?? 0), 0) / recentMeals.length;
+    const avgCarbs = recentMeals.reduce((s: number, m) => s + (m.totalCarbs ?? 0), 0) / recentMeals.length;
+    const avgFat = recentMeals.reduce((s: number, m) => s + (m.totalFat ?? 0), 0) / recentMeals.length;
+    sections.push(
+      `## NUTRITION (Last 7 Days, ${recentMeals.length} meals logged)\n` +
+      `Avg per meal: ${Math.round(avgCals)} cal | ${Math.round(avgProtein)}g protein | ${Math.round(avgCarbs)}g carbs | ${Math.round(avgFat)}g fat`
+    );
+  }
+
+  // ── 13. Daily Check-ins ─────────────────────────────────
+  if (recentCheckins.length > 0) {
+    const latest = recentCheckins[0];
+    const checkinParts: string[] = [`Date: ${latest.date}`];
+    if (latest.energy) checkinParts.push(`Energy: ${latest.energy}/10`);
+    if (latest.mood) checkinParts.push(`Mood: ${latest.mood}/10`);
+    if (latest.stress) checkinParts.push(`Stress: ${latest.stress}/10`);
+    if (latest.hunger) checkinParts.push(`Hunger: ${latest.hunger}/10`);
+    if (latest.sleepQuality) checkinParts.push(`Sleep quality: ${latest.sleepQuality}/10`);
+    if (latest.readinessScore) checkinParts.push(`Readiness: ${latest.readinessScore}/10`);
+    if (latest.waterOz) checkinParts.push(`Water: ${latest.waterOz} oz`);
+    if (latest.notes) checkinParts.push(`Notes: ${latest.notes}`);
+    if (latest.deviations) checkinParts.push(`Deviations: ${latest.deviations}`);
+    sections.push(`## LATEST CHECK-IN\n${checkinParts.join(" | ")}`);
+  }
+
+  // ── 14. Symptom Assessment ──────────────────────────────
+  if (latestSymptoms) {
+    const s = latestSymptoms;
+    sections.push(
+      `## SYMPTOM ASSESSMENT (Week of ${s.weekStart})\nTotal score: ${s.totalScore ?? "?"}/96\n` +
+      `Categories: Digestive=${JSON.stringify(s.digestive)}, Joint=${JSON.stringify(s.joint)}, Mood=${JSON.stringify(s.mood)}, ` +
+      `Adrenal=${JSON.stringify(s.adrenal)}, Skin=${JSON.stringify(s.skin)}, Energy/Sleep=${JSON.stringify(s.energySleep)}`
+    );
+  }
+
+  // ── 15. Health Goals ────────────────────────────────────
+  if (activeGoals.length > 0) {
+    const goalLines = activeGoals.map(
+      (g) => `  ${g.category}: ${g.title}${g.targetValue ? ` — Target: ${g.targetValue} ${g.targetUnit ?? ""}` : ""}${g.currentValue ? ` (current: ${g.currentValue})` : ""}`
+    );
+    sections.push(`## ACTIVE HEALTH GOALS\n${goalLines.join("\n")}`);
+  }
+
+  return sections.length > 0 ? sections.join("\n\n") : "No health data available yet.";
 }
 
-const SYSTEM_PROMPT = `You are Everist AI, a knowledgeable health and wellness assistant integrated into the Everist.ai Private Health platform. You help clients understand their health data, answer questions about nutrition, exercise, genetics, supplements, peptides, sleep, and longevity.
+// ---------------------------------------------------------------------------
+// System prompt — comprehensive health analysis
+// ---------------------------------------------------------------------------
 
-GUIDELINES:
-- Be warm, supportive, and encouraging while remaining scientifically accurate.
-- Reference the client's actual health data when relevant (measurements, labs, sleep, glucose, blood pressure, protocols).
-- Explain complex health concepts in accessible language.
-- When discussing supplements, peptides, or medications, always note that changes should be discussed with their healthcare provider or Everist.ai trainer.
-- Provide evidence-based recommendations grounded in current research.
-- If you don't know something or the data isn't available, say so honestly.
-- Keep responses concise but thorough — aim for clarity over length.
-- Use markdown formatting for readability (bold, bullet points, etc.) when helpful.
-- Never diagnose medical conditions. You can discuss trends, ranges, and general health information.
-- For urgent health concerns, always recommend contacting a healthcare professional immediately.
+const SYSTEM_PROMPT = `You are EVERIST AI, an advanced health intelligence assistant integrated into the EVERIST.ai Private Health platform. You are a comprehensive health analyst with access to the client's complete health profile including genetics, lab work, medical records, continuous glucose monitoring, blood pressure, sleep architecture, body composition, supplement/peptide protocols, nutrition, and symptom assessments.
 
-You have access to the client's recent health data provided below. Use it to personalize your responses.`;
+## YOUR ROLE
+You serve as a knowledgeable health advisor who synthesizes ALL available data to provide personalized, evidence-based recommendations. Think of yourself as a functional medicine practitioner who connects dots across multiple data domains.
+
+## ANALYSIS CAPABILITIES
+When answering questions or providing recommendations, you should:
+1. **Cross-reference data sources** — Connect genetic predispositions with lab results, supplement protocols, and symptoms. For example, if someone has MTHFR mutations, check if their B12/folate labs are optimal and if their supplement protocol addresses it.
+2. **Identify patterns** — Look for correlations between sleep quality and glucose spikes, exercise and HRV trends, dietary patterns and inflammatory markers.
+3. **Flag concerns** — Proactively mention when lab values are outside optimal ranges (not just reference ranges), when genetic risks aren't being addressed by the current protocol, or when trends are moving in the wrong direction.
+4. **Provide actionable recommendations** organized by priority:
+   - **Health recommendations** — Protocol adjustments, lifestyle changes, lab tests to consider
+   - **Diet recommendations** — Based on genetics, glucose patterns, goals, and current nutrition
+   - **Sleep recommendations** — Based on sleep architecture, HRV, stress levels, and circadian patterns
+   - **Supplement/peptide recommendations** — Based on genetics, labs, and symptoms
+
+## GUIDELINES
+- Be warm and supportive while being scientifically precise.
+- Always reference the client's actual data when making recommendations — cite specific numbers, dates, and trends.
+- When discussing genetics, explain the practical implications (diet, supplements, lifestyle) not just the mutation names.
+- Distinguish between "reference range" (lab normal) and "optimal range" (functional medicine optimal).
+- When recommending supplement or medication changes, always note: "Discuss any changes with your healthcare provider or EVERIST trainer before adjusting your protocol."
+- For urgent health concerns (crisis-level BP, severely abnormal labs), recommend immediate medical attention.
+- Never diagnose conditions — instead discuss trends, risk factors, and optimization opportunities.
+- Use clear formatting with bold headers, bullet points, and organized sections for complex responses.
+- If data is missing in a particular area, mention what additional data would help you give better recommendations.
+- Consider the whole picture — a glucose spike pattern might be related to sleep quality, stress, or genetic methylation issues.
+
+## RESPONSE STYLE
+- For simple questions: concise, direct answers citing relevant data
+- For analysis requests: structured response with sections for findings, recommendations, and next steps
+- For "how am I doing" type questions: comprehensive health scorecard touching on all available data domains
+- Always prioritize the most clinically significant findings first
+
+You have access to the client's complete health profile below. Use ALL of it to provide deeply personalized, data-driven responses.`;
 
 // ---------------------------------------------------------------------------
 // POST handler — streaming chat
@@ -194,7 +569,7 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Message is required" }), { status: 400 });
     }
 
-    // Gather client health context
+    // Gather comprehensive client health context
     const healthContext = await getClientContext(dbUser.id);
 
     // Build messages array
@@ -240,11 +615,11 @@ export async function POST(req: NextRequest) {
 
     const anthropic = new Anthropic({ apiKey });
 
-    // Stream the response
+    // Stream the response — use higher token limit for comprehensive analysis
     const stream = await anthropic.messages.stream({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 2048,
-      system: `${SYSTEM_PROMPT}\n\n--- CLIENT HEALTH DATA ---\n${healthContext}`,
+      max_tokens: 4096,
+      system: `${SYSTEM_PROMPT}\n\n--- COMPLETE CLIENT HEALTH PROFILE ---\n${healthContext}`,
       messages: anthropicMessages,
     });
 
@@ -269,7 +644,7 @@ export async function POST(req: NextRequest) {
           if (activeConvId && fullResponse) {
             await db.insert(messages).values({
               conversationId: activeConvId,
-              senderId: dbUser.id, // AI messages stored with client as sender context
+              senderId: dbUser.id,
               senderRole: "ai_coach",
               isAiMessage: true,
               body: fullResponse,
@@ -302,7 +677,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[KAIROS AI Chat Error]", err);
+    console.error("[Everist AI Chat Error]", err);
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
       { status: 500 }

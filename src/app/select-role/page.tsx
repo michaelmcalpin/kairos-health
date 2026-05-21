@@ -180,7 +180,7 @@ function SelectRoleContent() {
               </h1>
             </>
           ) : (
-            <h1 className="font-heading font-bold text-xl text-kairos-gold tracking-wide mb-2">Everist.ai</h1>
+            <h1 className="font-heading font-bold text-xl text-kairos-gold tracking-wide mb-2">EVERIST.ai</h1>
           )}
           <p className="text-xs font-body text-kairos-silver-dark animate-pulse">Loading your portal...</p>
         </div>
@@ -210,7 +210,7 @@ function SelectRoleContent() {
             </>
           ) : (
             <>
-              <h1 className="font-heading font-bold text-2xl text-kairos-gold tracking-wide mb-1">Everist.ai</h1>
+              <h1 className="font-heading font-bold text-2xl text-kairos-gold tracking-wide mb-1">EVERIST.ai</h1>
               <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-widest">
                 Private Health Management
               </p>

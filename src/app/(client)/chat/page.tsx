@@ -129,14 +129,14 @@ function renderMarkdown(text: string) {
 // ---------------------------------------------------------------------------
 
 const SUGGESTED_QUESTIONS = [
-  "How is my sleep quality trending?",
-  "What should I eat to improve body composition?",
-  "Explain my blood pressure readings",
-  "What supplements should I consider for recovery?",
-  "How can I optimize my glucose levels?",
-  "Create a workout plan based on my goals",
-  "What do my body measurements tell me?",
-  "Tips for improving sleep quality naturally",
+  "Give me a full health analysis based on all my data",
+  "What do my genetics say about my diet and supplements?",
+  "Analyze my sleep patterns and give me recommendations",
+  "How are my lab results? Anything outside optimal range?",
+  "Review my supplement protocol against my genetic profile",
+  "What dietary changes should I make based on my glucose data?",
+  "How is my blood pressure trending and what can I improve?",
+  "What are my top health priorities right now?",
 ];
 
 // ---------------------------------------------------------------------------
@@ -421,7 +421,7 @@ export default function ChatPage() {
             <Sparkles size={36} className="text-kairos-gold" />
           </div>
           <h3 className="font-heading font-bold text-xl text-white mb-2">
-            Hi! I&apos;m your Everist AI assistant
+            Hi! I&apos;m your EVERIST AI health analyst. I have access to your genetics, labs, medications, CGM data, blood pressure, sleep, and protocols
           </h3>
           <p className="text-sm font-body text-kairos-silver-dark text-center max-w-md mb-8">
             I have access to your health data and can help with questions about nutrition, exercise,
@@ -547,7 +547,7 @@ export default function ChatPage() {
 
       {/* Disclaimer */}
       <p className="text-[10px] font-body text-kairos-silver-dark text-center mt-2">
-        Everist AI provides general health information. Always consult your healthcare provider before making changes to your health regimen.
+        EVERIST AI analyzes your complete health profile including genetics, labs, CGM, and protocols. Always consult your healthcare provider before making changes to your health regimen.
       </p>
     </div>
   );
