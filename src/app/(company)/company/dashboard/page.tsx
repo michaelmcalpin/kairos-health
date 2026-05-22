@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { Users, Dumbbell, TrendingUp, Star, DollarSign, ArrowRight } from "lucide-react";
-import { useCompanyBrand } from "@/lib/company-ops";
+import { useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
 
 export default function CompanyDashboardPage() {
   const router = useRouter();
   const { brand } = useCompanyBrand();
-  const isWhiteLabel = brand.id !== "kairos";
+  const isWhiteLabel = !isPlatformBrand(brand);
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
   // ── tRPC query — real DB data ──────────────────────────────

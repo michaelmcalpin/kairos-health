@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { KPICard } from "@/components/ui/KPICard";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
-import { useCompanyBrand } from "@/lib/company-ops";
+import { useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
 import { Users, Bell, Calendar, TrendingUp, DollarSign, Clock, ArrowRight } from "lucide-react";
 
@@ -22,7 +22,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 export default function TrainerDashboard() {
   const router = useRouter();
   const { brand } = useCompanyBrand();
-  const isWhiteLabel = brand.id !== "kairos";
+  const isWhiteLabel = !isPlatformBrand(brand);
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =

@@ -12,13 +12,13 @@ import {
 } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
-import { useCompanyBrand } from "@/lib/company-ops";
+import { useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
 
 export default function TrainerSettingsPage() {
   const { theme, setTheme } = useTheme();
   const { brand } = useCompanyBrand();
-  const isWhiteLabel = brand.id !== "kairos";
+  const isWhiteLabel = !isPlatformBrand(brand);
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
   // Fetch user data

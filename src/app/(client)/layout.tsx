@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Sidebar, clientNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import { CompanyBrandProvider, useCompanyBrand } from "@/lib/company-ops";
+import { CompanyBrandProvider, useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { FloatingChat } from "@/components/chat/FloatingChat";
 import { trpc } from "@/lib/trpc";
 
@@ -15,7 +15,7 @@ const TOGGLED_NAV_ITEMS: Record<string, string> = {
 
 function ClientShell({ children }: { children: React.ReactNode }) {
   const { brand, cssVars } = useCompanyBrand();
-  const isWhiteLabel = brand.id !== "kairos";
+  const isWhiteLabel = !isPlatformBrand(brand);
 
   // Fetch feature toggles to conditionally show/hide sidebar items
   const { data: toggles } = trpc.clientPortal.settings.getFeatureToggles.useQuery(undefined, {

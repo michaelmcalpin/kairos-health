@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   Search, ArrowUpDown, Filter,
 } from "lucide-react";
-import { useCompanyBrand } from "@/lib/company-ops";
+import { useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
 
 type SortField = "name" | "trainer" | "tier";
@@ -24,7 +24,7 @@ const TIER_STYLES: Record<string, string> = {
 
 export default function CompanyClientsPage() {
   const { company, brand } = useCompanyBrand();
-  const isWhiteLabel = brand.id !== "kairos";
+  const isWhiteLabel = !isPlatformBrand(brand);
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
   // Fetch real data from DB via tRPC

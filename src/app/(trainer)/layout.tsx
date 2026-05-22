@@ -3,11 +3,11 @@
 import { Sidebar, trainerNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import { CompanyBrandProvider, useCompanyBrand } from "@/lib/company-ops";
+import { CompanyBrandProvider, useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 
 function TrainerShell({ children }: { children: React.ReactNode }) {
   const { brand, cssVars } = useCompanyBrand();
-  const isWhiteLabel = brand.id !== "kairos";
+  const isWhiteLabel = !isPlatformBrand(brand);
 
   return (
     <div className="flex min-h-screen" style={isWhiteLabel ? (cssVars as React.CSSProperties) : undefined}>

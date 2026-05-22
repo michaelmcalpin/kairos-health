@@ -15,6 +15,7 @@ export {
   darkenHex,
   lightenHex,
   resolveCompanyBrand,
+  isPlatformBrand,
   brandCssVars,
   resolveEmailBrand,
 } from "./brand";

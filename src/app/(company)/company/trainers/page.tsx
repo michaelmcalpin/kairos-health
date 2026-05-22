@@ -5,7 +5,7 @@ import {
   Dumbbell, Search, Star, Users, MoreVertical, Mail, Plus,
   ArrowUpDown, BarChart3, X, Copy, Check,
 } from "lucide-react";
-import { useCompanyBrand } from "@/lib/company-ops";
+import { useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
 
 interface CompanyTrainer {
@@ -24,7 +24,7 @@ type SortField = "name" | "clientCount" | "capacity" | "rating";
 
 export default function CompanyTrainersPage() {
   const { company, brand } = useCompanyBrand();
-  const isWhiteLabel = brand.id !== "kairos";
+  const isWhiteLabel = !isPlatformBrand(brand);
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
   // Fetch real data from DB via tRPC

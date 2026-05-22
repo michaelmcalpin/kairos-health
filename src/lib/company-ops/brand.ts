@@ -78,11 +78,11 @@ export function lightenHex(hex: string, amount = 0.3): string {
 // ─── Brand Resolution ────────────────────────────────────────────
 
 const KAIROS_DEFAULTS = {
-  name: "Everist.ai",
-  brandColor: "#C9A89A",  // Warm Slate accent (dusty rose)
+  name: "EVERIST.ai",
+  brandColor: "#4A90D9",  // Summit Ice Blue
   emailFromName: "Everist.ai Health",
   emailFooter: "Everist.ai Health Management",
-  website: "https://kairos.health",
+  website: "https://everist.ai",
   poweredBy: "Powered by Everist.ai",
 };
 
@@ -118,6 +118,17 @@ export function resolveCompanyBrand(company: Company | null | undefined): Compan
     website: company.website || KAIROS_DEFAULTS.website,
     poweredBy: KAIROS_DEFAULTS.poweredBy,
   };
+}
+
+/**
+ * Check if a brand represents the platform's own company (not white-label).
+ * Returns true for the default Everist/Kairos brand — these should NOT
+ * get white-label treatment (custom logo, "Powered by" badge, etc.).
+ */
+export function isPlatformBrand(brand: CompanyBrand): boolean {
+  if (brand.id === "kairos") return true;
+  const n = brand.name.toLowerCase();
+  return n.includes("everist") || n.includes("kairos");
 }
 
 /**

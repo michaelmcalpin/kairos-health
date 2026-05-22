@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Heart, Dumbbell, Building2, Shield, ArrowRight } from "lucide-react";
 import type { UserRole } from "@/lib/company-ops/types";
-import { useCompanyBrand, useCompanyList, CompanyBrandProvider } from "@/lib/company-ops";
+import { useCompanyBrand, useCompanyList, CompanyBrandProvider, isPlatformBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
 import { ROLE_HOME } from "@/lib/hooks/useAuthRole";
 import { reportError } from "@/lib/error-reporting";
@@ -78,7 +78,7 @@ function SelectRoleContent() {
   const [synced, setSynced] = useState(false);
   const { brand, setCompanyId } = useCompanyBrand();
   const companies = useCompanyList();
-  const isWhiteLabel = brand.id !== "kairos";
+  const isWhiteLabel = !isPlatformBrand(brand);
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
 
   // Declare utils before any hooks that reference it in callbacks
