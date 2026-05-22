@@ -43,7 +43,6 @@ import {
   Bug,
   FileHeart,
   Tablets,
-  Sparkles,
   Syringe,
 } from "lucide-react";
 
@@ -297,8 +296,6 @@ export const clientNavItems: NavItem[] = [
   { label: "Peptides", href: "/peptides", icon: <Syringe size={18} />, section: "Protocols" },
   { label: "Medications", href: "/medications", icon: <Tablets size={18} />, section: "Protocols" },
 
-  // AI Analysis
-  { label: "Reports", href: "/ai-reports", icon: <Sparkles size={18} />, section: "AI Analysis" },
 ];
 
 // ─── Trainer Nav ─────────────────────────────────────────────────

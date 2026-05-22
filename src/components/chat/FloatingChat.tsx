@@ -145,7 +145,10 @@ export function FloatingChat() {
         body: JSON.stringify({ message: text, conversationId: convId, history }),
       });
 
-      if (!res.ok) throw new Error("Request failed");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || "Request failed");
+      }
 
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No stream");
@@ -185,12 +188,13 @@ export function FloatingChat() {
         if (last?.isStreaming) updated[updated.length - 1] = { ...last, isStreaming: false };
         return updated;
       });
-    } catch {
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "Sorry, an error occurred.";
       setMessages((prev) => {
         const updated = [...prev];
         const last = updated[updated.length - 1];
         if (last?.isStreaming) {
-          updated[updated.length - 1] = { ...last, body: "Sorry, an error occurred.", isStreaming: false };
+          updated[updated.length - 1] = { ...last, body: errMsg, isStreaming: false };
         }
         return updated;
       });

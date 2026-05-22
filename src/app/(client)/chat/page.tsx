@@ -344,6 +344,7 @@ export default function ChatPage() {
         utils.clientPortal.messaging.getMessages.invalidate();
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
+        const errMsg = err instanceof Error ? err.message : "I'm sorry, I encountered an error. Please try again.";
 
         setChatMessages((prev) => {
           const updated = [...prev];
@@ -351,7 +352,7 @@ export default function ChatPage() {
           if (lastMsg && lastMsg.isStreaming) {
             updated[updated.length - 1] = {
               ...lastMsg,
-              body: "I'm sorry, I encountered an error. Please try again.",
+              body: errMsg,
               isStreaming: false,
             };
           }
