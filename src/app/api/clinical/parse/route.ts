@@ -95,21 +95,29 @@ const DOC_PROMPTS: Record<string, string> = {
   }
 }`,
 
-  genetics: `Parse this genetic / genomic / DNA test report. Extract ALL available data into this JSON structure:
+  genetics: `Parse this genetic / genomic / DNA test report. Extract ALL available data into this JSON structure.
+
+IMPORTANT: Extract EVERY gene variant you can find in the document. Group them by biological pathway. For each variant, determine the risk level from the genotype notation — (+/+) or homozygous mutant = "high", (+/-) or heterozygous = "moderate", (-/-) or wild type = "low". Include the genotype exactly as shown (e.g. "CT", "GG", "T/C (+/-)").
 
 {
   "title": "<report title or 'Genetic Analysis'>",
   "reportDate": "<ISO date if found, else null>",
   "providerName": "<lab/provider name if found, else null>",
   "parsedData": {
-    "testType": "<whole_genome|exome|snp_panel|pharmacogenomic|carrier_screening|other>",
+    "testType": "<whole_genome|exome|snp_panel|pharmacogenomic|carrier_screening|nutrigenomic|other>",
     "pathways": [
       {
-        "name": "<pathway name — e.g. Methylation, Detoxification, Inflammation>",
+        "name": "<pathway name — e.g. Methylation, Detoxification, Inflammation, Autophagy, Mitochondria, Homocysteine, Neurotransmitter, External Inflammatory>",
         "riskLevel": "<high|moderate|low>",
-        "genesAffected": "<X/Y — genes with variants / total genes tested>",
+        "genesAffected": "<X/Y — genes with variants / total genes tested in this pathway>",
         "variants": [
-          { "gene": "<gene name>", "rsid": "<rs number>", "genotype": "<e.g. CT, AA>", "impact": "<high|moderate|low>", "description": "<what this variant affects>" }
+          {
+            "gene": "<gene name e.g. MTHFR, COMT, SOD2>",
+            "rsid": "<rs number e.g. rs1801133>",
+            "genotype": "<full genotype string e.g. 'T/C (+/-)' or 'GG (-/-)'>",
+            "impact": "<high|moderate|low>",
+            "description": "<what this gene/variant does — enzyme function, metabolic role>"
+          }
         ],
         "recommendations": ["<recommendation based on pathway findings>"]
       }
@@ -125,7 +133,13 @@ const DOC_PROMPTS: Record<string, string> = {
     ],
     "summary": "<2-3 sentence overall genetic profile summary>"
   }
-}`,
+}
+
+If the document is a nutrigenomic report (like Fagron Pro7), pay special attention to:
+- Section groupings (Inflammatory, External Inflammatory, Autophagy, Mitochondria, Methylation, etc.)
+- The (+/+), (+/-), (-/-) notation for each gene
+- rsID numbers for each variant
+- Extract ALL genes even if they show normal/wild-type results`,
 
   lab_result: `Parse this blood work / laboratory results report. Extract ALL available data into this JSON structure:
 

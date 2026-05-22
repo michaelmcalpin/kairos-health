@@ -939,6 +939,22 @@ export const clinicalDocuments = pgTable("clinical_documents", {
   index("clinical_docs_type_idx").on(t.clientId, t.docType),
 ]);
 
+// ======================== SAVED AI REPORTS ========================
+
+export const savedReports = pgTable("saved_reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  reportType: varchar("report_type", { length: 50 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  reportData: jsonb("report_data").$type<Record<string, unknown>>().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("saved_reports_client_idx").on(t.clientId),
+  index("saved_reports_client_type_idx").on(t.clientId, t.reportType),
+]);
+
 // ======================== CONTENT MANAGEMENT ========================
 export const contentCategoryEnum = pgEnum("content_category", ["protocols", "articles", "videos", "guides"]);
 export const contentStatusEnum = pgEnum("content_status", ["published", "draft", "review", "archived"]);

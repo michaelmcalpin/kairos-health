@@ -142,15 +142,7 @@ export default function GeneticsPage() {
   const { data: pathwayData } = trpc.clientPortal.genetics.getPathwayScores.useQuery();
   const utils = trpc.useUtils();
 
-  const uploadMutation = trpc.clientPortal.genetics.uploadProfile.useMutation({
-    onSuccess: () => {
-      utils.clientPortal.genetics.getProfile.invalidate();
-      utils.clientPortal.genetics.getPathwayScores.invalidate();
-      setShowUpload(false);
-      setUploading(false);
-    },
-    onError: () => setUploading(false),
-  });
+  const uploadMutation = trpc.clientPortal.genetics.uploadProfile.useMutation();
 
   const addMarkerMutation = trpc.clientPortal.genetics.addMarker.useMutation({
     onSuccess: () => utils.clientPortal.genetics.getProfile.invalidate(),
@@ -228,12 +220,14 @@ export default function GeneticsPage() {
   }, [markers]);
 
   const [parseError, setParseError] = useState<string | null>(null);
+  const [parseProgress, setParseProgress] = useState<string | null>(null);
 
   // ── File upload handler with AI parsing ────────────────────
   const handleFileUpload = useCallback(async (file: File) => {
     if (!file) return;
     setUploading(true);
     setParseError(null);
+    setParseProgress("Reading file...");
 
     try {
       // Read file as base64
@@ -247,6 +241,8 @@ export default function GeneticsPage() {
         reader.readAsDataURL(file);
       });
 
+      setParseProgress("Sending to AI for analysis...");
+
       // Send to AI parsing API
       const response = await fetch("/api/clinical/parse", {
         method: "POST",
@@ -259,60 +255,120 @@ export default function GeneticsPage() {
         }),
       });
 
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({ error: "Server error" }));
+        throw new Error(errData.error || `Upload failed (${response.status})`);
+      }
+
       const result = await response.json();
 
-      if (response.ok && result.success && result.data?.parsedData?.pathways) {
-        // AI parsed successfully — create profile and add markers from pathways
+      // Extract pathways from AI response — handle nested or flat structure
+      const parsedData = result.data?.parsedData ?? result.data ?? {};
+      const pathways = parsedData.pathways as Array<{
+        name: string;
+        riskLevel: string;
+        genesAffected?: string;
+        variants?: Array<{
+          gene: string;
+          rsid?: string;
+          genotype?: string;
+          impact?: string;
+          description?: string;
+        }>;
+        recommendations?: string[];
+      }> | undefined;
+
+      if (!pathways || pathways.length === 0) {
+        // No pathways — save profile for manual entry
+        setParseProgress("Saving profile...");
         uploadMutation.mutate({
           uploadType: "pdf",
           sourceFileName: file.name,
-        }, {
-          onSuccess: (newProfile) => {
-            // Add markers from AI-parsed pathways
-            const pathways = result.data.parsedData.pathways as Array<{
-              name: string;
-              riskLevel: string;
-              variants?: Array<{
-                gene: string;
-                rsid?: string;
-                genotype?: string;
-                impact?: string;
-                description?: string;
-              }>;
-            }>;
-            for (const pathway of pathways) {
-              if (pathway.variants) {
-                for (const variant of pathway.variants) {
-                  addMarkerMutation.mutate({
-                    profileId: newProfile.id,
-                    gene: variant.gene,
-                    rsId: variant.rsid || "",
-                    section: pathway.name,
-                    pathway: pathway.name,
-                    mutation: variant.genotype || "",
-                    clinicalPriority: (variant.impact === "high" ? "high" : variant.impact === "moderate" ? "medium" : "low") as "high" | "medium" | "low",
-                  });
-                }
-              }
-            }
-          },
+          rawData: parsedData as Record<string, unknown>,
         });
-      } else {
-        // Fallback: save without parsed data
-        uploadMutation.mutate({
-          uploadType: "pdf",
-          sourceFileName: file.name,
-        });
-        setParseError("AI parsing returned incomplete data — profile saved for manual entry.");
+        setParseError("AI could not extract gene variants from this document. You can add markers manually.");
+        return;
       }
-    } catch {
-      uploadMutation.mutate({
-        uploadType: "pdf",
-        sourceFileName: file.name,
+
+      // Count total variants for progress
+      const totalVariants = pathways.reduce((sum, p) => sum + (p.variants?.length ?? 0), 0);
+      setParseProgress(`Found ${pathways.length} pathways, ${totalVariants} variants. Saving...`);
+
+      // Create the profile first
+      const newProfile = await new Promise<{ id: string }>((resolve, reject) => {
+        uploadMutation.mutate(
+          {
+            uploadType: "pdf",
+            sourceFileName: file.name,
+            rawData: parsedData as Record<string, unknown>,
+          },
+          {
+            onSuccess: (p) => resolve(p),
+            onError: (e) => reject(e),
+          }
+        );
       });
-      setParseError("Could not parse file — saved for manual entry.");
+
+      // Add markers sequentially (avoids overwhelming the API)
+      let addedCount = 0;
+      for (const pathway of pathways) {
+        if (!pathway.variants?.length) continue;
+        for (const variant of pathway.variants) {
+          setParseProgress(`Adding variant ${addedCount + 1}/${totalVariants}: ${variant.gene}...`);
+          try {
+            await new Promise<void>((resolve, reject) => {
+              addMarkerMutation.mutate(
+                {
+                  profileId: newProfile.id,
+                  gene: variant.gene,
+                  rsId: variant.rsid || "",
+                  section: pathway.name,
+                  pathway: pathway.name,
+                  mutation: variant.genotype || "",
+                  function: variant.description || "",
+                  clinicalPriority: (
+                    variant.impact === "high" ? "high" :
+                    variant.impact === "moderate" || variant.impact === "medium" ? "medium" :
+                    "low"
+                  ) as "high" | "medium" | "low",
+                },
+                {
+                  onSuccess: () => resolve(),
+                  onError: (e) => reject(e),
+                }
+              );
+            });
+            addedCount++;
+          } catch {
+            // Continue with remaining markers if one fails
+            console.warn(`Failed to add marker ${variant.gene}`);
+          }
+        }
+      }
+
+      setParseProgress(null);
+      utils.clientPortal.genetics.getProfile.invalidate();
+      utils.clientPortal.genetics.getPathwayScores.invalidate();
+      setShowUpload(false);
+
+      if (addedCount < totalVariants) {
+        setParseError(`Imported ${addedCount} of ${totalVariants} variants. Some could not be saved.`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not parse file";
+      setParseError(msg);
+      setParseProgress(null);
+      // Still save the profile shell if we haven't already
+      if (!uploadMutation.isPending) {
+        uploadMutation.mutate({
+          uploadType: "pdf",
+          sourceFileName: file.name,
+        });
+      }
+    } finally {
+      setUploading(false);
     }
-  }, [uploadMutation, addMarkerMutation]);
+  }, [uploadMutation, addMarkerMutation, utils]);
 
   // ── Manual entry ────────────────────────────────────────────
   const [manualForm, setManualForm] = useState({
@@ -425,7 +481,7 @@ export default function GeneticsPage() {
                   <Loader2 className="w-10 h-10 text-kairos-gold animate-spin mx-auto" />
                   <p className="text-white font-heading font-semibold">Processing your genetic report...</p>
                   <p className="text-kairos-silver-dark text-sm font-body">
-                    Extracting gene variants and pathway data
+                    {parseProgress || "Extracting gene variants and pathway data"}
                   </p>
                 </div>
               ) : (
@@ -528,6 +584,20 @@ export default function GeneticsPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Parse Error Banner */}
+      {parseError && (
+        <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30 flex items-start gap-3">
+          <AlertTriangle size={18} className="text-yellow-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-heading font-semibold text-yellow-400">Upload Notice</p>
+            <p className="text-xs font-body text-kairos-silver-dark mt-1">{parseError}</p>
+          </div>
+          <button onClick={() => setParseError(null)} className="text-kairos-silver-dark hover:text-white">
+            <X size={16} />
+          </button>
         </div>
       )}
 

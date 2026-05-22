@@ -253,10 +253,16 @@ function ReportViewer({
   report,
   reportType,
   onClose,
+  onUpdate,
+  onDownloadPdf,
+  isUpdating,
 }: {
   report: ReportData;
   reportType: string;
   onClose: () => void;
+  onUpdate?: () => void;
+  onDownloadPdf?: () => void;
+  isUpdating?: boolean;
 }) {
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set([0]));
 
@@ -284,9 +290,27 @@ function ReportViewer({
               Generated {new Date(report.generatedAt).toLocaleString()}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-kairos-royal-surface transition-colors">
-            <X size={20} className="text-kairos-silver-dark" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onDownloadPdf && (
+              <button onClick={onDownloadPdf} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-kairos-royal-surface hover:bg-kairos-card-hover text-kairos-silver-dark hover:text-white transition-colors text-xs font-heading font-semibold" title="Download PDF">
+                <Download size={14} />
+                PDF
+              </button>
+            )}
+            {onUpdate && (
+              <button
+                onClick={onUpdate}
+                disabled={isUpdating}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-kairos-gold/20 hover:bg-kairos-gold/30 text-kairos-gold transition-colors text-xs font-heading font-semibold disabled:opacity-50"
+              >
+                {isUpdating ? <Loader2 size={14} className="animate-spin" /> : <TrendingUp size={14} />}
+                Update
+              </button>
+            )}
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-kairos-royal-surface transition-colors">
+              <X size={20} className="text-kairos-silver-dark" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 space-y-6">
@@ -635,6 +659,24 @@ export default function InsightsPage() {
   const insightsQuery = trpc.clientPortal.insights.getAll.useQuery(range, { staleTime: 30_000 });
   const { data: insightsData } = insightsQuery;
 
+  // ── Saved reports ────────────────────────────────────────
+  const savedReportsQuery = trpc.clientPortal.reports.listAll.useQuery(undefined, { staleTime: 60_000 });
+  const saveReportMutation = trpc.clientPortal.reports.save.useMutation({
+    onSuccess: () => savedReportsQuery.refetch(),
+  });
+  /** Map of reportType → saved report */
+  const savedReportsMap = useMemo(() => {
+    const map: Record<string, { data: ReportData; createdAt: Date; expiresAt: Date }> = {};
+    for (const r of savedReportsQuery.data ?? []) {
+      map[r.reportType] = {
+        data: r.reportData as ReportData,
+        createdAt: new Date(r.createdAt),
+        expiresAt: new Date(r.expiresAt),
+      };
+    }
+    return map;
+  }, [savedReportsQuery.data]);
+
   const insights = (insightsData?.insights ?? []).map((i) => ({
     ...i,
     displayCategory: mapCategory(i.category),
@@ -649,6 +691,7 @@ export default function InsightsPage() {
     : 0;
   const trend = insights.length > 0 ? "+0.5" : "0";
 
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
   const generateReport = useCallback(async (reportType: string) => {
     setGeneratingReport(reportType);
     setReportError(null);
@@ -663,13 +706,141 @@ export default function InsightsPage() {
         throw new Error(err.error ?? "Failed to generate report");
       }
       const data = await res.json();
-      setCurrentReport({ data: data.report, type: reportType });
+      const report = data.report as ReportData;
+      setCurrentReport({ data: report, type: reportType });
+
+      // Save to DB with 60-day expiry
+      const rtConfig = REPORT_TYPES.find((rt) => rt.id === reportType);
+      saveReportMutation.mutate({
+        reportType,
+        title: rtConfig?.title ?? reportType,
+        reportData: report,
+      });
     } catch (err) {
       setReportError(err instanceof Error ? err.message : "Failed to generate report");
     } finally {
       setGeneratingReport(null);
     }
-  }, []);
+  }, [saveReportMutation]);
+
+  /** Handle clicking a report card — show cached or generate */
+  const handleReportClick = useCallback((reportType: string) => {
+    const saved = savedReportsMap[reportType];
+    if (saved) {
+      setCurrentReport({ data: saved.data, type: reportType });
+    } else {
+      generateReport(reportType);
+    }
+  }, [savedReportsMap, generateReport]);
+
+  /** Download the current report as a simple HTML-to-PDF */
+  const downloadReportPdf = useCallback(() => {
+    if (!currentReport) return;
+    const report = currentReport.data;
+    const title = (report.title as string) ?? "Health Report";
+
+    // Build printable HTML
+    const sections = (report.sections as ReportData[] | undefined) ?? [];
+    const actionPlan = (report.actionPlan ?? report.prioritizedActions) as ReportData[] | undefined;
+    const topRisks = report.topRisks as ReportData[] | undefined;
+
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>${title}</title>
+<style>
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #1a1a2e; }
+  h1 { color: #0A1628; border-bottom: 3px solid #D4AF37; padding-bottom: 8px; }
+  h2 { color: #2a2a4a; margin-top: 28px; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; }
+  .meta { color: #666; font-size: 12px; margin-bottom: 20px; }
+  .summary { background: #f8f6f0; border-left: 4px solid #D4AF37; padding: 16px; margin: 20px 0; border-radius: 4px; }
+  .score-box { display: inline-block; background: #0A1628; color: #D4AF37; font-size: 36px; font-weight: bold; padding: 12px 24px; border-radius: 8px; margin: 8px 0; }
+  .risk { border-left: 3px solid #e74c3c; padding: 8px 12px; margin: 8px 0; background: #fff5f5; border-radius: 4px; }
+  .strength { border-left: 3px solid #27ae60; padding: 8px 12px; margin: 8px 0; background: #f0fff4; border-radius: 4px; }
+  .action { padding: 8px 0; border-bottom: 1px solid #eee; }
+  .action-num { display: inline-block; background: #D4AF37; color: #fff; width: 24px; height: 24px; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: bold; margin-right: 8px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+  th { background: #f5f5f5; font-weight: 600; }
+  .disclaimer { font-size: 10px; color: #999; margin-top: 40px; padding-top: 16px; border-top: 1px solid #eee; }
+  .footer { text-align: center; font-size: 11px; color: #aaa; margin-top: 24px; }
+  @media print { body { padding: 20px; } }
+</style></head><body>`;
+
+    html += `<h1>${title}</h1>`;
+    html += `<p class="meta">Generated ${new Date(report.generatedAt as string).toLocaleString()} &bull; Expires in 60 days &bull; EVERIST.ai</p>`;
+    html += `<div class="summary">${report.summary}</div>`;
+
+    // Scores
+    if (report.overallScore != null) html += `<div class="score-box">${report.overallScore}/100</div><p style="color:#666;font-size:13px">Overall Health Score</p>`;
+    if (report.metabolicScore != null) html += `<div class="score-box">${report.metabolicScore}/100</div><p style="color:#666;font-size:13px">Metabolic Score</p>`;
+    if (report.recoveryScore != null) html += `<div class="score-box">${report.recoveryScore}/100</div><p style="color:#666;font-size:13px">Recovery Score</p>`;
+    if (report.alignmentScore != null) html += `<div class="score-box">${report.alignmentScore}/100</div><p style="color:#666;font-size:13px">Protocol Alignment</p>`;
+
+    // Health Age
+    if (report.healthAge) {
+      const ha = report.healthAge as HealthAgeData;
+      html += `<h2>Health Age</h2>`;
+      html += `<p>Chronological Age: <strong>${ha.chronologicalAge}</strong> &bull; Biological Age: <strong>${ha.biologicalAge}</strong> &bull; Delta: <strong>${ha.delta > 0 ? "+" : ""}${ha.delta} years</strong></p>`;
+      html += `<p>${ha.interpretation}</p>`;
+    }
+
+    // Domain Scores
+    if (report.domainScores) {
+      html += `<h2>Domain Breakdown</h2><table><tr><th>Domain</th><th>Score</th><th>Age Impact</th><th>Status</th></tr>`;
+      for (const d of report.domainScores as DomainScore[]) {
+        html += `<tr><td>${d.domain}</td><td>${d.score}/100</td><td>${d.ageImpact > 0 ? "+" : ""}${d.ageImpact}y</td><td>${d.status}</td></tr>`;
+      }
+      html += `</table>`;
+    }
+
+    // Sections
+    if (sections.length > 0) {
+      html += `<h2>Detailed Analysis</h2>`;
+      for (const s of sections) {
+        html += `<h3>${s.title} ${s.score != null ? `(${s.score}/100)` : ""}</h3>`;
+        html += `<p>${s.summary}</p>`;
+        if (s.metrics?.length > 0) {
+          html += `<table><tr><th>Metric</th><th>Value</th><th>Status</th></tr>`;
+          for (const m of s.metrics) html += `<tr><td>${m.label}</td><td>${m.value}</td><td>${m.status}</td></tr>`;
+          html += `</table>`;
+        }
+        if (s.recommendations?.length > 0) {
+          html += `<ul>`;
+          for (const r of s.recommendations) html += `<li>${r}</li>`;
+          html += `</ul>`;
+        }
+      }
+    }
+
+    // Risks
+    if (topRisks?.length) {
+      html += `<h2>Top Risks</h2>`;
+      for (const r of topRisks) html += `<div class="risk"><strong>${r.risk}</strong><br/><small>Mitigation: ${r.mitigation}</small></div>`;
+    }
+
+    // Strengths
+    if (report.topStrengths && (report.topStrengths as ReportData[]).length > 0) {
+      html += `<h2>Strengths</h2>`;
+      for (const s of report.topStrengths as ReportData[]) html += `<div class="strength"><strong>${s.strength}</strong><br/><small>${s.impact}</small></div>`;
+    }
+
+    // Action Plan
+    if (actionPlan?.length) {
+      html += `<h2>Action Plan</h2>`;
+      for (const a of actionPlan) html += `<div class="action"><span class="action-num">${a.priority}</span><strong>${a.action}</strong> <small style="color:#666">${a.category} &bull; ${a.timeframe ?? a.effort ?? ""}</small></div>`;
+    }
+
+    html += `<p class="disclaimer">This AI-generated report is for informational purposes only and should not replace professional medical advice. Discuss any changes with your healthcare provider or EVERIST trainer.</p>`;
+    html += `<p class="footer">EVERIST.ai &bull; Private Health Management</p>`;
+    html += `</body></html>`;
+
+    // Open in new window for print/PDF
+    const w = window.open("", "_blank");
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => w.print(), 500);
+    }
+  }, [currentReport]);
 
   if (insightsQuery.isError) {
     return (
@@ -755,31 +926,48 @@ export default function InsightsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {REPORT_TYPES.map((rt) => {
               const isGenerating = generatingReport === rt.id;
+              const saved = savedReportsMap[rt.id];
               return (
                 <button
                   key={rt.id}
-                  onClick={() => !isGenerating && generateReport(rt.id)}
+                  onClick={() => !isGenerating && handleReportClick(rt.id)}
                   disabled={isGenerating || generatingReport !== null}
                   className={cn(
                     "kairos-card p-5 text-left bg-gradient-to-br hover:border-kairos-gold/30 transition-all hover:shadow-lg hover:shadow-kairos-gold/5 group disabled:opacity-60",
-                    rt.bgGradient
+                    rt.bgGradient,
+                    saved && "border-kairos-gold/20"
                   )}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center bg-current/10", rt.color)}>
                       {isGenerating ? <Loader2 size={20} className="animate-spin" /> : rt.icon}
                     </div>
-                    <ChevronRight size={16} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
+                    <div className="flex items-center gap-2">
+                      {saved && (
+                        <span className="text-[10px] font-heading font-bold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
+                          Saved
+                        </span>
+                      )}
+                      <ChevronRight size={16} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
+                    </div>
                   </div>
                   <h3 className="text-base font-heading font-bold text-white mb-1">{rt.title}</h3>
                   <p className="text-xs font-body text-kairos-silver-dark mb-3 line-clamp-2">{rt.description}</p>
-                  <div className="flex flex-wrap gap-1">
-                    {rt.metrics.map((m) => (
-                      <span key={m} className="text-[10px] font-heading font-semibold px-2 py-0.5 rounded-full bg-kairos-royal-surface text-kairos-silver-dark">
-                        {m}
-                      </span>
-                    ))}
-                  </div>
+                  {saved ? (
+                    <div className="flex items-center gap-2 text-[10px] font-body text-kairos-silver-dark">
+                      <Clock size={12} />
+                      <span>Generated {saved.createdAt.toLocaleDateString()}</span>
+                      <span className="text-kairos-gold">• Click to view</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {rt.metrics.map((m) => (
+                        <span key={m} className="text-[10px] font-heading font-semibold px-2 py-0.5 rounded-full bg-kairos-royal-surface text-kairos-silver-dark">
+                          {m}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {isGenerating && (
                     <div className="mt-3 flex items-center gap-2">
                       <div className="flex-1 h-1 bg-kairos-royal-surface rounded-full overflow-hidden">
@@ -1000,6 +1188,12 @@ export default function InsightsPage() {
           report={currentReport.data}
           reportType={currentReport.type}
           onClose={() => setCurrentReport(null)}
+          onUpdate={() => {
+            setCurrentReport(null);
+            generateReport(currentReport.type);
+          }}
+          onDownloadPdf={downloadReportPdf}
+          isUpdating={generatingReport === currentReport.type}
         />
       )}
     </div>
