@@ -855,7 +855,7 @@ export default function ClientDashboard() {
             { label: "AI Health Chat", icon: <Sparkles size={12} />, href: "/chat" },
             { label: "View Labs", icon: <Activity size={12} />, href: "/labs" },
             { label: "Upload Photo", icon: <Camera size={12} />, href: "/progress-photos" },
-            { label: "Messages", icon: <MessageSquare size={12} />, href: "/messages" },
+            { label: "Coach Chat", icon: <MessageSquare size={12} />, href: "/chat?tab=coach" },
           ].map((action) => (
             <button
               key={action.label}
