@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Send,
   User,
@@ -638,7 +639,9 @@ function NoCoachState() {
 // ---------------------------------------------------------------------------
 
 export default function ChatPage() {
-  const [activeTab, setActiveTab] = useState<TabType>("ai");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "coach" ? "coach" : "ai";
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
 
   // Check for assigned coach via trainer_client_relationships
   const { data: coachConversations = [] } = trpc.clientPortal.messaging.listConversations.useQuery(

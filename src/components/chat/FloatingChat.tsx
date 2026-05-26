@@ -9,6 +9,7 @@ import {
   User,
   Loader2,
   Maximize2,
+  UserCircle,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { trpc } from "@/lib/trpc";
@@ -91,6 +92,13 @@ export function FloatingChat() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const startConversation = trpc.clientPortal.messaging.startConversation.useMutation();
+
+  // Check for unread coach messages
+  const { data: unreadData } = trpc.clientPortal.messaging.getUnreadCount.useQuery(
+    undefined,
+    { refetchInterval: 30_000, retry: false }
+  );
+  const coachUnread = unreadData?.count ?? 0;
 
   // Don't show on the full chat page — must be AFTER all hooks
   const isOnChatPage = pathname === "/chat";
@@ -216,6 +224,11 @@ export function FloatingChat() {
           aria-label="Open AI chat"
         >
           <Sparkles size={24} />
+          {coachUnread > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md">
+              {coachUnread > 9 ? "9+" : coachUnread}
+            </span>
+          )}
         </button>
       )}
 
@@ -231,6 +244,19 @@ export function FloatingChat() {
               <p className="text-sm font-heading font-semibold text-white truncate">Everist AI</p>
               <p className="text-[10px] font-body text-green-400">Online</p>
             </div>
+            {coachUnread > 0 && (
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  router.push("/chat?tab=coach");
+                }}
+                className="relative p-1.5 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-kairos-royal-surface transition-colors"
+                title="Open coach chat"
+              >
+                <UserCircle size={14} />
+                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500" />
+              </button>
+            )}
             <button
               onClick={() => {
                 setOpen(false);
