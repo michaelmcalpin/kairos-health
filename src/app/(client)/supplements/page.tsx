@@ -45,7 +45,7 @@ export default function SupplementsPage() {
 
   const takenCount = items.filter((i) => i.taken).length;
   const totalCount = items.length;
-  const pct = Math.round((takenCount / totalCount) * 100);
+  const pct = totalCount > 0 ? Math.round((takenCount / totalCount) * 100) : 0;
 
   const avgAdherence = supplementStats.avgAdherence;
 

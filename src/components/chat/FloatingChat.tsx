@@ -90,10 +90,10 @@ export function FloatingChat() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Don't show on the full chat page
-  if (pathname === "/chat") return null;
-
   const startConversation = trpc.clientPortal.messaging.startConversation.useMutation();
+
+  // Don't show on the full chat page — must be AFTER all hooks
+  const isOnChatPage = pathname === "/chat";
 
   useEffect(() => {
     if (open) {
@@ -202,6 +202,9 @@ export function FloatingChat() {
       setIsStreaming(false);
     }
   }, [input, isStreaming, messages, ensureConversation]);
+
+  // Don't render on the full chat page
+  if (isOnChatPage) return null;
 
   return (
     <>
