@@ -52,6 +52,7 @@ interface RawMeasurement {
 const DEFAULT_HEIGHT_INCHES = 70;
 
 function calcBmi(weightLbs: number, heightIn: number = DEFAULT_HEIGHT_INCHES): number {
+  if (!heightIn || !weightLbs) return 0;
   return (weightLbs / (heightIn * heightIn)) * 703;
 }
 

@@ -302,17 +302,17 @@ export default function GlucosePage() {
             })}
             <polyline
               points={rawReadings.map((d, i) => {
-                const x = padding.left + (i / (rawReadings.length - 1)) * plotW;
+                const x = padding.left + (rawReadings.length > 1 ? (i / (rawReadings.length - 1)) * plotW : plotW / 2);
                 const y = padding.top + plotH - ((d.value - yMin) / (yMax - yMin)) * plotH;
                 return `${x},${y}`;
               }).join(" ")}
               fill="none" stroke={themeColors.accent} strokeWidth="1.5" strokeLinejoin="round"
             />
             {rawReadings
-              .filter((_, i) => i % Math.floor(rawReadings.length / 6) === 0)
+              .filter((_, i) => i % Math.max(1, Math.floor(rawReadings.length / 6)) === 0)
               .map((d, idx) => {
                 const origIdx = rawReadings.indexOf(d);
-                const x = padding.left + (origIdx / (rawReadings.length - 1)) * plotW;
+                const x = padding.left + (rawReadings.length > 1 ? (origIdx / (rawReadings.length - 1)) * plotW : plotW / 2);
                 return (
                   <text key={idx} x={x} y={chartHeight - 5} textAnchor="middle" className="fill-kairos-silver-dark text-[9px]">
                     {d.time}

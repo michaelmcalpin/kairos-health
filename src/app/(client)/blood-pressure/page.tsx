@@ -460,7 +460,7 @@ export default function BloodPressurePage() {
                 <span className="text-xs font-heading text-kairos-silver-dark">Pulse</span>
               </div>
               <p className="text-2xl font-heading font-bold text-white">
-                {latest?.pulse ?? averages?.avgPulse ? Math.round(averages?.avgPulse ?? 0) : "--"}
+                {latest?.pulse != null ? latest.pulse : averages?.avgPulse != null ? Math.round(averages.avgPulse) : "--"}
                 <span className="text-xs font-body text-kairos-silver-dark ml-1">bpm</span>
               </p>
               <p className="text-[10px] font-body text-kairos-silver-dark mt-1">Latest reading</p>
