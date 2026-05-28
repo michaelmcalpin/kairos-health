@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { Heart, Dumbbell, Building2, Shield, ArrowRight } from "lucide-react";
 import type { UserRole } from "@/lib/company-ops/types";
 import { useCompanyBrand, useCompanyList, CompanyBrandProvider, isPlatformBrand } from "@/lib/company-ops";
@@ -74,12 +75,20 @@ function getAllowedRoles(dbRole: UserRole): UserRole[] {
 function SelectRoleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const [checking, setChecking] = useState(true);
   const [synced, setSynced] = useState(false);
   const { brand, setCompanyId } = useCompanyBrand();
   const companies = useCompanyList();
   const isWhiteLabel = !isPlatformBrand(brand);
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
+
+  // Redirect to sign-in if Clerk session is not active
+  useEffect(() => {
+    if (authLoaded && !isSignedIn) {
+      router.replace("/sign-in");
+    }
+  }, [authLoaded, isSignedIn, router]);
 
   // Declare utils before any hooks that reference it in callbacks
   const utils = trpc.useUtils();
@@ -100,11 +109,11 @@ function SelectRoleContent() {
   });
 
   useEffect(() => {
-    if (!synced && !ensureUser.isPending) {
+    if (authLoaded && isSignedIn && !synced && !ensureUser.isPending) {
       ensureUser.mutate();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authLoaded, isSignedIn]);
 
   // Step 2: Fetch the user's actual role from the database (after sync completes)
   // staleTime: 0 ensures we always get fresh data after ensureUser may have updated the role
