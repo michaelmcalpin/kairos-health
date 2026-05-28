@@ -31,25 +31,46 @@ export default function ProgressPhotosPage() {
 
   const [showUpload, setShowUpload] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedPose, setSelectedPose] = useState<PoseType>("front");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setPreviewUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    setSelectedFile(file);
+    // Create local preview (object URL, not base64)
+    setPreviewUrl(URL.createObjectURL(file));
   }
 
-  function handleUpload() {
-    if (!previewUrl) return;
-    addPhoto.mutate({
-      date: new Date().toISOString().split("T")[0],
-      photoUrls: [previewUrl],
-      poseType: selectedPose,
-    });
+  async function handleUpload() {
+    if (!selectedFile) return;
+    setUploading(true);
+    try {
+      // Upload file to cloud storage via API
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const result = await res.json();
+
+      if (!res.ok || !result.url) {
+        throw new Error(result.error || "Upload failed");
+      }
+
+      // Save the cloud URL (not base64) to the database
+      addPhoto.mutate({
+        date: new Date().toISOString().split("T")[0],
+        photoUrls: [result.url],
+        poseType: selectedPose,
+      });
+    } catch (err) {
+      alert("Failed to upload photo. Please try again.");
+    } finally {
+      setUploading(false);
+      setSelectedFile(null);
+    }
   }
 
   return (
@@ -77,7 +98,7 @@ export default function ProgressPhotosPage() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-heading font-semibold text-white">Upload Progress Photo</h3>
             <button
-              onClick={() => { setShowUpload(false); setPreviewUrl(null); }}
+              onClick={() => { setShowUpload(false); setPreviewUrl(null); setSelectedFile(null); }}
               className="p-1.5 rounded-lg text-kairos-silver-dark hover:text-white hover:bg-kairos-royal-surface transition-colors"
             >
               <X size={16} />
@@ -111,7 +132,7 @@ export default function ProgressPhotosPage() {
                 className="w-full max-h-64 object-contain rounded-xl bg-kairos-royal-surface"
               />
               <button
-                onClick={() => setPreviewUrl(null)}
+                onClick={() => { setPreviewUrl(null); setSelectedFile(null); }}
                 className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
               >
                 <X size={14} />
@@ -140,16 +161,16 @@ export default function ProgressPhotosPage() {
 
           <button
             onClick={handleUpload}
-            disabled={!previewUrl || addPhoto.isPending}
+            disabled={!selectedFile || uploading || addPhoto.isPending}
             className="w-full kairos-btn-gold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {addPhoto.isPending ? (
+            {(uploading || addPhoto.isPending) ? (
               <div className="animate-spin w-4 h-4 border-2 border-kairos-royal-dark border-t-transparent rounded-full" />
             ) : (
               <Check size={16} />
             )}
             <span className="font-heading text-sm">
-              {addPhoto.isPending ? "Uploading..." : "Save Photo"}
+              {uploading ? "Uploading..." : addPhoto.isPending ? "Saving..." : "Save Photo"}
             </span>
           </button>
         </div>
