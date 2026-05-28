@@ -61,6 +61,9 @@ export default function LabsPage() {
     resultStatus: "normal",
     referenceRange: "",
   });
+  const [aiParsing, setAiParsing] = useState(false);
+  const [aiParseResult, setAiParseResult] = useState<Record<string, unknown> | null>(null);
+  const [aiParseError, setAiParseError] = useState<string | null>(null);
 
   // tRPC queries
   const ordersQuery = trpc.clientPortal.labs.listOrders.useQuery({ limit: 10 }, { staleTime: 30_000 });
@@ -122,12 +125,89 @@ export default function LabsPage() {
     setManualForm({ ...manualForm, tests: manualForm.tests.filter((t) => t.id !== testId) });
   };
 
+  const handleAiParsePdf = async () => {
+    if (!pdfFile) return;
+    setAiParsing(true);
+    setAiParseError(null);
+    setAiParseResult(null);
+    try {
+      const buffer = await pdfFile.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+      );
+      const res = await fetch("/api/clinical/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileBase64: base64,
+          fileName: pdfFile.name,
+          docType: "lab_result",
+          mimeType: pdfFile.type || "application/pdf",
+        }),
+      });
+      const result = await res.json();
+      if (result.success && result.data?.parsedData) {
+        setAiParseResult(result.data);
+        // Auto-populate manual form with parsed data
+        const parsed = result.data.parsedData as {
+          panels?: Array<{
+            name: string;
+            markers?: Array<{
+              name: string;
+              valueText?: string;
+              value?: number;
+              unit?: string;
+              referenceRange?: string;
+              status?: string;
+            }>;
+          }>;
+        };
+        if (parsed.panels && parsed.panels.length > 0) {
+          const tests: TestEntry[] = [];
+          for (const panel of parsed.panels) {
+            if (panel.markers) {
+              for (const marker of panel.markers) {
+                tests.push({
+                  id: Date.now().toString() + Math.random(),
+                  testName: marker.name,
+                  resultValue: marker.valueText ?? String(marker.value ?? "") + (marker.unit ? ` ${marker.unit}` : ""),
+                  resultStatus: (marker.status === "optimal" || marker.status === "normal")
+                    ? "normal"
+                    : (marker.status === "borderline" ? "borderline" : "out-of-range"),
+                  referenceRange: marker.referenceRange ?? "",
+                });
+              }
+            }
+          }
+          setManualForm({
+            labName: result.data.providerName ?? result.data.title ?? "Lab Results",
+            requestingDoctor: "",
+            date: result.data.reportDate
+              ? new Date(result.data.reportDate).toISOString().split("T")[0]
+              : new Date().toISOString().split("T")[0],
+            tests,
+            notes: "",
+          });
+          // Switch to manual tab to review parsed results
+          setActiveTab("manual");
+        }
+      } else {
+        setAiParseError(result.error ?? "Failed to parse lab results");
+      }
+    } catch (err) {
+      setAiParseError("Failed to send file for AI parsing");
+    } finally {
+      setAiParsing(false);
+    }
+  };
+
   const handleSaveResults = async () => {
     try {
       if (activeTab === "pdf") {
         if (!pdfFile) { alert("Please select a PDF file to upload"); return; }
-        const pdfUrl = URL.createObjectURL(pdfFile);
-        await uploadPdfMutation.mutateAsync({ panelName: "Lab Results", provider: "unknown", pdfUrl });
+        // Use AI parsing for PDFs
+        await handleAiParsePdf();
+        return; // Don't close form — switch to manual review
       } else if (activeTab === "url") {
         if (!urlInput.trim()) { alert("Please enter a valid URL"); return; }
         try { new URL(urlInput); } catch { alert("Please enter a valid URL (e.g. https://...)"); return; }
@@ -165,6 +245,9 @@ export default function LabsPage() {
     setCurrentTest({ testName: "", resultValue: "", resultStatus: "normal", referenceRange: "" });
     setUrlInput("");
     setPdfFile(null);
+    setAiParsing(false);
+    setAiParseResult(null);
+    setAiParseError(null);
   };
 
   const getOrderStatusColor = (status: string): string => {
@@ -256,17 +339,31 @@ export default function LabsPage() {
           <div className="mt-6">
             {activeTab === "pdf" && (
               <div className="space-y-4">
-                <input type="file" accept=".pdf" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} className="hidden" id="pdf-input" />
+                <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => { setPdfFile(e.target.files?.[0] || null); setAiParseError(null); setAiParseResult(null); }} className="hidden" id="pdf-input" />
                 <label htmlFor="pdf-input" className="border-2 border-dashed border-kairos-border rounded-kairos-sm p-12 text-center hover:border-kairos-gold/50 transition-all cursor-pointer block">
                   <Upload className="w-12 h-12 text-kairos-silver-dark mx-auto mb-4" />
-                  <p className="text-white font-body mb-2">{pdfFile ? pdfFile.name : "Drag and drop your PDF here"}</p>
-                  <p className="text-kairos-silver-dark text-sm font-body">or click to select a file</p>
+                  <p className="text-white font-body mb-2">{pdfFile ? pdfFile.name : "Drop your lab results PDF or image here"}</p>
+                  <p className="text-kairos-silver-dark text-sm font-body">AI will automatically extract all biomarkers</p>
                 </label>
+                {aiParseError && (
+                  <div className="p-3 bg-red-900/20 border border-red-700/50 rounded-kairos-sm text-red-400 text-sm">
+                    {aiParseError}
+                  </div>
+                )}
+                {aiParseResult && (
+                  <div className="p-3 bg-green-900/20 border border-green-700/50 rounded-kairos-sm text-green-400 text-sm">
+                    AI parsed {(aiParseResult as { parsedData?: { panels?: Array<{ markers?: unknown[] }> } }).parsedData?.panels?.reduce(
+                      (sum: number, p: { markers?: unknown[] }) => sum + (p.markers?.length ?? 0), 0
+                    ) ?? 0} biomarkers. Review below and save.
+                  </div>
+                )}
                 <div className="flex gap-3 justify-end">
                   <button onClick={resetForm} className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-body text-sm">Cancel</button>
-                  <button onClick={handleSaveResults} disabled={!pdfFile || uploadPdfMutation.isPending}
-                    className="kairos-btn-gold text-black px-6 py-2 rounded-kairos-sm font-body text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
-                    {uploadPdfMutation.isPending ? "Uploading..." : "Import"}
+                  <button onClick={handleSaveResults} disabled={!pdfFile || aiParsing}
+                    className="kairos-btn-gold text-black px-6 py-2 rounded-kairos-sm font-body text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                    {aiParsing ? (
+                      <><span className="animate-spin inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full" /> Parsing with AI...</>
+                    ) : "Parse with AI"}
                   </button>
                 </div>
               </div>
