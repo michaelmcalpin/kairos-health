@@ -22,11 +22,29 @@ export default async function HomePage() {
     <div className="min-h-screen bg-kairos-royal-dark flex flex-col">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 border-b border-kairos-border bg-kairos-royal-dark/95 backdrop-blur-sm">
-        <div>
-          <h1 className="font-heading font-bold text-xl text-kairos-gold tracking-wide">EVERIST.ai</h1>
-          <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-widest">
-            Private Health Management
-          </p>
+        <div className="flex items-center gap-3">
+          <svg width="32" height="32" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-label="EVERIST.ai">
+            <defs>
+              <linearGradient id="hdr-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#0A1628" />
+                <stop offset="100%" stopColor="#142238" />
+              </linearGradient>
+              <linearGradient id="hdr-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#6AAAE8" />
+                <stop offset="100%" stopColor="#4A90D9" />
+              </linearGradient>
+            </defs>
+            <rect width="64" height="64" rx="14" fill="url(#hdr-bg)" />
+            <path d="M12 48 L32 16 L52 48 Z" fill="none" stroke="#4A90D9" strokeWidth="2.5" strokeLinejoin="round" opacity="0.3" />
+            <text x="32" y="42" textAnchor="middle" fontFamily="Montserrat, system-ui, sans-serif" fontWeight="700" fontSize="28" fill="url(#hdr-accent)">E</text>
+            <circle cx="48" cy="18" r="3" fill="#4A90D9" opacity="0.8" />
+          </svg>
+          <div>
+            <h1 className="font-heading font-bold text-xl text-kairos-gold tracking-wide">EVERIST.ai</h1>
+            <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-widest">
+              Private Health Management
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <Show when="signed-out">

@@ -1,18 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#122055"/>
-      <stop offset="100%" style="stop-color:#1A2D6D"/>
+      <stop offset="0%" style="stop-color:#0A1628"/>
+      <stop offset="100%" style="stop-color:#142238"/>
     </linearGradient>
     <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#D4AF37"/>
-      <stop offset="100%" style="stop-color:#B8962E"/>
+      <stop offset="0%" style="stop-color:#6AAAE8"/>
+      <stop offset="100%" style="stop-color:#4A90D9"/>
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="102" fill="url(#bg)"/>
-  <text x="256" y="290" text-anchor="middle" font-family="Montserrat, sans-serif" font-weight="700" font-size="220" fill="url(#accent)">E</text>
-  <circle cx="380" cy="180" r="16" fill="#D4AF37" opacity="0.8"/>
-  <line x1="128" y1="360" x2="384" y2="360" stroke="#D4AF37" stroke-width="5" stroke-linecap="round"/>
-  <text x="256" y="416" text-anchor="middle" font-family="Open Sans, sans-serif" font-weight="600" font-size="36" fill="#E0E0E0" letter-spacing="8">EVERIST</text>
-  <text x="256" y="456" text-anchor="middle" font-family="Open Sans, sans-serif" font-weight="400" font-size="22" fill="#D4AF37" letter-spacing="2">.ai</text>
+  <path d="M96 384 L256 128 L416 384 Z" fill="none" stroke="#4A90D9" stroke-width="8" stroke-linejoin="round" opacity="0.25"/>
+  <path d="M176 384 L256 224 L336 384 Z" fill="#4A90D9" opacity="0.12"/>
+  <text x="256" y="300" text-anchor="middle" font-family="Montserrat, sans-serif" font-weight="700" font-size="220" fill="url(#accent)">E</text>
+  <circle cx="380" cy="160" r="16" fill="#4A90D9" opacity="0.8"/>
+  <line x1="128" y1="360" x2="384" y2="360" stroke="#4A90D9" stroke-width="5" stroke-linecap="round" opacity="0.4"/>
+  <text x="256" y="420" text-anchor="middle" font-family="Open Sans, sans-serif" font-weight="600" font-size="36" fill="#C0C5CE" letter-spacing="8">EVERIST</text>
+  <text x="256" y="460" text-anchor="middle" font-family="Open Sans, sans-serif" font-weight="400" font-size="22" fill="#4A90D9" letter-spacing="2">.ai</text>
 </svg>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/utils/cn";
+import { SummitGlyph } from "@/components/brand/SummitGlyph";
 import {
   LayoutDashboard,
   Bell,
@@ -122,6 +123,9 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
     >
       {/* Brand Header */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-kairos-border">
+        {collapsed && (
+          <SummitGlyph size={28} className="mx-auto" />
+        )}
         {!collapsed && (
           <div className="flex items-center gap-3 min-w-0">
             {companyLogoUrl ? (
@@ -137,7 +141,9 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
               >
                 {displayName.charAt(0)}
               </div>
-            ) : null}
+            ) : (
+              <SummitGlyph size={32} className="flex-shrink-0" />
+            )}
             <div className="min-w-0">
               <h1
                 className="font-heading font-bold text-lg tracking-wide truncate"
