@@ -15,6 +15,9 @@ import {
   Heart,
   ExternalLink,
   Calendar,
+  Award,
+  Star,
+  Mail,
 } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
@@ -54,13 +57,36 @@ export default function SettingsPage() {
     profileVisibility: "Trainer Only",
   });
 
+  // Feature toggles (persisted to DB)
+  const togglesQuery = trpc.clientPortal.settings.getFeatureToggles.useQuery();
+  const updateToggleMutation = trpc.clientPortal.settings.updateFeatureToggle.useMutation({
+    onSuccess: () => {
+      togglesQuery.refetch();
+    },
+  });
   const [cycleTracker, setCycleTracker] = useState(false);
+
+  // Hydrate cycle tracker toggle from DB
+  useEffect(() => {
+    if (togglesQuery.data) {
+      setCycleTracker(togglesQuery.data.cycleTracker ?? false);
+    }
+  }, [togglesQuery.data]);
+
+  const handleCycleTrackerToggle = () => {
+    const newValue = !cycleTracker;
+    setCycleTracker(newValue);
+    updateToggleMutation.mutate({ key: "cycleTracker", value: newValue });
+  };
 
   const [devices, setDevices] = useState([
     { id: "oura", name: "Oura Ring", status: "connected" },
     { id: "apple", name: "Apple Watch", status: "connected" },
     { id: "dexcom", name: "Dexcom CGM", status: "not connected" },
   ]);
+
+  // Coach assignment query
+  const coachQuery = trpc.clientPortal.settings.getMyCoach.useQuery();
 
   // Document repository query
   const docsQuery = trpc.clientPortal.clinicalDocs.listAll.useQuery();
@@ -289,6 +315,106 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Your Coach Section */}
+        <div className="kairos-card rounded-kairos-sm p-8 mb-6 bg-kairos-card border border-kairos-border">
+          <div className="flex items-center gap-3 mb-6">
+            <Award className="w-6 h-6 text-kairos-gold" />
+            <h2 className="font-heading text-2xl text-kairos-gold">Your Coach</h2>
+          </div>
+
+          {coachQuery.isLoading ? (
+            <div className="text-kairos-silver-dark text-sm">Loading coach info...</div>
+          ) : coachQuery.data ? (
+            <div className="flex items-start gap-6">
+              {/* Coach Avatar */}
+              <div className="flex-shrink-0">
+                {coachQuery.data.avatarUrl ? (
+                  <img
+                    src={coachQuery.data.avatarUrl}
+                    alt={`${coachQuery.data.firstName} ${coachQuery.data.lastName}`}
+                    className="w-20 h-20 rounded-full border-2 border-kairos-gold object-cover"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full border-2 border-kairos-gold bg-kairos-card-hover flex items-center justify-center">
+                    <User className="w-10 h-10 text-kairos-gold" />
+                  </div>
+                )}
+              </div>
+
+              {/* Coach Info */}
+              <div className="flex-1 space-y-3">
+                <div>
+                  <h3 className="font-heading text-xl text-kairos-silver-dark">
+                    {coachQuery.data.firstName} {coachQuery.data.lastName}
+                  </h3>
+                  {coachQuery.data.rating !== null && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Star className="w-4 h-4 text-kairos-gold fill-kairos-gold" />
+                      <span className="text-sm text-kairos-silver-dark">
+                        {coachQuery.data.rating.toFixed(1)}
+                        {coachQuery.data.reviewCount > 0 && (
+                          <span className="text-kairos-silver-dark/60 ml-1">
+                            ({coachQuery.data.reviewCount} reviews)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {coachQuery.data.bio && (
+                  <p className="text-sm text-kairos-silver-dark/80 leading-relaxed">
+                    {coachQuery.data.bio}
+                  </p>
+                )}
+
+                {coachQuery.data.specialties.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {coachQuery.data.specialties.map((specialty: string) => (
+                      <span
+                        key={specialty}
+                        className="px-3 py-1 text-xs rounded-full bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/20"
+                      >
+                        {specialty}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {coachQuery.data.credentials.length > 0 && (
+                  <div className="text-xs text-kairos-silver-dark/60">
+                    {coachQuery.data.credentials.join(" · ")}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-4 pt-2 text-sm">
+                  {coachQuery.data.email && (
+                    <a
+                      href={`mailto:${coachQuery.data.email}`}
+                      className="flex items-center gap-1.5 text-kairos-gold hover:text-kairos-gold/80 transition-colors"
+                    >
+                      <Mail className="w-4 h-4" />
+                      Contact
+                    </a>
+                  )}
+                  {coachQuery.data.since && (
+                    <span className="text-kairos-silver-dark/50">
+                      Coach since {new Date(coachQuery.data.since).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <User className="w-12 h-12 text-kairos-silver-dark/30 mx-auto mb-3" />
+              <p className="text-kairos-silver-dark/60 text-sm">
+                No coach assigned yet. Contact your administrator to get matched with a coach.
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Notifications Section */}
         <div className="kairos-card rounded-kairos-sm p-8 mb-6 bg-kairos-card border border-kairos-border">
           <div className="flex items-center gap-3 mb-6">
@@ -510,7 +636,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               <button
-                onClick={() => setCycleTracker(!cycleTracker)}
+                onClick={handleCycleTrackerToggle}
                 className={`relative w-12 h-6 rounded-full transition-colors ${
                   cycleTracker
                     ? "bg-kairos-gold"

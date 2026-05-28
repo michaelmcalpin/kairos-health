@@ -9,8 +9,8 @@
 
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { users, notificationPreferences, clientProfiles } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { users, notificationPreferences, clientProfiles, trainerClientRelationships, trainerProfiles } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export const clientSettingsRouter = router({
   /**
@@ -137,4 +137,76 @@ export const clientSettingsRouter = router({
         return created;
       }
     }),
+
+  /**
+   * Update a feature toggle (e.g. cycleTracker).
+   * Merges into the existing featureToggles JSONB on client_profiles.
+   */
+  updateFeatureToggle: clientProcedure
+    .input(
+      z.object({
+        key: z.string(),
+        value: z.boolean(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get current toggles
+      const profile = await ctx.db.query.clientProfiles.findFirst({
+        where: eq(clientProfiles.userId, ctx.dbUserId),
+      });
+
+      const current = (profile?.featureToggles as Record<string, boolean>) ?? {};
+      const updated = { ...current, [input.key]: input.value };
+
+      if (profile) {
+        await ctx.db
+          .update(clientProfiles)
+          .set({ featureToggles: updated })
+          .where(eq(clientProfiles.userId, ctx.dbUserId));
+      }
+
+      return updated;
+    }),
+
+  /**
+   * Get the client's assigned coach (active trainer relationship).
+   * Joins trainer_client_relationships → users + trainer_profiles.
+   */
+  getMyCoach: clientProcedure.query(async ({ ctx }) => {
+    // Find active trainer relationship for this client
+    const relationship = await ctx.db.query.trainerClientRelationships.findFirst({
+      where: and(
+        eq(trainerClientRelationships.clientId, ctx.dbUserId),
+        eq(trainerClientRelationships.status, "active"),
+      ),
+    });
+
+    if (!relationship) return null;
+
+    // Get trainer user info
+    const trainer = await ctx.db.query.users.findFirst({
+      where: eq(users.id, relationship.trainerId),
+    });
+
+    if (!trainer) return null;
+
+    // Get trainer profile (bio, specialties, credentials, rating)
+    const profile = await ctx.db.query.trainerProfiles.findFirst({
+      where: eq(trainerProfiles.userId, relationship.trainerId),
+    });
+
+    return {
+      id: trainer.id,
+      firstName: trainer.firstName,
+      lastName: trainer.lastName,
+      email: trainer.email,
+      avatarUrl: trainer.avatarUrl,
+      bio: profile?.bio ?? null,
+      specialties: (profile?.specialties as string[]) ?? [],
+      credentials: (profile?.credentials as string[]) ?? [],
+      rating: profile?.rating ?? null,
+      reviewCount: profile?.reviewCount ?? 0,
+      since: relationship.startedAt,
+    };
+  }),
 });
