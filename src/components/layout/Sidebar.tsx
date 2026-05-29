@@ -45,6 +45,9 @@ import {
   FileHeart,
   Tablets,
   Syringe,
+  Camera,
+  Target,
+  CalendarCheck,
 } from "lucide-react";
 
 export type NavItem = {
@@ -279,9 +282,12 @@ export const clientNavItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
   { label: "Chat", href: "/chat", icon: <MessageSquare size={18} />, section: "Overview" },
   { label: "Insight Sherpa", href: "/insights", icon: <Brain size={18} />, section: "Overview" },
+  { label: "Goals", href: "/goals", icon: <Target size={18} />, section: "Overview" },
+  { label: "Appointments", href: "/appointments", icon: <CalendarCheck size={18} />, section: "Overview" },
 
   // Biometrics
   { label: "Body Comp", href: "/measurements", icon: <Ruler size={18} />, section: "Biometrics" },
+  { label: "Progress Photos", href: "/progress-photos", icon: <Camera size={18} />, section: "Biometrics" },
   { label: "Sleep & Recovery", href: "/sleep", icon: <Moon size={18} />, section: "Biometrics" },
   { label: "Movement", href: "/workouts", icon: <Footprints size={18} />, section: "Biometrics" },
   { label: "Glucose", href: "/glucose", icon: <Droplets size={18} />, section: "Biometrics" },
@@ -301,6 +307,9 @@ export const clientNavItems: NavItem[] = [
   { label: "Supplements", href: "/supplements", icon: <Pill size={18} />, section: "Protocols" },
   { label: "Peptides", href: "/peptides", icon: <Syringe size={18} />, section: "Protocols" },
   { label: "Medications", href: "/medications", icon: <Tablets size={18} />, section: "Protocols" },
+
+  // Account
+  { label: "Settings", href: "/settings", icon: <Settings size={18} />, section: "Account" },
 
 ];
 

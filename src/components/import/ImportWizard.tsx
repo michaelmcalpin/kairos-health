@@ -14,6 +14,7 @@ import { FileUploadZone } from "./FileUploadZone";
 import { ColumnMapper } from "./ColumnMapper";
 import { ImportPreview } from "./ImportPreview";
 import { ImportResult } from "./ImportResult";
+import { trpc } from "@/lib/trpc";
 
 type WizardStep = "upload" | "mapping" | "preview" | "result";
 
@@ -21,6 +22,9 @@ export function ImportWizard() {
   const [step, setStep] = useState<WizardStep>("upload");
   const [session, setSession] = useState<ImportSession | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const bulkInsert = trpc.clientPortal.imports.bulkInsert.useMutation();
 
   async function handleFileSelect(file: File, category: ImportCategory) {
     setError(null);
@@ -57,11 +61,45 @@ export function ImportWizard() {
     setSession(toggleRowSkip(session, rowIndex));
   }
 
-  function handleExecute() {
+  async function handleExecute() {
     if (!session) return;
-    const result = executeImport(session);
-    setSession(result);
-    setStep("result");
+    setImporting(true);
+    setError(null);
+
+    try {
+      // Build mapped rows: apply column mappings to produce {targetField: value} records
+      const mappedRows = session.rows
+        .filter((r) => !r.skip && !r.errors.some((e) => e.severity === "error"))
+        .map((r) => {
+          const mapped: Record<string, string> = {};
+          session.mappings.forEach((m) => {
+            if (m.targetField && r.data[m.sourceColumn] !== undefined) {
+              mapped[m.targetField] = r.data[m.sourceColumn];
+            }
+          });
+          return mapped;
+        });
+
+      // Call tRPC to save data to the database
+      const result = await bulkInsert.mutateAsync({
+        category: session.category,
+        fileName: session.fileName,
+        rows: mappedRows,
+      });
+
+      // Update local session with result
+      const updatedSession = executeImport(session);
+      if (updatedSession.summary) {
+        updatedSession.summary.importedRows = result.importedCount;
+      }
+      setSession(updatedSession);
+      setStep("result");
+    } catch (err) {
+      setError("Failed to save imported data. Please try again.");
+      console.error("[Import Error]", err);
+    } finally {
+      setImporting(false);
+    }
   }
 
   function handleNewImport() {
@@ -166,6 +204,7 @@ export function ImportWizard() {
           onToggleRow={handleToggleRow}
           onExecute={handleExecute}
           onBack={() => setStep("mapping")}
+          importing={importing}
         />
       )}
 

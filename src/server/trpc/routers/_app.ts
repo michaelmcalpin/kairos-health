@@ -33,6 +33,7 @@ import { clientSettingsRouter } from "./client/settings";
 import { clientDevicesRouter } from "./client/devices";
 import { clientClinicalDocsRouter } from "./client/clinical-docs";
 import { clientReportsRouter } from "./client/reports";
+import { clientPeptidesRouter } from "./client/peptides";
 
 // Coach routers
 import { coachDashboardRouter } from "./coach/dashboard";
@@ -91,6 +92,7 @@ export const appRouter = router({
     devices: clientDevicesRouter,
     clinicalDocs: clientClinicalDocsRouter,
     reports: clientReportsRouter,
+    peptides: clientPeptidesRouter,
   }),
   coach: router({
     dashboard: coachDashboardRouter,

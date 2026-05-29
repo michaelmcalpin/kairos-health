@@ -939,6 +939,48 @@ export const clinicalDocuments = pgTable("clinical_documents", {
   index("clinical_docs_type_idx").on(t.clientId, t.docType),
 ]);
 
+// ======================== PEPTIDE CYCLES ========================
+
+export const peptideCycleStatusEnum = pgEnum("peptide_cycle_status", ["planned", "active", "completed", "paused"]);
+
+export const peptideCycles = pgTable("peptide_cycles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  peptideName: varchar("peptide_name", { length: 255 }).notNull(),
+  dosage: varchar("dosage", { length: 100 }),
+  unit: varchar("unit", { length: 50 }),
+  frequency: varchar("frequency", { length: 100 }),
+  route: varchar("route", { length: 50 }).default("subcutaneous"),
+  injectionSites: jsonb("injection_sites").$type<string[]>().default([]),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date"),
+  durationWeeks: integer("duration_weeks"),
+  status: peptideCycleStatusEnum("status").notNull().default("planned"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("peptide_cycles_client_idx").on(t.clientId, t.status),
+]);
+
+export const peptideLogs = pgTable("peptide_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  cycleId: uuid("cycle_id").references(() => peptideCycles.id),
+  peptideName: varchar("peptide_name", { length: 255 }).notNull(),
+  dosage: varchar("dosage", { length: 100 }),
+  unit: varchar("unit", { length: 50 }),
+  date: date("date").notNull(),
+  time: varchar("time", { length: 20 }),
+  injectionSite: varchar("injection_site", { length: 100 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("peptide_logs_client_date_idx").on(t.clientId, t.date),
+  index("peptide_logs_cycle_idx").on(t.cycleId),
+]);
+
 // ======================== SAVED AI REPORTS ========================
 
 export const savedReports = pgTable("saved_reports", {

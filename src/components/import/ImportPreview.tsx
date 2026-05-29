@@ -8,9 +8,10 @@ interface ImportPreviewProps {
   onToggleRow: (rowIndex: number) => void;
   onExecute: () => void;
   onBack: () => void;
+  importing?: boolean;
 }
 
-export function ImportPreview({ session, onToggleRow, onExecute, onBack }: ImportPreviewProps) {
+export function ImportPreview({ session, onToggleRow, onExecute, onBack, importing }: ImportPreviewProps) {
   const stats = computePreviewStats(session.rows);
   const previewRows = session.rows.slice(0, 50);
 
@@ -138,9 +139,11 @@ export function ImportPreview({ session, onToggleRow, onExecute, onBack }: Impor
         </button>
         <button
           onClick={onExecute}
-          className="kairos-btn-gold px-8 py-2 rounded-lg font-semibold transition hover:scale-105"
+          disabled={importing}
+          className="kairos-btn-gold px-8 py-2 rounded-lg font-semibold transition hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
-          Import {stats.validCount + stats.warningCount} Rows
+          {importing && <div className="animate-spin w-4 h-4 border-2 border-kairos-royal-dark border-t-transparent rounded-full" />}
+          {importing ? "Importing..." : `Import ${stats.validCount + stats.warningCount} Rows`}
         </button>
       </div>
     </div>
