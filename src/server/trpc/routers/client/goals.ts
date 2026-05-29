@@ -139,7 +139,7 @@ export const clientGoalsRouter = router({
   create: clientProcedure
     .input(
       z.object({
-        category: z.string(),
+        category: z.enum(["glucose", "sleep", "weight", "body_fat", "activity", "nutrition", "supplements", "fasting", "labs", "custom"]),
         title: z.string().min(1),
         description: z.string(),
         targetValue: z.number(),
@@ -162,7 +162,7 @@ export const clientGoalsRouter = router({
         .insert(healthGoals)
         .values({
           clientId: ctx.dbUserId,
-          category: input.category as typeof healthGoals.$inferInsert.category,
+          category: input.category,
           title: input.title,
           description: input.description,
           targetValue: input.targetValue,

@@ -137,7 +137,7 @@ export const clientSchedulingRouter = router({
       z.object({
         coachId: z.string(),
         coachName: z.string(),
-        sessionType: z.string(),
+        sessionType: z.enum(["initial_consultation", "follow_up", "protocol_review", "lab_review", "goal_setting", "ad_hoc"]),
         meetingType: z.enum(["video", "phone", "in_person"]),
         date: z.string(),
         startTime: z.string(),
@@ -162,7 +162,7 @@ export const clientSchedulingRouter = router({
           clientId: ctx.dbUserId,
           coachName: input.coachName,
           clientName,
-          sessionType: input.sessionType as "follow_up",
+          sessionType: input.sessionType,
           meetingType: input.meetingType,
           date: input.date,
           startTime: input.startTime,

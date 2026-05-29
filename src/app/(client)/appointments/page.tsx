@@ -88,7 +88,7 @@ export default function AppointmentsPage() {
   });
 
   const handleBook = (booking: {
-    sessionType: string;
+    sessionType: "initial_consultation" | "follow_up" | "protocol_review" | "lab_review" | "goal_setting" | "ad_hoc";
     meetingType: "video" | "phone" | "in_person";
     date: string;
     startTime: string;

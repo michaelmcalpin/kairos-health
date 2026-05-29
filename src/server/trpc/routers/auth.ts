@@ -86,8 +86,10 @@ export const authRouter = router({
     return { user: newUser, created: true };
   }),
 
-  // Called after Clerk sign-up to create our DB user record
-  syncUser: publicProcedure
+  // Sync current authenticated user's DB record.
+  // Secured: validates caller's Clerk ID matches their own session.
+  // Primarily used as a fallback when webhooks miss; prefer ensureUser.
+  syncUser: protectedProcedure
     .input(
       z.object({
         clerkId: z.string(),
@@ -98,6 +100,11 @@ export const authRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Security: caller can only sync their own user record
+      if (ctx.userId !== input.clerkId) {
+        throw new Error("Unauthorized: clerkId does not match authenticated user");
+      }
+
       const existing = await ctx.db.query.users.findFirst({
         where: eq(users.clerkId, input.clerkId),
       });

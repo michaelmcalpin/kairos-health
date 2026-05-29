@@ -108,21 +108,27 @@ export const clientWorkoutsRouter = router({
           clientId: ctx.dbUserId,
           sessionId: null,
           date: input.date ?? new Date().toISOString().split("T")[0],
-          // Store quick log data as JSON in exercisesCompleted field
-          // Cast needed: quick_log entries use a different shape than structured exercises
+          // Store quick log data as a single exercise entry.
+          // Uses weight=0, reps=0, rpe=0 since quick logs aren't set-based.
+          // Actual workout metadata is in the exerciseId prefix and notes.
           exercisesCompleted: [
             {
               exerciseId: `quick_log:${input.workoutType}`,
               sets: [{
-                weight: input.durationMinutes,
-                reps: input.caloriesBurned ?? 0,
-                rpe: input.avgHeartRate ?? 0,
+                weight: 0,
+                reps: 0,
+                rpe: 0,
               }],
-              // Extra metadata stored in jsonb but typed loosely
-              ...(({ workoutType: input.workoutType, durationMinutes: input.durationMinutes, caloriesBurned: input.caloriesBurned ?? null, avgHeartRate: input.avgHeartRate ?? null, maxHeartRate: input.maxHeartRate ?? null }) as Record<string, unknown>),
             },
           ] as typeof workoutLogs.$inferInsert["exercisesCompleted"],
-          notes: input.notes ?? null,
+          notes: JSON.stringify({
+            type: input.workoutType,
+            durationMinutes: input.durationMinutes,
+            caloriesBurned: input.caloriesBurned ?? null,
+            avgHeartRate: input.avgHeartRate ?? null,
+            maxHeartRate: input.maxHeartRate ?? null,
+            userNotes: input.notes ?? null,
+          }),
         })
         .returning();
 

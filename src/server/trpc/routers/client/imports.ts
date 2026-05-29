@@ -51,14 +51,12 @@ export const clientImportsRouter = router({
         const values = rows.map((r) => ({
           clientId: ctx.dbUserId,
           date: r.date,
-          totalHours: parseFloat(r.duration_hours) || 0,
+          totalMinutes: r.duration_hours ? Math.round(parseFloat(r.duration_hours) * 60) : null,
           score: r.score ? parseInt(r.score) : null,
-          deepHours: r.deep_hours ? parseFloat(r.deep_hours) : null,
-          remHours: r.rem_hours ? parseFloat(r.rem_hours) : null,
-          lightHours: r.light_hours ? parseFloat(r.light_hours) : null,
-          awakeHours: r.awake_hours ? parseFloat(r.awake_hours) : null,
-          restingHr: r.heart_rate_avg ? parseInt(r.heart_rate_avg) : null,
-          hrvMs: r.hrv_avg ? parseInt(r.hrv_avg) : null,
+          deepMinutes: r.deep_hours ? Math.round(parseFloat(r.deep_hours) * 60) : null,
+          remMinutes: r.rem_hours ? Math.round(parseFloat(r.rem_hours) * 60) : null,
+          lightMinutes: r.light_hours ? Math.round(parseFloat(r.light_hours) * 60) : null,
+          awakeMinutes: r.awake_hours ? Math.round(parseFloat(r.awake_hours) * 60) : null,
           source: r.source || "import",
         }));
         if (values.length > 0) {
@@ -71,11 +69,9 @@ export const clientImportsRouter = router({
         const values = rows.map((r) => ({
           clientId: ctx.dbUserId,
           date: r.date,
-          activeMinutes: parseInt(r.duration_minutes) || 0,
-          caloriesBurned: r.calories ? parseInt(r.calories) : null,
-          avgHeartRate: r.avg_heart_rate ? parseInt(r.avg_heart_rate) : null,
-          steps: null,
-          distanceKm: r.distance_miles ? parseFloat(r.distance_miles) * 1.60934 : null,
+          exerciseMinutes: r.duration_minutes ? parseInt(r.duration_minutes) : null,
+          caloriesActive: r.calories ? parseInt(r.calories) : null,
+          steps: r.steps ? parseInt(r.steps) : null,
           source: r.source || "import",
         }));
         if (values.length > 0) {
@@ -90,8 +86,7 @@ export const clientImportsRouter = router({
           date: r.date,
           weightLbs: r.type === "weight" ? parseFloat(r.value) : null,
           bodyFatPct: r.type === "body_fat" ? parseFloat(r.value) : null,
-          muscleMassLbs: r.type === "muscle_mass" ? parseFloat(r.value) : null,
-          waistIn: r.type === "waist" ? parseFloat(r.value) : null,
+          waistInches: r.type === "waist" ? parseFloat(r.value) : null,
           source: r.source || "import",
         }));
         if (values.length > 0) {

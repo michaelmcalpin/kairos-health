@@ -6,18 +6,17 @@ import { trpc } from "@/lib/trpc";
 // ─── Local types & constants (previously from @/lib/scheduling/types) ───
 
 type SessionType =
-  | "initial_consult"
+  | "initial_consultation"
   | "follow_up"
+  | "protocol_review"
   | "lab_review"
-  | "protocol_adjustment"
-  | "weekly_review"
-  | "onboarding"
-  | "emergency";
+  | "goal_setting"
+  | "ad_hoc";
 
 type MeetingType = "video" | "phone" | "in_person";
 
 interface SessionTypeInfo {
-  id: string;
+  id: SessionType;
   label: string;
   durationMinutes: number;
   color: string;
@@ -39,7 +38,7 @@ const MEETING_TYPE_LABELS: Record<string, string> = {
   in_person: "In-Person",
 };
 
-function getSessionTypeInfo(type: string): SessionTypeInfo {
+function getSessionTypeInfo(type: SessionType): SessionTypeInfo {
   return SESSION_TYPES.find((s) => s.id === type) ?? SESSION_TYPES[1];
 }
 
@@ -62,7 +61,7 @@ interface BookingFormProps {
   coachId: string;
   coachName: string;
   onBook: (booking: {
-    sessionType: string;
+    sessionType: SessionType;
     meetingType: "video" | "phone" | "in_person";
     date: string;
     startTime: string;
@@ -75,7 +74,7 @@ type Step = "session_type" | "date_time" | "details" | "confirm";
 
 export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFormProps) {
   const [step, setStep] = useState<Step>("session_type");
-  const [sessionType, setSessionType] = useState<string | null>(null);
+  const [sessionType, setSessionType] = useState<SessionType | null>(null);
   const [meetingType, setMeetingType] = useState<MeetingType>("video");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<{ start: string; end: string } | null>(null);
