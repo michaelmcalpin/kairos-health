@@ -347,7 +347,7 @@ export default function SettingsPage() {
                   <h3 className="font-heading text-xl text-kairos-silver-dark">
                     {coachQuery.data.firstName} {coachQuery.data.lastName}
                   </h3>
-                  {coachQuery.data.rating !== null && (
+                  {coachQuery.data.rating != null && (
                     <div className="flex items-center gap-1 mt-1">
                       <Star className="w-4 h-4 text-kairos-gold fill-kairos-gold" />
                       <span className="text-sm text-kairos-silver-dark">

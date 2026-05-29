@@ -28,11 +28,11 @@ export default function FastingPage() {
   const { records: fastingHistory, stats: fastingStats } = useFasting(dateRange);
   const historyStats = fastingStats;
 
+  const utils = trpc.useUtils();
   const logFastMutation = trpc.clientPortal.fasting.logFast.useMutation({
     onSuccess: () => {
-      // Invalidate the fasting queries to refetch data
-      trpc.useUtils().clientPortal.fasting.listLogs.invalidate();
-      trpc.useUtils().clientPortal.fasting.stats.invalidate();
+      utils.clientPortal.fasting.listLogs.invalidate();
+      utils.clientPortal.fasting.stats.invalidate();
     },
   });
 

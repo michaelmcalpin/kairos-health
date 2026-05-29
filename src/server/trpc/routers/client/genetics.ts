@@ -59,6 +59,12 @@ export const clientGeneticsRouter = router({
         });
         if (!profile) return [];
         profileId = profile.id;
+      } else {
+        // Verify ownership when profileId is explicitly provided
+        const profile = await ctx.db.query.geneticProfiles.findFirst({
+          where: and(eq(geneticProfiles.id, profileId), eq(geneticProfiles.clientId, ctx.dbUserId)),
+        });
+        if (!profile) return [];
       }
 
       return ctx.db.query.geneticPathwayScores.findMany({
@@ -161,6 +167,12 @@ export const clientGeneticsRouter = router({
         });
         if (!profile) return [];
         profileId = profile.id;
+      } else {
+        // Verify ownership when profileId is explicitly provided
+        const profile = await ctx.db.query.geneticProfiles.findFirst({
+          where: and(eq(geneticProfiles.id, profileId), eq(geneticProfiles.clientId, ctx.dbUserId)),
+        });
+        if (!profile) return [];
       }
 
       const conditions = [eq(geneticMarkers.profileId, profileId)];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Send,
@@ -638,7 +638,15 @@ function NoCoachState() {
 // Main Chat Page
 // ---------------------------------------------------------------------------
 
-export default function ChatPage() {
+export default function ChatPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64 text-gray-400">Loading chat...</div>}>
+      <ChatPageContent />
+    </Suspense>
+  );
+}
+
+function ChatPageContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") === "coach" ? "coach" : "ai";
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);

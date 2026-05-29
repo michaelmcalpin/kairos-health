@@ -142,22 +142,26 @@ export const companyDashboardRouter = router({
   // ── Keep existing endpoints for backwards compatibility ──────
 
   getOverview: companyAdminProcedure
-    .input(z.object({ companyId: z.string() }))
-    .query(async ({ ctx, input }) => {
+    .input(z.object({ companyId: z.string().optional() }).optional())
+    .query(async ({ ctx }) => {
+      // Always use the admin's own companyId — ignore input
+      const companyId = ctx.companyId;
+      if (!companyId) throw new Error("No company associated with your account");
+
       const company = await ctx.db.query.companies.findFirst({
-        where: eq(companies.id, input.companyId),
+        where: eq(companies.id, companyId),
       });
       if (!company) throw new Error("Company not found");
 
       const trainerCount = await ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(users)
-        .where(and(eq(users.companyId, input.companyId), eq(users.role, "trainer")));
+        .where(and(eq(users.companyId, companyId), eq(users.role, "trainer")));
 
       const clientCount = await ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(users)
-        .where(and(eq(users.companyId, input.companyId), eq(users.role, "client")));
+        .where(and(eq(users.companyId, companyId), eq(users.role, "client")));
 
       return {
         company,
@@ -167,18 +171,22 @@ export const companyDashboardRouter = router({
     }),
 
   getTrainers: companyAdminProcedure
-    .input(z.object({ companyId: z.string() }))
-    .query(async ({ ctx, input }) => {
+    .input(z.object({ companyId: z.string().optional() }).optional())
+    .query(async ({ ctx }) => {
+      const companyId = ctx.companyId;
+      if (!companyId) return [];
       return ctx.db.query.users.findMany({
-        where: and(eq(users.companyId, input.companyId), eq(users.role, "trainer")),
+        where: and(eq(users.companyId, companyId), eq(users.role, "trainer")),
       });
     }),
 
   getClients: companyAdminProcedure
-    .input(z.object({ companyId: z.string() }))
-    .query(async ({ ctx, input }) => {
+    .input(z.object({ companyId: z.string().optional() }).optional())
+    .query(async ({ ctx }) => {
+      const companyId = ctx.companyId;
+      if (!companyId) return [];
       return ctx.db.query.users.findMany({
-        where: and(eq(users.companyId, input.companyId), eq(users.role, "client")),
+        where: and(eq(users.companyId, companyId), eq(users.role, "client")),
       });
     }),
 });

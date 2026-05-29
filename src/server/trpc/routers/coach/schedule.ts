@@ -212,7 +212,7 @@ export const coachScheduleRouter = router({
       z.object({
         clientId: z.string(),
         clientName: z.string(),
-        sessionType: z.string(),
+        sessionType: z.enum(["initial_consultation", "follow_up", "protocol_review", "lab_review", "goal_setting", "ad_hoc"]),
         date: z.string(),
         startTime: z.string(),
         meetingType: z.enum(["video", "phone", "in_person"]),

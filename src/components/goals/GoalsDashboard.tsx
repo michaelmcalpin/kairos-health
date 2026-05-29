@@ -229,10 +229,10 @@ export function GoalsDashboard() {
     updateStatusMutation.mutate({ goalId, status: "active" });
   }
 
-  // For the "all" view, we already have all goals; for filtered we have only that status
+  // Client-side filter (the tRPC query may already filter server-side, but apply here too for safety)
   const filteredGoals = filterStatus === "all"
     ? goals
-    : goals;
+    : goals.filter((g) => g.status === filterStatus);
 
   if (showTemplates) {
     return (

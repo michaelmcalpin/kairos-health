@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import { healthGoals, goalMilestones, goalCheckpoints } from "@/server/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import type { HealthGoal, GoalMilestone, GoalCheckpoint } from "@/lib/goals/types";
 
 export const clientGoalsRouter = router({
@@ -31,12 +31,12 @@ export const clientGoalsRouter = router({
       if (goalIds.length === 0) return [];
 
       const allMilestones = await ctx.db.query.goalMilestones.findMany({
-        where: sql`${goalMilestones.goalId} = ANY(${goalIds})`,
+        where: inArray(goalMilestones.goalId, goalIds),
         orderBy: goalMilestones.sortOrder,
       });
 
       const allCheckpoints = await ctx.db.query.goalCheckpoints.findMany({
-        where: sql`${goalCheckpoints.goalId} = ANY(${goalIds})`,
+        where: inArray(goalCheckpoints.goalId, goalIds),
         orderBy: goalCheckpoints.createdAt,
       });
 

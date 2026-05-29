@@ -59,6 +59,25 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+// ─── Relationship guard ─────────────────────────────────────
+
+async function verifyCoachClientRelationship(
+  db: typeof import("@/server/db").db,
+  coachId: string,
+  clientId: string,
+) {
+  const rel = await db.query.trainerClientRelationships.findFirst({
+    where: and(
+      eq(trainerClientRelationships.trainerId, coachId),
+      eq(trainerClientRelationships.clientId, clientId),
+      eq(trainerClientRelationships.status, "active"),
+    ),
+  });
+  if (!rel) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "No active relationship with this client" });
+  }
+}
+
 // ─── Shared client data fetcher ───────────────────────────────
 
 async function fetchClientData(db: typeof import("@/server/db").db, clientId: string) {
@@ -277,6 +296,7 @@ export const coachClientsRouter = router({
   getDetail: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
       const detail = await fetchClientData(ctx.db, input.clientId);
       if (!detail) return null;
 
@@ -378,6 +398,7 @@ export const coachClientsRouter = router({
   resolveAlert: trainerProcedure
     .input(z.object({ clientId: z.string(), alertId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
       const [updated] = await ctx.db
         .update(alerts)
         .set({ status: "resolved", resolvedAt: new Date() })
@@ -390,6 +411,7 @@ export const coachClientsRouter = router({
   addNote: trainerProcedure
     .input(z.object({ clientId: z.string(), content: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
       const [note] = await ctx.db
         .insert(coachNotes)
         .values({
@@ -404,6 +426,7 @@ export const coachClientsRouter = router({
   getNotes: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
       return ctx.db.query.coachNotes.findMany({
         where: eq(coachNotes.clientId, input.clientId),
         orderBy: [desc(coachNotes.pinned), desc(coachNotes.createdAt)],
@@ -413,6 +436,7 @@ export const coachClientsRouter = router({
   pinNote: trainerProcedure
     .input(z.object({ clientId: z.string(), noteId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
       // Toggle pin status
       const existing = await ctx.db.query.coachNotes.findFirst({
         where: and(eq(coachNotes.id, input.noteId), eq(coachNotes.clientId, input.clientId)),
@@ -429,6 +453,7 @@ export const coachClientsRouter = router({
   deleteNote: trainerProcedure
     .input(z.object({ clientId: z.string(), noteId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
       const deleted = await ctx.db
         .delete(coachNotes)
         .where(and(eq(coachNotes.id, input.noteId), eq(coachNotes.clientId, input.clientId)))
@@ -446,6 +471,7 @@ export const coachClientsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
       // Find the active protocol for this client
       const protocol = await ctx.db.query.supplementProtocols.findFirst({
         where: and(

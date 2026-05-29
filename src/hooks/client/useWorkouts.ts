@@ -56,17 +56,42 @@ export function useWorkouts(dateRange: DateRange): UseWorkoutsReturn {
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     return rawLogs.map((w) => {
       const dateObj = new Date(w.date + "T12:00:00");
+      const exercises = (w.exercisesCompleted ?? []) as Array<{ exerciseId: string; sets: Array<{ weight: number; reps: number; rpe?: number }> }>;
+
+      // Check if this is a quick-log entry (metadata stored as JSON in notes)
+      const isQuickLog = exercises.length === 1 && exercises[0]?.exerciseId?.startsWith("quick_log:");
+      let type = "Strength";
+      let duration = 0;
+      let calories = 0;
+      let heartRateAvg = 0;
+
+      if (isQuickLog && w.notes) {
+        try {
+          const meta = JSON.parse(w.notes);
+          type = meta.type ? meta.type.charAt(0).toUpperCase() + meta.type.slice(1) : "Other";
+          duration = meta.durationMinutes ?? 0;
+          calories = meta.caloriesBurned ?? 0;
+          heartRateAvg = meta.avgHeartRate ?? 0;
+        } catch {
+          // Not valid JSON — fall through to defaults
+        }
+      } else {
+        // Regular workout — estimate duration from set count
+        const totalSets = exercises.reduce((s, ex) => s + (ex.sets?.length ?? 0), 0);
+        duration = totalSets * 3; // rough ~3min per set
+      }
+
       return {
         id: w.id,
         sessionId: w.sessionId,
         date: dateObj,
         dateLabel: days[dateObj.getDay()],
-        type: (w as Record<string, unknown>).type as string ?? "Strength",
-        exercisesCompleted: w.exercisesCompleted ?? [],
+        type,
+        exercisesCompleted: exercises,
         notes: w.notes,
-        duration: (w as Record<string, unknown>).durationMinutes as number ?? 0,
-        calories: (w as Record<string, unknown>).caloriesBurned as number ?? 0,
-        heartRateAvg: (w as Record<string, unknown>).heartRateAvg as number ?? 0,
+        duration,
+        calories,
+        heartRateAvg,
       };
     });
   }, [rawLogs]);

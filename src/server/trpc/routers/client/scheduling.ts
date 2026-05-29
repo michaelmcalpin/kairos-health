@@ -216,8 +216,13 @@ export const clientSchedulingRouter = router({
       });
       if (!appt) return null;
 
-      return ctx.db.query.sessionNotes.findFirst({
+      const notes = await ctx.db.query.sessionNotes.findFirst({
         where: eq(sessionNotes.appointmentId, input.appointmentId),
       });
+      if (!notes) return null;
+
+      // Omit privateNotes — coach-only field
+      const { privateNotes: _private, ...clientSafe } = notes;
+      return clientSafe;
     }),
 });

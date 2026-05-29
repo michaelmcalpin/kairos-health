@@ -145,7 +145,7 @@ export default function AppointmentsPage() {
             keyFindings: (sessionNotesData.keyFindings as string[]) ?? [],
             actionItems: (sessionNotesData.actionItems as string[]) ?? [],
             nextSessionFocus: sessionNotesData.nextSessionFocus ?? "",
-            privateNotes: sessionNotesData.privateNotes ?? "",
+            privateNotes: "",
           } : null}
           role="client"
           onUpdateStatus={(status, reason) => {
