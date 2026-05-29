@@ -11,11 +11,24 @@ import {
   hrvReadings,
   bodyMeasurements,
   supplementProtocols,
+  protocolItems,
   adherenceLogs,
   dailyCheckins,
   coachNotes,
+  bloodPressureReadings,
+  workoutLogs,
+  healthGoals,
+  goalMilestones,
+  goalCheckpoints,
+  labResults,
+  biomarkerValues,
+  fastingLogs,
+  mealLogs,
+  activitySummaries,
+  appointments,
+  conversations,
 } from "@/server/db/schema";
-import { eq, desc, and, sql, gte } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte, inArray } from "drizzle-orm";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -500,6 +513,257 @@ export const coachClientsRouter = router({
         protocolId: protocol.id,
         noteId: note.id,
         message: "Protocol adjustment saved successfully",
+      };
+    }),
+
+  // ─── Extended client health data ──────────────────────────────
+  // Returns deep health data for all categories, used by the tabbed client detail view
+  getClientHealthData: trainerProcedure
+    .input(
+      z.object({
+        clientId: z.string(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+
+      const end = input.endDate ?? new Date().toISOString().split("T")[0];
+      const start = input.startDate ?? new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+
+      const [
+        glucose, sleep, hrvData, bpData, weightData, workouts, activity,
+        goals, labs, fasting, meals, protocolData, upcoming, checkins,
+      ] = await Promise.all([
+        // Glucose
+        ctx.db.query.glucoseReadings.findMany({
+          where: and(eq(glucoseReadings.clientId, input.clientId), gte(glucoseReadings.timestamp, new Date(start))),
+          orderBy: desc(glucoseReadings.timestamp),
+          limit: 200,
+        }),
+        // Sleep
+        ctx.db.query.sleepSessions.findMany({
+          where: and(eq(sleepSessions.clientId, input.clientId), gte(sleepSessions.date, start), lte(sleepSessions.date, end)),
+          orderBy: desc(sleepSessions.date),
+        }),
+        // HRV
+        ctx.db.query.hrvReadings.findMany({
+          where: and(eq(hrvReadings.clientId, input.clientId), gte(hrvReadings.timestamp, new Date(start))),
+          orderBy: desc(hrvReadings.timestamp),
+          limit: 100,
+        }),
+        // Blood Pressure
+        ctx.db.query.bloodPressureReadings.findMany({
+          where: and(eq(bloodPressureReadings.clientId, input.clientId), gte(bloodPressureReadings.date, start), lte(bloodPressureReadings.date, end)),
+          orderBy: desc(bloodPressureReadings.date),
+        }),
+        // Body Measurements
+        ctx.db.query.bodyMeasurements.findMany({
+          where: and(eq(bodyMeasurements.clientId, input.clientId), gte(bodyMeasurements.date, start), lte(bodyMeasurements.date, end)),
+          orderBy: desc(bodyMeasurements.date),
+        }),
+        // Workouts
+        ctx.db.query.workoutLogs.findMany({
+          where: and(eq(workoutLogs.clientId, input.clientId), gte(workoutLogs.date, start), lte(workoutLogs.date, end)),
+          orderBy: desc(workoutLogs.date),
+        }),
+        // Activity Summaries
+        ctx.db.query.activitySummaries.findMany({
+          where: and(eq(activitySummaries.clientId, input.clientId), gte(activitySummaries.date, start), lte(activitySummaries.date, end)),
+          orderBy: desc(activitySummaries.date),
+        }),
+        // Health Goals (all active)
+        ctx.db.query.healthGoals.findMany({
+          where: and(eq(healthGoals.clientId, input.clientId)),
+          orderBy: desc(healthGoals.createdAt),
+        }),
+        // Lab Results
+        ctx.db.query.labResults.findMany({
+          where: eq(labResults.clientId, input.clientId),
+          orderBy: desc(labResults.receivedAt),
+          limit: 10,
+        }),
+        // Fasting logs
+        ctx.db.query.fastingLogs.findMany({
+          where: and(eq(fastingLogs.clientId, input.clientId), gte(fastingLogs.startedAt, new Date(start))),
+          orderBy: desc(fastingLogs.startedAt),
+        }),
+        // Meal logs
+        ctx.db.query.mealLogs.findMany({
+          where: and(eq(mealLogs.clientId, input.clientId), gte(mealLogs.date, start), lte(mealLogs.date, end)),
+          orderBy: desc(mealLogs.date),
+          limit: 50,
+        }),
+        // Active supplement protocol with items
+        ctx.db.query.supplementProtocols.findFirst({
+          where: and(eq(supplementProtocols.clientId, input.clientId), eq(supplementProtocols.status, "active")),
+        }),
+        // Upcoming appointments
+        ctx.db.query.appointments.findMany({
+          where: and(
+            eq(appointments.clientId, input.clientId),
+            eq(appointments.coachId, ctx.dbUserId),
+            gte(appointments.date, new Date().toISOString().split("T")[0]),
+          ),
+          orderBy: appointments.date,
+          limit: 5,
+        }),
+        // Daily check-ins
+        ctx.db.query.dailyCheckins.findMany({
+          where: and(eq(dailyCheckins.clientId, input.clientId), gte(dailyCheckins.date, start), lte(dailyCheckins.date, end)),
+          orderBy: desc(dailyCheckins.date),
+        }),
+      ]);
+
+      // Fetch protocol items if protocol exists
+      let supplements: typeof protocolItems.$inferSelect[] = [];
+      if (protocolData) {
+        supplements = await ctx.db.query.protocolItems.findMany({
+          where: eq(protocolItems.protocolId, protocolData.id),
+        });
+      }
+
+      // Fetch biomarker values for labs
+      let biomarkers: typeof biomarkerValues.$inferSelect[] = [];
+      if (labs.length > 0) {
+        const labIds = labs.map((l) => l.id);
+        biomarkers = await ctx.db.query.biomarkerValues.findMany({
+          where: inArray(biomarkerValues.resultId, labIds),
+        });
+      }
+
+      // Fetch goal milestones + checkpoints for active goals
+      const activeGoals = goals.filter((g) => g.status === "active");
+      let allMilestones: typeof goalMilestones.$inferSelect[] = [];
+      let allCheckpoints: typeof goalCheckpoints.$inferSelect[] = [];
+      if (activeGoals.length > 0) {
+        const goalIds = activeGoals.map((g) => g.id);
+        [allMilestones, allCheckpoints] = await Promise.all([
+          ctx.db.query.goalMilestones.findMany({ where: inArray(goalMilestones.goalId, goalIds) }),
+          ctx.db.query.goalCheckpoints.findMany({ where: inArray(goalCheckpoints.goalId, goalIds), orderBy: desc(goalCheckpoints.createdAt) }),
+        ]);
+      }
+
+      // Check for existing conversation
+      const conversation = await ctx.db.query.conversations.findFirst({
+        where: and(eq(conversations.trainerId, ctx.dbUserId), eq(conversations.clientId, input.clientId)),
+      });
+
+      return {
+        glucose: glucose.map((g) => ({ date: g.timestamp.toISOString(), value: Number(g.valueMgdl), source: g.source })),
+        sleep: sleep.map((s) => ({
+          date: s.date,
+          totalMinutes: s.totalMinutes,
+          score: s.score,
+          deepMinutes: s.deepMinutes,
+          remMinutes: s.remMinutes,
+          lightMinutes: s.lightMinutes,
+          awakeMinutes: s.awakeMinutes,
+        })),
+        hrv: hrvData.map((h) => ({ date: h.timestamp.toISOString(), rmssd: Number(h.rmssd), source: h.source })),
+        bloodPressure: bpData.map((bp) => ({
+          date: bp.date,
+          systolic: bp.systolic,
+          diastolic: bp.diastolic,
+          pulse: bp.pulse,
+          notes: bp.notes,
+        })),
+        bodyMeasurements: weightData.map((w) => ({
+          date: w.date,
+          weightLbs: w.weightLbs ? Number(w.weightLbs) : null,
+          bodyFatPct: w.bodyFatPct ? Number(w.bodyFatPct) : null,
+          waistInches: w.waistInches ? Number(w.waistInches) : null,
+        })),
+        workouts: workouts.map((w) => ({
+          id: w.id,
+          date: w.date,
+          exercises: w.exercisesCompleted,
+          notes: w.notes,
+        })),
+        activity: activity.map((a) => ({
+          date: a.date,
+          exerciseMinutes: a.exerciseMinutes,
+          caloriesActive: a.caloriesActive,
+          steps: a.steps,
+        })),
+        goals: goals.map((g) => ({
+          id: g.id,
+          title: g.title,
+          category: g.category,
+          status: g.status,
+          targetValue: g.targetValue,
+          targetUnit: g.targetUnit,
+          targetDirection: g.targetDirection,
+          currentValue: g.currentValue,
+          startValue: g.startValue,
+          startDate: g.startDate,
+          targetDate: g.targetDate,
+          milestones: allMilestones.filter((m) => m.goalId === g.id).map((m) => ({
+            label: m.label,
+            targetValue: m.targetValue,
+            reached: !!m.reachedAt,
+          })),
+          checkpoints: allCheckpoints.filter((c) => c.goalId === g.id).slice(0, 10).map((c) => ({
+            date: c.createdAt.toISOString(),
+            value: c.value,
+            note: c.note,
+          })),
+        })),
+        labs: labs.map((l) => ({
+          id: l.id,
+          receivedAt: l.receivedAt?.toISOString() ?? new Date().toISOString(),
+          status: l.ocrStatus,
+          biomarkers: biomarkers.filter((b) => b.resultId === l.id).map((b) => ({
+            code: b.biomarkerCode,
+            value: b.value,
+            unit: b.unit,
+            refLow: b.refLow,
+            refHigh: b.refHigh,
+            status: b.status,
+          })),
+        })),
+        fasting: fasting.map((f) => ({
+          date: f.date,
+          startedAt: f.startedAt?.toISOString() ?? null,
+          endedAt: f.endedAt?.toISOString() ?? null,
+          completed: f.completed,
+        })),
+        nutrition: {
+          recentMeals: meals.map((m) => ({
+            date: m.date,
+            mealType: m.mealType,
+            calories: m.totalCalories,
+            protein: m.totalProtein,
+            carbs: m.totalCarbs,
+            fat: m.totalFat,
+          })),
+        },
+        supplements: supplements.map((s) => ({
+          name: s.name,
+          dosage: s.dosage,
+          frequency: s.frequency,
+          timeOfDay: s.timeOfDay,
+          notes: s.coachNotes,
+        })),
+        checkins: checkins.map((c) => ({
+          date: c.date,
+          mood: c.mood,
+          energy: c.energy,
+          stress: c.stress,
+          sleepQuality: c.sleepQuality,
+          trainingType: c.trainingType,
+        })),
+        upcomingAppointments: upcoming.map((a) => ({
+          id: a.id,
+          date: a.date,
+          startTime: a.startTime,
+          endTime: a.endTime,
+          sessionType: a.sessionType,
+          meetingType: a.meetingType,
+          status: a.status,
+        })),
+        conversationId: conversation?.id ?? null,
       };
     }),
 });

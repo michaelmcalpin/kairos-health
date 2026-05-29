@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { Conversation, ConversationFilter } from "@/lib/messaging/types";
 import { CLIENT_QUICK_REPLIES, COACH_QUICK_REPLIES } from "@/lib/messaging/types";
 import { getTypingUsers, setTyping } from "@/lib/messaging/typing";
@@ -12,11 +12,13 @@ interface MessagingDashboardProps {
   userId: string;
   role: "client" | "coach";
   userName: string;
+  initialConversationId?: string | null;
 }
 
-export function MessagingDashboard({ userId, role, userName }: MessagingDashboardProps) {
+export function MessagingDashboard({ userId, role, userName, initialConversationId }: MessagingDashboardProps) {
   const [filter, setFilter] = useState<ConversationFilter>("all");
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [didAutoSelect, setDidAutoSelect] = useState(false);
   const utils = trpc.useUtils();
 
   // ── tRPC queries (role-based) ─────────────────────────────────
@@ -34,6 +36,21 @@ export function MessagingDashboard({ userId, role, userName }: MessagingDashboar
         ? trpc.clientPortal.messaging.getMessages.useQuery({ conversationId: selectedConversation.id })
         : trpc.coach.messaging.getMessages.useQuery({ conversationId: selectedConversation.id }))
     : { data: undefined };
+
+  // ── Auto-select conversation from deep link ───────────────────
+  useEffect(() => {
+    if (didAutoSelect || !initialConversationId) return;
+    const convos = conversationsQuery.data;
+    if (!convos) return; // still loading
+    const match = convos.find((c: Conversation) => c.id === initialConversationId);
+    if (match) {
+      setSelectedConversation(match);
+      setDidAutoSelect(true);
+    } else if (convos.length > 0) {
+      // Conversation might not be in first page — still mark as attempted
+      setDidAutoSelect(true);
+    }
+  }, [initialConversationId, conversationsQuery.data, didAutoSelect]);
 
   // ── tRPC mutations ────────────────────────────────────────────
 

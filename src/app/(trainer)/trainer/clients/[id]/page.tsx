@@ -1,57 +1,116 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
-  MessageSquare,
-  Settings,
-  Calendar,
-  Activity,
-  TrendingUp,
-  AlertCircle,
-  Clock,
-  Pin,
-  Trash2,
-  CheckCircle,
-  Send,
-  X,
+  ArrowLeft, MessageSquare, Settings, Calendar, Activity, TrendingUp,
+  AlertCircle, Clock, Pin, Trash2, CheckCircle, Send, X, Video,
+  Droplets, Moon, Heart, Scale, Dumbbell, Target, FlaskConical,
+  Apple, Pill, Zap, ClipboardList, ChevronRight,
 } from "lucide-react";
 import { useThemeColors } from "@/lib/theme";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import {
-  TIER_LABELS,
-  TIER_BADGE_COLORS,
-  STATUS_LABELS,
-  STATUS_DOT_COLORS,
-  STATUS_COLORS,
-  ALERT_PRIORITY_COLORS,
-  formatRelativeTime,
+  TIER_LABELS, TIER_BADGE_COLORS, STATUS_LABELS, STATUS_DOT_COLORS,
+  STATUS_COLORS, ALERT_PRIORITY_COLORS, formatRelativeTime,
 } from "@/lib/coach-clients/types";
 import { trpc } from "@/lib/trpc";
+
+// ─── Types ──────────────────────────────────────────────────────
+
+type DataTab = "overview" | "glucose" | "sleep" | "hrv" | "bp" | "body" | "workouts" | "goals" | "labs" | "nutrition" | "supplements" | "checkins";
+
+const DATA_TABS: { id: DataTab; label: string; icon: typeof Activity }[] = [
+  { id: "overview", label: "Overview", icon: Activity },
+  { id: "glucose", label: "Glucose", icon: Droplets },
+  { id: "sleep", label: "Sleep", icon: Moon },
+  { id: "hrv", label: "HRV", icon: Heart },
+  { id: "bp", label: "Blood Pressure", icon: Zap },
+  { id: "body", label: "Body", icon: Scale },
+  { id: "workouts", label: "Workouts", icon: Dumbbell },
+  { id: "goals", label: "Goals", icon: Target },
+  { id: "labs", label: "Labs", icon: FlaskConical },
+  { id: "nutrition", label: "Nutrition", icon: Apple },
+  { id: "supplements", label: "Supplements", icon: Pill },
+  { id: "checkins", label: "Check-ins", icon: ClipboardList },
+];
+
+// ─── Sparkline helper ───────────────────────────────────────────
+
+function SparkLine({ data, maxVal, color }: { data: number[]; maxVal: number; color: string }) {
+  if (data.length < 2) return <div className="h-24 flex items-center justify-center text-xs text-gray-600">No data</div>;
+  const points = data.map((val, i) => `${(i / (data.length - 1)) * 100},${60 - (val / maxVal) * 50}`).join(" ");
+  return (
+    <svg viewBox="0 0 100 60" className="w-full h-24">
+      <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
+      <circle cx="0" cy={60 - (data[0] / maxVal) * 50} r="1.5" fill={color} />
+      <circle cx="100" cy={60 - (data[data.length - 1] / maxVal) * 50} r="1.5" fill={color} />
+    </svg>
+  );
+}
+
+// ─── Data Table helper ──────────────────────────────────────────
+
+function DataTable({ headers, rows }: { headers: string[]; rows: (string | number | null)[][] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-800">
+            {headers.map((h) => (
+              <th key={h} className="text-left py-2 px-3 text-[10px] text-gray-500 uppercase font-medium">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr><td colSpan={headers.length} className="py-6 text-center text-gray-600">No data for this period</td></tr>
+          ) : (
+            rows.map((row, i) => (
+              <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                {row.map((cell, j) => (
+                  <td key={j} className="py-2 px-3 text-gray-300">{cell ?? "—"}</td>
+                ))}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Main Page ──────────────────────────────────────────────────
 
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const tc = useThemeColors();
-  const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
-    useDateRange({ initialPeriod: "week" });
+  const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
+    useDateRange({ initialPeriod: "month" });
 
+  const [activeTab, setActiveTab] = useState<DataTab>("overview");
   const [noteText, setNoteText] = useState("");
   const [showProtocolModal, setShowProtocolModal] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [protocolNotes, setProtocolNotes] = useState("");
   const [protocolPriority, setProtocolPriority] = useState("Normal");
   const [protocolSaved, setProtocolSaved] = useState(false);
 
-  // ── tRPC queries — real DB data ──────────────────────────────
+  // ── Schedule modal state ──────────────────────────────────────
+  const [schedSessionType, setSchedSessionType] = useState<"initial_consultation" | "follow_up" | "protocol_review" | "lab_review" | "goal_setting" | "ad_hoc">("follow_up");
+  const [schedMeetingType, setSchedMeetingType] = useState<"video" | "phone" | "in_person">("video");
+  const [schedDate, setSchedDate] = useState("");
+  const [schedTime, setSchedTime] = useState("09:00");
+  const [schedNotes, setSchedNotes] = useState("");
+
+  // ── tRPC queries ──────────────────────────────────────────────
   const detailQuery = trpc.coach.clients.getDetail.useQuery(
     { clientId: params.id },
     { staleTime: 15_000, refetchOnWindowFocus: false }
   );
   const client = detailQuery.data;
-  const isLoading = detailQuery.isLoading;
 
   const notesQuery = trpc.coach.clients.getNotes.useQuery(
     { clientId: params.id },
@@ -59,47 +118,55 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   );
   const notes = notesQuery.data ?? [];
 
-  // ── tRPC mutations ───────────────────────────────────────────
+  const healthQuery = trpc.coach.clients.getClientHealthData.useQuery(
+    {
+      clientId: params.id,
+      startDate: dateRange.startDate.toISOString().split("T")[0],
+      endDate: dateRange.endDate.toISOString().split("T")[0],
+    },
+    { staleTime: 30_000, refetchOnWindowFocus: false }
+  );
+  const health = healthQuery.data;
+
+  // ── tRPC mutations ────────────────────────────────────────────
+  const utils = trpc.useUtils();
+
   const resolveAlertMutation = trpc.coach.clients.resolveAlert.useMutation({
-    onSuccess: () => {
-      detailQuery.refetch();
-    },
+    onSuccess: () => { detailQuery.refetch(); },
   });
-
   const addNoteMutation = trpc.coach.clients.addNote.useMutation({
-    onSuccess: () => {
-      notesQuery.refetch();
-      setNoteText("");
-    },
+    onSuccess: () => { notesQuery.refetch(); setNoteText(""); },
   });
-
   const pinNoteMutation = trpc.coach.clients.pinNote.useMutation({
-    onSuccess: () => {
-      notesQuery.refetch();
-    },
+    onSuccess: () => { notesQuery.refetch(); },
   });
-
   const deleteNoteMutation = trpc.coach.clients.deleteNote.useMutation({
-    onSuccess: () => {
-      notesQuery.refetch();
-    },
+    onSuccess: () => { notesQuery.refetch(); },
   });
-
   const updateProtocolMutation = trpc.coach.clients.updateProtocol.useMutation({
     onSuccess: () => {
       notesQuery.refetch();
       setProtocolSaved(true);
-      setTimeout(() => {
-        setShowProtocolModal(false);
-        setProtocolNotes("");
-        setProtocolPriority("Normal");
-        setProtocolSaved(false);
-      }, 1500);
+      setTimeout(() => { setShowProtocolModal(false); setProtocolNotes(""); setProtocolPriority("Normal"); setProtocolSaved(false); }, 1500);
     },
   });
 
-  // Loading skeleton
-  if (isLoading) {
+  const startConversationMutation = trpc.coach.messaging.startConversation.useMutation({
+    onSuccess: (data) => {
+      router.push(`/trainer/messages?conversationId=${data.id}`);
+    },
+  });
+
+  const bookAppointmentMutation = trpc.coach.schedule.createAppointment.useMutation({
+    onSuccess: () => {
+      setShowScheduleModal(false);
+      setSchedNotes("");
+      healthQuery.refetch();
+    },
+  });
+
+  // ── Loading ───────────────────────────────────────────────────
+  if (detailQuery.isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
         <Link href="/trainer/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
@@ -110,16 +177,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="kairos-card p-3 h-16 animate-pulse bg-gray-800/50" />
           ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="kairos-card h-48 animate-pulse bg-gray-800/50" />
-            <div className="kairos-card h-32 animate-pulse bg-gray-800/50" />
-          </div>
-          <div className="space-y-6">
-            <div className="kairos-card h-40 animate-pulse bg-gray-800/50" />
-            <div className="kairos-card h-40 animate-pulse bg-gray-800/50" />
-          </div>
         </div>
       </div>
     );
@@ -142,34 +199,33 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const trendIcon = client.scoreTrend === "up" ? "↑" : client.scoreTrend === "down" ? "↓" : "→";
   const trendColor = client.scoreTrend === "up" ? "text-green-400" : client.scoreTrend === "down" ? "text-red-400" : "text-gray-400";
 
-  function handleResolveAlert(alertId: string) {
-    resolveAlertMutation.mutate({ clientId: params.id, alertId });
+  function handleMessageClient() {
+    if (health?.conversationId) {
+      router.push(`/trainer/messages?conversationId=${health.conversationId}`);
+    } else {
+      startConversationMutation.mutate({ clientId: params.id, clientName: client?.name ?? "Client" });
+    }
   }
 
-  function handleAddNote() {
-    if (!noteText.trim()) return;
-    addNoteMutation.mutate({ clientId: params.id, content: noteText.trim() });
+  function handleScheduleSession() {
+    setShowScheduleModal(true);
+    // Default date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setSchedDate(tomorrow.toISOString().split("T")[0]);
   }
 
-  function handlePinNote(noteId: string) {
-    pinNoteMutation.mutate({ clientId: params.id, noteId });
-  }
-
-  function handleDeleteNote(noteId: string) {
-    deleteNoteMutation.mutate({ clientId: params.id, noteId });
-  }
-
-  // SVG chart helper
-  function renderSparkLine(data: number[], maxVal: number, color: string) {
-    if (data.length < 2) return null;
-    const points = data.map((val, i) => `${(i / (data.length - 1)) * 100},${60 - (val / maxVal) * 50}`).join(" ");
-    return (
-      <svg viewBox="0 0 100 60" className="w-full h-24">
-        <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" />
-        <circle cx="0" cy={60 - (data[0] / maxVal) * 50} r="1.5" fill={color} />
-        <circle cx="100" cy={60 - (data[data.length - 1] / maxVal) * 50} r="1.5" fill={color} />
-      </svg>
-    );
+  function handleBookAppointment() {
+    if (!schedDate || !schedTime) return;
+    bookAppointmentMutation.mutate({
+      clientId: params.id,
+      clientName: client!.name,
+      sessionType: schedSessionType,
+      date: schedDate,
+      startTime: schedTime,
+      meetingType: schedMeetingType,
+      notes: schedNotes,
+    });
   }
 
   return (
@@ -181,19 +237,19 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
       {/* Client Header */}
       <div className="kairos-card">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-kairos-gold/20 flex items-center justify-center text-kairos-gold font-heading font-bold text-xl">
               {client.initials}
             </div>
             <div>
-              <div className="flex items-center gap-3 mb-1">
+              <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h1 className="text-2xl font-heading font-bold text-white">{client.name}</h1>
                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${TIER_BADGE_COLORS[client.tier]}`}>
                   {TIER_LABELS[client.tier]}
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-3 text-sm flex-wrap">
                 <div className="flex items-center gap-1.5">
                   <div className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[client.status]}`} />
                   <span className={STATUS_COLORS[client.status]}>{STATUS_LABELS[client.status]}</span>
@@ -201,16 +257,48 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <span className="text-gray-600">&bull;</span>
                 <span className="text-gray-500">{client.email}</span>
                 <span className="text-gray-600">&bull;</span>
-                <span className="text-gray-500">Member since {client.memberSince}</span>
+                <span className="text-gray-500">Since {client.memberSince}</span>
               </div>
             </div>
           </div>
           <div className="text-right">
             <p className="text-4xl font-heading font-bold text-kairos-gold">{client.healthScore}</p>
             <p className={`text-sm font-medium ${trendColor}`}>{trendIcon} Health Score</p>
-            <p className="text-xs text-gray-500 mt-1">Last active: {client.lastActive}</p>
           </div>
         </div>
+
+        {/* Action buttons inline in header */}
+        <div className="flex gap-2 mt-4 pt-4 border-t border-gray-800 flex-wrap">
+          <button onClick={handleMessageClient} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors">
+            <MessageSquare size={14} /> Message
+          </button>
+          <button onClick={handleScheduleSession} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors">
+            <Video size={14} /> Schedule Session
+          </button>
+          <button onClick={() => setShowProtocolModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors">
+            <Settings size={14} /> Adjust Protocol
+          </button>
+        </div>
+      </div>
+
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+        {[
+          { label: "Adherence", value: `${client.metrics.adherence}%`, color: "text-kairos-gold" },
+          { label: "Avg Glucose", value: client.metrics.avgGlucose ? `${client.metrics.avgGlucose}` : "—", unit: "mg/dL" },
+          { label: "Sleep Score", value: client.metrics.sleepScore?.toString() ?? "—" },
+          { label: "HRV", value: client.metrics.hrv?.toString() ?? "—", unit: "ms" },
+          { label: "Streak", value: `${client.metrics.checkInStreak}`, unit: "days" },
+          { label: "Alerts", value: `${unresolvedAlerts.length}`, color: unresolvedAlerts.length > 0 ? "text-orange-400" : "text-green-400" },
+        ].map((stat) => (
+          <div key={stat.label} className="kairos-card p-3 text-center">
+            <p className="text-[10px] text-gray-500 uppercase mb-1">{stat.label}</p>
+            <p className={`text-xl font-heading font-bold ${stat.color ?? "text-white"}`}>
+              {stat.value}
+              {stat.unit && <span className="text-xs text-gray-500 ml-1">{stat.unit}</span>}
+            </p>
+          </div>
+        ))}
       </div>
 
       {/* Date Range Navigator */}
@@ -226,216 +314,89 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         onToday={goToToday}
       />
 
-      {/* Quick Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        <div className="kairos-card p-3 text-center">
-          <p className="text-[10px] text-gray-500 uppercase mb-1">Adherence</p>
-          <p className="text-xl font-heading font-bold text-kairos-gold">{client.metrics.adherence}%</p>
-        </div>
-        <div className="kairos-card p-3 text-center">
-          <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Glucose</p>
-          <p className="text-xl font-heading font-bold text-white">
-            {client.metrics.avgGlucose ?? "—"}<span className="text-xs text-gray-500 ml-1">mg/dL</span>
-          </p>
-        </div>
-        <div className="kairos-card p-3 text-center">
-          <p className="text-[10px] text-gray-500 uppercase mb-1">Sleep Score</p>
-          <p className="text-xl font-heading font-bold text-white">{client.metrics.sleepScore ?? "—"}</p>
-        </div>
-        <div className="kairos-card p-3 text-center">
-          <p className="text-[10px] text-gray-500 uppercase mb-1">HRV</p>
-          <p className="text-xl font-heading font-bold text-white">
-            {client.metrics.hrv ?? "—"}<span className="text-xs text-gray-500 ml-1">ms</span>
-          </p>
-        </div>
-        <div className="kairos-card p-3 text-center">
-          <p className="text-[10px] text-gray-500 uppercase mb-1">Check-in Streak</p>
-          <p className="text-xl font-heading font-bold text-white">
-            {client.metrics.checkInStreak}<span className="text-xs text-gray-500 ml-1">days</span>
-          </p>
-        </div>
-        <div className="kairos-card p-3 text-center">
-          <p className="text-[10px] text-gray-500 uppercase mb-1">Active Alerts</p>
-          <p className={`text-xl font-heading font-bold ${unresolvedAlerts.length > 0 ? "text-orange-400" : "text-green-400"}`}>
-            {unresolvedAlerts.length}
-          </p>
-        </div>
+      {/* Tab Navigation */}
+      <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
+        {DATA_TABS.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
+                activeTab === tab.id
+                  ? "bg-kairos-gold/15 text-kairos-gold border border-kairos-gold/30"
+                  : "text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 border border-transparent"
+              }`}
+            >
+              <Icon size={13} />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
+      {/* Tab Content + Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Protocol & Biometrics */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Current Protocol */}
-          <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4 flex items-center gap-2">
-              <TrendingUp size={18} /> Current Protocol
-            </h2>
-            <h3 className="font-heading font-semibold text-white mb-2">{client.protocol.name}</h3>
-            <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase">Start Date</p>
-                <p className="text-gray-300">{client.protocol.startDate}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase">Duration</p>
-                <p className="text-gray-300">{client.protocol.duration}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase">Status</p>
-                <p className="text-gray-300 capitalize">{client.protocol.status}</p>
-              </div>
+        <div className="lg:col-span-2">
+          {healthQuery.isLoading ? (
+            <div className="kairos-card h-64 animate-pulse bg-gray-800/50 flex items-center justify-center">
+              <p className="text-sm text-gray-500">Loading health data...</p>
             </div>
+          ) : (
+            <TabContent tab={activeTab} client={client as unknown as ClientDetail} health={health as unknown as HealthData | undefined} tc={tc} />
+          )}
+        </div>
 
-            {/* Progress Bar */}
-            <div className="mb-4">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs text-gray-500">Progress</span>
-                <span className="text-sm font-heading font-bold text-kairos-gold">{client.protocol.progress}%</span>
-              </div>
-              <div
-                className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden"
-                role="progressbar"
-                aria-valuenow={client.protocol.progress}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={`Protocol progress: ${client.protocol.progress}% complete`}
-              >
-                <div className="h-full rounded-full transition-all" style={{ backgroundColor: tc.accent, width: `${client.protocol.progress}%` }} />
-              </div>
-            </div>
-
-            {/* Goals */}
-            {client.protocol.goals.length > 0 && (
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase mb-2">Goals</p>
-                <ul className="space-y-1.5">
-                  {client.protocol.goals.map((goal, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
-                      <span className="text-kairos-gold mt-0.5">&bull;</span>
-                      {goal}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          {/* Biometric Charts */}
-          <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4 flex items-center gap-2">
-              <Activity size={18} /> Recent Biometrics
-            </h2>
-            <div className="grid grid-cols-3 gap-4">
-              {/* Glucose */}
-              <div>
-                <p className="text-xs font-semibold text-gray-300 mb-2">Glucose (7d)</p>
-                {renderSparkLine(client.metrics.glucoseData, 140, tc.accent)}
-                <p className="text-[10px] text-gray-500 text-center mt-1">
-                  Avg: {client.metrics.avgGlucose ?? "—"} mg/dL
-                </p>
-              </div>
-              {/* Sleep */}
-              <div>
-                <p className="text-xs font-semibold text-gray-300 mb-2">Sleep (7d)</p>
-                {renderSparkLine(client.metrics.sleepData, 10, "rgb(96, 165, 250)")}
-                <p className="text-[10px] text-gray-500 text-center mt-1">
-                  Avg: {client.metrics.sleepData.length > 0
-                    ? (client.metrics.sleepData.reduce((a, b) => a + b, 0) / client.metrics.sleepData.length).toFixed(1)
-                    : "—"} hrs
-                </p>
-              </div>
-              {/* Weight */}
-              <div>
-                <p className="text-xs font-semibold text-gray-300 mb-2">Weight (4w)</p>
-                {renderSparkLine(client.metrics.weightData, Math.max(...(client.metrics.weightData.length > 0 ? client.metrics.weightData : [0])) + 10, "rgb(167, 139, 250)")}
-                <p className="text-[10px] text-gray-500 text-center mt-1">
-                  Current: {client.metrics.weight ?? "—"} lbs
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Trainer Notes */}
-          <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4">Trainer Notes</h2>
-
-            {/* Add Note */}
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                placeholder="Add a note about this client..."
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }}
-                className="flex-1 px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
-              />
-              <button
-                onClick={handleAddNote}
-                disabled={!noteText.trim() || addNoteMutation.isPending}
-                className="px-3 py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-40 text-kairos-gold border border-kairos-gold/30 bg-kairos-gold/10 hover:bg-kairos-gold/20"
-                aria-label="Send note"
-              >
-                <Send size={14} />
-              </button>
-            </div>
-
-            {/* Notes List */}
-            {notes.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No notes yet.</p>
-            ) : (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {notes.map((note) => (
-                  <div key={note.id} className={`p-3 rounded-xl border ${note.pinned ? "border-gray-700" : "border-gray-700 bg-gray-800/50"}`} style={note.pinned ? { borderColor: tc.accent + "30", backgroundColor: tc.accent + "05" } : {}}>
-                    <p className="text-sm text-gray-300">{note.content}</p>
-                    <div className="flex items-center justify-between mt-2">
-                      <p className="text-[10px] text-gray-500">{formatRelativeTime(note.createdAt)}</p>
-                      <div className="flex gap-1">
-                        <button onClick={() => handlePinNote(note.id)} className="p-1 text-gray-500 hover:text-kairos-gold transition-colors" aria-label={note.pinned ? "Unpin note" : "Pin note"}>
-                          <Pin size={12} className={note.pinned ? "text-kairos-gold" : ""} />
-                        </button>
-                        <button onClick={() => handleDeleteNote(note.id)} className="p-1 text-gray-500 hover:text-red-400 transition-colors" aria-label="Delete note">
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
+        {/* Right Sidebar: Alerts, Notes, Upcoming */}
+        <div className="space-y-6">
+          {/* Upcoming Appointments */}
+          {health?.upcomingAppointments && health.upcomingAppointments.length > 0 && (
+            <div className="kairos-card">
+              <h2 className="text-sm font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+                <Calendar size={14} /> Upcoming Sessions
+              </h2>
+              <div className="space-y-2">
+                {health.upcomingAppointments.map((apt) => (
+                  <div key={apt.id} className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/50">
+                    <div className="text-center min-w-[40px]">
+                      <p className="text-xs font-bold text-white">{new Date(apt.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                      <p className="text-[10px] text-gray-500">{apt.startTime}</p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-300 truncate">{apt.sessionType?.replace(/_/g, " ")}</p>
+                      <p className="text-[10px] text-gray-500 flex items-center gap-1">
+                        {apt.meetingType === "video" && <Video size={10} />}
+                        {apt.meetingType ?? "video"}
+                      </p>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+          )}
 
-        {/* Right Column: Alerts & Activity */}
-        <div className="space-y-6">
           {/* Active Alerts */}
           <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4 flex items-center gap-2">
-              <AlertCircle size={18} /> Alerts ({unresolvedAlerts.length})
+            <h2 className="text-sm font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+              <AlertCircle size={14} /> Alerts ({unresolvedAlerts.length})
             </h2>
             {unresolvedAlerts.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No active alerts.</p>
+              <p className="text-xs text-gray-500 text-center py-4">No active alerts</p>
             ) : (
               <div className="space-y-2">
-                {unresolvedAlerts.map((alert) => (
-                  <div key={alert.id} className={`p-3 rounded-xl border-l-4 ${ALERT_PRIORITY_COLORS[alert.priority]}`}>
-                    <div className="flex items-start justify-between gap-2">
+                {unresolvedAlerts.slice(0, 5).map((alert) => (
+                  <div key={alert.id} className={`p-2 rounded-lg border-l-2 ${ALERT_PRIORITY_COLORS[alert.priority]}`}>
+                    <div className="flex items-start justify-between gap-1">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <span className="text-[10px] text-gray-500 uppercase">{alert.category}</span>
-                          <span className="text-[10px] text-gray-600">&bull;</span>
-                          <span className="text-[10px] text-gray-500">{alert.priority}</span>
-                        </div>
-                        <p className="text-sm text-gray-300">{alert.message}</p>
-                        <p className="text-[10px] text-gray-500 mt-1">{formatRelativeTime(alert.timestamp)}</p>
+                        <p className="text-xs text-gray-300">{alert.message}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">{formatRelativeTime(alert.timestamp)}</p>
                       </div>
                       <button
-                        onClick={() => handleResolveAlert(alert.id)}
-                        disabled={resolveAlertMutation.isPending}
-                        className="p-1.5 text-gray-500 hover:text-green-400 transition-colors shrink-0"
+                        onClick={() => resolveAlertMutation.mutate({ clientId: params.id, alertId: alert.id })}
+                        className="p-1 text-gray-500 hover:text-green-400 transition-colors shrink-0"
                         title="Resolve"
-                        aria-label="Resolve alert"
                       >
-                        <CheckCircle size={16} />
+                        <CheckCircle size={14} />
                       </button>
                     </div>
                   </div>
@@ -444,199 +405,553 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             )}
           </div>
 
-          {/* Recent Activity */}
+          {/* Trainer Notes */}
           <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-4 flex items-center gap-2">
-              <Clock size={18} /> Recent Activity
-            </h2>
-            {client.recentActivity.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-4">No recent activity.</p>
+            <h2 className="text-sm font-heading font-bold text-kairos-gold mb-3">Notes</h2>
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                placeholder="Add a note..."
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && noteText.trim()) addNoteMutation.mutate({ clientId: params.id, content: noteText.trim() }); }}
+                className="flex-1 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
+              />
+              <button
+                onClick={() => { if (noteText.trim()) addNoteMutation.mutate({ clientId: params.id, content: noteText.trim() }); }}
+                disabled={!noteText.trim()}
+                className="px-2 py-1.5 rounded-lg text-kairos-gold border border-kairos-gold/30 bg-kairos-gold/10 hover:bg-kairos-gold/20 disabled:opacity-40 transition-colors"
+              >
+                <Send size={12} />
+              </button>
+            </div>
+            {notes.length === 0 ? (
+              <p className="text-xs text-gray-500 text-center py-3">No notes yet</p>
             ) : (
-              <div className="space-y-2 max-h-72 overflow-y-auto">
-                {client.recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex gap-3 pb-2 border-b border-gray-800 last:border-b-0">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-kairos-gold text-[10px] font-bold shrink-0 mt-0.5" style={{ backgroundColor: tc.accent + "10" }}>
-                      {activity.type === "check-in" ? "✓" :
-                       activity.type === "alert" ? "⚠" : "📋"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-300">{activity.label}</p>
-                      <p className="text-[10px] text-gray-500 mt-0.5">{formatRelativeTime(activity.timestamp)}</p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {notes.slice(0, 8).map((note) => (
+                  <div key={note.id} className="p-2 rounded-lg border border-gray-800 bg-gray-800/30" style={note.pinned ? { borderColor: tc.accent + "30" } : {}}>
+                    <p className="text-xs text-gray-300 line-clamp-2">{note.content}</p>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-[10px] text-gray-500">{formatRelativeTime(note.createdAt)}</p>
+                      <div className="flex gap-0.5">
+                        <button onClick={() => pinNoteMutation.mutate({ clientId: params.id, noteId: note.id })} className="p-0.5 text-gray-500 hover:text-kairos-gold">
+                          <Pin size={10} className={note.pinned ? "text-kairos-gold" : ""} />
+                        </button>
+                        <button onClick={() => deleteNoteMutation.mutate({ clientId: params.id, noteId: note.id })} className="p-0.5 text-gray-500 hover:text-red-400">
+                          <Trash2 size={10} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Client Info */}
-          <div className="kairos-card">
-            <h2 className="text-lg font-heading font-bold text-kairos-gold mb-3">Details</h2>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Body Fat</span>
-                <span className="text-gray-300">{client.metrics.bodyFat ?? "—"}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">HRV Trend</span>
-                <span className="text-gray-300">{client.metrics.hrvTrend === "up" ? "↑ Improving" : client.metrics.hrvTrend === "down" ? "↓ Declining" : "→ Stable"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Glucose Trend</span>
-                <span className="text-gray-300">{client.metrics.glucoseTrend === "up" ? "↑ Improving" : client.metrics.glucoseTrend === "down" ? "↓ Declining" : "→ Stable"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Sleep Trend</span>
-                <span className="text-gray-300">{client.metrics.sleepTrend === "up" ? "↑ Improving" : client.metrics.sleepTrend === "down" ? "↓ Declining" : "→ Stable"}</span>
-              </div>
-            </div>
-          </div>
         </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <button onClick={() => router.push("/trainer/messages")} className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
-          <MessageSquare size={16} className="text-kairos-gold" />
-          <span className="text-sm font-medium text-white">Send Message</span>
-        </button>
-        <button onClick={() => setShowProtocolModal(true)} className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
-          <Settings size={16} className="text-kairos-gold" />
-          <span className="text-sm font-medium text-white">Adjust Protocol</span>
-        </button>
-        <button onClick={() => router.push("/trainer/schedule")} className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
-          <Calendar size={16} className="text-kairos-gold" />
-          <span className="text-sm font-medium text-white">Schedule Session</span>
-        </button>
-        <button onClick={() => setShowHistory(!showHistory)} className="kairos-card hover:border-kairos-gold/30 transition-all flex items-center justify-center gap-2 py-3">
-          <Activity size={16} className="text-kairos-gold" />
-          <span className="text-sm font-medium text-white">{showHistory ? "Hide History" : "View Full History"}</span>
-        </button>
       </div>
 
       {/* Protocol Adjustment Modal */}
       {showProtocolModal && (
-        <ProtocolModal
-          clientName={client?.name || "Client"}
-          protocolNotes={protocolNotes}
-          setProtocolNotes={setProtocolNotes}
-          protocolPriority={protocolPriority}
-          setProtocolPriority={setProtocolPriority}
-          protocolSaved={protocolSaved}
-          onClose={() => setShowProtocolModal(false)}
-          onSave={() => {
-            updateProtocolMutation.mutate({
-              clientId: params.id,
-              notes: protocolNotes.trim(),
-              priority: protocolPriority as "Normal" | "High — Review within 24h" | "Urgent — Immediate attention",
-            });
-          }}
-          isSaving={updateProtocolMutation.isPending}
-        />
+        <Modal title="Adjust Protocol" onClose={() => setShowProtocolModal(false)}>
+          <p className="text-sm text-gray-400 mb-4">Protocol changes for <span className="text-white font-semibold">{client.name}</span></p>
+          {protocolSaved && <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/20 mb-3"><p className="text-sm text-green-400">Saved!</p></div>}
+          <textarea value={protocolNotes} onChange={(e) => setProtocolNotes(e.target.value)} placeholder="Describe changes..." className="kairos-input w-full h-28 resize-none mb-3" />
+          <select value={protocolPriority} onChange={(e) => setProtocolPriority(e.target.value)} className="kairos-input w-full mb-4">
+            <option>Normal</option>
+            <option>High — Review within 24h</option>
+            <option>Urgent — Immediate attention</option>
+          </select>
+          <div className="flex gap-3">
+            <button onClick={() => setShowProtocolModal(false)} className="kairos-btn-outline flex-1">Cancel</button>
+            <button
+              onClick={() => updateProtocolMutation.mutate({ clientId: params.id, notes: protocolNotes.trim(), priority: protocolPriority as "Normal" | "High — Review within 24h" | "Urgent — Immediate attention" })}
+              disabled={!protocolNotes.trim() || updateProtocolMutation.isPending}
+              className="kairos-btn-gold flex-1 disabled:opacity-50"
+            >
+              {updateProtocolMutation.isPending ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </Modal>
       )}
 
-      {/* Full History Panel */}
-      {showHistory && (
-        <div className="kairos-card mt-4">
-          <h3 className="font-heading font-bold text-white mb-4">Activity History</h3>
-          {client.recentActivity.length > 0 ? (
-            <div className="space-y-3">
-              {client.recentActivity.map((item) => (
-                <div key={item.id} className="flex items-start gap-3 py-2 border-b border-kairos-border/50 last:border-0">
-                  <span className="text-xs text-kairos-silver-dark font-heading w-14 flex-shrink-0">
-                    {new Date(item.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                  </span>
-                  <div>
-                    <p className="text-sm text-white font-medium">{item.label}</p>
-                    <p className="text-xs text-kairos-silver-dark">{item.type}</p>
-                  </div>
-                </div>
-              ))}
+      {/* Schedule Session Modal */}
+      {showScheduleModal && (
+        <Modal title="Schedule Session" onClose={() => setShowScheduleModal(false)}>
+          <p className="text-sm text-gray-400 mb-4">Book a session with <span className="text-white font-semibold">{client.name}</span></p>
+          <div className="space-y-3 mb-4">
+            <div>
+              <label className="text-[10px] text-gray-500 uppercase mb-1 block">Session Type</label>
+              <select value={schedSessionType} onChange={(e) => setSchedSessionType(e.target.value as typeof schedSessionType)} className="kairos-input w-full">
+                <option value="follow_up">Follow-Up (30 min)</option>
+                <option value="initial_consultation">Initial Consultation (60 min)</option>
+                <option value="protocol_review">Protocol Review (45 min)</option>
+                <option value="lab_review">Lab Review (45 min)</option>
+                <option value="goal_setting">Goal Setting (60 min)</option>
+                <option value="ad_hoc">Ad Hoc (30 min)</option>
+              </select>
             </div>
-          ) : (
-            <p className="text-sm text-gray-500 text-center py-4">No activity history available.</p>
-          )}
-        </div>
+            <div>
+              <label className="text-[10px] text-gray-500 uppercase mb-1 block">Meeting Type</label>
+              <select value={schedMeetingType} onChange={(e) => setSchedMeetingType(e.target.value as typeof schedMeetingType)} className="kairos-input w-full">
+                <option value="video">Video Call</option>
+                <option value="phone">Phone Call</option>
+                <option value="in_person">In Person</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date</label>
+                <input type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} className="kairos-input w-full" />
+              </div>
+              <div>
+                <label className="text-[10px] text-gray-500 uppercase mb-1 block">Time</label>
+                <input type="time" value={schedTime} onChange={(e) => setSchedTime(e.target.value)} className="kairos-input w-full" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes (optional)</label>
+              <textarea value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} placeholder="Session agenda..." className="kairos-input w-full h-20 resize-none" />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={() => setShowScheduleModal(false)} className="kairos-btn-outline flex-1">Cancel</button>
+            <button
+              onClick={handleBookAppointment}
+              disabled={!schedDate || !schedTime || bookAppointmentMutation.isPending}
+              className="kairos-btn-gold flex-1 disabled:opacity-50"
+            >
+              {bookAppointmentMutation.isPending ? "Booking..." : "Book Session"}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );
 }
 
-function ProtocolModal({
-  clientName,
-  protocolNotes,
-  setProtocolNotes,
-  protocolPriority,
-  setProtocolPriority,
-  protocolSaved,
-  onClose,
-  onSave,
-  isSaving,
-}: {
-  clientName: string;
-  protocolNotes: string;
-  setProtocolNotes: (value: string) => void;
-  protocolPriority: string;
-  setProtocolPriority: (value: string) => void;
-  protocolSaved: boolean;
-  onClose: () => void;
-  onSave: () => void;
-  isSaving: boolean;
-}) {
+// ─── Modal wrapper ──────────────────────────────────────────────
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    }
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="flex items-center justify-between p-6 border-b border-kairos-border">
-          <h2 className="font-heading font-bold text-lg text-white">Adjust Protocol</h2>
-          <button onClick={onClose} className="text-kairos-silver-dark hover:text-white" aria-label="Close modal"><X size={20} /></button>
+      <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-6 border-b border-kairos-border sticky top-0 bg-kairos-card z-10">
+          <h2 className="font-heading font-bold text-lg text-white">{title}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
         </div>
-        <div className="p-6 space-y-4">
-          <p className="text-sm text-kairos-silver-dark">Adjust the training and supplement protocol for <span className="text-white font-semibold">{clientName}</span>.</p>
-          {protocolSaved && (
-            <div className="p-3 rounded-kairos-sm bg-green-500/10 border border-green-500/20">
-              <p className="text-sm text-green-400 font-medium">Protocol changes saved successfully.</p>
-            </div>
-          )}
-          <div>
-            <label className="kairos-label mb-1 block">Protocol Notes</label>
-            <textarea value={protocolNotes} onChange={(e) => setProtocolNotes(e.target.value)} placeholder="Describe the protocol changes..." className="kairos-input w-full h-28 resize-none" />
-          </div>
-          <div>
-            <label className="kairos-label mb-1 block">Priority</label>
-            <select value={protocolPriority} onChange={(e) => setProtocolPriority(e.target.value)} className="kairos-input w-full">
-              <option>Normal</option>
-              <option>High — Review within 24h</option>
-              <option>Urgent — Immediate attention</option>
-            </select>
-          </div>
-        </div>
-        <div className="flex gap-3 p-6 border-t border-kairos-border">
-          <button
-            onClick={onClose}
-            disabled={isSaving}
-            className="kairos-btn-outline flex-1 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onSave}
-            disabled={!protocolNotes.trim() || isSaving}
-            className="kairos-btn-gold flex-1 disabled:opacity-50 relative"
-          >
-            {isSaving ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
+        <div className="p-6">{children}</div>
       </div>
     </div>
   );
+}
+
+// ─── Tab Content Types ─────────────────────────────────────────
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type ClientDetail = {
+  id: string; name: string; initials: string; email: string; tier: string;
+  healthScore: number; scoreTrend: string; activeAlerts: number; adherence: number;
+  lastActive: string; status: string; nextSession: string | null; memberSince: string;
+  metrics: {
+    avgGlucose: number | null; glucoseTrend: string; glucoseData: number[];
+    sleepScore: number | null; sleepTrend: string; sleepData: number[];
+    hrv: number | null; hrvTrend: string; weight: number | null; weightData: number[];
+    bodyFat: number | null; adherence: number; checkInStreak: number;
+  };
+  protocol: {
+    id: string; name: string; startDate: string; duration: string;
+    progress: number; goals: string[]; status: string;
+  };
+  alerts: Array<{
+    id: string; clientId: string; priority: string; category: string;
+    message: string; timestamp: string; resolved: boolean; resolvedAt: string | null;
+  }>;
+  recentActivity: Array<{ id: string; clientId: string; type: string; label: string; timestamp: string }>;
+};
+
+type HealthData = {
+  glucose: Array<{ date: string; value: number; source: string | null }>;
+  sleep: Array<{ date: string; totalMinutes: number | null; score: number | null; deepMinutes: number | null; remMinutes: number | null; lightMinutes: number | null; awakeMinutes: number | null }>;
+  hrv: Array<{ date: string; rmssd: number; source: string | null }>;
+  bloodPressure: Array<{ date: string; systolic: number | null; diastolic: number | null; pulse: number | null; notes: string | null }>;
+  bodyMeasurements: Array<{ date: string; weightLbs: number | null; bodyFatPct: number | null; waistInches: number | null }>;
+  workouts: Array<{ id: string; date: string; exercises: any; notes: string | null }>;
+  activity: Array<{ date: string; exerciseMinutes: number | null; caloriesActive: number | null; steps: number | null }>;
+  goals: Array<{
+    id: string; title: string; category: string | null; status: string;
+    targetValue: number; targetUnit: string | null; targetDirection: string | null;
+    currentValue: number; startValue: number; startDate: string | null; targetDate: string | null;
+    milestones: Array<{ label: string; targetValue: number | null; reached: boolean }>;
+    checkpoints: Array<{ date: string; value: number | null; note: string | null }>;
+  }>;
+  labs: Array<{
+    id: string; receivedAt: string; status: string | null;
+    biomarkers: Array<{ code: string; value: string | null; unit: string | null; refLow: string | null; refHigh: string | null; status: string | null }>;
+  }>;
+  fasting: Array<{ date: string; startedAt: string | null; endedAt: string | null; completed: boolean | null }>;
+  nutrition: { recentMeals: Array<{ date: string; mealType: string | null; calories: number | null; protein: number | null; carbs: number | null; fat: number | null }> };
+  supplements: Array<{ name: string; dosage: string | null; frequency: string | null; timeOfDay: string | null; notes: string | null }>;
+  checkins: Array<{ date: string; mood: number | null; energy: number | null; stress: number | null; sleepQuality: number | null; trainingType: string | null }>;
+  upcomingAppointments: Array<{ id: string; date: string; startTime: string | null; endTime: string | null; sessionType: string | null; meetingType: string | null; status: string | null }>;
+  conversationId: string | null;
+};
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+// ─── Tab Content ────────────────────────────────────────────────
+
+function TabContent({
+  tab,
+  client,
+  health,
+  tc,
+}: {
+  tab: DataTab;
+  client: ClientDetail;
+  health: HealthData | undefined;
+  tc: ReturnType<typeof useThemeColors>;
+}) {
+  if (!health) return <div className="kairos-card p-6 text-center text-gray-500 text-sm">No data available</div>;
+
+  switch (tab) {
+    case "overview":
+      return (
+        <div className="space-y-6">
+          {/* Protocol */}
+          <div className="kairos-card">
+            <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+              <TrendingUp size={16} /> Current Protocol
+            </h2>
+            <h3 className="font-heading font-semibold text-white mb-2">{client.protocol.name}</h3>
+            <div className="grid grid-cols-3 gap-4 mb-3 text-sm">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase">Start</p>
+                <p className="text-gray-300">{client.protocol.startDate}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase">Duration</p>
+                <p className="text-gray-300">{client.protocol.duration}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase">Progress</p>
+                <p className="text-kairos-gold font-bold">{client.protocol.progress}%</p>
+              </div>
+            </div>
+            <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ backgroundColor: tc.accent, width: `${client.protocol.progress}%` }} />
+            </div>
+          </div>
+
+          {/* Biometric Sparklines */}
+          <div className="kairos-card">
+            <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+              <Activity size={16} /> Biometrics
+            </h2>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-300 mb-1">Glucose</p>
+                <SparkLine data={client.metrics.glucoseData} maxVal={140} color={tc.accent} />
+                <p className="text-[10px] text-gray-500 text-center">Avg: {client.metrics.avgGlucose ?? "—"} mg/dL</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-300 mb-1">Sleep</p>
+                <SparkLine data={client.metrics.sleepData} maxVal={10} color="rgb(96, 165, 250)" />
+                <p className="text-[10px] text-gray-500 text-center">
+                  Avg: {client.metrics.sleepData.length > 0 ? (client.metrics.sleepData.reduce((a, b) => a + b, 0) / client.metrics.sleepData.length).toFixed(1) : "—"} hrs
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-300 mb-1">Weight</p>
+                <SparkLine data={client.metrics.weightData} maxVal={Math.max(...(client.metrics.weightData.length > 0 ? client.metrics.weightData : [0])) + 10} color="rgb(167, 139, 250)" />
+                <p className="text-[10px] text-gray-500 text-center">Current: {client.metrics.weight ?? "—"} lbs</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Supplements */}
+          {health.supplements.length > 0 && (
+            <div className="kairos-card">
+              <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+                <Pill size={16} /> Supplement Protocol
+              </h2>
+              <div className="space-y-2">
+                {health.supplements.map((s, i) => (
+                  <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-800/50 last:border-0">
+                    <div>
+                      <p className="text-sm text-white font-medium">{s.name}</p>
+                      <p className="text-[10px] text-gray-500">{s.dosage} &bull; {s.frequency} &bull; {s.timeOfDay}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Goals Summary */}
+          {health.goals.length > 0 && (
+            <div className="kairos-card">
+              <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+                <Target size={16} /> Goals ({health.goals.filter((g) => g.status === "active").length} active)
+              </h2>
+              <div className="space-y-2">
+                {health.goals.filter((g) => g.status === "active").slice(0, 5).map((g) => {
+                  const range = Math.abs(g.targetValue - g.startValue);
+                  const progress = range > 0 ? Math.min(100, Math.round(Math.abs(g.currentValue - g.startValue) / range * 100)) : 0;
+                  return (
+                    <div key={g.id} className="p-2 rounded-lg bg-gray-800/30 border border-gray-800">
+                      <div className="flex justify-between items-center mb-1">
+                        <p className="text-xs text-white font-medium">{g.title}</p>
+                        <span className="text-[10px] text-kairos-gold">{progress}%</span>
+                      </div>
+                      <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-kairos-gold rounded-full" style={{ width: `${progress}%` }} />
+                      </div>
+                      <p className="text-[10px] text-gray-500 mt-1">{g.currentValue} / {g.targetValue} {g.targetUnit}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
+    case "glucose":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Droplets size={16} /> Glucose Readings ({health.glucose.length})
+          </h2>
+          <DataTable
+            headers={["Date", "Time", "Value (mg/dL)", "Source"]}
+            rows={health.glucose.slice(0, 50).map((g) => {
+              const d = new Date(g.date);
+              return [d.toLocaleDateString("en-US", { month: "short", day: "numeric" }), d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }), g.value, g.source];
+            })}
+          />
+        </div>
+      );
+
+    case "sleep":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Moon size={16} /> Sleep Sessions ({health.sleep.length})
+          </h2>
+          <DataTable
+            headers={["Date", "Total", "Score", "Deep", "REM", "Light", "Awake"]}
+            rows={health.sleep.map((s) => [
+              s.date,
+              s.totalMinutes ? `${(s.totalMinutes / 60).toFixed(1)}h` : "—",
+              s.score,
+              s.deepMinutes ? `${(s.deepMinutes / 60).toFixed(1)}h` : "—",
+              s.remMinutes ? `${(s.remMinutes / 60).toFixed(1)}h` : "—",
+              s.lightMinutes ? `${(s.lightMinutes / 60).toFixed(1)}h` : "—",
+              s.awakeMinutes ? `${s.awakeMinutes}m` : "—",
+            ])}
+          />
+        </div>
+      );
+
+    case "hrv":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Heart size={16} /> HRV Readings ({health.hrv.length})
+          </h2>
+          <DataTable
+            headers={["Date", "RMSSD (ms)", "Source"]}
+            rows={health.hrv.map((h) => {
+              const d = new Date(h.date);
+              return [d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }), h.rmssd, h.source];
+            })}
+          />
+        </div>
+      );
+
+    case "bp":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Zap size={16} /> Blood Pressure ({health.bloodPressure.length})
+          </h2>
+          <DataTable
+            headers={["Date", "Systolic", "Diastolic", "Pulse", "Notes"]}
+            rows={health.bloodPressure.map((bp) => [bp.date, bp.systolic, bp.diastolic, bp.pulse, bp.notes])}
+          />
+        </div>
+      );
+
+    case "body":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Scale size={16} /> Body Measurements ({health.bodyMeasurements.length})
+          </h2>
+          <DataTable
+            headers={["Date", "Weight (lbs)", "Body Fat %", "Waist (in)"]}
+            rows={health.bodyMeasurements.map((m) => [m.date, m.weightLbs, m.bodyFatPct, m.waistInches])}
+          />
+        </div>
+      );
+
+    case "workouts":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Dumbbell size={16} /> Workouts ({health.workouts.length})
+          </h2>
+          {health.workouts.length === 0 ? (
+            <p className="text-sm text-gray-500 py-6 text-center">No workouts for this period</p>
+          ) : (
+            <div className="space-y-2">
+              {health.workouts.map((w) => {
+                const exercises = (w.exercises ?? []) as Array<{ exerciseId: string; sets: Array<{ weight: number; reps: number }> }>;
+                let meta: { type?: string; durationMinutes?: number } | null = null;
+                try { if (w.notes) meta = JSON.parse(w.notes); } catch { /* not JSON */ }
+                return (
+                  <div key={w.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-sm text-white font-medium">{w.date}</p>
+                      {meta?.type && <span className="text-[10px] px-2 py-0.5 rounded bg-gray-700 text-gray-300">{meta.type}</span>}
+                    </div>
+                    {meta?.durationMinutes && <p className="text-[10px] text-gray-500">{meta.durationMinutes} min</p>}
+                    {exercises.length > 0 && !exercises[0]?.exerciseId?.startsWith("quick_log:") && (
+                      <p className="text-xs text-gray-400 mt-1">{exercises.length} exercises, {exercises.reduce((s, e) => s + (e.sets?.length ?? 0), 0)} total sets</p>
+                    )}
+                    {w.notes && !meta && <p className="text-[10px] text-gray-500 mt-1">{w.notes}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+
+    case "goals":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Target size={16} /> Health Goals ({health.goals.length})
+          </h2>
+          {health.goals.length === 0 ? (
+            <p className="text-sm text-gray-500 py-6 text-center">No goals set</p>
+          ) : (
+            <div className="space-y-3">
+              {health.goals.map((g) => {
+                const range = Math.abs(g.targetValue - g.startValue);
+                const progress = range > 0 ? Math.min(100, Math.round(Math.abs(g.currentValue - g.startValue) / range * 100)) : 0;
+                return (
+                  <div key={g.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-sm text-white font-medium">{g.title}</p>
+                      <span className={`text-[10px] px-2 py-0.5 rounded ${
+                        g.status === "active" ? "bg-green-500/10 text-green-400" :
+                        g.status === "completed" ? "bg-blue-500/10 text-blue-400" :
+                        "bg-gray-700 text-gray-400"
+                      }`}>{g.status}</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mb-2">{g.category} &bull; {g.targetDirection} to {g.targetValue} {g.targetUnit}</p>
+                    <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden mb-1">
+                      <div className="h-full bg-kairos-gold rounded-full" style={{ width: `${progress}%` }} />
+                    </div>
+                    <p className="text-[10px] text-gray-500">{g.currentValue} / {g.targetValue} {g.targetUnit} ({progress}%)</p>
+                    {g.milestones.length > 0 && (
+                      <div className="mt-2 flex gap-2 flex-wrap">
+                        {g.milestones.map((m, i) => (
+                          <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded ${m.reached ? "bg-green-500/10 text-green-400" : "bg-gray-700/50 text-gray-500"}`}>
+                            {m.label}: {m.targetValue}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+
+    case "labs":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <FlaskConical size={16} /> Lab Results ({health.labs.length})
+          </h2>
+          {health.labs.length === 0 ? (
+            <p className="text-sm text-gray-500 py-6 text-center">No lab results</p>
+          ) : (
+            <div className="space-y-4">
+              {health.labs.map((lab) => (
+                <div key={lab.id} className="border border-gray-800 rounded-lg overflow-hidden">
+                  <div className="p-3 bg-gray-800/30 flex justify-between items-center">
+                    <p className="text-sm text-white font-medium">Lab — {new Date(lab.receivedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+                    <span className="text-[10px] text-gray-500">{lab.biomarkers.length} markers</span>
+                  </div>
+                  {lab.biomarkers.length > 0 && (
+                    <DataTable
+                      headers={["Biomarker", "Value", "Unit", "Ref Low", "Ref High", "Status"]}
+                      rows={lab.biomarkers.map((b) => [b.code, b.value, b.unit, b.refLow, b.refHigh, b.status])}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+
+    case "nutrition":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Apple size={16} /> Nutrition ({health.nutrition.recentMeals.length} meals)
+          </h2>
+          <DataTable
+            headers={["Date", "Meal", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"]}
+            rows={health.nutrition.recentMeals.map((m) => [m.date, m.mealType, m.calories, m.protein, m.carbs, m.fat])}
+          />
+        </div>
+      );
+
+    case "supplements":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Pill size={16} /> Supplement Protocol ({health.supplements.length} items)
+          </h2>
+          {health.supplements.length === 0 ? (
+            <p className="text-sm text-gray-500 py-6 text-center">No active protocol</p>
+          ) : (
+            <DataTable
+              headers={["Name", "Dosage", "Frequency", "Time", "Notes"]}
+              rows={health.supplements.map((s) => [s.name, s.dosage, s.frequency, s.timeOfDay, s.notes])}
+            />
+          )}
+        </div>
+      );
+
+    case "checkins":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <ClipboardList size={16} /> Daily Check-ins ({health.checkins.length})
+          </h2>
+          <DataTable
+            headers={["Date", "Mood", "Energy", "Stress", "Sleep Quality", "Training"]}
+            rows={health.checkins.map((c) => [c.date, c.mood, c.energy, c.stress, c.sleepQuality, c.trainingType])}
+          />
+        </div>
+      );
+
+    default:
+      return null;
+  }
 }

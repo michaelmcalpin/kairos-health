@@ -36,17 +36,17 @@ interface AppointmentLike {
 }
 
 export default function CoachSchedulePage() {
-  const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
+  const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentLike | null>(null);
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [newAppt, setNewAppt] = useState({ clientId: "", clientName: "", date: "", time: "09:00", type: "follow_up" as const, meeting: "video" as const });
 
-  // Get current Monday for week view
-  const now = new Date();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  // Derive Monday from the date range navigator's start date
+  const rangeStart = dateRange.startDate;
+  const monday = new Date(rangeStart);
+  monday.setDate(rangeStart.getDate() - ((rangeStart.getDay() + 6) % 7));
   const weekStart = monday.toISOString().split("T")[0];
 
   // Fetch calendar, stats, and clients data

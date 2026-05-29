@@ -1,9 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { MessagingDashboard } from "@/components/messaging/MessagingDashboard";
 import { trpc } from "@/lib/trpc";
 
-export default function CoachMessagesPage() {
+function CoachMessagesContent() {
+  const searchParams = useSearchParams();
+  const conversationId = searchParams.get("conversationId");
   const { data: user } = trpc.auth.me.useQuery();
 
   return (
@@ -19,7 +23,16 @@ export default function CoachMessagesPage() {
         userId={user?.id ?? ""}
         role="coach"
         userName={user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "Trainer" : "Trainer"}
+        initialConversationId={conversationId}
       />
     </div>
+  );
+}
+
+export default function CoachMessagesPage() {
+  return (
+    <Suspense fallback={<div className="max-w-6xl mx-auto"><div className="kairos-card h-96 animate-pulse bg-gray-800/50" /></div>}>
+      <CoachMessagesContent />
+    </Suspense>
   );
 }

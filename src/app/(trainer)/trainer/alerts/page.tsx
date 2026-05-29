@@ -18,6 +18,8 @@ export default function CoachAlertsPage() {
   const [clientFilter, setClientFilter] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  const utils = trpc.useUtils();
+
   // Fetch alerts and summary from tRPC
   const { data: alertsData = { alerts: [], total: 0, hasMore: false }, isLoading: alertsLoading } =
     trpc.coach.alerts.list.useQuery({ status: filter === "all" ? "all" : filter, limit: 50 });
@@ -27,9 +29,8 @@ export default function CoachAlertsPage() {
 
   const { mutate: acknowledgeAlert } = trpc.coach.alerts.acknowledge.useMutation({
     onSuccess: () => {
-      // Refetch alerts after acknowledging
-      void trpc.useUtils().coach.alerts.list.invalidate();
-      void trpc.useUtils().coach.alerts.summary.invalidate();
+      void utils.coach.alerts.list.invalidate();
+      void utils.coach.alerts.summary.invalidate();
     },
   });
 
@@ -159,7 +160,7 @@ export default function CoachAlertsPage() {
                     <p className="text-xs font-body text-kairos-silver-dark mt-0.5">{alert.message}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-[10px] font-body text-kairos-silver-dark flex items-center gap-1"><Clock size={10} /> {alert.createdAt}</span>
+                    <span className="text-[10px] font-body text-kairos-silver-dark flex items-center gap-1"><Clock size={10} /> {new Date(alert.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
                     {isExpanded ? <ChevronUp size={16} className="text-kairos-silver-dark" /> : <ChevronDown size={16} className="text-kairos-silver-dark" />}
                   </div>
                 </div>
@@ -169,7 +170,7 @@ export default function CoachAlertsPage() {
                     {alert.status === "active" && (
                       <div className="flex gap-2">
                         <button onClick={() => handleAcknowledge(alert.id)} className="kairos-btn-outline text-xs"><CheckCircle size={14} className="mr-1" /> Acknowledge</button>
-                        <button onClick={() => router.push("/trainer/clients")} className="kairos-btn-outline text-xs border-kairos-gold/30 text-kairos-gold hover:bg-kairos-gold/10">View Client</button>
+                        <button onClick={() => router.push(`/trainer/clients/${alert.clientId}`)} className="kairos-btn-outline text-xs border-kairos-gold/30 text-kairos-gold hover:bg-kairos-gold/10">View Client</button>
                       </div>
                     )}
                   </div>
