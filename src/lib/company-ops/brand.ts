@@ -16,14 +16,14 @@ export interface CompanyBrand {
   emailFromName: string;
   emailFooter: string;
   website: string;
-  poweredBy: string;            // "Powered by Kairos"
+  poweredBy: string;            // "Powered by Everist"
 }
 
 export interface EmailBrandConfig {
   companyName: string;
   primaryColor: string;         // Hex color for email
   primaryColorDark: string;     // Darker variant for backgrounds
-  accentColor: string;          // Gold accent (always Kairos gold)
+  accentColor: string;          // Gold accent (always Everist gold)
   logoUrl: string | null;
   fromName: string;
   footer: string;
@@ -77,7 +77,7 @@ export function lightenHex(hex: string, amount = 0.3): string {
 
 // ─── Brand Resolution ────────────────────────────────────────────
 
-const KAIROS_DEFAULTS = {
+const EVERIST_DEFAULTS = {
   name: "EVERIST.ai",
   brandColor: "#4A90D9",  // Summit Ice Blue
   emailFromName: "Everist.ai Health",
@@ -88,21 +88,21 @@ const KAIROS_DEFAULTS = {
 
 /**
  * Resolve a Company into a CompanyBrand with computed fields.
- * Falls back to KAIROS defaults for null/empty values.
+ * Falls back to EVERIST defaults for null/empty values.
  */
 export function resolveCompanyBrand(company: Company | null | undefined): CompanyBrand {
   if (!company) {
     return {
-      id: "kairos",
-      name: KAIROS_DEFAULTS.name,
-      slug: "kairos",
+      id: "everist",
+      name: EVERIST_DEFAULTS.name,
+      slug: "everist",
       logoUrl: null,
-      brandColor: KAIROS_DEFAULTS.brandColor,
-      brandColorRgb: hexToRgbString(KAIROS_DEFAULTS.brandColor),
-      emailFromName: KAIROS_DEFAULTS.emailFromName,
-      emailFooter: KAIROS_DEFAULTS.emailFooter,
-      website: KAIROS_DEFAULTS.website,
-      poweredBy: KAIROS_DEFAULTS.poweredBy,
+      brandColor: EVERIST_DEFAULTS.brandColor,
+      brandColorRgb: hexToRgbString(EVERIST_DEFAULTS.brandColor),
+      emailFromName: EVERIST_DEFAULTS.emailFromName,
+      emailFooter: EVERIST_DEFAULTS.emailFooter,
+      website: EVERIST_DEFAULTS.website,
+      poweredBy: EVERIST_DEFAULTS.poweredBy,
     };
   }
 
@@ -111,22 +111,22 @@ export function resolveCompanyBrand(company: Company | null | undefined): Compan
     name: company.name,
     slug: company.slug,
     logoUrl: company.logoUrl,
-    brandColor: company.brandColor || KAIROS_DEFAULTS.brandColor,
-    brandColorRgb: hexToRgbString(company.brandColor || KAIROS_DEFAULTS.brandColor),
+    brandColor: company.brandColor || EVERIST_DEFAULTS.brandColor,
+    brandColorRgb: hexToRgbString(company.brandColor || EVERIST_DEFAULTS.brandColor),
     emailFromName: company.emailFromName || company.name,
     emailFooter: company.emailFooter || `Powered by Everist.ai Health | ${company.name}`,
-    website: company.website || KAIROS_DEFAULTS.website,
-    poweredBy: KAIROS_DEFAULTS.poweredBy,
+    website: company.website || EVERIST_DEFAULTS.website,
+    poweredBy: EVERIST_DEFAULTS.poweredBy,
   };
 }
 
 /**
  * Check if a brand represents the platform's own company (not white-label).
- * Returns true for the default Everist/Kairos brand — these should NOT
+ * Returns true for the default Everist brand — these should NOT
  * get white-label treatment (custom logo, "Powered by" badge, etc.).
  */
 export function isPlatformBrand(brand: CompanyBrand): boolean {
-  if (brand.id === "kairos") return true;
+  if (brand.id === "everist" || brand.id === "kairos") return true;
   const n = brand.name.toLowerCase();
   return n.includes("everist") || n.includes("kairos");
 }
@@ -157,7 +157,7 @@ export function resolveEmailBrand(company: Company | null | undefined): EmailBra
     companyName: brand.name,
     primaryColor: brand.brandColor,
     primaryColorDark: darkenHex(brand.brandColor, 0.6),
-    accentColor: "#D4AF37",  // Always Kairos gold for emails
+    accentColor: "#D4AF37",  // Always Everist gold for emails
     logoUrl: brand.logoUrl,
     fromName: brand.emailFromName,
     footer: brand.emailFooter,

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * KAIROS Offline Fallback Page
+ * EVERIST Offline Fallback Page
  *
  * Displayed when the user is offline and the requested page
  * isn't available in the service worker cache.

@@ -10,7 +10,7 @@ interface BeforeInstallPromptEvent extends Event {
 /**
  * PWA install prompt banner.
  * Intercepts the browser's beforeinstallprompt event and shows
- * a styled banner matching the KAIROS design system.
+ * a styled banner matching the EVERIST design system.
  */
 export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -59,7 +59,7 @@ export function InstallPrompt() {
         <div className="flex items-start gap-3">
           {/* App icon */}
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-kairos-royal to-kairos-royal-dark border border-kairos-border">
-            <span className="font-heading text-xl font-bold text-kairos-gold">K</span>
+            <span className="font-heading text-xl font-bold text-kairos-gold">E</span>
           </div>
 
           <div className="flex-1 min-w-0">

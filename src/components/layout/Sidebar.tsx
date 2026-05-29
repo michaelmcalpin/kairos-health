@@ -62,13 +62,13 @@ interface SidebarProps {
   items: NavItem[];
   userName?: string;
   userTier?: string;
-  /** White-label: company name replaces "KAIROS" */
+  /** White-label: company name replaces "EVERIST" */
   companyName?: string;
   /** White-label: company logo URL (shown instead of text brand) */
   companyLogoUrl?: string | null;
   /** White-label: hex brand color for accent override */
   companyBrandColor?: string;
-  /** Show "Powered by Kairos" in footer for white-label companies */
+  /** Show "Powered by Everist" in footer for white-label companies */
   showPoweredBy?: boolean;
 }
 

@@ -1,5 +1,5 @@
 // ─── Onboarding Types ───────────────────────────────────────────
-// Multi-step onboarding flow for new KAIROS clients
+// Multi-step onboarding flow for new EVERIST clients
 
 export type OnboardingStepId =
   | "welcome"

@@ -205,7 +205,7 @@ export default function CompanySettingsPage() {
             {/* Footer preview */}
             <div className="text-center py-2 border-t border-kairos-border">
               <p className="text-[10px] text-kairos-silver-dark">
-                Powered by <span className="text-kairos-gold font-semibold">KAIROS</span>
+                Powered by <span className="text-kairos-gold font-semibold">EVERIST</span>
               </p>
             </div>
           </div>
@@ -243,7 +243,7 @@ export default function CompanySettingsPage() {
                 value={emailFooter}
                 onChange={(e) => setEmailFooter(e.target.value)}
                 className="kairos-input w-full"
-                placeholder="e.g. Powered by Kairos Health | Your Company"
+                placeholder="e.g. Powered by Everist.ai | Your Company"
               />
             </div>
           </div>

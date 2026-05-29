@@ -7,9 +7,9 @@ interface WelcomeStepProps {
 export function WelcomeStep({ onContinue }: WelcomeStepProps) {
   return (
     <div className="flex flex-col items-center text-center max-w-lg mx-auto">
-      {/* KAIROS Logo */}
+      {/* EVERIST Logo */}
       <div className="w-24 h-24 rounded-full flex items-center justify-center mb-8 bg-gradient-to-br from-kairos-royal to-kairos-royal-dark">
-        <span className="text-4xl font-bold text-kairos-gold">K</span>
+        <span className="text-4xl font-bold text-kairos-gold">E</span>
       </div>
 
       <h1 className="text-3xl font-heading font-bold text-white mb-4">
