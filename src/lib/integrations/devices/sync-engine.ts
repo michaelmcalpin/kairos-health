@@ -1,5 +1,5 @@
 /**
- * KAIROS Device Sync Engine
+ * EVERIST Device Sync Engine
  *
  * Orchestrates data synchronization from wearable devices.
  * Handles OAuth token refresh, data normalization, and

@@ -1,7 +1,7 @@
 /**
- * KAIROS Stripe Configuration
+ * EVERIST Stripe Configuration
  *
- * Maps KAIROS subscription tiers to Stripe price IDs.
+ * Maps EVERIST subscription tiers to Stripe price IDs.
  * Set STRIPE_SECRET_KEY and price IDs in .env.local
  */
 
@@ -9,7 +9,7 @@ export const STRIPE_CONFIG = {
   /** Stripe API version */
   apiVersion: "2026-02-25.clover" as const,
 
-  /** Product mapping for the three KAIROS tiers */
+  /** Product mapping for the three EVERIST tiers */
   tiers: {
     tier1: {
       name: "Everist Private",

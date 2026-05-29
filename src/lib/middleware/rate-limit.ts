@@ -1,5 +1,5 @@
 /**
- * KAIROS Rate Limiter
+ * EVERIST Rate Limiter
  *
  * Sliding window rate limiter with Redis support for production
  * horizontal scaling. Falls back to in-memory when Redis is unavailable.

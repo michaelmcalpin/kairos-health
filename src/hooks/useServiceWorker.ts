@@ -11,7 +11,7 @@ export interface ServiceWorkerStatus {
 }
 
 /**
- * Registers and manages the KAIROS service worker.
+ * Registers and manages the EVERIST service worker.
  * Detects updates and provides a method to apply them.
  */
 export function useServiceWorker(): ServiceWorkerStatus & { applyUpdate: () => void } {

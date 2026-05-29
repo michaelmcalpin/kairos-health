@@ -1,7 +1,7 @@
 /**
- * KAIROS Stripe Webhook Handler
+ * EVERIST Stripe Webhook Handler
  *
- * Processes Stripe webhook events and updates KAIROS database accordingly.
+ * Processes Stripe webhook events and updates EVERIST database accordingly.
  * Each handler updates subscription status, triggers notifications, and
  * logs audit events.
  */
@@ -28,7 +28,7 @@ async function handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
     return;
   }
 
-  // Create subscription record in KAIROS
+  // Create subscription record in EVERIST
   await db.insert(subscriptions).values({
     userId,
     stripeSubscriptionId: session.subscription as string,

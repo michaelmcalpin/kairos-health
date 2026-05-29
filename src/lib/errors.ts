@@ -1,5 +1,5 @@
 /**
- * KAIROS Error Handling System
+ * EVERIST Error Handling System
  *
  * Typed error classes, error codes, and utilities for
  * consistent error handling across API routes and tRPC procedures.

@@ -1,5 +1,5 @@
 /**
- * KAIROS Device Provider Registry
+ * EVERIST Device Provider Registry
  *
  * Configuration for each supported wearable device provider.
  * OAuth credentials are stored in environment variables.

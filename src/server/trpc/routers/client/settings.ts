@@ -1,5 +1,5 @@
 /**
- * KAIROS Client Settings Router
+ * EVERIST Client Settings Router
  *
  * tRPC endpoints for user profile settings and notification preferences.
  * Handles fetching and updating:

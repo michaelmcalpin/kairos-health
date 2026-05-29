@@ -1,5 +1,5 @@
 /**
- * KAIROS Environment Configuration
+ * EVERIST Environment Configuration
  *
  * Type-safe environment variable access with validation.
  * All env vars are validated at startup time.
@@ -26,7 +26,7 @@ function requireInProd(name: string, devDefault = ""): string {
     // Log a warning instead and return empty string; actual runtime requests
     // that need the value will fail with a clear error from the calling code.
     console.warn(
-      `[KAIROS] WARNING: Environment variable "${name}" is not set. ` +
+      `[EVERIST] WARNING: Environment variable "${name}" is not set. ` +
       `This is expected during build but will cause errors at runtime if not configured.`
     );
     return devDefault;

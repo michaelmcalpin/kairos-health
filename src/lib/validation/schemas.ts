@@ -1,5 +1,5 @@
 /**
- * KAIROS Zod Validation Schemas
+ * EVERIST Zod Validation Schemas
  *
  * Shared validation schemas used in both client-side forms
  * and server-side tRPC input validation.

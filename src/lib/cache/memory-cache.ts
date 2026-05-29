@@ -1,5 +1,5 @@
 /**
- * KAIROS Application Cache
+ * EVERIST Application Cache
  *
  * TTL-based cache with namespace support for API responses
  * and computed data. Uses Redis when available, falls back

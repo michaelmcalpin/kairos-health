@@ -1,5 +1,5 @@
 /**
- * KAIROS Client Insights Router
+ * EVERIST Client Insights Router
  *
  * tRPC endpoints for AI-generated health insights,
  * weekly reports, and data export triggers.

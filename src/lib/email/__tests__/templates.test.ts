@@ -55,7 +55,7 @@ describe("Email layout", () => {
     expect(html).toContain('<img src="https://example.com/logo.png"');
   });
 
-  it("does not show Powered by KAIROS for KAIROS brand", () => {
+  it("does not show Powered by EVERIST for EVERIST brand", () => {
     const html = wrapEmailLayout("<p>Hello</p>", {
       brand: { companyName: "Everist.ai" },
     });

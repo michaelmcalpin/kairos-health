@@ -1,5 +1,5 @@
 /**
- * KAIROS Notification Templates
+ * EVERIST Notification Templates
  *
  * Pre-defined templates for each notification category
  * with default priority, channels, and content patterns.

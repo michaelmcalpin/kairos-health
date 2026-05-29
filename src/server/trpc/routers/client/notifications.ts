@@ -1,5 +1,5 @@
 /**
- * KAIROS Client Notifications Router
+ * EVERIST Client Notifications Router
  *
  * tRPC endpoints for notification listing, read/archive,
  * and user preference management. All backed by real DB queries.

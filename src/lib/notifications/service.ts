@@ -1,5 +1,5 @@
 /**
- * KAIROS Notification Dispatch Service
+ * EVERIST Notification Dispatch Service
  *
  * DB-backed notification creation, channel routing,
  * quiet hours enforcement, and delivery tracking.

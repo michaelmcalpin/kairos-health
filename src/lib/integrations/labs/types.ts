@@ -1,5 +1,5 @@
 /**
- * KAIROS Lab Integration Types
+ * EVERIST Lab Integration Types
  *
  * Unified types for lab order management, result parsing,
  * and biomarker tracking from providers like LabCorp, Quest,

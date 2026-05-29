@@ -1,5 +1,5 @@
 /**
- * KAIROS Lab Panel Definitions
+ * EVERIST Lab Panel Definitions
  *
  * Standard lab panel configurations with biomarker definitions,
  * optimal ranges (health-optimized, not just reference ranges),

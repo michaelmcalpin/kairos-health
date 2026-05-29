@@ -1,5 +1,5 @@
 /**
- * KAIROS Formatting Utilities
+ * EVERIST Formatting Utilities
  *
  * Consistent number, currency, date, and health metric formatting
  * used across all three portals.

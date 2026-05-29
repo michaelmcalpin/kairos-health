@@ -1,5 +1,5 @@
 /**
- * KAIROS SSE Hook — Client-side Server-Sent Events consumer
+ * EVERIST SSE Hook — Client-side Server-Sent Events consumer
  *
  * Provides auto-reconnecting SSE subscription with event buffering.
  */

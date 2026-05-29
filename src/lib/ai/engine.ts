@@ -1,5 +1,5 @@
 /**
- * KAIROS AI Insight Generation Engine
+ * EVERIST AI Insight Generation Engine
  *
  * Rule-based health analysis that generates insights from metrics.
  * Works without an external LLM — can be augmented with API calls

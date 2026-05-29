@@ -1,5 +1,5 @@
 /**
- * KAIROS Health Report Generator
+ * EVERIST Health Report Generator
  *
  * Generates structured HTML report content that can be rendered
  * or converted to PDF. Works with the weekly report data structure.

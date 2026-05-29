@@ -1,5 +1,5 @@
 /**
- * KAIROS Notification System — Type Definitions
+ * EVERIST Notification System — Type Definitions
  *
  * Covers notification categories, channels, delivery status,
  * and user preference structures.

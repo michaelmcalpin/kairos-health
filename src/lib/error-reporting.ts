@@ -71,6 +71,6 @@ export function reportError(
 
   // Always log in dev; console.error is intentional here for error boundaries
   if (!isProduction) {
-    console.error(`[KAIROS Error] ${report.portal ?? "global"}:`, error);
+    console.error(`[EVERIST Error] ${report.portal ?? "global"}:`, error);
   }
 }

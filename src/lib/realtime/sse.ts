@@ -1,5 +1,5 @@
 /**
- * KAIROS Server-Sent Events (SSE) Handler
+ * EVERIST Server-Sent Events (SSE) Handler
  *
  * Provides SSE streaming endpoints for real-time data delivery.
  * Compatible with Next.js App Router route handlers.

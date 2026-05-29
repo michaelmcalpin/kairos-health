@@ -63,7 +63,7 @@ export const ROLE_OPTIONS: RoleOption[] = [
   {
     role: "super_admin",
     label: "Super Admin",
-    description: "Kairos platform administration",
+    description: "Everist platform administration",
     icon: "Shield",
     path: "/super-admin/dashboard",
   },

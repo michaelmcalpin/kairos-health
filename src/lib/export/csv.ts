@@ -1,5 +1,5 @@
 /**
- * KAIROS CSV Export Utility
+ * EVERIST CSV Export Utility
  *
  * Generates CSV strings from structured health data.
  * Works in both server and client contexts.

@@ -1,5 +1,5 @@
 /**
- * KAIROS Request Logger & Performance Monitor
+ * EVERIST Request Logger & Performance Monitor
  *
  * Structured logging for API requests with timing metrics.
  * Outputs JSON logs suitable for log aggregation services.

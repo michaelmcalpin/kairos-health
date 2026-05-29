@@ -1,5 +1,5 @@
 /**
- * KAIROS Date Utilities
+ * EVERIST Date Utilities
  *
  * Date range calculations, period helpers, and health-data
  * specific date logic used throughout the platform.

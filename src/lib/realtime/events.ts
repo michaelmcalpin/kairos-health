@@ -1,5 +1,5 @@
 /**
- * KAIROS Real-Time Event System
+ * EVERIST Real-Time Event System
  *
  * Server-Sent Events (SSE) based real-time data streaming.
  * Uses an in-memory event bus for pub/sub between server processes.

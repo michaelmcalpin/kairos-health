@@ -76,7 +76,7 @@ export default function CompaniesPage() {
         <div>
           <h1 className="font-heading font-bold text-3xl text-white mb-2">Companies</h1>
           <p className="font-body text-kairos-silver-dark">
-            Manage companies using the Kairos platform
+            Manage companies using the Everist platform
           </p>
         </div>
         <button
@@ -374,7 +374,7 @@ function CreateCompanyModal({
       <div className="w-full max-w-lg bg-kairos-royal border border-kairos-border rounded-kairos shadow-lg">
         <div className="p-6 border-b border-kairos-border">
           <h2 className="font-heading font-bold text-xl text-white">Create New Company</h2>
-          <p className="font-body text-sm text-kairos-silver-dark mt-1">Add a new company to the Kairos platform</p>
+          <p className="font-body text-sm text-kairos-silver-dark mt-1">Add a new company to the Everist platform</p>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (

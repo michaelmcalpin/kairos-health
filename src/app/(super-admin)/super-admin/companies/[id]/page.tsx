@@ -653,7 +653,7 @@ function BrandingTab({
               </div>
               <div className="mt-4 pt-3 border-t border-kairos-border text-center">
                 <p className="text-[9px] text-kairos-silver-dark">
-                  Powered by <span className="text-kairos-gold font-semibold">KAIROS</span>
+                  Powered by <span className="text-kairos-gold font-semibold">EVERIST</span>
                 </p>
               </div>
             </div>

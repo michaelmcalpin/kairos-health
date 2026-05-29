@@ -1,7 +1,7 @@
 /**
- * KAIROS Email Sending Service
+ * EVERIST Email Sending Service
  *
- * Integrates the Resend email provider with the KAIROS email
+ * Integrates the Resend email provider with the EVERIST email
  * template engine and white-label brand configuration.
  *
  * Environment variables:

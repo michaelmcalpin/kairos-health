@@ -1,5 +1,5 @@
 /**
- * KAIROS AI Health Insights — Type Definitions
+ * EVERIST AI Health Insights — Type Definitions
  *
  * Types for the insight generation engine, covering glucose,
  * sleep, nutrition, activity, supplement adherence, and

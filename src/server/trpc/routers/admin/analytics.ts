@@ -1,5 +1,5 @@
 /**
- * KAIROS Admin Analytics Router
+ * EVERIST Admin Analytics Router
  *
  * tRPC endpoints for platform analytics: growth, engagement,
  * retention, coach performance, revenue metrics, and platform health.

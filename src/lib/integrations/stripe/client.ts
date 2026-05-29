@@ -1,5 +1,5 @@
 /**
- * KAIROS Stripe Client
+ * EVERIST Stripe Client
  *
  * Server-side Stripe SDK wrapper with helper methods for
  * checkout, subscriptions, and billing portal.

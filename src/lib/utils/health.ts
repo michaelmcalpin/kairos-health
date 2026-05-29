@@ -1,5 +1,5 @@
 /**
- * KAIROS Health Calculation Utilities
+ * EVERIST Health Calculation Utilities
  *
  * Core health metric calculations, scoring algorithms,
  * and threshold evaluations used across the platform.

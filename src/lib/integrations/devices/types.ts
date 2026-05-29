@@ -1,5 +1,5 @@
 /**
- * KAIROS Device Integration Types
+ * EVERIST Device Integration Types
  *
  * Unified type system for wearable device data from
  * Oura Ring, Whoop, Dexcom, Apple Health, etc.

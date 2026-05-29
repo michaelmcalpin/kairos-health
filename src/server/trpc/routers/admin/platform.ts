@@ -1,5 +1,5 @@
 /**
- * KAIROS Admin Platform Health Router
+ * EVERIST Admin Platform Health Router
  *
  * Provides platform-wide KPIs, system health status,
  * and operational metrics for the admin dashboard.

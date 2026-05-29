@@ -1,5 +1,5 @@
 /**
- * KAIROS AI Prompt Templates
+ * EVERIST AI Prompt Templates
  *
  * Structured prompts for health insight generation.
  * These can be used with any LLM provider (OpenAI, Anthropic, etc.)
@@ -10,7 +10,7 @@ import type { PromptTemplate } from "./types";
 
 // ─── System Context ──────────────────────────────────────────────────────────
 
-const KAIROS_SYSTEM_CONTEXT = `You are Everist.ai Health AI, a precision health analysis assistant for a longevity-focused health management platform. Your role is to analyze health metrics and provide evidence-based, actionable insights.
+const EVERIST_SYSTEM_CONTEXT = `You are Everist.ai Health AI, a precision health analysis assistant for a longevity-focused health management platform. Your role is to analyze health metrics and provide evidence-based, actionable insights.
 
 Guidelines:
 - Be specific with numbers and trends, not generic
@@ -25,7 +25,7 @@ Guidelines:
 
 export const GLUCOSE_PROMPT: PromptTemplate = {
   category: "glucose",
-  systemPrompt: `${KAIROS_SYSTEM_CONTEXT}
+  systemPrompt: `${EVERIST_SYSTEM_CONTEXT}
 
 Focus area: Continuous Glucose Monitor (CGM) data analysis.
 Optimal ranges for longevity:
@@ -49,7 +49,7 @@ Provide 2-3 specific insights with actionable recommendations.`,
 
 export const SLEEP_PROMPT: PromptTemplate = {
   category: "sleep",
-  systemPrompt: `${KAIROS_SYSTEM_CONTEXT}
+  systemPrompt: `${EVERIST_SYSTEM_CONTEXT}
 
 Focus area: Sleep quality and duration analysis.
 Optimal ranges for longevity:
@@ -71,7 +71,7 @@ Provide 2-3 specific insights with actionable recommendations.`,
 
 export const NUTRITION_PROMPT: PromptTemplate = {
   category: "nutrition",
-  systemPrompt: `${KAIROS_SYSTEM_CONTEXT}
+  systemPrompt: `${EVERIST_SYSTEM_CONTEXT}
 
 Focus area: Nutrition and macronutrient analysis.
 General guidelines for metabolic health:
@@ -93,7 +93,7 @@ Provide 2-3 specific insights with actionable recommendations.`,
 
 export const ACTIVITY_PROMPT: PromptTemplate = {
   category: "activity",
-  systemPrompt: `${KAIROS_SYSTEM_CONTEXT}
+  systemPrompt: `${EVERIST_SYSTEM_CONTEXT}
 
 Focus area: Physical activity and exercise analysis.
 Optimal guidelines for longevity:
@@ -113,7 +113,7 @@ Provide 2-3 specific insights with actionable recommendations.`,
 
 export const SUPPLEMENT_PROMPT: PromptTemplate = {
   category: "supplements",
-  systemPrompt: `${KAIROS_SYSTEM_CONTEXT}
+  systemPrompt: `${EVERIST_SYSTEM_CONTEXT}
 
 Focus area: Supplement protocol adherence analysis.
 Key considerations:
@@ -133,7 +133,7 @@ Provide 1-2 specific insights with actionable recommendations.`,
 
 export const COMPOSITE_PROMPT: PromptTemplate = {
   category: "composite",
-  systemPrompt: `${KAIROS_SYSTEM_CONTEXT}
+  systemPrompt: `${EVERIST_SYSTEM_CONTEXT}
 
 Focus area: Holistic health score analysis.
 Score components (weighted):

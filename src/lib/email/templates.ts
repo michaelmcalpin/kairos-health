@@ -1,11 +1,11 @@
 /**
- * KAIROS Email Template Engine
+ * EVERIST Email Template Engine
  *
  * Generates branded HTML emails using inline styles
  * for maximum email client compatibility.
  *
  * Supports white-label company branding via EmailBrandConfig.
- * Falls back to KAIROS defaults when no company config is provided.
+ * Falls back to EVERIST defaults when no company config is provided.
  *
  * NOTE: Server-rendered emails with static inline styles. CSS variables don't work in email clients,
  * so hex color values must remain hardcoded here for consistent brand appearance across all email clients.
@@ -55,7 +55,7 @@ export function wrapEmailLayout(
   const brand = resolveBrand(options?.brand);
   const headerBorder = `1px solid ${lightenColor(brand.primaryColor, 30)}`;
 
-  // For white-label: show company logo or name, then "Powered by Kairos" in footer
+  // For white-label: show company logo or name, then "Powered by Everist" in footer
   const isWhiteLabel = brand.companyName !== "Everist.ai";
   const headerContent = brand.logoUrl
     ? `<img src="${escapeHtml(brand.logoUrl)}" alt="${escapeHtml(brand.companyName)}" style="max-height: 40px; max-width: 200px;" />`

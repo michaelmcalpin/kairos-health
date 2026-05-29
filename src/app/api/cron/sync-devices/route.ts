@@ -1,5 +1,5 @@
 /**
- * KAIROS Cron: Sync Devices
+ * EVERIST Cron: Sync Devices
  *
  * This endpoint is called by Vercel Cron (or external scheduler)
  * to sync data from all connected devices on a regular interval.

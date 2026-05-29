@@ -1,5 +1,5 @@
 /**
- * KAIROS Database Seed Script
+ * EVERIST Database Seed Script
  *
  * Usage: npx tsx src/server/db/seed.ts
  *
@@ -751,7 +751,7 @@ async function seedAuditLog(adminIds: string[], coachIds: string[]) {
 // ─── Main ────────────────────────────────────────────────
 
 async function main() {
-  console.log("🏛️  KAIROS Database Seeder");
+  console.log("🏛️  EVERIST Database Seeder");
   console.log("━".repeat(40));
 
   try {

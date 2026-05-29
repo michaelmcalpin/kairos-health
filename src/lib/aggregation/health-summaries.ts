@@ -1,5 +1,5 @@
 /**
- * KAIROS Health Data Aggregation
+ * EVERIST Health Data Aggregation
  *
  * Pre-computation utilities for dashboard summaries, weekly/monthly
  * rollups, and trend analysis. Designed to be called by cron jobs
