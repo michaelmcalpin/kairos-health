@@ -36,6 +36,20 @@
       "when": 1774700300000,
       "tag": "0004_add_missing_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779500000000,
+      "tag": "0005_add_saved_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780300000000,
+      "tag": "0006_add_peptide_cycles",
+      "breakpoints": true
     }
   ]
 }
