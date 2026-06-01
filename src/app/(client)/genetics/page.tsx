@@ -246,25 +246,46 @@ export default function GeneticsPage() {
         const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
         const totalPages = pdf.numPages;
         const pageImages: string[] = [];
-        const SCALE = 1.5; // Good balance between quality and size
+
+        // Start with moderate quality, reduce if total gets too large
+        let scale = 1.2;
+        let quality = 0.65;
 
         for (let i = 1; i <= totalPages; i++) {
           setParseProgress(`Rendering page ${i} of ${totalPages}...`);
           const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: SCALE });
+          const viewport = page.getViewport({ scale });
           const canvas = document.createElement("canvas");
           canvas.width = viewport.width;
           canvas.height = viewport.height;
           const ctx = canvas.getContext("2d")!;
           await page.render({ canvasContext: ctx, viewport, canvas } as Parameters<typeof page.render>[0]).promise;
-          // Convert to JPEG base64 (strip data URL prefix)
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          const dataUrl = canvas.toDataURL("image/jpeg", quality);
           pageImages.push(dataUrl.split(",")[1]);
         }
 
-        // Send pages in batches to stay under body limit (~4MB per batch)
-        // Estimate: each page image is roughly 100-300KB as JPEG
-        // We can fit ~10-15 pages per batch easily
+        // Check total payload size — Vercel limit is 4.5MB
+        const totalB64Size = pageImages.reduce((sum, img) => sum + img.length, 0);
+        const estimatedPayload = totalB64Size + 500; // JSON overhead
+        if (estimatedPayload > 3_500_000) {
+          // Re-render at lower quality to fit
+          setParseProgress("Optimizing images for upload...");
+          pageImages.length = 0;
+          scale = 1.0;
+          quality = 0.5;
+          for (let i = 1; i <= totalPages; i++) {
+            const page = await pdf.getPage(i);
+            const viewport = page.getViewport({ scale });
+            const canvas = document.createElement("canvas");
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            const ctx = canvas.getContext("2d")!;
+            await page.render({ canvasContext: ctx, viewport, canvas } as Parameters<typeof page.render>[0]).promise;
+            const dataUrl = canvas.toDataURL("image/jpeg", quality);
+            pageImages.push(dataUrl.split(",")[1]);
+          }
+        }
+
         setParseProgress(`Sending ${totalPages} pages to AI for analysis...`);
         requestBody = {
           pageImages,
@@ -300,8 +321,11 @@ export default function GeneticsPage() {
       });
 
       if (!response.ok) {
-        const errData = await response.json().catch(() => ({ error: "Server error" }));
-        throw new Error(errData.error || `Upload failed (${response.status})`);
+        const errText = await response.text().catch(() => "");
+        let errMsg = `Upload failed (${response.status})`;
+        try { const errJson = JSON.parse(errText); errMsg = errJson.error || errMsg; } catch { if (errText.length < 200) errMsg = errText || errMsg; }
+        if (response.status === 413) errMsg = "File too large for server. Try a smaller PDF.";
+        throw new Error(errMsg);
       }
 
       const result = await response.json();
