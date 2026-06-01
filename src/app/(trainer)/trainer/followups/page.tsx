@@ -14,6 +14,7 @@ type FilterTab = "All" | "Due Today" | "Overdue" | "Upcoming" | "Completed";
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState<FilterTab>("All");
+  const utils = trpc.useUtils();
 
   // Fetch active alerts (follow-ups) from tRPC
   const { data: alertsData = { alerts: [], total: 0, hasMore: false }, isLoading: alertsLoading } =
@@ -21,8 +22,7 @@ export default function Page() {
 
   const { mutate: acknowledgeAlert } = trpc.coach.alerts.acknowledge.useMutation({
     onSuccess: () => {
-      // Refetch alerts after acknowledging
-      void trpc.useUtils().coach.alerts.list.invalidate();
+      void utils.coach.alerts.list.invalidate();
     },
   });
 

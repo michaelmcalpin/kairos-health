@@ -1,8 +1,26 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
-import { appointments, sessionNotes, coachAvailability, trainerProfiles, users, notificationPreferences } from "@/server/db/schema";
+import { appointments, sessionNotes, coachAvailability, trainerProfiles, users, notificationPreferences, alerts, conversations, messages } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+
+const SESSION_DURATIONS: Record<string, number> = {
+  initial_consultation: 60,
+  follow_up: 30,
+  protocol_review: 45,
+  lab_review: 45,
+  goal_setting: 60,
+  ad_hoc: 30,
+};
+
+const SESSION_LABELS: Record<string, string> = {
+  initial_consultation: "Initial Consultation",
+  follow_up: "Follow-Up",
+  protocol_review: "Protocol Review",
+  lab_review: "Lab Review",
+  goal_setting: "Goal Setting",
+  ad_hoc: "Ad Hoc",
+};
 
 function addMinutes(time: string, minutes: number): string {
   const [h, m] = time.split(":").map(Number);
@@ -227,6 +245,10 @@ export const coachScheduleRouter = router({
         ? `${coachUser.firstName ?? ""} ${coachUser.lastName ?? ""}`.trim() || coachUser.email
         : "Coach";
 
+      const duration = SESSION_DURATIONS[input.sessionType] ?? 30;
+      const sessionLabel = SESSION_LABELS[input.sessionType] ?? input.sessionType;
+      const meetingLabel = input.meetingType === "video" ? "Video Call" : input.meetingType === "phone" ? "Phone Call" : "In Person";
+
       const [created] = await ctx.db
         .insert(appointments)
         .values({
@@ -238,11 +260,46 @@ export const coachScheduleRouter = router({
           meetingType: input.meetingType,
           date: input.date,
           startTime: input.startTime,
-          endTime: addMinutes(input.startTime, 60),
-          durationMinutes: 60,
+          endTime: addMinutes(input.startTime, duration),
+          durationMinutes: duration,
           notes: input.notes,
         })
         .returning();
+
+      // Format date for display
+      const displayDate = new Date(input.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      const [h, m] = input.startTime.split(":");
+      const hour = parseInt(h, 10);
+      const displayTime = `${hour > 12 ? hour - 12 : hour || 12}:${m} ${hour >= 12 ? "PM" : "AM"}`;
+
+      // Create an alert for the client so the booking shows in their alerts
+      await ctx.db.insert(alerts).values({
+        clientId: input.clientId,
+        type: "scheduling",
+        priority: "info",
+        title: `${sessionLabel} scheduled`,
+        message: `${coachName} scheduled a ${sessionLabel.toLowerCase()} (${meetingLabel.toLowerCase()}) for ${displayDate} at ${displayTime}.`,
+        data: { appointmentId: created.id, sessionType: input.sessionType, meetingType: input.meetingType },
+      });
+
+      // Send a chat message if a conversation exists between coach and client
+      const conversation = await ctx.db.query.conversations.findFirst({
+        where: and(eq(conversations.trainerId, ctx.dbUserId), eq(conversations.clientId, input.clientId)),
+      });
+
+      if (conversation) {
+        await ctx.db.insert(messages).values({
+          conversationId: conversation.id,
+          senderId: ctx.dbUserId,
+          senderRole: "coach",
+          body: `I've scheduled a ${sessionLabel.toLowerCase()} (${meetingLabel.toLowerCase()}) for ${displayDate} at ${displayTime}. ${input.notes ? `Notes: ${input.notes}` : "See you then!"}`,
+        });
+        // Update conversation timestamp and unread count for client
+        await ctx.db.update(conversations).set({
+          lastMessageAt: new Date(),
+          unreadCountClient: sql`${conversations.unreadCountClient} + 1`,
+        }).where(eq(conversations.id, conversation.id));
+      }
 
       return created;
     }),
