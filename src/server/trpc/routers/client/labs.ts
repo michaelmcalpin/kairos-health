@@ -144,7 +144,7 @@ export const clientLabsRouter = router({
         panelName: z.string(),
         provider: z.string().optional(),
         pdfUrl: z.string().url(),
-        receivedDate: z.string().datetime().optional(),
+        receivedDate: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -200,7 +200,7 @@ export const clientLabsRouter = router({
         panelName: z.string(),
         provider: z.string().optional(),
         sourceUrl: z.string().url(),
-        receivedDate: z.string().datetime().optional(),
+        receivedDate: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -255,7 +255,7 @@ export const clientLabsRouter = router({
       z.object({
         panelName: z.string(),
         provider: z.string().optional(),
-        receivedDate: z.string().datetime().optional(),
+        receivedDate: z.string().optional(),
         biomarkers: z.array(
           z.object({
             code: z.string(),
