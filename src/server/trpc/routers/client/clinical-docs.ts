@@ -54,7 +54,7 @@ export const clientClinicalDocsRouter = router({
         sourceFileName: z.string().optional(),
         parsedData: z.record(z.string(), z.unknown()).optional(),
         notes: z.string().optional(),
-        reportDate: z.string().datetime().optional(),
+        reportDate: z.string().optional(),
         providerName: z.string().optional(),
       })
     )
