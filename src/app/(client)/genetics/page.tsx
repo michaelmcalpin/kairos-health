@@ -240,11 +240,10 @@ export default function GeneticsPage() {
         // Large PDF: render each page as a JPEG image using pdf.js
         setParseProgress("Rendering PDF pages...");
         const pdfjs = await import("pdfjs-dist");
-        // Disable web worker to avoid CDN/version mismatch issues — fine for <20 pages
-        pdfjs.GlobalWorkerOptions.workerSrc = "";
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
         const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer), isEvalSupported: false, useWorkerFetch: false } as Parameters<typeof pdfjs.getDocument>[0]).promise;
+        const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
         const totalPages = pdf.numPages;
         const pageImages: string[] = [];
         const SCALE = 1.5; // Good balance between quality and size
