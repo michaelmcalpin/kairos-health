@@ -34,6 +34,10 @@
     },
     "src/app/api/webhooks/[provider]/route.ts": {
       "maxDuration": 30
+    },
+    "src/app/api/clinical/parse/route.ts": {
+      "maxDuration": 120,
+      "memory": 1024
     }
   }
 }

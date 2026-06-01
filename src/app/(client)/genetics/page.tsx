@@ -230,16 +230,65 @@ export default function GeneticsPage() {
     setParseProgress("Reading file...");
 
     try {
-      // Read file as base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(",")[1]);
+      const MAX_DIRECT_SIZE = 3 * 1024 * 1024; // 3MB — safe limit for base64 in JSON under Vercel's 4.5MB body cap
+      const isPdf = file.type === "application/pdf" || file.name.endsWith(".pdf");
+      const isLargePdf = isPdf && file.size > MAX_DIRECT_SIZE;
+
+      let requestBody: Record<string, unknown>;
+
+      if (isLargePdf) {
+        // Large PDF: render each page as a JPEG image using pdf.js
+        setParseProgress("Rendering PDF pages...");
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+        const totalPages = pdf.numPages;
+        const pageImages: string[] = [];
+        const SCALE = 1.5; // Good balance between quality and size
+
+        for (let i = 1; i <= totalPages; i++) {
+          setParseProgress(`Rendering page ${i} of ${totalPages}...`);
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: SCALE });
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext("2d")!;
+          await page.render({ canvasContext: ctx, viewport, canvas } as Parameters<typeof page.render>[0]).promise;
+          // Convert to JPEG base64 (strip data URL prefix)
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          pageImages.push(dataUrl.split(",")[1]);
+        }
+
+        // Send pages in batches to stay under body limit (~4MB per batch)
+        // Estimate: each page image is roughly 100-300KB as JPEG
+        // We can fit ~10-15 pages per batch easily
+        setParseProgress(`Sending ${totalPages} pages to AI for analysis...`);
+        requestBody = {
+          pageImages,
+          fileName: file.name,
+          docType: "genetics",
         };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      } else {
+        // Small file: send as base64 directly
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(",")[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        requestBody = {
+          fileBase64: base64,
+          fileName: file.name,
+          docType: "genetics",
+          mimeType: file.type || "application/pdf",
+        };
+      }
 
       setParseProgress("Sending to AI for analysis...");
 
@@ -247,12 +296,7 @@ export default function GeneticsPage() {
       const response = await fetch("/api/clinical/parse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileBase64: base64,
-          fileName: file.name,
-          docType: "genetics",
-          mimeType: file.type || "application/pdf",
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {

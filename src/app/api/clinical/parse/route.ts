@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@clerk/nextjs/server";
 
+// Allow longer processing time for large documents
+export const maxDuration = 120;
+
 // ---------------------------------------------------------------------------
 // Document-type–specific parsing prompts
 // ---------------------------------------------------------------------------
@@ -191,16 +194,17 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { fileBase64, fileName, docType, mimeType } = body as {
-      fileBase64: string;
+    const { fileBase64, fileName, docType, mimeType, pageImages } = body as {
+      fileBase64?: string;
       fileName: string;
       docType: string;
-      mimeType: string;
+      mimeType?: string;
+      pageImages?: string[]; // Array of base64-encoded JPEG page images (for large PDFs)
     };
 
-    if (!fileBase64 || !docType) {
+    if ((!fileBase64 && (!pageImages || pageImages.length === 0)) || !docType) {
       return new Response(
-        JSON.stringify({ error: "fileBase64 and docType are required" }),
+        JSON.stringify({ error: "fileBase64 or pageImages required, plus docType" }),
         { status: 400 }
       );
     }
@@ -215,38 +219,52 @@ export async function POST(req: NextRequest) {
 
     const anthropic = new Anthropic({ apiKey });
 
-    // Determine media type for the vision API
-    const mediaType = mimeType === "application/pdf"
-      ? "application/pdf" as const
-      : mimeType === "image/png"
-      ? "image/png" as const
-      : mimeType === "image/jpeg"
-      ? "image/jpeg" as const
-      : mimeType === "image/webp"
-      ? "image/webp" as const
-      : "application/pdf" as const;
-
-    // Build content blocks — PDF uses document type, images use image type
+    // Build content blocks
     const contentBlocks: Anthropic.ContentBlockParam[] = [];
 
-    if (mediaType === "application/pdf") {
-      contentBlocks.push({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: "application/pdf",
-          data: fileBase64,
-        },
-      } as unknown as Anthropic.ContentBlockParam);
-    } else {
-      contentBlocks.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: mediaType,
-          data: fileBase64,
-        },
-      });
+    if (pageImages && pageImages.length > 0) {
+      // Large PDF mode: pages were rendered as images on the client
+      for (const pageImg of pageImages) {
+        contentBlocks.push({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: "image/jpeg",
+            data: pageImg,
+          },
+        });
+      }
+    } else if (fileBase64) {
+      // Small file mode: send as document or image
+      const mediaType = mimeType === "application/pdf"
+        ? "application/pdf" as const
+        : mimeType === "image/png"
+        ? "image/png" as const
+        : mimeType === "image/jpeg"
+        ? "image/jpeg" as const
+        : mimeType === "image/webp"
+        ? "image/webp" as const
+        : "application/pdf" as const;
+
+      if (mediaType === "application/pdf") {
+        contentBlocks.push({
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: "application/pdf",
+            data: fileBase64,
+          },
+        } as unknown as Anthropic.ContentBlockParam);
+      } else {
+        contentBlocks.push({
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: mediaType,
+            data: fileBase64,
+          },
+        });
+      }
     }
 
     contentBlocks.push({
