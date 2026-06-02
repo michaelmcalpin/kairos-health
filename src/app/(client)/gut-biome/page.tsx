@@ -22,39 +22,49 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/utils/cn";
 
 /* ─── Parsed Gut Biome data shape ─────────────────────────────── */
+interface HealthScore {
+  name: string;
+  status: "maintain" | "improve" | "attention";
+  category?: "overall" | "pathway";
+  description?: string;
+}
+
+interface ActiveMicrobe {
+  name: string;
+  type: "bacterium" | "virus" | "eukaryote" | "probiotic" | "archaeon";
+  source?: "gut" | "oral" | null;
+}
+
 interface GutBiomeData {
+  testType?: string;
+  healthScores?: HealthScore[];
+  activeMicrobes?: ActiveMicrobe[];
   diversityScore?: number;
   diversityRating?: "low" | "moderate" | "high";
+  totalSpecies?: number;
+  keyFindings?: string[] | Array<{ organism: string; level: string; notes?: string }>;
+  dietaryRecommendations?: string[];
+  supplementRecommendations?: string[];
+  foodsToAvoid?: string[];
+  foodsToEnjoy?: string[];
+  // Legacy fields
   dysbiosis?: boolean;
-  keyFindings?: Array<{
-    organism: string;
-    level: "low" | "normal" | "elevated" | "high";
-    notes?: string;
-  }>;
-  inflammationMarkers?: Array<{
-    marker: string;
-    value: string;
-    status: "normal" | "elevated" | "high";
-  }>;
-  digestiveMarkers?: Array<{
-    marker: string;
-    value: string;
-    status: "normal" | "low" | "elevated";
-  }>;
+  inflammationMarkers?: Array<{ marker: string; value: string; status: string }>;
+  digestiveMarkers?: Array<{ marker: string; value: string; status: string }>;
   recommendations?: string[];
-  pathogenicOrganisms?: Array<{
-    organism: string;
-    detected: boolean;
-  }>;
+  pathogenicOrganisms?: Array<{ organism: string; detected: boolean }>;
 }
 
 /* ─── Status badge ────────────────────────────────────────────── */
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
+    maintain: "bg-green-500/15 text-green-400 border-green-500/30",
     normal: "bg-green-500/15 text-green-400 border-green-500/30",
-    low: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    improve: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
     elevated: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+    attention: "bg-red-500/15 text-red-400 border-red-500/30",
     high: "bg-red-500/15 text-red-400 border-red-500/30",
+    low: "bg-blue-500/15 text-blue-400 border-blue-500/30",
   };
   return (
     <span className={cn("inline-flex px-2 py-0.5 rounded text-[10px] font-heading font-bold border uppercase", styles[status] || styles.normal)}>
@@ -379,81 +389,172 @@ export default function GutBiomePage() {
       )}
 
       {/* Latest data summary */}
-      {hasData && latestData && !showTrend && (
-        <>
-          {/* Quick stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="kairos-card p-5 cursor-pointer hover:border-kairos-gold/30 border border-transparent transition-all"
-              onClick={() => { setShowTrend(true); setAiTrendAnalysis(null); }}>
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Diversity Score</p>
-              <p className={cn("text-2xl font-heading font-bold",
-                latestData.diversityRating === "high" ? "text-green-400"
-                  : latestData.diversityRating === "moderate" ? "text-yellow-400" : "text-red-400")}>
-                {latestData.diversityScore ?? "—"}
-              </p>
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-kairos-silver-dark capitalize">{latestData.diversityRating ?? "pending"}</p>
-                {diversityTrend.length >= 2 && <BarChart3 size={12} className="text-kairos-gold" />}
-              </div>
-            </div>
-            <div className="kairos-card p-5">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Dysbiosis</p>
-              <p className={cn("text-2xl font-heading font-bold", latestData.dysbiosis ? "text-red-400" : "text-green-400")}>
-                {latestData.dysbiosis ? "Detected" : "None"}
-              </p>
-            </div>
-            <div className="kairos-card p-5">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Key Findings</p>
-              <p className="text-2xl font-heading font-bold text-kairos-gold">{latestData.keyFindings?.length ?? 0}</p>
-              <p className="text-xs text-kairos-silver-dark mt-1">organisms flagged</p>
-            </div>
-            <div className="kairos-card p-5">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Pathogens</p>
-              <p className={cn("text-2xl font-heading font-bold",
-                latestData.pathogenicOrganisms?.some((p) => p.detected) ? "text-red-400" : "text-green-400")}>
-                {latestData.pathogenicOrganisms?.filter((p) => p.detected).length ?? 0}
-              </p>
-              <p className="text-xs text-kairos-silver-dark mt-1">detected</p>
-            </div>
-          </div>
+      {hasData && latestData && !showTrend && (() => {
+        const overallScores = (latestData.healthScores ?? []).filter((s) => s.category === "overall");
+        const pathwayScores = (latestData.healthScores ?? []).filter((s) => s.category !== "overall");
+        const maintainCount = (latestData.healthScores ?? []).filter((s) => s.status === "maintain").length;
+        const improveCount = (latestData.healthScores ?? []).filter((s) => s.status === "improve").length;
+        const attentionCount = (latestData.healthScores ?? []).filter((s) => s.status === "attention").length;
+        const hasViomeData = (latestData.healthScores?.length ?? 0) > 0;
+        const microbes = latestData.activeMicrobes ?? [];
+        const bacteriaCount = microbes.filter((m) => m.type === "bacterium").length;
+        const virusCount = microbes.filter((m) => m.type === "virus").length;
+        const eukaryoteCount = microbes.filter((m) => m.type === "eukaryote").length;
+        const probioticCount = microbes.filter((m) => m.type === "probiotic").length;
 
-          {/* Key findings table */}
-          {latestData.keyFindings && latestData.keyFindings.length > 0 && (
-            <div className="kairos-card">
-              <h3 className="font-heading font-semibold text-white mb-3">Key Findings</h3>
-              <div className="space-y-2">
-                {latestData.keyFindings.map((finding, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 border-b border-kairos-border/50 last:border-0">
-                    <div>
-                      <p className="text-sm font-heading text-white">{finding.organism}</p>
-                      {finding.notes && <p className="text-xs text-kairos-silver-dark mt-0.5">{finding.notes}</p>}
-                    </div>
-                    <StatusBadge status={finding.level} />
+        return (
+          <>
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {hasViomeData ? (
+                <>
+                  <div className="kairos-card p-5">
+                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Health Scores</p>
+                    <p className="text-2xl font-heading font-bold text-white">{latestData.healthScores!.length}</p>
+                    <p className="text-xs text-kairos-silver-dark mt-1">pathways analyzed</p>
                   </div>
-                ))}
-              </div>
+                  <div className="kairos-card p-5">
+                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Maintain</p>
+                    <p className="text-2xl font-heading font-bold text-green-400">{maintainCount}</p>
+                    <p className="text-xs text-kairos-silver-dark mt-1">on track</p>
+                  </div>
+                  <div className="kairos-card p-5">
+                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Improve</p>
+                    <p className="text-2xl font-heading font-bold text-yellow-400">{improveCount}</p>
+                    <p className="text-xs text-kairos-silver-dark mt-1">room to optimize</p>
+                  </div>
+                  <div className="kairos-card p-5">
+                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Attention</p>
+                    <p className="text-2xl font-heading font-bold text-red-400">{attentionCount}</p>
+                    <p className="text-xs text-kairos-silver-dark mt-1">needs focus</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="kairos-card p-5 cursor-pointer hover:border-kairos-gold/30 border border-transparent transition-all"
+                    onClick={() => { setShowTrend(true); setAiTrendAnalysis(null); }}>
+                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Diversity Score</p>
+                    <p className={cn("text-2xl font-heading font-bold",
+                      latestData.diversityRating === "high" ? "text-green-400"
+                        : latestData.diversityRating === "moderate" ? "text-yellow-400" : "text-red-400")}>
+                      {latestData.diversityScore ?? "—"}
+                    </p>
+                  </div>
+                  <div className="kairos-card p-5">
+                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Active Microbes</p>
+                    <p className="text-2xl font-heading font-bold text-white">{microbes.length || "—"}</p>
+                  </div>
+                </>
+              )}
             </div>
-          )}
 
-          {/* Inflammation markers */}
-          {latestData.inflammationMarkers && latestData.inflammationMarkers.length > 0 && (
-            <div className="kairos-card">
-              <h3 className="font-heading font-semibold text-white mb-3">Inflammation Markers</h3>
-              <div className="space-y-2">
-                {latestData.inflammationMarkers.map((marker, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 border-b border-kairos-border/50 last:border-0">
-                    <span className="text-sm font-body text-kairos-silver">{marker.marker}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-heading font-semibold text-white">{marker.value}</span>
-                      <StatusBadge status={marker.status} />
+            {/* Overall Health Scores */}
+            {overallScores.length > 0 && (
+              <div className="kairos-card">
+                <h3 className="font-heading font-bold text-kairos-gold text-sm uppercase tracking-wider mb-4">Overall Health Scores</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {overallScores.map((score, idx) => (
+                    <div key={idx} className="bg-kairos-royal-surface rounded-xl p-4 border border-kairos-border">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-heading font-semibold text-white text-sm">{score.name}</h4>
+                        <StatusBadge status={score.status} />
+                      </div>
+                      {score.description && <p className="text-xs text-kairos-silver-dark leading-relaxed line-clamp-2">{score.description}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pathway Scores */}
+            {pathwayScores.length > 0 && (
+              <div className="kairos-card">
+                <h3 className="font-heading font-bold text-kairos-gold text-sm uppercase tracking-wider mb-4">Pathway Analysis ({pathwayScores.length})</h3>
+                <div className="space-y-1">
+                  {pathwayScores.map((score, idx) => (
+                    <div key={idx} className="flex items-center justify-between py-2.5 border-b border-kairos-border/50 last:border-0">
+                      <div className="flex-1 min-w-0 mr-3">
+                        <p className="text-sm font-heading text-white">{score.name}</p>
+                        {score.description && <p className="text-xs text-kairos-silver-dark mt-0.5 line-clamp-1">{score.description}</p>}
+                      </div>
+                      <StatusBadge status={score.status} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Active Microbes */}
+            {microbes.length > 0 && (
+              <div className="kairos-card">
+                <h3 className="font-heading font-bold text-kairos-gold text-sm uppercase tracking-wider mb-2">
+                  Active Microbes ({microbes.length})
+                </h3>
+                <div className="flex gap-3 flex-wrap mb-4 text-xs">
+                  {bacteriaCount > 0 && <span className="px-2 py-1 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">Bacteria: {bacteriaCount}</span>}
+                  {probioticCount > 0 && <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">Probiotics: {probioticCount}</span>}
+                  {virusCount > 0 && <span className="px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">Viruses: {virusCount}</span>}
+                  {eukaryoteCount > 0 && <span className="px-2 py-1 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">Eukaryotes: {eukaryoteCount}</span>}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1">
+                  {microbes.map((m, idx) => (
+                    <div key={idx} className="flex items-center gap-2 py-1.5 border-b border-kairos-border/30">
+                      <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0",
+                        m.type === "probiotic" ? "bg-green-400" :
+                        m.type === "virus" ? "bg-yellow-400" :
+                        m.type === "eukaryote" ? "bg-purple-400" :
+                        m.type === "archaeon" ? "bg-cyan-400" : "bg-blue-400"
+                      )} />
+                      <span className="text-xs text-kairos-silver truncate italic">{m.name}</span>
+                      <span className="text-[9px] text-kairos-silver-dark ml-auto flex-shrink-0 capitalize">{m.type}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Food recommendations */}
+            {(latestData.foodsToEnjoy?.length ?? 0) + (latestData.foodsToAvoid?.length ?? 0) > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {latestData.foodsToEnjoy && latestData.foodsToEnjoy.length > 0 && (
+                  <div className="kairos-card">
+                    <h3 className="font-heading font-bold text-green-400 text-sm uppercase tracking-wider mb-3">Foods to Enjoy</h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {latestData.foodsToEnjoy.map((food, idx) => (
+                        <span key={idx} className="text-xs px-2 py-1 rounded bg-green-500/10 text-green-300 border border-green-500/20">{food}</span>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
+                {latestData.foodsToAvoid && latestData.foodsToAvoid.length > 0 && (
+                  <div className="kairos-card">
+                    <h3 className="font-heading font-bold text-red-400 text-sm uppercase tracking-wider mb-3">Foods to Minimize</h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {latestData.foodsToAvoid.map((food, idx) => (
+                        <span key={idx} className="text-xs px-2 py-1 rounded bg-red-500/10 text-red-300 border border-red-500/20">{food}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
-        </>
-      )}
+            )}
+
+            {/* Legacy: key findings for non-Viome reports */}
+            {!hasViomeData && latestData.keyFindings && latestData.keyFindings.length > 0 && (
+              <div className="kairos-card">
+                <h3 className="font-heading font-semibold text-white mb-3">Key Findings</h3>
+                <div className="space-y-2">
+                  {latestData.keyFindings.map((finding, idx) => (
+                    <div key={idx} className="py-2 border-b border-kairos-border/50 last:border-0">
+                      <p className="text-sm text-white">{typeof finding === "string" ? finding : (finding as { organism: string }).organism}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Report History */}
       {hasData && !showTrend && (

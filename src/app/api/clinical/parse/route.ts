@@ -39,33 +39,46 @@ const DOC_PROMPTS: Record<string, string> = {
 
 IMPORTANT: If the report shows data for multiple measurement dates (comparison view), extract ONLY the most recent date's values. Look for "Measured Date", "Measure Date", or similar headers. DexaFit reports typically show the summary table at the top with Total Body Fat %, Total Mass, Fat Tissue, Lean Tissue, BMC, and Visceral Fat columns.`,
 
-  gut_biome: `Parse this gut biome / microbiome analysis report. Extract ALL available data into this JSON structure:
+  gut_biome: `Parse this gut biome / microbiome analysis report. This may be from Viome, GI-MAP, Genova, or other providers. Extract ALL available data into this JSON structure:
 
 {
   "title": "<report title or 'Gut Biome Analysis'>",
-  "reportDate": "<ISO date if found, else null>",
-  "providerName": "<lab/provider name if found, else null>",
+  "reportDate": "<ISO date (YYYY-MM-DD) from 'Date Collected' or 'Date reported', else null>",
+  "providerName": "<lab/provider name — e.g. 'Viome', 'Diagnostic Solutions', else null>",
   "parsedData": {
-    "diversityScore": <number or null — 0-100>,
+    "testType": "<viome|gi_map|genova|other>",
+    "healthScores": [
+      {
+        "name": "<score name — e.g. 'BioAge', 'Gut & Digestive Health', 'Immunity', 'Inflammaging', 'Energy Production Pathways', etc.>",
+        "status": "<maintain|improve|attention>",
+        "category": "<overall|pathway> — 'overall' for top-level scores like BioAge, Energy & Performance; 'pathway' for specific pathways>",
+        "description": "<1-2 sentence summary of what this score means for this person>"
+      }
+    ],
+    "activeMicrobes": [
+      {
+        "name": "<organism name — e.g. 'Bacteroides uniformis', 'Candida albicans'>",
+        "type": "<bacterium|virus|eukaryote|probiotic|archaeon>",
+        "source": "<gut|oral|null>"
+      }
+    ],
+    "diversityScore": <number 0-100 or null — only if explicitly provided>,
     "diversityRating": "<high|moderate|low|null>",
     "totalSpecies": <number or null>,
-    "beneficialPct": <number or null>,
-    "commensalPct": <number or null>,
-    "pathogenicPct": <number or null>,
-    "keyFindings": ["<finding 1>", "<finding 2>"],
-    "probioticRecommendations": ["<recommendation>"],
-    "dietaryRecommendations": ["<recommendation>"],
-    "phyla": [
-      { "name": "<phylum name>", "percentage": <number>, "status": "<normal|high|low>" }
-    ],
-    "keyBacteria": [
-      { "name": "<species>", "level": "<high|normal|low|absent>", "significance": "<brief note>" }
-    ],
-    "functionalMarkers": [
-      { "marker": "<name>", "value": "<value>", "status": "<normal|high|low>", "note": "<significance>" }
-    ]
+    "keyFindings": ["<key finding or summary point>"],
+    "dietaryRecommendations": ["<food or dietary recommendation>"],
+    "supplementRecommendations": ["<supplement recommendation>"],
+    "foodsToAvoid": ["<food to minimize or avoid>"],
+    "foodsToEnjoy": ["<food to increase>"]
   }
-}`,
+}
+
+IMPORTANT for Viome reports:
+- Extract ALL health scores (there are typically 25-30). Each has a name and a rating of Maintain (green), Improve (yellow/amber), or Attention (red).
+- Top-level scores like BioAge, Energy & Performance, Gut & Digestive Health, Immunity, Inflammaging should have category "overall".
+- Pathway-specific scores should have category "pathway".
+- Extract ALL active microbes from the "My Active Microbes" / "My Active Gut Microbes" lists. Include the organism type (Bacterium, Virus, Eukaryote, Probiotic, Archaeon).
+- If the document includes food recommendations (Superfoods, Enjoy, Minimize, Avoid), extract those into the appropriate arrays.`,
 
   medical_record: `Parse this medical record / clinical document. Extract ALL available data into this JSON structure:
 
