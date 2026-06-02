@@ -10,31 +10,34 @@ export const maxDuration = 120;
 // ---------------------------------------------------------------------------
 
 const DOC_PROMPTS: Record<string, string> = {
-  dexa_scan: `Parse this DEXA / DXA body composition scan report. Extract ALL available data into this JSON structure:
+  dexa_scan: `Parse this DEXA / DXA body composition scan report (commonly from DexaFit, Hologic, or Lunar). Extract ALL available data. Use the MOST RECENT measurement date row if multiple dates are shown.
 
 {
   "title": "<report title or 'DEXA Scan'>",
-  "reportDate": "<ISO date if found, else null>",
+  "reportDate": "<the Measure Date / Measured Date in YYYY-MM-DD format, else null>",
   "providerName": "<facility/provider name if found, else null>",
   "parsedData": {
-    "totalBodyFatPct": <number or null>,
-    "leanMassLbs": <number or null>,
-    "fatMassLbs": <number or null>,
-    "boneDensityTScore": <number or null>,
-    "visceralFatArea": <number or null — in cm²>,
-    "androidFatPct": <number or null>,
-    "gynoidFatPct": <number or null>,
-    "agRatio": <number or null>,
-    "restingMetabolicRate": <number or null — in kcal>,
-    "totalMassLbs": <number or null>,
-    "bmi": <number or null>,
+    "totalBodyFatPct": <Total Body Fat % as number, e.g. 17.6>,
+    "totalMassLbs": <Total Mass / Weight in lbs as number, e.g. 170.3>,
+    "fatMassLbs": <Fat Tissue / Fat Mass in lbs as number, e.g. 30.0>,
+    "leanMassLbs": <Lean Tissue / Lean Mass in lbs as number, e.g. 133.2>,
+    "boneMineralContent": <BMC / Bone Mineral Content in lbs as number, e.g. 7.1>,
+    "visceralFatLbs": <Visceral Fat Mass in lbs as number, e.g. 0.78>,
+    "androidFatPct": <Android Body Fat % as number, e.g. 17.1>,
+    "gynoidFatPct": <Gynoid Body Fat % as number, e.g. 16.2>,
+    "agRatio": <Android/Gynoid Ratio as number, e.g. 1.03>,
+    "androidFatMass": <Android Fat Mass in lbs as number or null>,
+    "restingMetabolicRate": <RMR in kcal as number or null>,
+    "bmi": <BMI as number or null>,
     "regions": {
-      "arms": { "fatPct": <number>, "leanMassLbs": <number> },
-      "legs": { "fatPct": <number>, "leanMassLbs": <number> },
-      "trunk": { "fatPct": <number>, "leanMassLbs": <number> }
+      "arms": { "fatPct": <number>, "fatLbs": <number>, "leanLbs": <number>, "totalLbs": <number> },
+      "legs": { "fatPct": <number>, "fatLbs": <number>, "leanLbs": <number>, "totalLbs": <number> },
+      "trunk": { "fatPct": <number>, "fatLbs": <number>, "leanLbs": <number>, "totalLbs": <number> }
     }
   }
-}`,
+}
+
+IMPORTANT: If the report shows data for multiple measurement dates (comparison view), extract ONLY the most recent date's values. Look for "Measured Date", "Measure Date", or similar headers. DexaFit reports typically show the summary table at the top with Total Body Fat %, Total Mass, Fat Tissue, Lean Tissue, BMC, and Visceral Fat columns.`,
 
   gut_biome: `Parse this gut biome / microbiome analysis report. Extract ALL available data into this JSON structure:
 

@@ -24,15 +24,41 @@ import { cn } from "@/utils/cn";
 /* ─── Parsed DEXA data shape ──────────────────────────────────── */
 interface DexaData {
   totalBodyFatPct?: number;
+  totalMassLbs?: number;
   leanMassLbs?: number;
   fatMassLbs?: number;
+  boneMineralContent?: number;
   boneDensityTScore?: number;
-  visceralFatArea?: number;
+  visceralFatLbs?: number;
+  visceralFatArea?: number; // legacy field — some reports use cm²
   androidFatPct?: number;
   gynoidFatPct?: number;
   agRatio?: number;
-  regions?: Record<string, { fatPct?: number; leanMassLbs?: number }>;
+  androidFatMass?: number;
   restingMetabolicRate?: number;
+  bmi?: number;
+  regions?: Record<string, { fatPct?: number; fatLbs?: number; leanLbs?: number; leanMassLbs?: number; totalLbs?: number }>;
+}
+
+/* ─── Helper: get numeric value from DexaData ────────────────── */
+function dv(data: DexaData | undefined, key: string): number | null {
+  if (!data) return null;
+  const val = (data as Record<string, unknown>)[key];
+  return typeof val === "number" ? val : null;
+}
+
+/* ─── Change indicator ───────────────────────────────────────── */
+function ChangeIndicator({ current, previous, inverse }: { current: number | null; previous: number | null; inverse?: boolean }) {
+  if (current == null || previous == null) return null;
+  const diff = current - previous;
+  if (Math.abs(diff) < 0.05) return <span className="text-[10px] text-kairos-silver-dark">—</span>;
+  const isGood = inverse ? diff < 0 : diff > 0;
+  return (
+    <span className={cn("text-xs font-heading font-bold flex items-center gap-0.5", isGood ? "text-green-400" : "text-red-400")}>
+      {diff > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+      {diff > 0 ? "+" : ""}{diff.toFixed(1)}
+    </span>
+  );
 }
 
 /* ─── Metric card ─────────────────────────────────────────────── */
@@ -186,12 +212,16 @@ export default function DexaScanPage() {
 
   // Build trend data from all scans
   const DEXA_METRICS = [
-    { key: "totalBodyFatPct", label: "Body Fat %", unit: "%", color: "text-kairos-gold" },
-    { key: "leanMassLbs", label: "Lean Mass", unit: "lbs", color: "text-green-400" },
-    { key: "fatMassLbs", label: "Fat Mass", unit: "lbs", color: "text-yellow-400" },
-    { key: "boneDensityTScore", label: "Bone T-Score", unit: "", color: "text-blue-400" },
-    { key: "visceralFatArea", label: "Visceral Fat", unit: "cm²", color: "text-red-400" },
-    { key: "restingMetabolicRate", label: "RMR", unit: "kcal", color: "text-cyan-400" },
+    { key: "totalBodyFatPct", label: "Body Fat %", unit: "%", color: "text-kairos-gold", decimals: 1, inverse: true },
+    { key: "totalMassLbs", label: "Total Mass", unit: "lbs", color: "text-white", decimals: 1, inverse: false },
+    { key: "fatMassLbs", label: "Fat Mass", unit: "lbs", color: "text-yellow-400", decimals: 1, inverse: true },
+    { key: "leanMassLbs", label: "Lean Mass", unit: "lbs", color: "text-green-400", decimals: 1, inverse: false },
+    { key: "boneMineralContent", label: "BMC", unit: "lbs", color: "text-blue-400", decimals: 1, inverse: false },
+    { key: "visceralFatLbs", label: "Visceral Fat", unit: "lbs", color: "text-red-400", decimals: 2, inverse: true },
+    { key: "androidFatPct", label: "Android Fat %", unit: "%", color: "text-orange-400", decimals: 1, inverse: true },
+    { key: "gynoidFatPct", label: "Gynoid Fat %", unit: "%", color: "text-pink-400", decimals: 1, inverse: true },
+    { key: "agRatio", label: "A/G Ratio", unit: "", color: "text-violet-400", decimals: 2, inverse: true },
+    { key: "restingMetabolicRate", label: "RMR", unit: "kcal", color: "text-cyan-400", decimals: 0, inverse: false },
   ];
 
   const trendData = useMemo(() => {
@@ -493,39 +523,120 @@ export default function DexaScanPage() {
         </div>
       )}
 
-      {/* Latest scan summary */}
-      {hasData && latestData && !trendMetric && !showAllTrends && (
-        <>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-heading font-bold text-sm text-kairos-silver-dark uppercase tracking-wider">Latest Scan — Click any metric to see trend</h2>
-            {docs && docs.length >= 2 && (
-              <button onClick={() => setShowAllTrends(true)} className="kairos-btn-outline px-3 py-1.5 rounded-kairos-sm text-xs flex items-center gap-2 text-kairos-gold border-kairos-gold/30 hover:bg-kairos-gold/10">
-                <BarChart3 size={14} /> All Trends
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {DEXA_METRICS.map((metric) => {
-              const val = (latestData as Record<string, unknown>)[metric.key];
-              if (val == null) return null;
-              const numVal = Number(val);
-              return (
-                <div key={metric.key} onClick={() => { setTrendMetric(metric.key); setAiTrendAnalysis(null); }}
-                  className="bg-kairos-royal-surface rounded-xl p-4 border border-kairos-border hover:border-kairos-gold/30 cursor-pointer transition-all">
-                  <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">{metric.label}</p>
-                  <p className={cn("text-2xl font-heading font-bold", metric.color)}>
-                    {numVal.toFixed(metric.key === "visceralFatArea" || metric.key === "restingMetabolicRate" ? 0 : 1)}
-                    <span className="text-sm text-kairos-silver-dark ml-1">{metric.unit}</span>
-                  </p>
-                  {(trendData[metric.key]?.length ?? 0) >= 2 && (
-                    <p className="text-[10px] text-kairos-gold mt-1 flex items-center gap-1"><BarChart3 size={10} /> {trendData[metric.key]!.length} data points</p>
-                  )}
+      {/* Latest scan summary + comparison */}
+      {hasData && latestData && !trendMetric && !showAllTrends && (() => {
+        const prevDoc = docs && docs.length >= 2 ? docs[1] : null;
+        const prevData = prevDoc?.parsedData as DexaData | undefined;
+        const latestDate = latest?.reportDate ?? latest?.createdAt;
+        const prevDate = prevDoc?.reportDate ?? prevDoc?.createdAt;
+        return (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="font-heading font-bold text-sm text-kairos-silver-dark uppercase tracking-wider">
+                  Body Composition — {latestDate ? new Date(latestDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Latest"}
+                </h2>
+                {prevData && <p className="text-[10px] text-kairos-silver-dark mt-0.5">vs {prevDate ? new Date(prevDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Previous"}</p>}
+              </div>
+              {docs && docs.length >= 2 && (
+                <button onClick={() => setShowAllTrends(true)} className="kairos-btn-outline px-3 py-1.5 rounded-kairos-sm text-xs flex items-center gap-2 text-kairos-gold border-kairos-gold/30 hover:bg-kairos-gold/10">
+                  <BarChart3 size={14} /> All Trends
+                </button>
+              )}
+            </div>
+
+            {/* Comparison Table */}
+            <div className="kairos-card overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-kairos-border">
+                    <th className="text-left py-2.5 px-3 text-[10px] text-kairos-silver-dark uppercase font-heading tracking-wider">Metric</th>
+                    <th className="text-right py-2.5 px-3 text-[10px] text-kairos-silver-dark uppercase font-heading tracking-wider">Current</th>
+                    {prevData && <th className="text-right py-2.5 px-3 text-[10px] text-kairos-silver-dark uppercase font-heading tracking-wider">Previous</th>}
+                    {prevData && <th className="text-right py-2.5 px-3 text-[10px] text-kairos-silver-dark uppercase font-heading tracking-wider">Change</th>}
+                    <th className="w-8"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DEXA_METRICS.map((metric) => {
+                    const curVal = dv(latestData, metric.key);
+                    const prevVal = prevData ? dv(prevData, metric.key) : null;
+                    if (curVal == null) return null;
+                    return (
+                      <tr key={metric.key}
+                        className="border-b border-kairos-border/50 hover:bg-kairos-card-hover/30 cursor-pointer transition-all"
+                        onClick={() => { setTrendMetric(metric.key); setAiTrendAnalysis(null); }}>
+                        <td className="py-2.5 px-3">
+                          <span className="font-heading font-semibold text-white">{metric.label}</span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <span className={cn("font-heading font-bold", metric.color)}>{curVal.toFixed(metric.decimals)}</span>
+                          {metric.unit && <span className="text-kairos-silver-dark text-xs ml-1">{metric.unit}</span>}
+                        </td>
+                        {prevData && (
+                          <td className="py-2.5 px-3 text-right text-kairos-silver-dark">
+                            {prevVal != null ? `${prevVal.toFixed(metric.decimals)}` : "—"}
+                          </td>
+                        )}
+                        {prevData && (
+                          <td className="py-2.5 px-3 text-right">
+                            <ChangeIndicator current={curVal} previous={prevVal} inverse={metric.inverse} />
+                          </td>
+                        )}
+                        <td className="py-2.5 px-1 text-right">
+                          <BarChart3 size={14} className="text-kairos-silver-dark" />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Regional Body Composition */}
+            {latestData.regions && Object.keys(latestData.regions).length > 0 && (
+              <div className="kairos-card">
+                <h3 className="font-heading font-bold text-sm text-kairos-gold uppercase tracking-wider mb-3">Regional Composition</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {["arms", "legs", "trunk"].map((region) => {
+                    const r = latestData.regions?.[region];
+                    const prevR = prevData?.regions?.[region];
+                    if (!r) return null;
+                    return (
+                      <div key={region} className="bg-kairos-royal-surface rounded-xl p-4 border border-kairos-border">
+                        <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-2 capitalize">{region}</p>
+                        <div className="space-y-1.5">
+                          {r.fatPct != null && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-kairos-silver-dark">Fat %</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-yellow-400">{r.fatPct.toFixed(1)}%</span>
+                                {prevR?.fatPct != null && <ChangeIndicator current={r.fatPct} previous={prevR.fatPct} inverse />}
+                              </div>
+                            </div>
+                          )}
+                          {(r.leanLbs ?? r.leanMassLbs) != null && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-kairos-silver-dark">Lean</span>
+                              <span className="text-sm font-bold text-green-400">{((r.leanLbs ?? r.leanMassLbs) as number).toFixed(1)} lbs</span>
+                            </div>
+                          )}
+                          {r.fatLbs != null && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-kairos-silver-dark">Fat</span>
+                              <span className="text-sm font-bold text-kairos-silver">{r.fatLbs.toFixed(1)} lbs</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        </>
-      )}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Scan History */}
       {hasData && !trendMetric && !showAllTrends && (
