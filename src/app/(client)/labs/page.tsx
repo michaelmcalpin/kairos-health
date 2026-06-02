@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   TestTube2,
   TrendingUp,
@@ -14,6 +14,10 @@ import {
   X,
   Upload,
   Link,
+  BarChart3,
+  Loader2,
+  Sparkles,
+  ArrowLeft,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
@@ -64,6 +68,10 @@ export default function LabsPage() {
   const [aiParsing, setAiParsing] = useState(false);
   const [aiParseResult, setAiParseResult] = useState<Record<string, unknown> | null>(null);
   const [aiParseError, setAiParseError] = useState<string | null>(null);
+  const [trendMarker, setTrendMarker] = useState<string | null>(null); // code of marker to trend
+  const [showAllTrends, setShowAllTrends] = useState(false);
+  const [aiTrendAnalysis, setAiTrendAnalysis] = useState<string | null>(null);
+  const [aiTrendLoading, setAiTrendLoading] = useState(false);
 
   // tRPC queries
   const ordersQuery = trpc.clientPortal.labs.listOrders.useQuery({ limit: 10 }, { staleTime: 30_000 });
@@ -74,6 +82,16 @@ export default function LabsPage() {
   const { data: summaryData } = summaryQuery;
   const labsError = ordersQuery.isError || biomarkersQuery.isError || summaryQuery.isError;
   const labsRefetch = () => { ordersQuery.refetch(); biomarkersQuery.refetch(); summaryQuery.refetch(); };
+
+  // Trend data queries
+  const singleTrendQuery = trpc.clientPortal.labs.getBiomarkerHistory.useQuery(
+    { code: trendMarker! },
+    { enabled: !!trendMarker, staleTime: 60_000 }
+  );
+  const allTrendsQuery = trpc.clientPortal.labs.getAllBiomarkerHistory.useQuery(
+    undefined,
+    { enabled: showAllTrends, staleTime: 60_000 }
+  );
 
   // tRPC mutations
   const utils = trpc.useUtils();
@@ -257,6 +275,36 @@ export default function LabsPage() {
       default: return "bg-kairos-card border-kairos-border text-kairos-silver-dark";
     }
   };
+
+  // AI trend analysis
+  async function fetchAiTrendAnalysis(markerName: string, points: Array<{ value: number; date: string; refLow?: number | null; refHigh?: number | null }>) {
+    setAiTrendLoading(true);
+    setAiTrendAnalysis(null);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{
+            role: "user",
+            content: `Analyze the trend for this biomarker: ${markerName}.\n\nData points (oldest to newest):\n${points.map(p => `${new Date(p.date).toLocaleDateString()}: ${p.value}${p.refLow != null ? ` (ref: ${p.refLow}-${p.refHigh})` : ""}`).join("\n")}\n\nProvide a concise 2-3 sentence analysis of the trend direction, whether it's concerning or positive, and any actionable insight. Be specific about the numbers.`,
+          }],
+        }),
+      });
+      const data = await res.json();
+      setAiTrendAnalysis(data.reply || data.content || "Unable to generate analysis.");
+    } catch {
+      setAiTrendAnalysis("Could not generate AI analysis at this time.");
+    } finally {
+      setAiTrendLoading(false);
+    }
+  }
+
+  function openTrend(code: string) {
+    setTrendMarker(code);
+    setShowAllTrends(false);
+    setAiTrendAnalysis(null);
+  }
 
   if (labsError) {
     return (
@@ -466,64 +514,214 @@ export default function LabsPage() {
         </div>
       )}
 
-      {/* Category Filter Tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {LAB_CATEGORIES.map((category) => (
-          <button key={category.id} onClick={() => setActiveCategory(category.id)}
-            className={`px-4 py-2 rounded-kairos-sm font-body text-sm font-medium transition-all ${activeCategory === category.id ? "kairos-btn-gold text-black" : "kairos-btn-outline text-kairos-silver-dark hover:text-white"}`}>
-            {category.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Lab Markers */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-4">
-          <TestTube2 className="w-5 h-5 text-kairos-gold" />
-          <h2 className="font-heading font-bold text-xl text-white">
-            {activeCategory === "all" ? "All Biomarkers" : LAB_CATEGORIES.find((c) => c.id === activeCategory)?.label} Markers
-          </h2>
-          <span className="text-kairos-silver-dark text-sm">({filteredMarkers.length})</span>
-        </div>
-
-        <div className="grid gap-3">
-          {filteredMarkers.map((marker) => (
-            <div key={marker.code} className="kairos-card p-5 rounded-kairos-sm border border-kairos-border hover:border-kairos-gold/30 transition-all">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+      {/* Single Marker Trend View */}
+      {trendMarker && !showAllTrends && (() => {
+        const markerInfo = biomarkersData.find((m) => m.code === trendMarker);
+        const points = singleTrendQuery.data ?? [];
+        return (
+          <div className="kairos-card border border-kairos-gold/30">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <button onClick={() => { setTrendMarker(null); setAiTrendAnalysis(null); }} className="text-kairos-silver-dark hover:text-white"><ArrowLeft size={18} /></button>
                 <div>
-                  <h3 className="font-heading font-bold text-white mb-1">{marker.name}</h3>
-                  <p className="text-xs text-kairos-silver-dark">
-                    Ref: {marker.refLow ?? "—"}–{marker.refHigh ?? "—"} {marker.unit ?? ""}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold text-white">{marker.value}</span>
-                    <span className="text-sm text-kairos-silver-dark">{marker.unit}</span>
-                  </div>
-                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-body ${getStatusColor(marker.status ?? "")}`}>
-                    {(marker.status === "normal" || marker.status === "optimal") && <CheckCircle className="w-3 h-3" />}
-                    {(marker.status === "high" || marker.status === "low") && <AlertTriangle className="w-3 h-3" />}
-                    {(marker.status ?? "unknown").charAt(0).toUpperCase() + (marker.status ?? "unknown").slice(1)}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-kairos-silver-dark">
-                    Last: {marker.lastMeasured ? new Date(marker.lastMeasured).toLocaleDateString() : "—"}
-                  </p>
+                  <h2 className="font-heading font-bold text-lg text-white">{markerInfo?.name ?? trendMarker} Trend</h2>
+                  <p className="text-xs text-kairos-silver-dark">{points.length} data points</p>
                 </div>
               </div>
+              {points.length >= 2 && (
+                <button
+                  onClick={() => fetchAiTrendAnalysis(markerInfo?.name ?? trendMarker, points)}
+                  disabled={aiTrendLoading}
+                  className="kairos-btn-outline px-3 py-1.5 rounded-kairos-sm text-xs flex items-center gap-1.5"
+                >
+                  {aiTrendLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  AI Analysis
+                </button>
+              )}
             </div>
-          ))}
-        </div>
-
-        {filteredMarkers.length === 0 && (
-          <div className="kairos-card text-center py-10">
-            <TestTube2 size={32} className="text-kairos-silver-dark mx-auto mb-3" />
-            <p className="text-sm font-body text-kairos-silver-dark">No biomarker data available yet. Upload lab results to get started.</p>
+            {singleTrendQuery.isLoading ? (
+              <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-kairos-gold" /></div>
+            ) : points.length < 2 ? (
+              <p className="text-sm text-kairos-silver-dark text-center py-8">Need at least 2 results to show a trend. Upload more lab results.</p>
+            ) : (
+              <>
+                <div className="h-48 relative mb-4">
+                  <svg viewBox="0 0 400 120" className="w-full h-full" preserveAspectRatio="none">
+                    {/* Reference range band */}
+                    {points[0].refLow != null && points[0].refHigh != null && (() => {
+                      const allVals = points.map(p => p.value);
+                      const minV = Math.min(...allVals, points[0].refLow!);
+                      const maxV = Math.max(...allVals, points[0].refHigh!);
+                      const range = maxV - minV || 1;
+                      const yLow = 110 - ((points[0].refLow! - minV) / range) * 100;
+                      const yHigh = 110 - ((points[0].refHigh! - minV) / range) * 100;
+                      return <rect x="0" y={yHigh} width="400" height={yLow - yHigh} fill="rgba(74,222,128,0.08)" />;
+                    })()}
+                    {/* Line */}
+                    {(() => {
+                      const allVals = points.map(p => p.value);
+                      const minV = Math.min(...allVals) * 0.9;
+                      const maxV = Math.max(...allVals) * 1.1;
+                      const range = maxV - minV || 1;
+                      const pts = points.map((p, i) => {
+                        const x = (i / (points.length - 1)) * 380 + 10;
+                        const y = 110 - ((p.value - minV) / range) * 100;
+                        return `${x},${y}`;
+                      });
+                      return (
+                        <>
+                          <polyline points={pts.join(" ")} fill="none" stroke="#D4AF37" strokeWidth="2.5" strokeLinejoin="round" />
+                          {points.map((p, i) => {
+                            const x = (i / (points.length - 1)) * 380 + 10;
+                            const y = 110 - ((p.value - minV) / range) * 100;
+                            return <circle key={i} cx={x} cy={y} r="4" fill="#D4AF37" stroke="#1a1a2e" strokeWidth="2" />;
+                          })}
+                        </>
+                      );
+                    })()}
+                  </svg>
+                </div>
+                <div className="flex justify-between text-[10px] text-kairos-silver-dark px-2 mb-4">
+                  {points.map((p, i) => (
+                    <div key={i} className="text-center">
+                      <p className="font-bold text-white text-sm">{p.value}</p>
+                      <p>{new Date(p.date).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {aiTrendAnalysis && (
+              <div className="p-3 bg-kairos-gold/5 border border-kairos-gold/20 rounded-xl mt-2">
+                <div className="flex items-center gap-2 mb-1.5"><Sparkles size={14} className="text-kairos-gold" /><p className="text-xs font-heading text-kairos-gold uppercase">AI Analysis</p></div>
+                <p className="text-sm text-white leading-relaxed">{aiTrendAnalysis}</p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
+
+      {/* All Trends View */}
+      {showAllTrends && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setShowAllTrends(false)} className="text-kairos-silver-dark hover:text-white"><ArrowLeft size={18} /></button>
+              <h2 className="font-heading font-bold text-lg text-white">All Biomarker Trends</h2>
+            </div>
+          </div>
+          {allTrendsQuery.isLoading ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-kairos-gold" /></div>
+          ) : (allTrendsQuery.data ?? []).length === 0 ? (
+            <div className="kairos-card text-center py-10"><p className="text-sm text-kairos-silver-dark">Need at least 2 lab results to show trends.</p></div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(allTrendsQuery.data ?? []).map((marker) => (
+                <div key={marker.code} className="kairos-card border border-kairos-border hover:border-kairos-gold/30 cursor-pointer transition-all"
+                  onClick={() => openTrend(marker.code)}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-heading font-bold text-sm text-white">{marker.name}</h3>
+                    <span className="text-[10px] text-kairos-silver-dark">{marker.points.length} points</span>
+                  </div>
+                  <div className="h-16">
+                    <svg viewBox="0 0 200 50" className="w-full h-full" preserveAspectRatio="none">
+                      {(() => {
+                        const vals = marker.points.map((p: { value: number }) => p.value);
+                        const minV = Math.min(...vals) * 0.9;
+                        const maxV = Math.max(...vals) * 1.1;
+                        const range = maxV - minV || 1;
+                        const pts = marker.points.map((p: { value: number }, i: number) => {
+                          const x = (i / (marker.points.length - 1)) * 190 + 5;
+                          const y = 45 - ((p.value - minV) / range) * 40;
+                          return `${x},${y}`;
+                        });
+                        return <polyline points={pts.join(" ")} fill="none" stroke="#D4AF37" strokeWidth="2" strokeLinejoin="round" />;
+                      })()}
+                    </svg>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-kairos-silver-dark mt-1">
+                    <span>{marker.points[0]?.value}</span>
+                    <span>{marker.points[marker.points.length - 1]?.value}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Category Filter Tabs + Trend Toggle */}
+      {!trendMarker && !showAllTrends && (
+        <>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex gap-2 flex-wrap">
+              {LAB_CATEGORIES.map((category) => (
+                <button key={category.id} onClick={() => setActiveCategory(category.id)}
+                  className={`px-4 py-2 rounded-kairos-sm font-body text-sm font-medium transition-all ${activeCategory === category.id ? "kairos-btn-gold text-black" : "kairos-btn-outline text-kairos-silver-dark hover:text-white"}`}>
+                  {category.label}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowAllTrends(true)}
+              className="kairos-btn-outline px-4 py-2 rounded-kairos-sm text-sm flex items-center gap-2 text-kairos-gold border-kairos-gold/30 hover:bg-kairos-gold/10">
+              <BarChart3 size={14} /> View All Trends
+            </button>
+          </div>
+
+          {/* Lab Markers */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-4">
+              <TestTube2 className="w-5 h-5 text-kairos-gold" />
+              <h2 className="font-heading font-bold text-xl text-white">
+                {activeCategory === "all" ? "All Biomarkers" : LAB_CATEGORIES.find((c) => c.id === activeCategory)?.label} Markers
+              </h2>
+              <span className="text-kairos-silver-dark text-sm">({filteredMarkers.length})</span>
+            </div>
+
+            <div className="grid gap-3">
+              {filteredMarkers.map((marker) => (
+                <div key={marker.code} className="kairos-card p-5 rounded-kairos-sm border border-kairos-border hover:border-kairos-gold/30 transition-all cursor-pointer"
+                  onClick={() => openTrend(marker.code)}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    <div>
+                      <h3 className="font-heading font-bold text-white mb-1">{marker.name}</h3>
+                      <p className="text-xs text-kairos-silver-dark">
+                        Ref: {marker.refLow ?? "—"}–{marker.refHigh ?? "—"} {marker.unit ?? ""}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-bold text-white">{marker.value}</span>
+                        <span className="text-sm text-kairos-silver-dark">{marker.unit}</span>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-body ${getStatusColor(marker.status ?? "")}`}>
+                        {(marker.status === "normal" || marker.status === "optimal") && <CheckCircle className="w-3 h-3" />}
+                        {(marker.status === "high" || marker.status === "low") && <AlertTriangle className="w-3 h-3" />}
+                        {(marker.status ?? "unknown").charAt(0).toUpperCase() + (marker.status ?? "unknown").slice(1)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-end gap-3">
+                      <div className="text-right">
+                        <p className="text-xs text-kairos-silver-dark">
+                          Last: {marker.lastMeasured ? new Date(marker.lastMeasured).toLocaleDateString() : "—"}
+                        </p>
+                      </div>
+                      <BarChart3 size={16} className="text-kairos-silver-dark" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {filteredMarkers.length === 0 && (
+              <div className="kairos-card text-center py-10">
+                <TestTube2 size={32} className="text-kairos-silver-dark mx-auto mb-3" />
+                <p className="text-sm font-body text-kairos-silver-dark">No biomarker data available yet. Upload lab results to get started.</p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Recent Lab Orders */}
       <div className="space-y-4">
@@ -536,8 +734,8 @@ export default function LabsPage() {
             <div key={order.id} className="kairos-card p-5 rounded-kairos-sm border border-kairos-border">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                 <div>
-                  <p className="text-sm font-body text-kairos-silver-dark">Order Date</p>
-                  <p className="font-heading font-bold text-white">{order.orderedAt ? new Date(order.orderedAt).toLocaleDateString() : "—"}</p>
+                  <p className="text-sm font-body text-kairos-silver-dark">Test Date</p>
+                  <p className="font-heading font-bold text-white">{order.testDate ? new Date(order.testDate).toLocaleDateString() : order.orderedAt ? new Date(order.orderedAt).toLocaleDateString() : "—"}</p>
                 </div>
                 <div>
                   <p className="text-sm font-body text-kairos-silver-dark">Panel Type</p>

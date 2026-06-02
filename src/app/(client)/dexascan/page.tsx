@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import {
   Scan,
   Upload,
@@ -14,6 +14,9 @@ import {
   ChevronDown,
   ChevronRight,
   Activity,
+  BarChart3,
+  Sparkles,
+  ArrowLeft,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/utils/cn";
@@ -171,9 +174,69 @@ export default function DexaScanPage() {
     });
   }
 
+  // ── Trend state ─────────────────────────────────────────────
+  const [trendMetric, setTrendMetric] = useState<string | null>(null);
+  const [showAllTrends, setShowAllTrends] = useState(false);
+  const [aiTrendAnalysis, setAiTrendAnalysis] = useState<string | null>(null);
+  const [aiTrendLoading, setAiTrendLoading] = useState(false);
+
   const hasData = docs && docs.length > 0;
   const latest = hasData ? docs[0] : null;
   const latestData = latest?.parsedData as DexaData | undefined;
+
+  // Build trend data from all scans
+  const DEXA_METRICS = [
+    { key: "totalBodyFatPct", label: "Body Fat %", unit: "%", color: "text-kairos-gold" },
+    { key: "leanMassLbs", label: "Lean Mass", unit: "lbs", color: "text-green-400" },
+    { key: "fatMassLbs", label: "Fat Mass", unit: "lbs", color: "text-yellow-400" },
+    { key: "boneDensityTScore", label: "Bone T-Score", unit: "", color: "text-blue-400" },
+    { key: "visceralFatArea", label: "Visceral Fat", unit: "cm²", color: "text-red-400" },
+    { key: "restingMetabolicRate", label: "RMR", unit: "kcal", color: "text-cyan-400" },
+  ];
+
+  const trendData = useMemo(() => {
+    if (!docs || docs.length < 1) return {};
+    const result: Record<string, Array<{ value: number; date: string }>> = {};
+    // Iterate oldest to newest
+    const sorted = [...docs].reverse();
+    for (const doc of sorted) {
+      const data = doc.parsedData as DexaData | undefined;
+      if (!data) continue;
+      const date = doc.reportDate ?? doc.createdAt;
+      const dateStr = typeof date === "string" ? date : new Date(date).toISOString();
+      for (const m of DEXA_METRICS) {
+        const val = (data as Record<string, unknown>)[m.key];
+        if (val != null && typeof val === "number") {
+          if (!result[m.key]) result[m.key] = [];
+          result[m.key].push({ value: val, date: dateStr });
+        }
+      }
+    }
+    return result;
+  }, [docs]);
+
+  async function fetchDexaAiTrend(metricLabel: string, points: Array<{ value: number; date: string }>) {
+    setAiTrendLoading(true);
+    setAiTrendAnalysis(null);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{
+            role: "user",
+            content: `Analyze this DEXA scan trend for ${metricLabel}:\n\n${points.map(p => `${new Date(p.date).toLocaleDateString()}: ${p.value}`).join("\n")}\n\nProvide a concise 2-3 sentence analysis of the trend, whether it's positive or concerning for body composition goals, and one actionable recommendation.`,
+          }],
+        }),
+      });
+      const data = await res.json();
+      setAiTrendAnalysis(data.reply || data.content || "Unable to generate analysis.");
+    } catch {
+      setAiTrendAnalysis("Could not generate AI analysis at this time.");
+    } finally {
+      setAiTrendLoading(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -323,34 +386,149 @@ export default function DexaScanPage() {
         </div>
       )}
 
+      {/* Single Metric Trend */}
+      {trendMetric && !showAllTrends && (() => {
+        const metric = DEXA_METRICS.find(m => m.key === trendMetric);
+        const points = trendData[trendMetric] ?? [];
+        return (
+          <div className="kairos-card border border-kairos-gold/30">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <button onClick={() => { setTrendMetric(null); setAiTrendAnalysis(null); }} className="text-kairos-silver-dark hover:text-white"><ArrowLeft size={18} /></button>
+                <div>
+                  <h2 className="font-heading font-bold text-lg text-white">{metric?.label ?? trendMetric} Trend</h2>
+                  <p className="text-xs text-kairos-silver-dark">{points.length} scans</p>
+                </div>
+              </div>
+              {points.length >= 2 && (
+                <button onClick={() => fetchDexaAiTrend(metric?.label ?? trendMetric, points)} disabled={aiTrendLoading}
+                  className="kairos-btn-outline px-3 py-1.5 rounded-kairos-sm text-xs flex items-center gap-1.5">
+                  {aiTrendLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} AI Analysis
+                </button>
+              )}
+            </div>
+            {points.length < 2 ? (
+              <p className="text-sm text-kairos-silver-dark text-center py-8">Need at least 2 scans to show a trend.</p>
+            ) : (
+              <>
+                <div className="h-48 relative mb-4">
+                  <svg viewBox="0 0 400 120" className="w-full h-full" preserveAspectRatio="none">
+                    {(() => {
+                      const vals = points.map(p => p.value);
+                      const minV = Math.min(...vals) * 0.9; const maxV = Math.max(...vals) * 1.1;
+                      const range = maxV - minV || 1;
+                      const pts = points.map((p, i) => `${(i / (points.length - 1)) * 380 + 10},${110 - ((p.value - minV) / range) * 100}`);
+                      return (
+                        <>
+                          <polyline points={pts.join(" ")} fill="none" stroke="#D4AF37" strokeWidth="2.5" strokeLinejoin="round" />
+                          {points.map((p, i) => {
+                            const x = (i / (points.length - 1)) * 380 + 10;
+                            const y = 110 - ((p.value - minV) / range) * 100;
+                            return <circle key={i} cx={x} cy={y} r="4" fill="#D4AF37" stroke="#1a1a2e" strokeWidth="2" />;
+                          })}
+                        </>
+                      );
+                    })()}
+                  </svg>
+                </div>
+                <div className="flex justify-between text-[10px] text-kairos-silver-dark px-2 mb-4">
+                  {points.map((p, i) => (
+                    <div key={i} className="text-center">
+                      <p className="font-bold text-white text-sm">{p.value.toFixed(1)}</p>
+                      <p>{new Date(p.date).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {aiTrendAnalysis && (
+              <div className="p-3 bg-kairos-gold/5 border border-kairos-gold/20 rounded-xl mt-2">
+                <div className="flex items-center gap-2 mb-1.5"><Sparkles size={14} className="text-kairos-gold" /><p className="text-xs font-heading text-kairos-gold uppercase">AI Analysis</p></div>
+                <p className="text-sm text-white leading-relaxed">{aiTrendAnalysis}</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* All Trends View */}
+      {showAllTrends && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowAllTrends(false)} className="text-kairos-silver-dark hover:text-white"><ArrowLeft size={18} /></button>
+            <h2 className="font-heading font-bold text-lg text-white">All DEXA Trends</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {DEXA_METRICS.filter(m => (trendData[m.key]?.length ?? 0) >= 2).map((metric) => {
+              const points = trendData[metric.key]!;
+              return (
+                <div key={metric.key} className="kairos-card border border-kairos-border hover:border-kairos-gold/30 cursor-pointer transition-all"
+                  onClick={() => { setTrendMetric(metric.key); setShowAllTrends(false); setAiTrendAnalysis(null); }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-heading font-bold text-sm text-white">{metric.label}</h3>
+                    <span className="text-[10px] text-kairos-silver-dark">{points.length} scans</span>
+                  </div>
+                  <div className="h-16">
+                    <svg viewBox="0 0 200 50" className="w-full h-full" preserveAspectRatio="none">
+                      {(() => {
+                        const vals = points.map(p => p.value);
+                        const minV = Math.min(...vals) * 0.9; const maxV = Math.max(...vals) * 1.1;
+                        const range = maxV - minV || 1;
+                        const pts = points.map((p, i) => `${(i / (points.length - 1)) * 190 + 5},${45 - ((p.value - minV) / range) * 40}`);
+                        return <polyline points={pts.join(" ")} fill="none" stroke="#D4AF37" strokeWidth="2" strokeLinejoin="round" />;
+                      })()}
+                    </svg>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-kairos-silver-dark mt-1">
+                    <span>{points[0]?.value.toFixed(1)} {metric.unit}</span>
+                    <span>{points[points.length - 1]?.value.toFixed(1)} {metric.unit}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {DEXA_METRICS.filter(m => (trendData[m.key]?.length ?? 0) >= 2).length === 0 && (
+              <div className="col-span-full kairos-card text-center py-10"><p className="text-sm text-kairos-silver-dark">Need at least 2 scans to show trends.</p></div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Latest scan summary */}
-      {hasData && latestData && (
+      {hasData && latestData && !trendMetric && !showAllTrends && (
         <>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-heading font-bold text-sm text-kairos-silver-dark uppercase tracking-wider">Latest Scan — Click any metric to see trend</h2>
+            {docs && docs.length >= 2 && (
+              <button onClick={() => setShowAllTrends(true)} className="kairos-btn-outline px-3 py-1.5 rounded-kairos-sm text-xs flex items-center gap-2 text-kairos-gold border-kairos-gold/30 hover:bg-kairos-gold/10">
+                <BarChart3 size={14} /> All Trends
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {latestData.totalBodyFatPct != null && (
-              <MetricCard label="Body Fat" value={latestData.totalBodyFatPct.toFixed(1)} unit="%" color="text-kairos-gold" />
-            )}
-            {latestData.leanMassLbs != null && (
-              <MetricCard label="Lean Mass" value={latestData.leanMassLbs.toFixed(1)} unit="lbs" color="text-green-400" />
-            )}
-            {latestData.fatMassLbs != null && (
-              <MetricCard label="Fat Mass" value={latestData.fatMassLbs.toFixed(1)} unit="lbs" color="text-yellow-400" />
-            )}
-            {latestData.boneDensityTScore != null && (
-              <MetricCard label="Bone T-Score" value={latestData.boneDensityTScore.toFixed(1)} color={latestData.boneDensityTScore >= -1 ? "text-green-400" : "text-red-400"} />
-            )}
-            {latestData.visceralFatArea != null && (
-              <MetricCard label="Visceral Fat" value={latestData.visceralFatArea.toFixed(0)} unit="cm²" color={latestData.visceralFatArea < 100 ? "text-green-400" : "text-red-400"} />
-            )}
-            {latestData.restingMetabolicRate != null && (
-              <MetricCard label="RMR" value={latestData.restingMetabolicRate.toFixed(0)} unit="kcal" color="text-blue-400" />
-            )}
+            {DEXA_METRICS.map((metric) => {
+              const val = (latestData as Record<string, unknown>)[metric.key];
+              if (val == null) return null;
+              const numVal = Number(val);
+              return (
+                <div key={metric.key} onClick={() => { setTrendMetric(metric.key); setAiTrendAnalysis(null); }}
+                  className="bg-kairos-royal-surface rounded-xl p-4 border border-kairos-border hover:border-kairos-gold/30 cursor-pointer transition-all">
+                  <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">{metric.label}</p>
+                  <p className={cn("text-2xl font-heading font-bold", metric.color)}>
+                    {numVal.toFixed(metric.key === "visceralFatArea" || metric.key === "restingMetabolicRate" ? 0 : 1)}
+                    <span className="text-sm text-kairos-silver-dark ml-1">{metric.unit}</span>
+                  </p>
+                  {(trendData[metric.key]?.length ?? 0) >= 2 && (
+                    <p className="text-[10px] text-kairos-gold mt-1 flex items-center gap-1"><BarChart3 size={10} /> {trendData[metric.key]!.length} data points</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       )}
 
       {/* Scan History */}
-      {hasData && (
+      {hasData && !trendMetric && !showAllTrends && (
         <div>
           <h2 className="font-heading font-bold text-lg text-white mb-3">Scan History</h2>
           <div className="space-y-2">

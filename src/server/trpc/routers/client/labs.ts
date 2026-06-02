@@ -12,19 +12,32 @@ export const clientLabsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const results = await ctx.db.query.labOrders.findMany({
+      const orders = await ctx.db.query.labOrders.findMany({
         where: eq(labOrders.clientId, ctx.dbUserId),
         orderBy: desc(labOrders.orderedAt),
         limit: input.limit,
       });
 
-      return results.map((o) => ({
-        id: o.id,
-        provider: o.provider,
-        panelName: o.panelName,
-        status: o.status,
-        orderedAt: o.orderedAt,
-      }));
+      // Fetch test dates from labResults for each order
+      const orderIds = orders.map((o) => o.id);
+      const results = orderIds.length > 0
+        ? await ctx.db.query.labResults.findMany({
+            where: sql`${labResults.orderId} IN (${sql.join(orderIds.map(id => sql`${id}`), sql`, `)})`,
+          })
+        : [];
+      const resultByOrder = new Map(results.map((r) => [r.orderId, r]));
+
+      return orders.map((o) => {
+        const result = resultByOrder.get(o.id);
+        return {
+          id: o.id,
+          provider: o.provider,
+          panelName: o.panelName,
+          status: o.status,
+          orderedAt: o.orderedAt,
+          testDate: result?.receivedAt ?? o.orderedAt, // actual test date from results
+        };
+      });
     }),
 
   // Get results for a specific lab order
@@ -117,6 +130,78 @@ export const clientLabsRouter = router({
         lastMeasured: v.receivedAt,
       };
     });
+  }),
+
+  // Get full history for a single biomarker (for trending)
+  getBiomarkerHistory: clientProcedure
+    .input(z.object({ code: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db
+        .select({
+          value: biomarkerValues.value,
+          unit: biomarkerValues.unit,
+          refLow: biomarkerValues.refLow,
+          refHigh: biomarkerValues.refHigh,
+          status: biomarkerValues.status,
+          receivedAt: labResults.receivedAt,
+        })
+        .from(biomarkerValues)
+        .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
+        .where(and(eq(labResults.clientId, ctx.dbUserId), eq(biomarkerValues.biomarkerCode, input.code)))
+        .orderBy(labResults.receivedAt);
+
+      return rows.map((r) => ({
+        value: r.value,
+        unit: r.unit,
+        refLow: r.refLow,
+        refHigh: r.refHigh,
+        status: r.status,
+        date: r.receivedAt?.toISOString() ?? new Date().toISOString(),
+      }));
+    }),
+
+  // Get history for ALL biomarkers (for "all trended" view)
+  getAllBiomarkerHistory: clientProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({
+        code: biomarkerValues.biomarkerCode,
+        value: biomarkerValues.value,
+        unit: biomarkerValues.unit,
+        refLow: biomarkerValues.refLow,
+        refHigh: biomarkerValues.refHigh,
+        status: biomarkerValues.status,
+        receivedAt: labResults.receivedAt,
+      })
+      .from(biomarkerValues)
+      .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
+      .where(eq(labResults.clientId, ctx.dbUserId))
+      .orderBy(labResults.receivedAt);
+
+    // Group by biomarker code
+    const grouped: Record<string, Array<{ value: number; date: string; refLow: number | null; refHigh: number | null }>> = {};
+    for (const r of rows) {
+      if (!grouped[r.code]) grouped[r.code] = [];
+      grouped[r.code].push({
+        value: r.value,
+        date: r.receivedAt?.toISOString() ?? new Date().toISOString(),
+        refLow: r.refLow,
+        refHigh: r.refHigh,
+      });
+    }
+
+    // Only return biomarkers with 2+ data points (trendable)
+    const definitions = await ctx.db.query.biomarkerDefinitions.findMany();
+    const defMap = new Map(definitions.map((d) => [d.code, d]));
+
+    return Object.entries(grouped)
+      .filter(([, points]) => points.length >= 2)
+      .map(([code, points]) => ({
+        code,
+        name: defMap.get(code)?.name ?? code,
+        category: defMap.get(code)?.category ?? "unknown",
+        unit: defMap.get(code)?.unit ?? points[0]?.refLow != null ? "" : "",
+        points,
+      }));
   }),
 
   // Get total count of orders and results

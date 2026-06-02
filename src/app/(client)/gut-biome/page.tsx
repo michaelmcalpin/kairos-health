@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import {
   Bug,
   Upload,
@@ -14,6 +14,9 @@ import {
   ShieldAlert,
   CheckCircle,
   AlertTriangle,
+  BarChart3,
+  Sparkles,
+  ArrowLeft,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/utils/cn";
@@ -153,9 +156,49 @@ export default function GutBiomePage() {
     });
   }
 
+  // ── Trend state ─────────────────────────────────────────────
+  const [showTrend, setShowTrend] = useState(false);
+  const [aiTrendAnalysis, setAiTrendAnalysis] = useState<string | null>(null);
+  const [aiTrendLoading, setAiTrendLoading] = useState(false);
+
   const hasData = docs && docs.length > 0;
   const latest = hasData ? docs[0] : null;
   const latestData = latest?.parsedData as GutBiomeData | undefined;
+
+  // Build diversity score trend from all gut biome reports
+  const diversityTrend = useMemo(() => {
+    if (!docs || docs.length < 1) return [];
+    return [...docs].reverse()
+      .filter((d) => (d.parsedData as GutBiomeData | undefined)?.diversityScore != null)
+      .map((d) => ({
+        value: (d.parsedData as GutBiomeData).diversityScore!,
+        date: new Date(d.reportDate ?? d.createdAt).toISOString(),
+      }));
+  }, [docs]);
+
+  async function fetchGutAiTrend() {
+    if (diversityTrend.length < 2) return;
+    setAiTrendLoading(true);
+    setAiTrendAnalysis(null);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{
+            role: "user",
+            content: `Analyze this gut microbiome diversity trend:\n\n${diversityTrend.map(p => `${new Date(p.date).toLocaleDateString()}: Diversity Score ${p.value}/100`).join("\n")}\n\nProvide a concise 2-3 sentence analysis of the trend, whether gut health is improving or declining, and one actionable dietary recommendation.`,
+          }],
+        }),
+      });
+      const data = await res.json();
+      setAiTrendAnalysis(data.reply || data.content || "Unable to generate analysis.");
+    } catch {
+      setAiTrendAnalysis("Could not generate AI analysis at this time.");
+    } finally {
+      setAiTrendLoading(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -278,19 +321,80 @@ export default function GutBiomePage() {
         </div>
       )}
 
+      {/* Diversity Score Trend */}
+      {showTrend && (
+        <div className="kairos-card border border-kairos-gold/30">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <button onClick={() => { setShowTrend(false); setAiTrendAnalysis(null); }} className="text-kairos-silver-dark hover:text-white"><ArrowLeft size={18} /></button>
+              <div>
+                <h2 className="font-heading font-bold text-lg text-white">Diversity Score Trend</h2>
+                <p className="text-xs text-kairos-silver-dark">{diversityTrend.length} reports</p>
+              </div>
+            </div>
+            {diversityTrend.length >= 2 && (
+              <button onClick={fetchGutAiTrend} disabled={aiTrendLoading}
+                className="kairos-btn-outline px-3 py-1.5 rounded-kairos-sm text-xs flex items-center gap-1.5">
+                {aiTrendLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} AI Analysis
+              </button>
+            )}
+          </div>
+          {diversityTrend.length < 2 ? (
+            <p className="text-sm text-kairos-silver-dark text-center py-8">Need at least 2 gut biome reports to show a trend.</p>
+          ) : (
+            <>
+              <div className="h-48 relative mb-4">
+                <svg viewBox="0 0 400 120" className="w-full h-full" preserveAspectRatio="none">
+                  <rect x="0" y={110 - 70} width="400" height={70 - 30} fill="rgba(74,222,128,0.08)" />
+                  {(() => {
+                    const pts = diversityTrend.map((p, i) => `${(i / (diversityTrend.length - 1)) * 380 + 10},${110 - (p.value / 100) * 100}`);
+                    return (
+                      <>
+                        <polyline points={pts.join(" ")} fill="none" stroke="#D4AF37" strokeWidth="2.5" strokeLinejoin="round" />
+                        {diversityTrend.map((p, i) => (
+                          <circle key={i} cx={(i / (diversityTrend.length - 1)) * 380 + 10} cy={110 - (p.value / 100) * 100} r="4" fill="#D4AF37" stroke="#1a1a2e" strokeWidth="2" />
+                        ))}
+                      </>
+                    );
+                  })()}
+                </svg>
+              </div>
+              <div className="flex justify-between text-[10px] text-kairos-silver-dark px-2 mb-4">
+                {diversityTrend.map((p, i) => (
+                  <div key={i} className="text-center">
+                    <p className="font-bold text-white text-sm">{p.value}</p>
+                    <p>{new Date(p.date).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {aiTrendAnalysis && (
+            <div className="p-3 bg-kairos-gold/5 border border-kairos-gold/20 rounded-xl mt-2">
+              <div className="flex items-center gap-2 mb-1.5"><Sparkles size={14} className="text-kairos-gold" /><p className="text-xs font-heading text-kairos-gold uppercase">AI Analysis</p></div>
+              <p className="text-sm text-white leading-relaxed">{aiTrendAnalysis}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Latest data summary */}
-      {hasData && latestData && (
+      {hasData && latestData && !showTrend && (
         <>
           {/* Quick stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="kairos-card p-5">
+            <div className="kairos-card p-5 cursor-pointer hover:border-kairos-gold/30 border border-transparent transition-all"
+              onClick={() => { setShowTrend(true); setAiTrendAnalysis(null); }}>
               <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Diversity Score</p>
               <p className={cn("text-2xl font-heading font-bold",
                 latestData.diversityRating === "high" ? "text-green-400"
                   : latestData.diversityRating === "moderate" ? "text-yellow-400" : "text-red-400")}>
                 {latestData.diversityScore ?? "—"}
               </p>
-              <p className="text-xs text-kairos-silver-dark mt-1 capitalize">{latestData.diversityRating ?? "pending"}</p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-kairos-silver-dark capitalize">{latestData.diversityRating ?? "pending"}</p>
+                {diversityTrend.length >= 2 && <BarChart3 size={12} className="text-kairos-gold" />}
+              </div>
             </div>
             <div className="kairos-card p-5">
               <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Dysbiosis</p>
@@ -352,7 +456,7 @@ export default function GutBiomePage() {
       )}
 
       {/* Report History */}
-      {hasData && (
+      {hasData && !showTrend && (
         <div>
           <h2 className="font-heading font-bold text-lg text-white mb-3">Report History</h2>
           <div className="space-y-2">
