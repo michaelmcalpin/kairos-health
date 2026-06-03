@@ -178,9 +178,10 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[Everist AI Chat Error]", err);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[Everist AI Chat Error]", errMsg, err);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: errMsg.includes("API key") || errMsg.includes("Unauthorized") ? errMsg : "Internal server error — please try again" }),
       { status: 500 }
     );
   }

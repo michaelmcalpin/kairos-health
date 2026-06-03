@@ -494,15 +494,19 @@ export async function getClientContext(dbUserId: string) {
   }
 
   // ── 16. Exercise Screening (injuries, conditions, preferences) ──
-  const screeningProfile = await db.query.clientProfiles.findFirst({
-    where: eq(clientProfiles.userId, dbUserId),
-  });
-  if (screeningProfile?.exerciseScreening) {
-    const s = screeningProfile.exerciseScreening;
-    sections.push(
-      `## EXERCISE SCREENING (Last updated: ${s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : "unknown"})\n` +
-      `Client-reported injuries, conditions, equipment, and preferences:\n${s.rawAnswer}`
-    );
+  try {
+    const screeningProfile = await db.query.clientProfiles.findFirst({
+      where: eq(clientProfiles.userId, dbUserId),
+    });
+    if (screeningProfile?.exerciseScreening) {
+      const s = screeningProfile.exerciseScreening;
+      sections.push(
+        `## EXERCISE SCREENING (Last updated: ${s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : "unknown"})\n` +
+        `Client-reported injuries, conditions, equipment, and preferences:\n${s.rawAnswer}`
+      );
+    }
+  } catch {
+    // Column may not exist yet if migration hasn't run — skip silently
   }
 
   return sections.length > 0 ? sections.join("\n\n") : "No health data available yet.";
