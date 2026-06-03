@@ -52,7 +52,19 @@ You MUST respond with ONLY valid JSON in this exact structure — no markdown, n
 - **Genetics**: If genetic data shows inflammation pathways (MTHFR, TNF, IL6), favor anti-inflammatory training (Zone 2 over intense HIIT). If detox pathways are compromised, ensure adequate recovery days.
 - **Body composition**: Use DEXA data to target weak points. High visceral fat → more cardio emphasis. Low lean mass → prioritize hypertrophy. Good lean mass → can push strength focus.
 - **Goals**: Align everything with the client's stated goals. Weight loss → caloric expenditure focus. Muscle gain → progressive overload emphasis. Longevity → Zone 2 + strength balance.
-- Rest days should be listed with type "rest" and include active recovery suggestions.`;
+- **Injuries & conditions**: If the client reports ANY pain, injury, or medical condition, AVOID exercises that aggravate it. Provide safe alternatives. Note modifications in the exercise "notes" field.
+- **Medications**: Review the client's medications. Beta-blockers limit max heart rate (adjust HR zones). Blood thinners increase bruising risk (avoid heavy contact). Statins can cause muscle soreness (moderate volume). Stimulants affect cardiovascular response.
+- **Sleep**: If sleep quality is poor (<6 hrs or low scores), reduce training volume and intensity. Prioritize recovery. Poor sleep impairs muscle protein synthesis and increases cortisol.
+- **Supplements & Peptides**: Consider active supplement/peptide protocols. BPC-157 or TB-500 may support tissue healing (can push rehab exercises). Growth hormone peptides support recovery (can handle higher volume). Creatine supplementation supports strength work. Pre-workout timing matters.
+- **Fasting protocols**: If the client follows intermittent fasting, consider training timing relative to feeding windows. Fasted training may need lower intensity.
+- Rest days should be listed with type "rest" and include active recovery suggestions.
+
+## SAFETY FIRST
+- NEVER program exercises that conflict with reported injuries or conditions.
+- For any joint pain, provide alternative movement patterns.
+- If the client reports a heart condition, keep all training in Zone 1-2 unless cleared by a physician.
+- Always include proper warmup and cooldown recommendations.
+- When in doubt, be conservative. It's better to undertrain than to cause injury.`;
 
 export async function POST(req: NextRequest) {
   try {

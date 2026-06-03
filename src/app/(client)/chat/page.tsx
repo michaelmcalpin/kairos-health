@@ -175,6 +175,8 @@ function AIChatTab() {
   const [exercisePlanSaved, setExercisePlanSaved] = useState(false);
   const [exercisePlanError, setExercisePlanError] = useState<string | null>(null);
   const [exercisePlanRequest, setExercisePlanRequest] = useState<string>("");
+  const [exerciseScreening, setExerciseScreening] = useState(false); // pre-screening questionnaire active
+  const [screeningAnswers, setScreeningAnswers] = useState<string>(""); // accumulated screening context
 
   const createProgramMutation = trpc.clientPortal.workouts.createProgram.useMutation();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -427,29 +429,50 @@ function AIChatTab() {
     const text = (messageText ?? input).trim();
     if (!text) return;
 
+    // If in screening mode, collect the answer and generate
+    if (exerciseScreening) {
+      setInput("");
+      const userMsg: ChatMessage = { id: `temp-${Date.now()}`, role: "client", body: text, createdAt: new Date().toISOString() };
+      setChatMessages((prev) => [...prev, userMsg]);
+
+      // Combine original request + screening context
+      const fullContext = `${exercisePlanRequest}\n\nIMPORTANT CLIENT HEALTH SCREENING:\n${text}`;
+      setScreeningAnswers(text);
+      setExerciseScreening(false);
+      await generateExercisePlan(fullContext);
+      return;
+    }
+
     // If there's an active exercise plan and the user sends a message, treat it as refinement
     if (exercisePlan && !exercisePlanSaved) {
       setInput("");
       const userMsg: ChatMessage = { id: `temp-${Date.now()}`, role: "client", body: text, createdAt: new Date().toISOString() };
       setChatMessages((prev) => [...prev, userMsg]);
-      await generateExercisePlan(exercisePlanRequest, text);
+      await generateExercisePlan(exercisePlanRequest + (screeningAnswers ? `\n\nClient screening: ${screeningAnswers}` : ""), text);
       return;
     }
 
-    // Check if this is an exercise plan request
+    // Check if this is an exercise plan request → start screening
     if (isExercisePlanRequest(text)) {
       setInput("");
+      setExercisePlanRequest(text);
+      setExerciseScreening(true);
       const userMsg: ChatMessage = { id: `temp-${Date.now()}`, role: "client", body: text, createdAt: new Date().toISOString() };
-      setChatMessages((prev) => [...prev, userMsg]);
-      await generateExercisePlan(text);
+      const screenMsg: ChatMessage = {
+        id: `ai-screen-${Date.now()}`,
+        role: "ai_coach",
+        body: `Great — I'll build you a personalized exercise program using your complete health profile (body composition, genetics, labs, sleep patterns, current supplements, peptides, and medications).\n\nBefore I design your program, I need to know a few things:\n\n**1. Injuries or pain** — Do you have any current injuries, joint pain, or areas of discomfort? (e.g., bad knee, lower back issues, shoulder impingement)\n\n**2. Medical conditions** — Any conditions your trainer should know about? (e.g., heart condition, high blood pressure, diabetes, osteoporosis)\n\n**3. Equipment access** — What equipment do you have access to? (full gym, home gym, bodyweight only)\n\n**4. Training experience** — How would you rate your training experience? (beginner, intermediate, advanced)\n\n**5. Schedule preference** — How many days per week can you train, and do you have time preferences? (e.g., "4-5 days, mornings")\n\nPlease share anything relevant — even "no issues, full gym, intermediate, 5 days" works!`,
+        createdAt: new Date().toISOString(),
+      };
+      setChatMessages((prev) => [...prev, userMsg, screenMsg]);
       return;
     }
 
     // Otherwise, use the normal chat flow
     await originalHandleSend(messageText);
-  }, [input, exercisePlan, exercisePlanSaved, exercisePlanRequest, generateExercisePlan, originalHandleSend]);
+  }, [input, exercisePlan, exercisePlanSaved, exercisePlanRequest, exerciseScreening, screeningAnswers, generateExercisePlan, originalHandleSend]);
 
-  const handleNewChat = () => { setChatMessages([]); setConversationId(null); setShowSuggestions(true); setInput(""); setExercisePlan(null); setExercisePlanSaved(false); setExercisePlanError(null); };
+  const handleNewChat = () => { setChatMessages([]); setConversationId(null); setShowSuggestions(true); setInput(""); setExercisePlan(null); setExercisePlanSaved(false); setExercisePlanError(null); setExerciseScreening(false); setScreeningAnswers(""); };
 
   function formatTime(timestamp: string): string {
     return new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -622,7 +645,7 @@ function AIChatTab() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); wrappedHandleSend(); } }}
-          placeholder={exercisePlan && !exercisePlanSaved ? "Tell me what to change..." : isStreaming ? "Waiting for response..." : "Ask about your health, nutrition, exercise..."}
+          placeholder={exerciseScreening ? "Describe any injuries, conditions, equipment, experience level..." : exercisePlan && !exercisePlanSaved ? "Tell me what to change..." : isStreaming ? "Waiting for response..." : "Ask about your health, nutrition, exercise..."}
           disabled={isStreaming || exercisePlanLoading}
           className="kairos-input flex-1 disabled:opacity-50"
         />
