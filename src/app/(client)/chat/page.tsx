@@ -96,8 +96,51 @@ const SUGGESTED_QUESTIONS = [
   "Review my supplement protocol against my genetic profile",
   "What dietary changes should I make based on my glucose data?",
   "How is my blood pressure trending and what can I improve?",
-  "What are my top health priorities right now?",
+  "Build me a personalized exercise program",
 ];
+
+// Exercise plan keywords that trigger plan generation
+const EXERCISE_PLAN_TRIGGERS = [
+  "exercise program", "exercise plan", "workout program", "workout plan",
+  "training program", "training plan", "build me a program", "build me a plan",
+  "create.*exercise", "create.*workout", "make me a workout", "design.*program",
+  "exercise protocol", "workout protocol",
+];
+
+function isExercisePlanRequest(text: string): boolean {
+  const lower = text.toLowerCase();
+  return EXERCISE_PLAN_TRIGGERS.some((t) => new RegExp(t, "i").test(lower));
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface ExercisePlan {
+  programName: string;
+  description: string;
+  durationWeeks: number;
+  daysPerWeek: number;
+  focusAreas: string[];
+  rationale: string;
+  sessions: Array<{
+    dayNumber: number;
+    dayLabel: string;
+    name: string;
+    type: string;
+    estimatedMinutes: number;
+    warmup?: string;
+    exercises: Array<{
+      name: string;
+      muscleGroups?: string[];
+      sets: number;
+      reps: string;
+      tempo?: string;
+      restSeconds?: number;
+      notes?: string;
+    }>;
+    cooldown?: string;
+    coachNotes?: string;
+  }>;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ---------------------------------------------------------------------------
 // Types
@@ -124,6 +167,16 @@ function AIChatTab() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
+
+  // Exercise plan state
+  const [exercisePlan, setExercisePlan] = useState<ExercisePlan | null>(null);
+  const [exercisePlanLoading, setExercisePlanLoading] = useState(false);
+  const [exercisePlanSaving, setExercisePlanSaving] = useState(false);
+  const [exercisePlanSaved, setExercisePlanSaved] = useState(false);
+  const [exercisePlanError, setExercisePlanError] = useState<string | null>(null);
+  const [exercisePlanRequest, setExercisePlanRequest] = useState<string>("");
+
+  const createProgramMutation = trpc.clientPortal.workouts.createProgram.useMutation();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -268,7 +321,135 @@ function AIChatTab() {
     [input, isStreaming, chatMessages, ensureConversation, utils]
   );
 
-  const handleNewChat = () => { setChatMessages([]); setConversationId(null); setShowSuggestions(true); setInput(""); };
+  // Exercise plan generation
+  const generateExercisePlan = useCallback(async (userRequest: string, refinement?: string) => {
+    setExercisePlanLoading(true);
+    setExercisePlanError(null);
+    setExercisePlanSaved(false);
+    setExercisePlanRequest(userRequest);
+
+    const aiMsg: ChatMessage = {
+      id: `ai-plan-${Date.now()}`,
+      role: "ai_coach",
+      body: refinement
+        ? "Updating your exercise program based on your feedback..."
+        : "Analyzing your health data and building a personalized exercise program...",
+      createdAt: new Date().toISOString(),
+      isStreaming: true,
+    };
+    setChatMessages((prev) => [...prev, aiMsg]);
+
+    try {
+      const res = await fetch("/api/exercise/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userRequest,
+          refinement,
+          previousPlan: refinement ? exercisePlan : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.plan) {
+        setExercisePlan(data.plan);
+        setChatMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.isStreaming) {
+            updated[updated.length - 1] = {
+              ...last,
+              body: `Here's your personalized **${data.plan.programName}** program.\n\n${data.plan.rationale}\n\n*Review the plan below. You can ask me to modify anything — change the number of days, swap exercises, adjust intensity, etc. When you're happy with it, hit "Save to Protocols".*`,
+              isStreaming: false,
+            };
+          }
+          return updated;
+        });
+      } else {
+        throw new Error(data.error || "Failed to generate plan");
+      }
+    } catch (err) {
+      setExercisePlanError(err instanceof Error ? err.message : "Failed to generate exercise plan");
+      setChatMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.isStreaming) updated[updated.length - 1] = { ...last, body: "Sorry, I couldn't generate the exercise plan. Please try again.", isStreaming: false };
+        return updated;
+      });
+    } finally {
+      setExercisePlanLoading(false);
+    }
+  }, [exercisePlan]);
+
+  const saveExercisePlan = useCallback(async () => {
+    if (!exercisePlan) return;
+    setExercisePlanSaving(true);
+    try {
+      await createProgramMutation.mutateAsync({
+        name: exercisePlan.programName,
+        description: exercisePlan.description,
+        durationWeeks: exercisePlan.durationWeeks,
+        isAiGenerated: true,
+        schedule: { daysPerWeek: exercisePlan.daysPerWeek, focusAreas: exercisePlan.focusAreas },
+        sessions: exercisePlan.sessions.map((s) => ({
+          dayNumber: s.dayNumber,
+          name: `${s.dayLabel}: ${s.name}`,
+          exercises: s.exercises.map((e) => ({
+            exerciseId: e.name.toLowerCase().replace(/\s+/g, "_"),
+            name: e.name,
+            sets: e.sets,
+            reps: e.reps,
+            tempo: e.tempo,
+            restSeconds: e.restSeconds,
+            notes: e.notes,
+          })),
+        })),
+      });
+      setExercisePlanSaved(true);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `ai-saved-${Date.now()}`,
+          role: "ai_coach",
+          body: `Your **${exercisePlan.programName}** has been saved and activated! You can view it on the **Workouts** page under Protocols. Let's get to work!`,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+    } catch {
+      setExercisePlanError("Failed to save the program. Please try again.");
+    } finally {
+      setExercisePlanSaving(false);
+    }
+  }, [exercisePlan, createProgramMutation]);
+
+  // Override handleSend to detect exercise plan requests
+  const originalHandleSend = handleSend;
+  const wrappedHandleSend = useCallback(async (messageText?: string) => {
+    const text = (messageText ?? input).trim();
+    if (!text) return;
+
+    // If there's an active exercise plan and the user sends a message, treat it as refinement
+    if (exercisePlan && !exercisePlanSaved) {
+      setInput("");
+      const userMsg: ChatMessage = { id: `temp-${Date.now()}`, role: "client", body: text, createdAt: new Date().toISOString() };
+      setChatMessages((prev) => [...prev, userMsg]);
+      await generateExercisePlan(exercisePlanRequest, text);
+      return;
+    }
+
+    // Check if this is an exercise plan request
+    if (isExercisePlanRequest(text)) {
+      setInput("");
+      const userMsg: ChatMessage = { id: `temp-${Date.now()}`, role: "client", body: text, createdAt: new Date().toISOString() };
+      setChatMessages((prev) => [...prev, userMsg]);
+      await generateExercisePlan(text);
+      return;
+    }
+
+    // Otherwise, use the normal chat flow
+    await originalHandleSend(messageText);
+  }, [input, exercisePlan, exercisePlanSaved, exercisePlanRequest, generateExercisePlan, originalHandleSend]);
+
+  const handleNewChat = () => { setChatMessages([]); setConversationId(null); setShowSuggestions(true); setInput(""); setExercisePlan(null); setExercisePlanSaved(false); setExercisePlanError(null); };
 
   function formatTime(timestamp: string): string {
     return new Date(timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -311,7 +492,7 @@ function AIChatTab() {
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl">
             {SUGGESTED_QUESTIONS.map((q) => (
-              <button key={q} onClick={() => handleSend(q)} className="text-left px-3 py-2.5 rounded-xl border border-kairos-border bg-kairos-card hover:bg-kairos-card-hover hover:border-kairos-gold/30 transition-all text-sm font-body text-kairos-silver-dark hover:text-white group">
+              <button key={q} onClick={() => wrappedHandleSend(q)} className="text-left px-3 py-2.5 rounded-xl border border-kairos-border bg-kairos-card hover:bg-kairos-card-hover hover:border-kairos-gold/30 transition-all text-sm font-body text-kairos-silver-dark hover:text-white group">
                 <span className="flex items-start gap-2">
                   <MessageSquare size={12} className="text-kairos-gold/50 group-hover:text-kairos-gold mt-0.5 flex-shrink-0" />
                   {q}
@@ -357,6 +538,79 @@ function AIChatTab() {
               </div>
             );
           })}
+          {/* Exercise Plan Preview Card */}
+          {exercisePlan && (
+            <div className="mx-2 mb-4">
+              <div className="bg-kairos-royal-surface border border-kairos-gold/30 rounded-xl overflow-hidden">
+                <div className="p-4 border-b border-kairos-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-heading font-bold text-white text-lg">{exercisePlan.programName}</h3>
+                    <span className="text-[10px] px-2 py-1 rounded bg-kairos-gold/15 text-kairos-gold border border-kairos-gold/30 font-heading">
+                      {exercisePlan.daysPerWeek} days/week &bull; {exercisePlan.durationWeeks} weeks
+                    </span>
+                  </div>
+                  <p className="text-xs text-kairos-silver-dark">{exercisePlan.description}</p>
+                  {exercisePlan.focusAreas.length > 0 && (
+                    <div className="flex gap-1.5 mt-2">
+                      {exercisePlan.focusAreas.map((f, i) => (
+                        <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">{f}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="divide-y divide-kairos-border/50 max-h-[400px] overflow-y-auto">
+                  {exercisePlan.sessions.map((session) => (
+                    <div key={session.dayNumber} className="p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-heading font-bold text-kairos-gold">{session.dayLabel}</span>
+                          <span className="text-sm font-heading font-semibold text-white">{session.name}</span>
+                        </div>
+                        <span className={cn("text-[10px] px-2 py-0.5 rounded border font-heading",
+                          session.type === "strength" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                          session.type === "cardio" ? "bg-green-500/10 text-green-400 border-green-500/20" :
+                          session.type === "hiit" ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                          session.type === "rest" ? "bg-gray-500/10 text-gray-400 border-gray-500/20" :
+                          "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                        )}>{session.type} &bull; {session.estimatedMinutes}min</span>
+                      </div>
+                      {session.exercises.length > 0 && (
+                        <div className="space-y-1">
+                          {session.exercises.map((ex, i) => (
+                            <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                              <span className="text-kairos-silver">{ex.name}</span>
+                              <span className="text-kairos-silver-dark">{ex.sets} x {ex.reps}{ex.restSeconds ? ` / ${ex.restSeconds}s rest` : ""}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {session.coachNotes && <p className="text-[10px] text-kairos-silver-dark mt-1 italic">{session.coachNotes}</p>}
+                    </div>
+                  ))}
+                </div>
+                <div className="p-4 border-t border-kairos-border flex items-center justify-between">
+                  {exercisePlanSaved ? (
+                    <div className="flex items-center gap-2 text-green-400 text-sm font-heading">
+                      <Check size={16} /> Saved to Protocols!
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-kairos-silver-dark">Ask me to change anything, or save when ready</p>
+                      <button
+                        onClick={saveExercisePlan}
+                        disabled={exercisePlanSaving}
+                        className="kairos-btn-gold px-4 py-2 rounded-lg text-sm font-heading font-semibold flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {exercisePlanSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        Save to Protocols
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div ref={bottomRef} />
         </div>
       )}
@@ -367,13 +621,13 @@ function AIChatTab() {
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-          placeholder={isStreaming ? "Waiting for response..." : "Ask about your health, nutrition, exercise..."}
-          disabled={isStreaming}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); wrappedHandleSend(); } }}
+          placeholder={exercisePlan && !exercisePlanSaved ? "Tell me what to change..." : isStreaming ? "Waiting for response..." : "Ask about your health, nutrition, exercise..."}
+          disabled={isStreaming || exercisePlanLoading}
           className="kairos-input flex-1 disabled:opacity-50"
         />
-        <button onClick={() => handleSend()} disabled={!input.trim() || isStreaming} className="kairos-btn-gold p-2.5 disabled:opacity-30 disabled:cursor-not-allowed">
-          {isStreaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+        <button onClick={() => wrappedHandleSend()} disabled={!input.trim() || isStreaming || exercisePlanLoading} className="kairos-btn-gold p-2.5 disabled:opacity-30 disabled:cursor-not-allowed">
+          {isStreaming || exercisePlanLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
       </div>
       <p className="text-[10px] font-body text-kairos-silver-dark text-center py-1">

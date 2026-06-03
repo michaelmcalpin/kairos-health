@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { workoutLogs, clientWorkoutAssignments, workoutPrograms } from "@/server/db/schema";
+import { workoutLogs, clientWorkoutAssignments, workoutPrograms, workoutSessions } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
@@ -150,6 +150,184 @@ export const clientWorkoutsRouter = router({
       where: eq(workoutPrograms.id, assignment.programId),
     });
 
-    return program ? { ...program, startDate: assignment.startDate } : null;
+    if (!program) return null;
+
+    // Fetch sessions for this program
+    const sessions = await ctx.db.query.workoutSessions.findMany({
+      where: eq(workoutSessions.programId, program.id),
+      orderBy: workoutSessions.dayNumber,
+    });
+
+    return { ...program, startDate: assignment.startDate, sessions };
   }),
+
+  // List all programs assigned to this client
+  listPrograms: clientProcedure.query(async ({ ctx }) => {
+    const assignments = await ctx.db.query.clientWorkoutAssignments.findMany({
+      where: eq(clientWorkoutAssignments.clientId, ctx.dbUserId),
+    });
+
+    if (assignments.length === 0) return [];
+
+    const programIds = assignments.map((a) => a.programId);
+    const programs = await ctx.db.query.workoutPrograms.findMany({
+      where: sql`${workoutPrograms.id} IN (${sql.join(programIds.map(id => sql`${id}`), sql`, `)})`,
+      orderBy: desc(workoutPrograms.createdAt),
+    });
+
+    const assignmentMap = new Map(assignments.map((a) => [a.programId, a]));
+
+    return programs.map((p) => ({
+      ...p,
+      status: assignmentMap.get(p.id)?.status ?? "inactive",
+      startDate: assignmentMap.get(p.id)?.startDate ?? null,
+      assignmentId: assignmentMap.get(p.id)?.id ?? null,
+    }));
+  }),
+
+  // Get a specific program with all sessions
+  getProgram: clientProcedure
+    .input(z.object({ programId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      // Verify assignment
+      const assignment = await ctx.db.query.clientWorkoutAssignments.findFirst({
+        where: and(
+          eq(clientWorkoutAssignments.clientId, ctx.dbUserId),
+          eq(clientWorkoutAssignments.programId, input.programId),
+        ),
+      });
+      if (!assignment) return null;
+
+      const program = await ctx.db.query.workoutPrograms.findFirst({
+        where: eq(workoutPrograms.id, input.programId),
+      });
+      if (!program) return null;
+
+      const sessions = await ctx.db.query.workoutSessions.findMany({
+        where: eq(workoutSessions.programId, program.id),
+        orderBy: workoutSessions.dayNumber,
+      });
+
+      return { ...program, sessions, status: assignment.status, startDate: assignment.startDate };
+    }),
+
+  // Create a new exercise program (from AI or manual)
+  createProgram: clientProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        durationWeeks: z.number().optional(),
+        isAiGenerated: z.boolean().optional(),
+        schedule: z.record(z.string(), z.unknown()).optional(),
+        sessions: z.array(
+          z.object({
+            dayNumber: z.number(),
+            name: z.string(),
+            exercises: z.array(
+              z.object({
+                exerciseId: z.string(),
+                name: z.string().optional(),
+                sets: z.number(),
+                reps: z.string(),
+                tempo: z.string().optional(),
+                restSeconds: z.number().optional(),
+                notes: z.string().optional(),
+              })
+            ),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Create program
+      const [program] = await ctx.db.insert(workoutPrograms).values({
+        trainerId: null,
+        isAiGenerated: input.isAiGenerated ?? false,
+        name: input.name,
+        description: input.description,
+        durationWeeks: input.durationWeeks,
+        schedule: input.schedule,
+      }).returning();
+
+      // Create sessions
+      if (input.sessions.length > 0) {
+        await ctx.db.insert(workoutSessions).values(
+          input.sessions.map((s) => ({
+            programId: program.id,
+            dayNumber: s.dayNumber,
+            name: s.name,
+            exercises: s.exercises.map((e) => ({
+              exerciseId: e.exerciseId,
+              sets: e.sets,
+              reps: e.reps,
+              tempo: e.tempo ?? "controlled",
+              restSeconds: e.restSeconds ?? 60,
+            })),
+          }))
+        );
+      }
+
+      // Deactivate any existing active assignment
+      await ctx.db
+        .update(clientWorkoutAssignments)
+        .set({ status: "inactive" })
+        .where(and(
+          eq(clientWorkoutAssignments.clientId, ctx.dbUserId),
+          eq(clientWorkoutAssignments.status, "active"),
+        ));
+
+      // Create assignment (auto-activate)
+      await ctx.db.insert(clientWorkoutAssignments).values({
+        clientId: ctx.dbUserId,
+        programId: program.id,
+        startDate: new Date().toISOString().split("T")[0],
+        status: "active",
+      });
+
+      return program;
+    }),
+
+  // Activate / deactivate a program
+  setActiveProgram: clientProcedure
+    .input(z.object({ programId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Deactivate all
+      await ctx.db
+        .update(clientWorkoutAssignments)
+        .set({ status: "inactive" })
+        .where(eq(clientWorkoutAssignments.clientId, ctx.dbUserId));
+
+      // Activate the chosen one
+      await ctx.db
+        .update(clientWorkoutAssignments)
+        .set({ status: "active", startDate: new Date().toISOString().split("T")[0] })
+        .where(and(
+          eq(clientWorkoutAssignments.clientId, ctx.dbUserId),
+          eq(clientWorkoutAssignments.programId, input.programId),
+        ));
+
+      return { success: true };
+    }),
+
+  // Delete a program
+  deleteProgram: clientProcedure
+    .input(z.object({ programId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Verify ownership
+      const assignment = await ctx.db.query.clientWorkoutAssignments.findFirst({
+        where: and(
+          eq(clientWorkoutAssignments.clientId, ctx.dbUserId),
+          eq(clientWorkoutAssignments.programId, input.programId),
+        ),
+      });
+      if (!assignment) return { success: false };
+
+      // Delete sessions, assignment, then program
+      await ctx.db.delete(workoutSessions).where(eq(workoutSessions.programId, input.programId));
+      await ctx.db.delete(clientWorkoutAssignments).where(eq(clientWorkoutAssignments.id, assignment.id));
+      await ctx.db.delete(workoutPrograms).where(eq(workoutPrograms.id, input.programId));
+
+      return { success: true };
+    }),
 });

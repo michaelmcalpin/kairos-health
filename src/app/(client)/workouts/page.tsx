@@ -13,6 +13,10 @@ import {
   Zap,
   Plus,
   X,
+  Sparkles,
+  ChevronDown,
+  ChevronRight,
+  Trash2,
 } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
@@ -135,6 +139,23 @@ export default function WorkoutsPage() {
     setShowLogForm(false);
   };
 
+  // ── Saved Exercise Protocols ──────────────────────────────────
+  const programsQuery = trpc.clientPortal.workouts.listPrograms.useQuery(undefined, { staleTime: 30_000 });
+  const programs = programsQuery.data ?? [];
+  const activeProgram = programs.find((p) => p.status === "active");
+  const [expandedProgram, setExpandedProgram] = useState<string | null>(null);
+
+  const activateMutation = trpc.clientPortal.workouts.setActiveProgram.useMutation({
+    onSuccess: () => programsQuery.refetch(),
+  });
+  const deleteMutation = trpc.clientPortal.workouts.deleteProgram.useMutation({
+    onSuccess: () => programsQuery.refetch(),
+  });
+  const programDetailQuery = trpc.clientPortal.workouts.getProgram.useQuery(
+    { programId: expandedProgram! },
+    { enabled: !!expandedProgram, staleTime: 60_000 }
+  );
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-start justify-between">
@@ -172,6 +193,106 @@ export default function WorkoutsPage() {
           </div>
         ))}
       </div>
+
+      {/* My Exercise Protocols */}
+      {programs.length > 0 && (
+        <div className="kairos-card">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles size={18} className="text-kairos-gold" />
+              <h2 className="font-heading font-bold text-lg text-white">My Protocols</h2>
+            </div>
+            <a href="/chat" className="text-xs text-kairos-gold hover:text-kairos-gold/80 transition-colors">
+              + Build New in Chat
+            </a>
+          </div>
+          <div className="space-y-2">
+            {programs.map((prog) => {
+              const isExpanded = expandedProgram === prog.id;
+              const detail = isExpanded ? programDetailQuery.data : null;
+              const schedule = prog.schedule as { daysPerWeek?: number; focusAreas?: string[] } | null;
+              return (
+                <div key={prog.id} className="border border-kairos-border rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setExpandedProgram(isExpanded ? null : prog.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-kairos-card-hover/30 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${prog.status === "active" ? "bg-green-400" : "bg-gray-600"}`} />
+                      <div className="text-left">
+                        <p className="font-heading font-semibold text-white text-sm">{prog.name}</p>
+                        <p className="text-[10px] text-kairos-silver-dark">
+                          {prog.isAiGenerated && <span className="text-kairos-gold">AI Generated</span>}
+                          {prog.durationWeeks && <span> &bull; {prog.durationWeeks} weeks</span>}
+                          {schedule?.daysPerWeek && <span> &bull; {schedule.daysPerWeek} days/week</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {prog.status === "active" && (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/30 font-heading">Active</span>
+                      )}
+                      {isExpanded ? <ChevronDown size={16} className="text-kairos-silver-dark" /> : <ChevronRight size={16} className="text-kairos-silver-dark" />}
+                    </div>
+                  </button>
+                  {isExpanded && (
+                    <div className="border-t border-kairos-border">
+                      {programDetailQuery.isLoading ? (
+                        <div className="p-6 text-center text-kairos-silver-dark text-sm">Loading program...</div>
+                      ) : detail?.sessions ? (
+                        <>
+                          {prog.description && <p className="px-4 pt-3 text-xs text-kairos-silver-dark">{prog.description}</p>}
+                          <div className="divide-y divide-kairos-border/50">
+                            {(detail.sessions as Array<{ dayNumber: number; name: string; exercises: Array<{ exerciseId: string; sets: number; reps: string; tempo: string; restSeconds: number }> }>).map((session) => (
+                              <div key={session.dayNumber} className="px-4 py-3">
+                                <p className="text-sm font-heading font-semibold text-white mb-1">{session.name}</p>
+                                <div className="space-y-0.5">
+                                  {session.exercises.map((ex, i) => (
+                                    <div key={i} className="flex justify-between text-xs">
+                                      <span className="text-kairos-silver">{ex.exerciseId.replace(/_/g, " ")}</span>
+                                      <span className="text-kairos-silver-dark">{ex.sets} x {ex.reps}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="p-3 border-t border-kairos-border flex items-center justify-between">
+                            {prog.status !== "active" ? (
+                              <button onClick={() => activateMutation.mutate({ programId: prog.id })}
+                                className="text-xs text-kairos-gold hover:text-kairos-gold/80">Activate</button>
+                            ) : (
+                              <span className="text-[10px] text-green-400">Currently active</span>
+                            )}
+                            <button onClick={() => { if (confirm("Delete this program?")) deleteMutation.mutate({ programId: prog.id }); }}
+                              className="text-xs text-kairos-silver-dark hover:text-red-400 flex items-center gap-1">
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="p-4 text-center text-kairos-silver-dark text-sm">No session details available</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* No protocols — CTA */}
+      {programs.length === 0 && (
+        <div className="kairos-card border-kairos-gold/20 text-center py-8">
+          <Sparkles size={28} className="text-kairos-gold mx-auto mb-3" />
+          <h3 className="font-heading font-semibold text-white mb-1">No Exercise Protocol Yet</h3>
+          <p className="text-sm text-kairos-silver-dark mb-4">Ask the AI chat to build a personalized program based on your health data</p>
+          <a href="/chat" className="kairos-btn-gold px-4 py-2 rounded-lg text-sm font-heading inline-flex items-center gap-2">
+            <Sparkles size={14} /> Build My Program
+          </a>
+        </div>
+      )}
 
       {/* Today's Workout */}
       <div className="bg-gradient-to-r from-kairos-gold/10 to-transparent border border-kairos-gold/30 rounded-kairos-sm p-6">
