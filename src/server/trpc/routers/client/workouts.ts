@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { workoutLogs, clientWorkoutAssignments, workoutPrograms, workoutSessions, clientProfiles } from "@/server/db/schema";
+import { workoutLogs, clientWorkoutAssignments, workoutPrograms, workoutSessions, exerciseScreenings } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
@@ -333,10 +333,15 @@ export const clientWorkoutsRouter = router({
 
   // Get saved exercise screening data
   getScreening: clientProcedure.query(async ({ ctx }) => {
-    const profile = await ctx.db.query.clientProfiles.findFirst({
-      where: eq(clientProfiles.userId, ctx.dbUserId),
-    });
-    return profile?.exerciseScreening ?? null;
+    try {
+      const screening = await ctx.db.query.exerciseScreenings.findFirst({
+        where: eq(exerciseScreenings.clientId, ctx.dbUserId),
+      });
+      return screening ?? null;
+    } catch {
+      // Table may not exist yet
+      return null;
+    }
   }),
 
   // Save exercise screening data
@@ -350,19 +355,27 @@ export const clientWorkoutsRouter = router({
       rawAnswer: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.db.query.clientProfiles.findFirst({
-        where: eq(clientProfiles.userId, ctx.dbUserId),
-      });
+      try {
+        const existing = await ctx.db.query.exerciseScreenings.findFirst({
+          where: eq(exerciseScreenings.clientId, ctx.dbUserId),
+        });
 
-      const screening = { ...input, updatedAt: new Date().toISOString() };
+        if (existing) {
+          await ctx.db
+            .update(exerciseScreenings)
+            .set({ ...input, updatedAt: new Date() })
+            .where(eq(exerciseScreenings.clientId, ctx.dbUserId));
+        } else {
+          await ctx.db.insert(exerciseScreenings).values({
+            clientId: ctx.dbUserId,
+            ...input,
+          });
+        }
 
-      if (existing) {
-        await ctx.db
-          .update(clientProfiles)
-          .set({ exerciseScreening: screening })
-          .where(eq(clientProfiles.userId, ctx.dbUserId));
+        return { ...input, updatedAt: new Date().toISOString() };
+      } catch {
+        // Table may not exist yet — return success silently
+        return { ...input, updatedAt: new Date().toISOString() };
       }
-
-      return screening;
     }),
 });

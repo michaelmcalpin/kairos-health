@@ -24,6 +24,7 @@ import {
   mealLogs,
   healthGoals,
   adherenceLogs,
+  exerciseScreenings,
 } from "@/server/db/schema";
 import { eq, desc, and, gte } from "drizzle-orm";
 
@@ -495,18 +496,17 @@ export async function getClientContext(dbUserId: string) {
 
   // ── 16. Exercise Screening (injuries, conditions, preferences) ──
   try {
-    const screeningProfile = await db.query.clientProfiles.findFirst({
-      where: eq(clientProfiles.userId, dbUserId),
+    const screening = await db.query.exerciseScreenings.findFirst({
+      where: eq(exerciseScreenings.clientId, dbUserId),
     });
-    if (screeningProfile?.exerciseScreening) {
-      const s = screeningProfile.exerciseScreening;
+    if (screening?.rawAnswer) {
       sections.push(
-        `## EXERCISE SCREENING (Last updated: ${s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : "unknown"})\n` +
-        `Client-reported injuries, conditions, equipment, and preferences:\n${s.rawAnswer}`
+        `## EXERCISE SCREENING (Last updated: ${screening.updatedAt ? new Date(screening.updatedAt).toLocaleDateString() : "unknown"})\n` +
+        `Client-reported injuries, conditions, equipment, and preferences:\n${screening.rawAnswer}`
       );
     }
   } catch {
-    // Column may not exist yet if migration hasn't run — skip silently
+    // Table may not exist yet if migration hasn't run — skip silently
   }
 
   return sections.length > 0 ? sections.join("\n\n") : "No health data available yet.";

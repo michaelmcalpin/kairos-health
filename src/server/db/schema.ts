@@ -75,17 +75,20 @@ export const clientProfiles = pgTable("client_profiles", {
   onboardingCompleted: boolean("onboarding_completed").default(false),
   /** Per-client feature toggles (e.g. { cycleTracker: true }) — admin-editable */
   featureToggles: jsonb("feature_toggles").$type<Record<string, boolean>>().default({}),
-  /** Exercise screening — injuries, conditions, equipment, experience, preferences */
-  exerciseScreening: jsonb("exercise_screening").$type<{
-    injuries: string;
-    conditions: string;
-    equipment: string;
-    experience: string;
-    schedule: string;
-    rawAnswer: string;
-    updatedAt: string;
-  }>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Exercise screening — separate table to avoid breaking clientProfiles queries during migration
+export const exerciseScreenings = pgTable("exercise_screenings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id).unique(),
+  injuries: text("injuries"),
+  conditions: text("conditions"),
+  equipment: text("equipment"),
+  experience: text("experience"),
+  schedule: text("schedule"),
+  rawAnswer: text("raw_answer"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const trainerProfiles = pgTable("trainer_profiles", {
