@@ -493,5 +493,17 @@ export async function getClientContext(dbUserId: string) {
     sections.push(`## ACTIVE HEALTH GOALS\n${goalLines.join("\n")}`);
   }
 
+  // ── 16. Exercise Screening (injuries, conditions, preferences) ──
+  const screeningProfile = await db.query.clientProfiles.findFirst({
+    where: eq(clientProfiles.userId, dbUserId),
+  });
+  if (screeningProfile?.exerciseScreening) {
+    const s = screeningProfile.exerciseScreening;
+    sections.push(
+      `## EXERCISE SCREENING (Last updated: ${s.updatedAt ? new Date(s.updatedAt).toLocaleDateString() : "unknown"})\n` +
+      `Client-reported injuries, conditions, equipment, and preferences:\n${s.rawAnswer}`
+    );
+  }
+
   return sections.length > 0 ? sections.join("\n\n") : "No health data available yet.";
 }

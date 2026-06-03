@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { workoutLogs, clientWorkoutAssignments, workoutPrograms, workoutSessions } from "@/server/db/schema";
+import { workoutLogs, clientWorkoutAssignments, workoutPrograms, workoutSessions, clientProfiles } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
@@ -329,5 +329,40 @@ export const clientWorkoutsRouter = router({
       await ctx.db.delete(workoutPrograms).where(eq(workoutPrograms.id, input.programId));
 
       return { success: true };
+    }),
+
+  // Get saved exercise screening data
+  getScreening: clientProcedure.query(async ({ ctx }) => {
+    const profile = await ctx.db.query.clientProfiles.findFirst({
+      where: eq(clientProfiles.userId, ctx.dbUserId),
+    });
+    return profile?.exerciseScreening ?? null;
+  }),
+
+  // Save exercise screening data
+  saveScreening: clientProcedure
+    .input(z.object({
+      injuries: z.string(),
+      conditions: z.string(),
+      equipment: z.string(),
+      experience: z.string(),
+      schedule: z.string(),
+      rawAnswer: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.query.clientProfiles.findFirst({
+        where: eq(clientProfiles.userId, ctx.dbUserId),
+      });
+
+      const screening = { ...input, updatedAt: new Date().toISOString() };
+
+      if (existing) {
+        await ctx.db
+          .update(clientProfiles)
+          .set({ exerciseScreening: screening })
+          .where(eq(clientProfiles.userId, ctx.dbUserId));
+      }
+
+      return screening;
     }),
 });

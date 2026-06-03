@@ -179,6 +179,8 @@ function AIChatTab() {
   const [screeningAnswers, setScreeningAnswers] = useState<string>(""); // accumulated screening context
 
   const createProgramMutation = trpc.clientPortal.workouts.createProgram.useMutation();
+  const screeningQuery = trpc.clientPortal.workouts.getScreening.useQuery(undefined, { staleTime: 60_000 });
+  const saveScreeningMutation = trpc.clientPortal.workouts.saveScreening.useMutation();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -429,15 +431,33 @@ function AIChatTab() {
     const text = (messageText ?? input).trim();
     if (!text) return;
 
-    // If in screening mode, collect the answer and generate
+    // If in screening mode, collect the answer, save it, and generate
     if (exerciseScreening) {
       setInput("");
       const userMsg: ChatMessage = { id: `temp-${Date.now()}`, role: "client", body: text, createdAt: new Date().toISOString() };
       setChatMessages((prev) => [...prev, userMsg]);
 
-      // Combine original request + screening context
-      const fullContext = `${exercisePlanRequest}\n\nIMPORTANT CLIENT HEALTH SCREENING:\n${text}`;
-      setScreeningAnswers(text);
+      // Build the full screening context — merge with previous if "still the same"
+      const prevScreening = screeningQuery.data;
+      const isNoChange = /still the same|no change|nothing new|same as before|unchanged/i.test(text);
+      const effectiveAnswer = isNoChange && prevScreening?.rawAnswer
+        ? `Previous screening (still current): ${prevScreening.rawAnswer}`
+        : prevScreening?.rawAnswer
+          ? `Previous screening: ${prevScreening.rawAnswer}\nUpdate: ${text}`
+          : text;
+
+      // Save updated screening data to DB
+      saveScreeningMutation.mutate({
+        injuries: effectiveAnswer,
+        conditions: effectiveAnswer,
+        equipment: effectiveAnswer,
+        experience: effectiveAnswer,
+        schedule: effectiveAnswer,
+        rawAnswer: isNoChange && prevScreening?.rawAnswer ? prevScreening.rawAnswer : text,
+      });
+
+      const fullContext = `${exercisePlanRequest}\n\nIMPORTANT CLIENT HEALTH SCREENING:\n${effectiveAnswer}`;
+      setScreeningAnswers(effectiveAnswer);
       setExerciseScreening(false);
       await generateExercisePlan(fullContext);
       return;
@@ -458,10 +478,25 @@ function AIChatTab() {
       setExercisePlanRequest(text);
       setExerciseScreening(true);
       const userMsg: ChatMessage = { id: `temp-${Date.now()}`, role: "client", body: text, createdAt: new Date().toISOString() };
+
+      const savedScreening = screeningQuery.data;
+      let screenBody: string;
+
+      if (savedScreening?.rawAnswer) {
+        // Returning user — show what we remember and ask for updates
+        const lastDate = savedScreening.updatedAt
+          ? new Date(savedScreening.updatedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+          : "your last session";
+        screenBody = `Great — I'll build you a personalized exercise program using your complete health profile (body composition, genetics, labs, sleep, supplements, peptides, and medications).\n\n**From ${lastDate}, here's what I have on file:**\n\n> ${savedScreening.rawAnswer}\n\nBefore I design your updated program:\n\n**1.** Are these conditions/limitations still current, or has anything changed?\n**2.** Any new injuries, pain, or medical conditions?\n**3.** Any changes to your equipment access, schedule, or training goals?\n\nJust say **"still the same"** if nothing has changed, or tell me what's different.`;
+      } else {
+        // First-time user — full questionnaire
+        screenBody = `Great — I'll build you a personalized exercise program using your complete health profile (body composition, genetics, labs, sleep patterns, current supplements, peptides, and medications).\n\nBefore I design your program, I need to know a few things:\n\n**1. Injuries or pain** — Do you have any current injuries, joint pain, or areas of discomfort? (e.g., bad knee, lower back issues, shoulder impingement)\n\n**2. Medical conditions** — Any conditions your trainer should know about? (e.g., heart condition, high blood pressure, diabetes, osteoporosis)\n\n**3. Equipment access** — What equipment do you have access to? (full gym, home gym, bodyweight only)\n\n**4. Training experience** — How would you rate your training experience? (beginner, intermediate, advanced)\n\n**5. Schedule preference** — How many days per week can you train, and do you have time preferences? (e.g., "4-5 days, mornings")\n\nPlease share anything relevant — even "no issues, full gym, intermediate, 5 days" works!`;
+      }
+
       const screenMsg: ChatMessage = {
         id: `ai-screen-${Date.now()}`,
         role: "ai_coach",
-        body: `Great — I'll build you a personalized exercise program using your complete health profile (body composition, genetics, labs, sleep patterns, current supplements, peptides, and medications).\n\nBefore I design your program, I need to know a few things:\n\n**1. Injuries or pain** — Do you have any current injuries, joint pain, or areas of discomfort? (e.g., bad knee, lower back issues, shoulder impingement)\n\n**2. Medical conditions** — Any conditions your trainer should know about? (e.g., heart condition, high blood pressure, diabetes, osteoporosis)\n\n**3. Equipment access** — What equipment do you have access to? (full gym, home gym, bodyweight only)\n\n**4. Training experience** — How would you rate your training experience? (beginner, intermediate, advanced)\n\n**5. Schedule preference** — How many days per week can you train, and do you have time preferences? (e.g., "4-5 days, mornings")\n\nPlease share anything relevant — even "no issues, full gym, intermediate, 5 days" works!`,
+        body: screenBody,
         createdAt: new Date().toISOString(),
       };
       setChatMessages((prev) => [...prev, userMsg, screenMsg]);
