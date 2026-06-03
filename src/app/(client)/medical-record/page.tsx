@@ -392,22 +392,146 @@ export default function MedicalRecordPage() {
                     </div>
                   </button>
 
-                  {isExpanded && (
-                    <div className="mt-4 pt-4 border-t border-kairos-border">
-                      {doc.notes ? (
-                        <div>
-                          <p className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-1">Notes</p>
-                          <p className="text-sm font-body text-kairos-silver leading-relaxed">{doc.notes}</p>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-kairos-silver-dark text-center py-4">
-                          {doc.sourceFileName
-                            ? `Document uploaded: ${doc.sourceFileName}. Detailed extraction coming soon.`
-                            : "No additional details available for this record."}
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  {isExpanded && (() => {
+                    const pd = data as Record<string, unknown> | undefined;
+                    const vitals = pd?.vitalSigns as Record<string, unknown> | undefined;
+                    const diagnoses = pd?.diagnoses as string[] | undefined;
+                    const medications = pd?.medications as Array<{ name: string; dosage?: string; frequency?: string; notes?: string }> | undefined;
+                    const labResults = pd?.labResults as Array<{ name: string; value?: string; unit?: string; referenceRange?: string; status?: string }> | undefined;
+                    const findings = pd?.findings as string[] | undefined;
+                    const recommendations = pd?.recommendations as string[] | undefined;
+                    const patientInfo = pd?.patientInfo as Record<string, unknown> | undefined;
+                    const followUp = pd?.followUp as string | undefined;
+                    const documentType = pd?.documentType as string | undefined;
+                    const hasDetails = diagnoses?.length || medications?.length || labResults?.length || findings?.length || vitals || recommendations?.length;
+
+                    return (
+                      <div className="mt-4 pt-4 border-t border-kairos-border space-y-4">
+                        {/* Document type & patient info */}
+                        {(documentType || patientInfo) && (
+                          <div className="flex flex-wrap gap-3 text-xs">
+                            {documentType && <span className="px-2 py-1 rounded bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/20 capitalize">{documentType.replace(/_/g, " ")}</span>}
+                            {patientInfo?.age != null && <span className="text-kairos-silver-dark">Age: {String(patientInfo.age)}</span>}
+                            {patientInfo?.sex != null && <span className="text-kairos-silver-dark">Sex: {String(patientInfo.sex)}</span>}
+                            {patientInfo?.height != null && <span className="text-kairos-silver-dark">Height: {String(patientInfo.height)}</span>}
+                            {patientInfo?.weight != null && <span className="text-kairos-silver-dark">Weight: {String(patientInfo.weight)}</span>}
+                          </div>
+                        )}
+
+                        {/* Vital Signs */}
+                        {vitals && Object.values(vitals).some(v => v != null) && (
+                          <div>
+                            <h4 className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-2 flex items-center gap-1.5"><Heart size={12} /> Vital Signs</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                              {vitals.bloodPressure != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Blood Pressure</p><p className="text-sm font-bold text-white">{String(vitals.bloodPressure)}</p></div>}
+                              {vitals.heartRate != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Heart Rate</p><p className="text-sm font-bold text-white">{String(vitals.heartRate)} bpm</p></div>}
+                              {vitals.temperature != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Temperature</p><p className="text-sm font-bold text-white">{String(vitals.temperature)}</p></div>}
+                              {vitals.respiratoryRate != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Respiratory Rate</p><p className="text-sm font-bold text-white">{String(vitals.respiratoryRate)}</p></div>}
+                              {vitals.oxygenSaturation != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">O₂ Saturation</p><p className="text-sm font-bold text-white">{String(vitals.oxygenSaturation)}</p></div>}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Diagnoses */}
+                        {diagnoses && diagnoses.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-2 flex items-center gap-1.5"><Stethoscope size={12} /> Diagnoses</h4>
+                            <div className="space-y-1">{diagnoses.map((d, i) => <p key={i} className="text-sm text-white pl-3 border-l-2 border-kairos-gold/30">{d}</p>)}</div>
+                          </div>
+                        )}
+
+                        {/* Medications */}
+                        {medications && medications.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-2 flex items-center gap-1.5"><Pill size={12} /> Medications</h4>
+                            <div className="space-y-1.5">
+                              {medications.map((m, i) => (
+                                <div key={i} className="flex items-center justify-between py-1.5 border-b border-kairos-border/30 last:border-0">
+                                  <span className="text-sm font-semibold text-white">{m.name}</span>
+                                  <span className="text-xs text-kairos-silver-dark">{[m.dosage, m.frequency].filter(Boolean).join(" — ")}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Lab Results */}
+                        {labResults && labResults.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-2 flex items-center gap-1.5"><ClipboardList size={12} /> Lab Results</h4>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead><tr className="border-b border-kairos-border">
+                                  <th className="text-left py-1.5 px-2 text-[10px] text-kairos-silver-dark uppercase">Test</th>
+                                  <th className="text-right py-1.5 px-2 text-[10px] text-kairos-silver-dark uppercase">Value</th>
+                                  <th className="text-right py-1.5 px-2 text-[10px] text-kairos-silver-dark uppercase">Reference</th>
+                                  <th className="text-right py-1.5 px-2 text-[10px] text-kairos-silver-dark uppercase">Status</th>
+                                </tr></thead>
+                                <tbody>
+                                  {labResults.map((lr, i) => (
+                                    <tr key={i} className="border-b border-kairos-border/30">
+                                      <td className="py-1.5 px-2 text-white">{lr.name}</td>
+                                      <td className="py-1.5 px-2 text-right font-bold text-white">{lr.value} {lr.unit}</td>
+                                      <td className="py-1.5 px-2 text-right text-kairos-silver-dark">{lr.referenceRange ?? "—"}</td>
+                                      <td className="py-1.5 px-2 text-right">
+                                        {lr.status && <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-bold uppercase",
+                                          lr.status === "normal" || lr.status === "optimal" ? "bg-green-500/15 text-green-400 border-green-500/30" :
+                                          lr.status === "high" || lr.status === "critical" ? "bg-red-500/15 text-red-400 border-red-500/30" :
+                                          lr.status === "low" ? "bg-blue-500/15 text-blue-400 border-blue-500/30" :
+                                          "bg-yellow-500/15 text-yellow-400 border-yellow-500/30"
+                                        )}>{lr.status}</span>}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Key Findings */}
+                        {findings && findings.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-2 flex items-center gap-1.5"><AlertCircle size={12} /> Key Findings</h4>
+                            <div className="space-y-1">{findings.map((f, i) => <p key={i} className="text-sm text-kairos-silver pl-3 border-l-2 border-yellow-500/30">{f}</p>)}</div>
+                          </div>
+                        )}
+
+                        {/* Recommendations */}
+                        {recommendations && recommendations.length > 0 && (
+                          <div>
+                            <h4 className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-2 flex items-center gap-1.5"><ClipboardList size={12} /> Recommendations</h4>
+                            <div className="space-y-1">{recommendations.map((r, i) => <p key={i} className="text-sm text-kairos-silver pl-3 border-l-2 border-green-500/30">{r}</p>)}</div>
+                          </div>
+                        )}
+
+                        {/* Follow-up */}
+                        {followUp && (
+                          <div>
+                            <h4 className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-2">Follow-Up</h4>
+                            <p className="text-sm text-kairos-silver">{followUp}</p>
+                          </div>
+                        )}
+
+                        {/* Notes */}
+                        {doc.notes && (
+                          <div>
+                            <h4 className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-1">Notes</h4>
+                            <p className="text-sm font-body text-kairos-silver">{doc.notes}</p>
+                          </div>
+                        )}
+
+                        {/* Fallback for unprocessed docs */}
+                        {!hasDetails && !doc.notes && (
+                          <p className="text-sm text-kairos-silver-dark text-center py-4">
+                            {doc.sourceFileName
+                              ? `Document uploaded: ${doc.sourceFileName}. No detailed data was extracted.`
+                              : "No additional details available."}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}

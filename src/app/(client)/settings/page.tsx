@@ -88,8 +88,12 @@ export default function SettingsPage() {
   // Coach assignment query
   const coachQuery = trpc.clientPortal.settings.getMyCoach.useQuery();
 
-  // Document repository query
+  // Document repository query + delete mutation
   const docsQuery = trpc.clientPortal.clinicalDocs.listAll.useQuery();
+  const deleteDocMutation = trpc.clientPortal.clinicalDocs.delete.useMutation({
+    onSuccess: () => docsQuery.refetch(),
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // Hydrate form with user data from database on load
   useEffect(() => {
@@ -696,32 +700,52 @@ export default function SettingsPage() {
                   lab_result: "text-yellow-400 bg-yellow-400/10",
                   genetics: "text-pink-400 bg-pink-400/10",
                 };
+                const isDeleting = deleteConfirm === doc.id;
                 return (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border hover:border-kairos-gold/30 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <FileText className="w-5 h-5 text-kairos-gold shrink-0" />
-                      <div className="min-w-0">
-                        <p className="font-body text-kairos-silver-dark font-medium text-sm truncate">
-                          {doc.title || doc.sourceFileName || "Untitled Document"}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeColors[doc.docType] || "text-gray-400 bg-gray-400/10"}`}>
-                            {typeLabels[doc.docType] || doc.docType}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {doc.reportDate
-                              ? new Date(doc.reportDate).toLocaleDateString()
-                              : doc.createdAt
-                              ? new Date(doc.createdAt).toLocaleDateString()
-                              : ""}
-                          </span>
+                  <div key={doc.id} className="p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border hover:border-kairos-gold/30 transition-colors">
+                    {isDeleting ? (
+                      <div className="space-y-3">
+                        <p className="text-sm text-white font-heading font-semibold">Delete &quot;{doc.title || doc.sourceFileName}&quot;?</p>
+                        <p className="text-xs text-kairos-silver-dark">This will permanently remove this document and its parsed data from EVERIST.</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => { deleteDocMutation.mutate({ id: doc.id }); setDeleteConfirm(null); }}
+                            className="px-3 py-1.5 text-xs rounded bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors">
+                            Delete Document & Data
+                          </button>
+                          <button onClick={() => setDeleteConfirm(null)}
+                            className="px-3 py-1.5 text-xs rounded bg-kairos-card text-kairos-silver-dark border border-kairos-border hover:text-white transition-colors">
+                            Cancel
+                          </button>
                         </div>
                       </div>
-                    </div>
-                    <ExternalLink className="w-4 h-4 text-gray-500 shrink-0" />
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <FileText className="w-5 h-5 text-kairos-gold shrink-0" />
+                          <div className="min-w-0">
+                            <p className="font-body text-kairos-silver-dark font-medium text-sm truncate">
+                              {doc.title || doc.sourceFileName || "Untitled Document"}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeColors[doc.docType] || "text-gray-400 bg-gray-400/10"}`}>
+                                {typeLabels[doc.docType] || doc.docType}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {doc.reportDate
+                                  ? new Date(doc.reportDate).toLocaleDateString()
+                                  : doc.createdAt
+                                  ? new Date(doc.createdAt).toLocaleDateString()
+                                  : ""}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <button onClick={() => setDeleteConfirm(doc.id)}
+                          className="p-2 text-kairos-silver-dark hover:text-red-400 transition-colors shrink-0" title="Delete document">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

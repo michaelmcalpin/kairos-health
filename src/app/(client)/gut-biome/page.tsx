@@ -173,7 +173,46 @@ export default function GutBiomePage() {
 
   const hasData = docs && docs.length > 0;
   const latest = hasData ? docs[0] : null;
-  const latestData = latest?.parsedData as GutBiomeData | undefined;
+
+  // Normalize parsed data — handle case differences and nested structures from AI
+  const latestData = useMemo((): GutBiomeData | undefined => {
+    if (!latest?.parsedData) return undefined;
+    const raw = latest.parsedData as Record<string, unknown>;
+
+    // Normalize health scores — fix capitalization
+    let healthScores = (raw.healthScores as HealthScore[] | undefined);
+    if (healthScores) {
+      healthScores = healthScores.map((s) => ({
+        ...s,
+        status: s.status?.toLowerCase() as HealthScore["status"],
+        category: (s.category?.toLowerCase() ?? "pathway") as HealthScore["category"],
+      }));
+    }
+
+    // Normalize active microbes — fix capitalization
+    let activeMicrobes = (raw.activeMicrobes as ActiveMicrobe[] | undefined);
+    if (activeMicrobes) {
+      activeMicrobes = activeMicrobes.map((m) => ({
+        ...m,
+        type: m.type?.toLowerCase() as ActiveMicrobe["type"],
+      }));
+    }
+
+    return {
+      ...raw,
+      healthScores,
+      activeMicrobes,
+      testType: raw.testType as string | undefined,
+      diversityScore: raw.diversityScore as number | undefined,
+      diversityRating: raw.diversityRating as GutBiomeData["diversityRating"],
+      totalSpecies: raw.totalSpecies as number | undefined,
+      keyFindings: raw.keyFindings as GutBiomeData["keyFindings"],
+      dietaryRecommendations: raw.dietaryRecommendations as string[] | undefined,
+      supplementRecommendations: raw.supplementRecommendations as string[] | undefined,
+      foodsToAvoid: raw.foodsToAvoid as string[] | undefined,
+      foodsToEnjoy: raw.foodsToEnjoy as string[] | undefined,
+    };
+  }, [latest]);
 
   // Build diversity score trend from all gut biome reports
   const diversityTrend = useMemo(() => {
