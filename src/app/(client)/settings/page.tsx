@@ -18,6 +18,8 @@ import {
   Award,
   Star,
   Mail,
+  Activity,
+  X,
 } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
@@ -31,6 +33,7 @@ export default function SettingsPage() {
 
   // tRPC mutations
   const updateProfileMutation = trpc.clientPortal.settings.updateProfile.useMutation();
+  const updateClientProfileMutation = trpc.clientPortal.settings.updateClientProfile.useMutation();
   const updateNotificationsMutation = trpc.clientPortal.settings.updateNotificationPreferences.useMutation();
 
   const { theme, setTheme } = useTheme();
@@ -43,6 +46,16 @@ export default function SettingsPage() {
     email: "",
     phone: "+1 (555) 123-4567",
     timezone: "America/Los_Angeles",
+  });
+
+  // Health profile form state
+  const [profileForm, setProfileForm] = useState({
+    dateOfBirth: "",
+    gender: "",
+    heightFeet: "",
+    heightInches: "",
+    goals: [] as string[],
+    newGoal: "",
   });
 
   const [notifications, setNotifications] = useState({
@@ -108,6 +121,22 @@ export default function SettingsPage() {
       }));
     }
   }, [settingsData?.user]);
+
+  // Hydrate health profile from database on load
+  useEffect(() => {
+    if (settingsData?.clientProfile) {
+      const cp = settingsData.clientProfile;
+      const totalInches = cp.heightInches ?? 0;
+      setProfileForm({
+        dateOfBirth: cp.dateOfBirth ?? "",
+        gender: cp.gender ?? "",
+        heightFeet: totalInches > 0 ? String(Math.floor(totalInches / 12)) : "",
+        heightInches: totalInches > 0 ? String(Math.round(totalInches % 12)) : "",
+        goals: (cp.goals as string[]) ?? [],
+        newGoal: "",
+      });
+    }
+  }, [settingsData?.clientProfile]);
 
   // Hydrate notifications from database on load
   useEffect(() => {
@@ -195,6 +224,18 @@ export default function SettingsPage() {
         },
       });
 
+      // Update health profile
+      const feet = parseInt(profileForm.heightFeet) || 0;
+      const inches = parseInt(profileForm.heightInches) || 0;
+      const totalInches = feet * 12 + inches;
+      await updateClientProfileMutation.mutateAsync({
+        dateOfBirth: profileForm.dateOfBirth || undefined,
+        gender: profileForm.gender || undefined,
+        heightInches: totalInches > 0 ? totalInches : undefined,
+        goals: profileForm.goals.length > 0 ? profileForm.goals : undefined,
+      });
+
+      settingsQuery.refetch();
       setSaveMessage("Changes saved successfully");
       setTimeout(() => setSaveMessage(""), 3000);
     } catch (error) {
@@ -315,6 +356,76 @@ export default function SettingsPage() {
                 <option value="Europe/Paris">Central European Time (CET)</option>
                 <option value="Asia/Tokyo">Japan Standard Time (JST)</option>
               </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Health Profile Section */}
+        <div className="kairos-card rounded-kairos-sm p-8 mb-6 bg-kairos-card border border-kairos-border">
+          <div className="flex items-center gap-3 mb-6">
+            <Activity className="w-6 h-6 text-kairos-gold" />
+            <h2 className="font-heading text-2xl text-kairos-gold">Health Profile</h2>
+          </div>
+          <p className="text-sm text-kairos-silver-dark mb-4">This information is shared with the AI and your trainer to personalize recommendations.</p>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Date of Birth</label>
+                <input type="date" value={profileForm.dateOfBirth} onChange={(e) => setProfileForm({ ...profileForm, dateOfBirth: e.target.value })}
+                  className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold" />
+                {profileForm.dateOfBirth && (
+                  <p className="text-xs text-kairos-silver-dark mt-1">
+                    Age: {Math.floor((Date.now() - new Date(profileForm.dateOfBirth).getTime()) / (365.25 * 86400000))}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Gender</label>
+                <select value={profileForm.gender} onChange={(e) => setProfileForm({ ...profileForm, gender: e.target.value })}
+                  className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold">
+                  <option value="">Select...</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="non-binary">Non-binary</option>
+                  <option value="prefer-not-to-say">Prefer not to say</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Height</label>
+              <div className="flex gap-3">
+                <div className="flex items-center gap-2">
+                  <input type="number" min="3" max="8" value={profileForm.heightFeet} onChange={(e) => setProfileForm({ ...profileForm, heightFeet: e.target.value })}
+                    placeholder="5" className="w-20 px-3 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold text-center" />
+                  <span className="text-kairos-silver-dark text-sm">ft</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="number" min="0" max="11" value={profileForm.heightInches} onChange={(e) => setProfileForm({ ...profileForm, heightInches: e.target.value })}
+                    placeholder="10" className="w-20 px-3 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold text-center" />
+                  <span className="text-kairos-silver-dark text-sm">in</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Health Goals</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {profileForm.goals.map((goal, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-kairos-gold/15 text-kairos-gold text-sm border border-kairos-gold/30">
+                    {goal}
+                    <button onClick={() => setProfileForm({ ...profileForm, goals: profileForm.goals.filter((_, j) => j !== i) })} className="hover:text-red-400">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input type="text" value={profileForm.newGoal} onChange={(e) => setProfileForm({ ...profileForm, newGoal: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === "Enter" && profileForm.newGoal.trim()) { setProfileForm({ ...profileForm, goals: [...profileForm.goals, profileForm.newGoal.trim()], newGoal: "" }); } }}
+                  placeholder="e.g., Lose body fat, Build muscle, Improve sleep..."
+                  className="flex-1 px-4 py-2 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold text-sm" />
+                <button onClick={() => { if (profileForm.newGoal.trim()) { setProfileForm({ ...profileForm, goals: [...profileForm.goals, profileForm.newGoal.trim()], newGoal: "" }); } }}
+                  className="px-3 py-2 bg-kairos-gold/20 text-kairos-gold rounded-kairos-sm text-sm hover:bg-kairos-gold/30 transition-colors">Add</button>
+              </div>
             </div>
           </div>
         </div>

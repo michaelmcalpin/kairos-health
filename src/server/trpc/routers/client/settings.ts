@@ -42,12 +42,17 @@ export const clientSettingsRouter = router({
       where: eq(users.id, ctx.dbUserId),
     });
 
+    const profile = await ctx.db.query.clientProfiles.findFirst({
+      where: eq(clientProfiles.userId, ctx.dbUserId),
+    });
+
     const prefs = await ctx.db.query.notificationPreferences.findFirst({
       where: eq(notificationPreferences.userId, ctx.dbUserId),
     });
 
     return {
       user,
+      clientProfile: profile ?? null,
       notificationPreferences: prefs,
     };
   }),
@@ -76,6 +81,44 @@ export const clientSettingsRouter = router({
         .returning();
 
       return updated;
+    }),
+
+  /**
+   * Update client health profile (DOB, gender, height, weight, goals, occupation)
+   */
+  updateClientProfile: clientProcedure
+    .input(
+      z.object({
+        dateOfBirth: z.string().optional(),
+        gender: z.string().optional(),
+        heightInches: z.number().optional(),
+        goals: z.array(z.string()).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.query.clientProfiles.findFirst({
+        where: eq(clientProfiles.userId, ctx.dbUserId),
+      });
+
+      const updates: Record<string, unknown> = {};
+      if (input.dateOfBirth !== undefined) updates.dateOfBirth = input.dateOfBirth;
+      if (input.gender !== undefined) updates.gender = input.gender;
+      if (input.heightInches !== undefined) updates.heightInches = input.heightInches;
+      if (input.goals !== undefined) updates.goals = input.goals;
+
+      if (existing) {
+        await ctx.db
+          .update(clientProfiles)
+          .set(updates)
+          .where(eq(clientProfiles.userId, ctx.dbUserId));
+      } else {
+        await ctx.db.insert(clientProfiles).values({
+          userId: ctx.dbUserId,
+          ...updates,
+        });
+      }
+
+      return { success: true };
     }),
 
   /**

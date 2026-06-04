@@ -389,24 +389,26 @@ function AIChatTab() {
     setExercisePlanSaving(true);
     try {
       await createProgramMutation.mutateAsync({
-        name: exercisePlan.programName,
-        description: exercisePlan.description,
-        durationWeeks: exercisePlan.durationWeeks,
+        name: exercisePlan.programName || "AI Exercise Program",
+        description: exercisePlan.description || "",
+        durationWeeks: Number(exercisePlan.durationWeeks) || 8,
         isAiGenerated: true,
         schedule: { daysPerWeek: exercisePlan.daysPerWeek, focusAreas: exercisePlan.focusAreas },
-        sessions: exercisePlan.sessions.map((s) => ({
-          dayNumber: s.dayNumber,
-          name: `${s.dayLabel}: ${s.name}`,
-          exercises: s.exercises.map((e) => ({
-            exerciseId: e.name.toLowerCase().replace(/\s+/g, "_"),
-            name: e.name,
-            sets: e.sets,
-            reps: e.reps,
-            tempo: e.tempo,
-            restSeconds: e.restSeconds,
-            notes: e.notes,
+        sessions: exercisePlan.sessions
+          .filter((s) => s.type !== "rest") // Skip pure rest days
+          .map((s) => ({
+            dayNumber: Number(s.dayNumber),
+            name: `${s.dayLabel ?? `Day ${s.dayNumber}`}: ${s.name}`,
+            exercises: (s.exercises ?? []).map((e) => ({
+              exerciseId: (e.name || "exercise").toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+              name: e.name || "Exercise",
+              sets: Number(e.sets) || 3,
+              reps: String(e.reps || "8-12"),
+              tempo: e.tempo ?? "controlled",
+              restSeconds: Number(e.restSeconds) || 60,
+              notes: e.notes ?? undefined,
+            })),
           })),
-        })),
       });
       setExercisePlanSaved(true);
       setChatMessages((prev) => [
