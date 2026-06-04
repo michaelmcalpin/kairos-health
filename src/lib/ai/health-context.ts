@@ -364,35 +364,102 @@ export async function getClientContext(dbUserId: string) {
 
   if (dexaDocs.length > 0) {
     const latest = dexaDocs[0];
-    const parsed = latest.parsedData as Record<string, unknown> | null;
+    const dp = latest.parsedData as Record<string, unknown> | null;
     let dexaInfo = `**Latest DEXA Scan** (${latest.reportDate ?? "unknown date"})`;
-    if (parsed) {
-      dexaInfo += `\n${JSON.stringify(parsed, null, 0).slice(0, 1500)}`;
+    if (dp) {
+      const dParts: string[] = [];
+      if (dp.totalBodyFatPct != null) dParts.push(`Body Fat: ${dp.totalBodyFatPct}%`);
+      if (dp.totalMassLbs != null) dParts.push(`Total Mass: ${dp.totalMassLbs} lbs`);
+      if (dp.leanMassLbs != null) dParts.push(`Lean Mass: ${dp.leanMassLbs} lbs`);
+      if (dp.fatMassLbs != null) dParts.push(`Fat Mass: ${dp.fatMassLbs} lbs`);
+      if (dp.boneMineralContent != null) dParts.push(`BMC: ${dp.boneMineralContent} lbs`);
+      if (dp.visceralFatLbs != null) dParts.push(`Visceral Fat: ${dp.visceralFatLbs} lbs`);
+      if (dp.androidFatPct != null) dParts.push(`Android Fat: ${dp.androidFatPct}%`);
+      if (dp.gynoidFatPct != null) dParts.push(`Gynoid Fat: ${dp.gynoidFatPct}%`);
+      if (dp.agRatio != null) dParts.push(`A/G Ratio: ${dp.agRatio}`);
+      dexaInfo += `\n${dParts.join(" | ")}`;
+    }
+    // Show comparison if 2+ scans
+    if (dexaDocs.length >= 2) {
+      const prev = dexaDocs[1].parsedData as Record<string, unknown> | null;
+      if (prev?.totalBodyFatPct != null && dp?.totalBodyFatPct != null) {
+        dexaInfo += `\nPrevious scan (${dexaDocs[1].reportDate ?? "?"}): Body Fat ${prev.totalBodyFatPct}% | Lean ${prev.leanMassLbs ?? "?"} lbs`;
+      }
     }
     sections.push(`## DEXA SCAN\n${dexaInfo}`);
   }
 
   if (gutDocs.length > 0) {
     const latest = gutDocs[0];
-    const parsed = latest.parsedData as Record<string, unknown> | null;
+    const gp = latest.parsedData as Record<string, unknown> | null;
     let gutInfo = `**Latest Gut Biome Report** (${latest.reportDate ?? "unknown date"})`;
-    if (parsed) {
-      gutInfo += `\n${JSON.stringify(parsed, null, 0).slice(0, 1500)}`;
+    if (gp) {
+      const healthScores = gp.healthScores as Array<{ name: string; status: string }> | undefined;
+      if (healthScores?.length) {
+        const attention = healthScores.filter(s => s.status?.toLowerCase() === "attention");
+        const improve = healthScores.filter(s => s.status?.toLowerCase() === "improve");
+        const maintain = healthScores.filter(s => s.status?.toLowerCase() === "maintain");
+        gutInfo += `\nScores: ${maintain.length} Maintain, ${improve.length} Improve, ${attention.length} Attention`;
+        if (attention.length > 0) gutInfo += `\nAttention areas: ${attention.map(s => s.name).join(", ")}`;
+        if (improve.length > 0) gutInfo += `\nImprove areas: ${improve.map(s => s.name).join(", ")}`;
+      }
+      if (gp.diversityScore != null) gutInfo += `\nDiversity Score: ${gp.diversityScore}/100 (${gp.diversityRating ?? "?"})`;
+      const microbes = gp.activeMicrobes as Array<{ name: string; type: string }> | undefined;
+      if (microbes?.length) gutInfo += `\nActive microbes: ${microbes.length} detected`;
     }
     sections.push(`## GUT BIOME\n${gutInfo}`);
   }
 
   if (medDocs.length > 0) {
     const medLines = medDocs.slice(0, 5).map((d) => {
-      const parsed = d.parsedData as Record<string, unknown> | null;
-      let line = `${d.title ?? "Medical Record"} (${d.reportDate ?? "unknown"})`;
+      const pd = d.parsedData as Record<string, unknown> | null;
+      let line = `### ${d.title ?? "Medical Record"} (${d.reportDate ?? "unknown"})`;
       if (d.providerName) line += ` — ${d.providerName}`;
-      if (parsed) {
-        line += `\n  ${JSON.stringify(parsed, null, 0).slice(0, 800)}`;
+
+      if (pd) {
+        const docType = pd.documentType as string | undefined;
+        if (docType) line += `\nType: ${docType}`;
+
+        // Vitals
+        const vitals = pd.vitalSigns as Record<string, unknown> | undefined;
+        if (vitals) {
+          const vParts: string[] = [];
+          if (vitals.bloodPressure) vParts.push(`BP: ${vitals.bloodPressure}`);
+          if (vitals.heartRate) vParts.push(`HR: ${vitals.heartRate} bpm`);
+          if (vitals.temperature) vParts.push(`Temp: ${vitals.temperature}`);
+          if (vitals.oxygenSaturation) vParts.push(`O2: ${vitals.oxygenSaturation}`);
+          if (vParts.length > 0) line += `\nVitals: ${vParts.join(" | ")}`;
+        }
+
+        // Diagnoses
+        const diagnoses = pd.diagnoses as string[] | undefined;
+        if (diagnoses?.length) line += `\nDiagnoses: ${diagnoses.join(", ")}`;
+
+        // Medications
+        const meds = pd.medications as Array<{ name: string; dosage?: string; frequency?: string }> | undefined;
+        if (meds?.length) line += `\nMedications: ${meds.map(m => `${m.name}${m.dosage ? ` ${m.dosage}` : ""}${m.frequency ? ` (${m.frequency})` : ""}`).join(", ")}`;
+
+        // Lab results
+        const labs = pd.labResults as Array<{ name: string; value?: string; status?: string }> | undefined;
+        if (labs?.length) {
+          const flagged = labs.filter(l => l.status && l.status !== "normal" && l.status !== "optimal");
+          if (flagged.length > 0) line += `\nFlagged labs: ${flagged.map(l => `${l.name}: ${l.value} (${l.status})`).join(", ")}`;
+          line += `\nAll labs: ${labs.map(l => `${l.name}: ${l.value}`).join(", ")}`;
+        }
+
+        // Findings & recommendations
+        const findings = pd.findings as string[] | undefined;
+        if (findings?.length) line += `\nFindings: ${findings.join("; ")}`;
+        const recs = pd.recommendations as string[] | undefined;
+        if (recs?.length) line += `\nRecommendations: ${recs.join("; ")}`;
+
+        // Follow-up
+        const followUp = pd.followUp as string | undefined;
+        if (followUp) line += `\nFollow-up: ${followUp}`;
       }
       return line;
     });
-    sections.push(`## MEDICAL RECORDS\n${medLines.join("\n")}`);
+    sections.push(`## MEDICAL RECORDS\n${medLines.join("\n\n")}`);
   }
 
   // ── 10. Active Protocol ─────────────────────────────────
