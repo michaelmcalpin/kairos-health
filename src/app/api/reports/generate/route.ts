@@ -6,6 +6,8 @@ import { users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { getClientContext } from "@/lib/ai/health-context";
 
+export const maxDuration = 120;
+
 // ---------------------------------------------------------------------------
 // Report type definitions
 // ---------------------------------------------------------------------------
@@ -254,8 +256,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Gather all health data
-    const healthContext = await getClientContext(dbUser.id);
+    // Gather all health data — truncate if too long to avoid token limits
+    let healthContext = await getClientContext(dbUser.id);
+    if (healthContext.length > 50000) {
+      healthContext = healthContext.slice(0, 50000) + "\n\n[... health context truncated for report generation ...]";
+    }
     const reportConfig = REPORT_PROMPTS[reportType];
 
     const anthropic = new Anthropic({ apiKey });
@@ -304,9 +309,31 @@ ${healthContext}`,
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("[Everist Report Generation Error]", err);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[Everist Report Generation Error]", errMsg, err);
+
+    // Check for specific Anthropic API errors
+    if (errMsg.includes("model")) {
+      return new Response(
+        JSON.stringify({ error: `AI model error: ${errMsg.slice(0, 200)}` }),
+        { status: 500 }
+      );
+    }
+    if (errMsg.includes("token") || errMsg.includes("context")) {
+      return new Response(
+        JSON.stringify({ error: "Health profile too large for report generation. Try with fewer uploaded documents." }),
+        { status: 500 }
+      );
+    }
+    if (errMsg.includes("timeout") || errMsg.includes("TIMEOUT")) {
+      return new Response(
+        JSON.stringify({ error: "Report generation timed out. Please try again." }),
+        { status: 500 }
+      );
+    }
+
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: `Report generation failed: ${errMsg.slice(0, 200)}` }),
       { status: 500 }
     );
   }
