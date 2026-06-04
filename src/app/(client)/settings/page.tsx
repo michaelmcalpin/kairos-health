@@ -58,6 +58,21 @@ export default function SettingsPage() {
     newGoal: "",
   });
 
+  // Health history form state
+  const screeningQuery = trpc.clientPortal.workouts.getScreening.useQuery(undefined, { staleTime: 60_000 });
+  const saveScreeningMutation = trpc.clientPortal.workouts.saveScreening.useMutation({ onSuccess: () => screeningQuery.refetch() });
+  const [historyForm, setHistoryForm] = useState({
+    currentWeight: "",
+    targetWeight: "",
+    medications: "",
+    medicalConditions: [] as string[],
+    exerciseFrequency: "",
+    exerciseTypes: [] as string[],
+    dietType: "",
+    healthConcerns: "",
+    injuries: "",
+  });
+
   const [notifications, setNotifications] = useState({
     emailAlerts: true,
     pushNotifications: true,
@@ -137,6 +152,33 @@ export default function SettingsPage() {
       });
     }
   }, [settingsData?.clientProfile]);
+
+  // Hydrate health history from exercise screening data
+  useEffect(() => {
+    if (screeningQuery.data?.rawAnswer) {
+      const raw = screeningQuery.data.rawAnswer;
+      // Parse structured fields from rawAnswer
+      const condMatch = raw.match(/Medical conditions: ([^.]+)/);
+      const injMatch = raw.match(/Injuries\/limitations: ([^.]+)/);
+      const freqMatch = raw.match(/Exercise frequency: ([^.]+)/);
+      const typesMatch = raw.match(/Exercise types: ([^.]+)/);
+      const dietMatch = raw.match(/Diet: ([^.]+)/);
+      const medsMatch = raw.match(/Medications\/supplements: ([^.]+)/);
+      const concernsMatch = raw.match(/Health concerns: ([^.]+)/);
+
+      setHistoryForm({
+        currentWeight: "",
+        targetWeight: "",
+        medications: medsMatch?.[1] ?? "",
+        medicalConditions: condMatch?.[1]?.split(", ").filter(Boolean) ?? [],
+        exerciseFrequency: freqMatch?.[1] ?? "",
+        exerciseTypes: typesMatch?.[1]?.split(", ").filter(Boolean) ?? [],
+        dietType: dietMatch?.[1] ?? "",
+        healthConcerns: concernsMatch?.[1] ?? "",
+        injuries: injMatch?.[1] ?? screeningQuery.data.injuries ?? "",
+      });
+    }
+  }, [screeningQuery.data]);
 
   // Hydrate notifications from database on load
   useEffect(() => {
@@ -223,6 +265,27 @@ export default function SettingsPage() {
           },
         },
       });
+
+      // Update health history / exercise screening
+      const rawAnswer = [
+        historyForm.medicalConditions.length ? `Medical conditions: ${historyForm.medicalConditions.join(", ")}` : "",
+        historyForm.injuries ? `Injuries/limitations: ${historyForm.injuries}` : "",
+        historyForm.exerciseFrequency ? `Exercise frequency: ${historyForm.exerciseFrequency}` : "",
+        historyForm.exerciseTypes.length ? `Exercise types: ${historyForm.exerciseTypes.join(", ")}` : "",
+        historyForm.dietType ? `Diet: ${historyForm.dietType}` : "",
+        historyForm.medications ? `Medications/supplements: ${historyForm.medications}` : "",
+        historyForm.healthConcerns ? `Health concerns: ${historyForm.healthConcerns}` : "",
+      ].filter(Boolean).join(". ");
+      if (rawAnswer) {
+        await saveScreeningMutation.mutateAsync({
+          injuries: historyForm.injuries,
+          conditions: historyForm.medicalConditions.join(", "),
+          equipment: "",
+          experience: historyForm.exerciseFrequency,
+          schedule: historyForm.exerciseTypes.join(", "),
+          rawAnswer,
+        });
+      }
 
       // Update health profile
       const feet = parseInt(profileForm.heightFeet) || 0;
@@ -426,6 +489,123 @@ export default function SettingsPage() {
                 <button onClick={() => { if (profileForm.newGoal.trim()) { setProfileForm({ ...profileForm, goals: [...profileForm.goals, profileForm.newGoal.trim()], newGoal: "" }); } }}
                   className="px-3 py-2 bg-kairos-gold/20 text-kairos-gold rounded-kairos-sm text-sm hover:bg-kairos-gold/30 transition-colors">Add</button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Health History Section */}
+        <div className="kairos-card rounded-kairos-sm p-8 mb-6 bg-kairos-card border border-kairos-border">
+          <div className="flex items-center gap-3 mb-6">
+            <Heart className="w-6 h-6 text-kairos-gold" />
+            <h2 className="font-heading text-2xl text-kairos-gold">Health History</h2>
+          </div>
+          <p className="text-sm text-kairos-silver-dark mb-4">Medical conditions, exercise habits, diet, and limitations — shared with AI for personalized recommendations.</p>
+          <div className="space-y-5">
+            {/* Weight */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Current Weight (lbs)</label>
+                <input type="number" value={historyForm.currentWeight} onChange={(e) => setHistoryForm({ ...historyForm, currentWeight: e.target.value })}
+                  placeholder="185" className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold" />
+              </div>
+              <div>
+                <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Target Weight (lbs)</label>
+                <input type="number" value={historyForm.targetWeight} onChange={(e) => setHistoryForm({ ...historyForm, targetWeight: e.target.value })}
+                  placeholder="175" className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold" />
+              </div>
+            </div>
+
+            {/* Medications */}
+            <div>
+              <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Current Medications, Supplements & Peptides</label>
+              <textarea value={historyForm.medications} onChange={(e) => setHistoryForm({ ...historyForm, medications: e.target.value })}
+                placeholder="List any medications, supplements, or peptides..."
+                rows={3} className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold resize-none" />
+            </div>
+
+            {/* Medical Conditions */}
+            <div>
+              <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Medical Conditions (select all that apply)</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {["Anxiety", "Depression", "Diabetes", "Pre-diabetes", "Heart condition", "High blood pressure",
+                  "High cholesterol", "Thyroid disorder", "Asthma", "Arthritis", "Autoimmune condition",
+                  "Digestive issues", "Sleep apnea", "Back pain", "Joint pain", "Obesity", "None"].map((c) => (
+                  <button key={c} onClick={() => {
+                    if (c === "None") { setHistoryForm({ ...historyForm, medicalConditions: ["None"] }); }
+                    else {
+                      const has = historyForm.medicalConditions.includes(c);
+                      setHistoryForm({ ...historyForm, medicalConditions: has
+                        ? historyForm.medicalConditions.filter((x) => x !== c)
+                        : [...historyForm.medicalConditions.filter((x) => x !== "None"), c] });
+                    }
+                  }} className={`text-left px-3 py-2 rounded-kairos-sm text-xs font-body transition-all border ${
+                    historyForm.medicalConditions.includes(c)
+                      ? "bg-kairos-gold/20 text-kairos-gold border-kairos-gold/50"
+                      : "bg-kairos-card border-kairos-border text-kairos-silver-dark hover:border-kairos-gold/30"
+                  }`}>{c}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Exercise */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Exercise Frequency</label>
+                <select value={historyForm.exerciseFrequency} onChange={(e) => setHistoryForm({ ...historyForm, exerciseFrequency: e.target.value })}
+                  className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold">
+                  <option value="">Select...</option>
+                  <option value="never">Rarely / Never</option>
+                  <option value="1-2">1-2 days/week</option>
+                  <option value="3-4">3-4 days/week</option>
+                  <option value="5-6">5-6 days/week</option>
+                  <option value="daily">Daily</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Dietary Approach</label>
+                <select value={historyForm.dietType} onChange={(e) => setHistoryForm({ ...historyForm, dietType: e.target.value })}
+                  className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold">
+                  <option value="">Select...</option>
+                  {["No specific diet", "Low carb", "Keto", "Paleo", "Mediterranean", "Vegetarian", "Vegan", "Gluten free", "Intermittent fasting", "Clean eating"].map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Exercise Types */}
+            <div>
+              <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Exercise Types</label>
+              <div className="flex flex-wrap gap-2">
+                {["Walking", "Running", "Weight lifting", "Swimming", "Yoga", "Cycling/Spin", "HIIT", "Pilates", "Sports", "Martial arts"].map((t) => (
+                  <button key={t} onClick={() => {
+                    const has = historyForm.exerciseTypes.includes(t);
+                    setHistoryForm({ ...historyForm, exerciseTypes: has
+                      ? historyForm.exerciseTypes.filter((x) => x !== t)
+                      : [...historyForm.exerciseTypes, t] });
+                  }} className={`px-3 py-1.5 rounded-kairos-sm text-xs font-body transition-all border ${
+                    historyForm.exerciseTypes.includes(t)
+                      ? "bg-kairos-gold/20 text-kairos-gold border-kairos-gold/50"
+                      : "bg-kairos-card border-kairos-border text-kairos-silver-dark hover:border-kairos-gold/30"
+                  }`}>{t}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Health Concerns */}
+            <div>
+              <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Top Health Concerns</label>
+              <textarea value={historyForm.healthConcerns} onChange={(e) => setHistoryForm({ ...historyForm, healthConcerns: e.target.value })}
+                placeholder="e.g., aging, energy levels, gut health, body fat, longevity..."
+                rows={2} className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold resize-none" />
+            </div>
+
+            {/* Injuries */}
+            <div>
+              <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Injuries or Physical Limitations</label>
+              <textarea value={historyForm.injuries} onChange={(e) => setHistoryForm({ ...historyForm, injuries: e.target.value })}
+                placeholder="e.g., bad knee, lower back issues, shoulder impingement..."
+                rows={2} className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold resize-none" />
             </div>
           </div>
         </div>
