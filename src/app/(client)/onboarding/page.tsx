@@ -19,6 +19,7 @@ export default function OnboardingPage() {
   // ── Mutations for persisting each step ───────────────────────
   const saveProfile = trpc.clientPortal.onboarding.saveProfile.useMutation();
   const saveGoals = trpc.clientPortal.onboarding.saveGoals.useMutation();
+  const saveHealthHistory = trpc.clientPortal.onboarding.saveHealthHistory.useMutation();
   const saveTier = trpc.clientPortal.onboarding.saveTier.useMutation();
   const completeOnboarding = trpc.clientPortal.onboarding.complete.useMutation();
   const updateStep = trpc.clientPortal.onboarding.updateStep.useMutation();
@@ -45,6 +46,20 @@ export default function OnboardingPage() {
 
     if (lastCompleted === "health_goals" && state.selectedGoals.length > 0) {
       saveGoals.mutate({ goals: state.selectedGoals });
+    }
+
+    if (lastCompleted === "health_history") {
+      saveHealthHistory.mutate({
+        currentWeight: state.healthHistory.currentWeight,
+        targetWeight: state.healthHistory.targetWeight,
+        medicalConditions: state.healthHistory.medicalConditions,
+        medications: state.healthHistory.medications,
+        exerciseFrequency: state.healthHistory.exerciseFrequency,
+        exerciseTypes: state.healthHistory.exerciseTypes,
+        dietType: state.healthHistory.dietType,
+        healthConcerns: state.healthHistory.healthConcerns,
+        injuries: state.healthHistory.injuries,
+      });
     }
 
     if (lastCompleted === "tier_selection" && state.tierChoice) {

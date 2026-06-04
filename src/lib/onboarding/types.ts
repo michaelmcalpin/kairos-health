@@ -5,6 +5,7 @@ export type OnboardingStepId =
   | "welcome"
   | "profile"
   | "health_goals"
+  | "health_history"
   | "devices"
   | "tier_selection"
   | "complete";
@@ -44,8 +45,16 @@ export const ONBOARDING_STEPS: OnboardingStepMeta[] = [
     optional: false,
   },
   {
-    id: "devices",
+    id: "health_history",
     index: 3,
+    title: "Health History",
+    subtitle: "Help us understand your body and lifestyle",
+    icon: "H",
+    optional: false,
+  },
+  {
+    id: "devices",
+    index: 4,
     title: "Connect Devices",
     subtitle: "Link your wearables and health devices",
     icon: "D",
@@ -53,7 +62,7 @@ export const ONBOARDING_STEPS: OnboardingStepMeta[] = [
   },
   {
     id: "tier_selection",
-    index: 4,
+    index: 5,
     title: "Choose Your Plan",
     subtitle: "Select the service tier that fits your needs",
     icon: "T",
@@ -61,7 +70,7 @@ export const ONBOARDING_STEPS: OnboardingStepMeta[] = [
   },
   {
     id: "complete",
-    index: 5,
+    index: 6,
     title: "You're All Set!",
     subtitle: "Welcome to the Everist.ai community",
     icon: "✓",
@@ -151,6 +160,36 @@ export const AVAILABLE_HEALTH_GOALS: HealthGoal[] = [
   },
 ];
 
+export interface HealthHistoryData {
+  currentWeight: string;
+  targetWeight: string;
+  medicalConditions: string[];
+  medications: string;
+  exerciseFrequency: string;
+  exerciseTypes: string[];
+  dietType: string;
+  healthConcerns: string;
+  injuries: string;
+}
+
+export const MEDICAL_CONDITIONS = [
+  "Anxiety", "Depression", "Diabetes", "Pre-diabetes", "Heart condition",
+  "High blood pressure", "High cholesterol", "Thyroid disorder", "Asthma",
+  "Arthritis", "Autoimmune condition", "Cancer (history)", "Chronic fatigue",
+  "Digestive issues (IBS/GERD)", "Sleep apnea", "Back pain", "Joint pain",
+  "Obesity", "Food allergies", "None of the above",
+];
+
+export const EXERCISE_TYPES = [
+  "Walking", "Running", "Weight lifting", "Swimming", "Yoga",
+  "Cycling/Spin", "HIIT", "Pilates", "Sports", "Martial arts", "None",
+];
+
+export const DIET_TYPES = [
+  "No specific diet", "Low carb", "Keto", "Paleo", "Mediterranean",
+  "Vegetarian", "Vegan", "Gluten free", "Intermittent fasting", "Clean eating",
+];
+
 export interface DeviceSelection {
   providerId: string;
   providerName: string;
@@ -223,6 +262,7 @@ export interface OnboardingState {
   completedSteps: OnboardingStepId[];
   profile: Partial<ProfileFormData>;
   selectedGoals: string[];
+  healthHistory: Partial<HealthHistoryData>;
   devices: DeviceSelection[];
   tierChoice: TierChoice | null;
   startedAt: string;
@@ -236,6 +276,7 @@ export function createInitialOnboardingState(): OnboardingState {
     completedSteps: [],
     profile: {},
     selectedGoals: [],
+    healthHistory: {},
     devices: [],
     tierChoice: null,
     startedAt: now,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { OnboardingState, ProfileFormData, TierChoice, DeviceSelection } from "@/lib/onboarding/types";
+import type { OnboardingState, ProfileFormData, TierChoice, DeviceSelection, HealthHistoryData } from "@/lib/onboarding/types";
 import { createInitialOnboardingState } from "@/lib/onboarding/types";
 import {
   advanceStep,
@@ -17,6 +17,7 @@ import { OnboardingProgress } from "./OnboardingProgress";
 import { WelcomeStep } from "./WelcomeStep";
 import { ProfileStep } from "./ProfileStep";
 import { HealthGoalsStep } from "./HealthGoalsStep";
+import { HealthHistoryStep } from "./HealthHistoryStep";
 import { DevicesStep } from "./DevicesStep";
 import { TierSelectionStep } from "./TierSelectionStep";
 import { CompleteStep } from "./CompleteStep";
@@ -63,6 +64,10 @@ export function OnboardingWizard({
     updateState(toggleGoal(state, goalId));
   }
 
+  function handleHealthHistoryChange(data: Partial<HealthHistoryData>) {
+    updateState({ ...state, healthHistory: data, lastUpdatedAt: new Date().toISOString() });
+  }
+
   function handleDevicesUpdate(devices: DeviceSelection[]) {
     updateState(updateDevices(state, devices));
   }
@@ -96,7 +101,7 @@ export function OnboardingWizard({
         </div>
         {state.currentStep !== "welcome" && state.currentStep !== "complete" && (
           <span className="text-gray-600 text-sm">
-            Step {(state.completedSteps.length || 0) + 1} of 6
+            Step {(state.completedSteps.length || 0) + 1} of 7
           </span>
         )}
       </div>
@@ -130,6 +135,15 @@ export function OnboardingWizard({
               selectedGoals={state.selectedGoals}
               onToggle={handleGoalToggle}
               onContinue={handleAdvance}
+              onBack={handleBack}
+            />
+          )}
+
+          {state.currentStep === "health_history" && (
+            <HealthHistoryStep
+              data={state.healthHistory}
+              onChange={handleHealthHistoryChange}
+              onNext={handleAdvance}
               onBack={handleBack}
             />
           )}

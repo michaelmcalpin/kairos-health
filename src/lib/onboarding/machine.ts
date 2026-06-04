@@ -77,6 +77,9 @@ export function validateStep(step: OnboardingStepId, state: OnboardingState): Va
       return validateProfile(state.profile);
     case "health_goals":
       return validateGoals(state.selectedGoals);
+    case "health_history":
+      // Health history is always valid — all fields are optional
+      return { valid: true, errors: [] };
     case "devices":
       // Devices step is optional, always valid
       return { valid: true, errors: [] };

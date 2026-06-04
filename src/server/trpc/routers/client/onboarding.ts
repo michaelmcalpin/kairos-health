@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { clientProfiles, users } from "@/server/db/schema";
+import { clientProfiles, users, exerciseScreenings } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
 export const clientOnboardingRouter = router({
@@ -87,7 +87,66 @@ export const clientOnboardingRouter = router({
       return { success: true };
     }),
 
-  // Save tier selection (step 4)
+  // Save health history (step 4)
+  saveHealthHistory: clientProcedure
+    .input(z.object({
+      currentWeight: z.string().optional(),
+      targetWeight: z.string().optional(),
+      medicalConditions: z.array(z.string()).optional(),
+      medications: z.string().optional(),
+      exerciseFrequency: z.string().optional(),
+      exerciseTypes: z.array(z.string()).optional(),
+      dietType: z.string().optional(),
+      healthConcerns: z.string().optional(),
+      injuries: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Save exercise screening data (injuries, conditions, exercise habits)
+      try {
+        const existing = await ctx.db.query.exerciseScreenings.findFirst({
+          where: eq(exerciseScreenings.clientId, ctx.dbUserId),
+        });
+
+        const rawAnswer = [
+          input.medicalConditions?.length ? `Medical conditions: ${input.medicalConditions.join(", ")}` : "",
+          input.injuries ? `Injuries/limitations: ${input.injuries}` : "",
+          input.exerciseFrequency ? `Exercise frequency: ${input.exerciseFrequency} days/week` : "",
+          input.exerciseTypes?.length ? `Exercise types: ${input.exerciseTypes.join(", ")}` : "",
+          input.dietType ? `Diet: ${input.dietType}` : "",
+          input.medications ? `Medications/supplements: ${input.medications}` : "",
+          input.healthConcerns ? `Health concerns: ${input.healthConcerns}` : "",
+        ].filter(Boolean).join(". ");
+
+        if (existing) {
+          await ctx.db.update(exerciseScreenings).set({
+            injuries: input.injuries ?? "",
+            conditions: input.medicalConditions?.join(", ") ?? "",
+            equipment: "",
+            experience: input.exerciseFrequency ?? "",
+            schedule: input.exerciseTypes?.join(", ") ?? "",
+            rawAnswer,
+            updatedAt: new Date(),
+          }).where(eq(exerciseScreenings.clientId, ctx.dbUserId));
+        } else {
+          await ctx.db.insert(exerciseScreenings).values({
+            clientId: ctx.dbUserId,
+            injuries: input.injuries ?? "",
+            conditions: input.medicalConditions?.join(", ") ?? "",
+            equipment: "",
+            experience: input.exerciseFrequency ?? "",
+            schedule: input.exerciseTypes?.join(", ") ?? "",
+            rawAnswer,
+          });
+        }
+      } catch {
+        // Table may not exist yet — skip silently
+      }
+
+      await ctx.db.update(clientProfiles).set({ onboardingStep: 4 }).where(eq(clientProfiles.userId, ctx.dbUserId));
+      return { success: true };
+    }),
+
+  // Save tier selection (step 5)
   saveTier: clientProcedure
     .input(
       z.object({
@@ -99,7 +158,7 @@ export const clientOnboardingRouter = router({
         .update(clientProfiles)
         .set({
           tier: input.tier,
-          onboardingStep: 5,
+          onboardingStep: 6,
         })
         .where(eq(clientProfiles.userId, ctx.dbUserId));
 
@@ -112,7 +171,7 @@ export const clientOnboardingRouter = router({
       .update(clientProfiles)
       .set({
         onboardingCompleted: true,
-        onboardingStep: 6,
+        onboardingStep: 7,
       })
       .where(eq(clientProfiles.userId, ctx.dbUserId));
 
