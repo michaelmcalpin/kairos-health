@@ -25,6 +25,15 @@ import {
   healthGoals,
   adherenceLogs,
   exerciseScreenings,
+  workoutLogs,
+  workoutPrograms,
+  clientWorkoutAssignments,
+  workoutSessions,
+  mealPlans,
+  activitySummaries,
+  peptideCycles,
+  peptideLogs,
+  appointments,
 } from "@/server/db/schema";
 import { eq, desc, and, gte } from "drizzle-orm";
 
@@ -133,6 +142,35 @@ export async function getClientContext(dbUserId: string) {
     db.query.healthGoals.findMany({
       where: and(eq(healthGoals.clientId, dbUserId), eq(healthGoals.status, "active")),
       limit: 10,
+    }),
+  ]);
+
+  // ── Batch 2b: Additional data sources ──────────────────
+  const [recentWorkouts, activeMealPlan, recentActivity, activePeptides, upcomingAppts, activeWorkoutAssignment] = await Promise.all([
+    db.query.workoutLogs.findMany({
+      where: and(eq(workoutLogs.clientId, dbUserId), gte(workoutLogs.date, sevenDaysStr)),
+      orderBy: desc(workoutLogs.date),
+      limit: 10,
+    }),
+    db.query.mealPlans.findFirst({
+      where: and(eq(mealPlans.clientId, dbUserId), eq(mealPlans.status, "active")),
+      orderBy: desc(mealPlans.createdAt),
+    }),
+    db.query.activitySummaries.findMany({
+      where: and(eq(activitySummaries.clientId, dbUserId), gte(activitySummaries.date, sevenDaysStr)),
+      orderBy: desc(activitySummaries.date),
+      limit: 7,
+    }),
+    db.query.peptideCycles.findMany({
+      where: and(eq(peptideCycles.clientId, dbUserId), eq(peptideCycles.status, "active")),
+    }).catch(() => [] as typeof peptideCycles.$inferSelect[]),
+    db.query.appointments.findMany({
+      where: and(eq(appointments.clientId, dbUserId), gte(appointments.date, new Date().toISOString().split("T")[0])),
+      orderBy: appointments.date,
+      limit: 5,
+    }),
+    db.query.clientWorkoutAssignments.findFirst({
+      where: and(eq(clientWorkoutAssignments.clientId, dbUserId), eq(clientWorkoutAssignments.status, "active")),
     }),
   ]);
 
@@ -574,6 +612,83 @@ export async function getClientContext(dbUserId: string) {
     }
   } catch {
     // Table may not exist yet if migration hasn't run — skip silently
+  }
+
+  // ── 17. Recent Workouts ─────────────────────────────────
+  if (recentWorkouts.length > 0) {
+    const workoutLines = recentWorkouts.map((w) => {
+      let meta: { type?: string; durationMinutes?: number } | null = null;
+      try { if (w.notes) meta = JSON.parse(w.notes); } catch { /* not JSON */ }
+      const exercises = (w.exercisesCompleted ?? []) as Array<{ exerciseId: string; sets: unknown[] }>;
+      const isQuickLog = exercises.length === 1 && String(exercises[0]?.exerciseId).startsWith("quick_log:");
+      if (isQuickLog && meta) {
+        return `  ${w.date}: ${meta.type ?? "workout"} — ${meta.durationMinutes ?? "?"}min`;
+      }
+      return `  ${w.date}: ${exercises.length} exercises, ${exercises.reduce((s, e) => s + (Array.isArray(e.sets) ? e.sets.length : 0), 0)} total sets`;
+    });
+    sections.push(`## RECENT WORKOUTS (Last 7 Days)\n${workoutLines.join("\n")}`);
+  }
+
+  // ── 18. Active Workout Program ─────────────────────────
+  if (activeWorkoutAssignment) {
+    try {
+      const program = await db.query.workoutPrograms.findFirst({ where: eq(workoutPrograms.id, activeWorkoutAssignment.programId) });
+      if (program) {
+        const sessions = await db.query.workoutSessions.findMany({ where: eq(workoutSessions.programId, program.id), orderBy: workoutSessions.dayNumber });
+        const sessionLines = sessions.map((s) => {
+          const exs = (s.exercises ?? []) as Array<{ exerciseId: string; sets: number; reps: string }>;
+          return `  ${s.name}: ${exs.map(e => `${e.exerciseId.replace(/_/g, " ")} ${e.sets}x${e.reps}`).join(", ")}`;
+        });
+        let progInfo = `**${program.name}**${program.isAiGenerated ? " (AI-generated)" : ""}`;
+        if (program.durationWeeks) progInfo += ` | ${program.durationWeeks} weeks`;
+        progInfo += `\nStarted: ${activeWorkoutAssignment.startDate}`;
+        sections.push(`## ACTIVE WORKOUT PROGRAM\n${progInfo}\n${sessionLines.join("\n")}`);
+      }
+    } catch { /* skip if tables don't exist */ }
+  }
+
+  // ── 19. Active Meal Plan ───────────────────────────────
+  if (activeMealPlan) {
+    const meals = activeMealPlan.meals as { meals?: Array<{ name: string; category: string; calories: number; proteinG: number }> } | null;
+    const targets = activeMealPlan.macroTargets;
+    let planInfo = `**${activeMealPlan.name}**`;
+    if (targets) planInfo += `\nDaily targets: ${targets.calories} cal, ${targets.protein}g protein, ${targets.carbs}g carbs, ${targets.fat}g fat`;
+    if (meals?.meals) {
+      const categories = ["breakfast", "lunch", "dinner", "snack"];
+      for (const cat of categories) {
+        const catMeals = meals.meals.filter(m => m.category === cat);
+        if (catMeals.length > 0) planInfo += `\n${cat}: ${catMeals.map(m => `${m.name} (${m.calories}cal/${m.proteinG}g P)`).join(", ")}`;
+      }
+    }
+    sections.push(`## ACTIVE MEAL PLAN\n${planInfo}`);
+  }
+
+  // ── 20. Activity Summaries ─────────────────────────────
+  if (recentActivity.length > 0) {
+    const actLines = recentActivity.map((a) => {
+      const parts = [`${a.date}:`];
+      if (a.steps) parts.push(`${a.steps} steps`);
+      if (a.exerciseMinutes) parts.push(`${a.exerciseMinutes}min exercise`);
+      if (a.caloriesActive) parts.push(`${a.caloriesActive} active cal`);
+      return `  ${parts.join(" | ")}`;
+    });
+    sections.push(`## DAILY ACTIVITY (Last 7 Days)\n${actLines.join("\n")}`);
+  }
+
+  // ── 21. Active Peptide Cycles ──────────────────────────
+  if (activePeptides.length > 0) {
+    const peptideLines = activePeptides.map((p) => {
+      return `  ${p.peptideName}: ${p.dosage ?? "?"} ${p.frequency ?? ""} — started ${p.startDate}${p.endDate ? `, ends ${p.endDate}` : ""}`;
+    });
+    sections.push(`## ACTIVE PEPTIDE CYCLES\n${peptideLines.join("\n")}`);
+  }
+
+  // ── 22. Upcoming Appointments ──────────────────────────
+  if (upcomingAppts.length > 0) {
+    const apptLines = upcomingAppts.map((a) => {
+      return `  ${a.date} ${a.startTime ?? ""}: ${a.sessionType?.replace(/_/g, " ") ?? "session"} (${a.meetingType ?? "video"})${a.coachName ? ` with ${a.coachName}` : ""}`;
+    });
+    sections.push(`## UPCOMING APPOINTMENTS\n${apptLines.join("\n")}`);
   }
 
   return sections.length > 0 ? sections.join("\n\n") : "No health data available yet.";
