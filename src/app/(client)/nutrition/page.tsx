@@ -1,1545 +1,676 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
-  Apple,
-  Droplets,
-  Flame,
-  Target,
-  TrendingUp,
-  CheckCircle,
   UtensilsCrossed,
   Plus,
   X,
-  Camera,
-  ScanBarcode,
-  Search,
-  ChevronDown,
-  ChevronUp,
+  Loader2,
+  Target,
   Coffee,
   Sun,
   Moon,
   Cookie,
-  Loader2,
-  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Trash2,
+  Clock,
+  ShoppingCart,
   Check,
-  Keyboard,
+  BookOpen,
+  RotateCcw,
+  Tag,
 } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
-import { useNutrition } from "@/hooks/client/useNutrition";
 import { trpc } from "@/lib/trpc";
 
 // ─── Types ─────────────────────────────────────────────────────
-interface FoodItem {
+type PageTab = "log" | "library" | "shopping";
+type MealCategory = "breakfast" | "lunch" | "dinner" | "snack";
+
+interface PlanMeal {
   id: string;
   name: string;
-  quantity: number;
-  unit: string;
+  category: MealCategory;
+  prepTimeMinutes: number;
   calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  ingredients: { name: string; amount: string; category: string }[];
+  instructions: string;
+  tags: string[];
+  rationale: string;
 }
 
-interface MealFormState {
-  mealType: "breakfast" | "lunch" | "dinner" | "snack";
-  photo: File | null;
-  foodItems: FoodItem[];
-  notes: string;
+interface MealLibrary {
+  libraryName: string;
+  description: string;
+  dailyTargets: { calories: number; proteinG: number; carbsG: number; fatG: number; fiberG: number };
+  meals: PlanMeal[];
 }
 
-interface ScannedProduct {
-  name: string;
-  brand: string;
-  servingSize: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber: number;
-  barcode: string;
-}
+const MEAL_TYPE_META: Record<MealCategory, { label: string; icon: typeof Coffee }> = {
+  breakfast: { label: "Breakfast", icon: Coffee },
+  lunch: { label: "Lunch", icon: Sun },
+  dinner: { label: "Dinner", icon: Moon },
+  snack: { label: "Snacks", icon: Cookie },
+};
 
-interface MealSlotData {
-  type: "breakfast" | "lunch" | "dinner";
-  label: string;
-  icon: typeof Coffee;
-  items: string[];
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  logged: boolean;
-}
+const INGREDIENT_CATEGORIES = ["Produce", "Protein", "Dairy", "Pantry", "Frozen", "Other"] as const;
 
-interface SnackEntry {
-  id: string;
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-}
-
-type AddMealTab = "manual" | "scan" | "search";
-
-// ─── Default data ──────────────────────────────────────────────
-const DEFAULT_MEAL_SLOTS: MealSlotData[] = [
-  {
-    type: "breakfast",
-    label: "Breakfast",
-    icon: Coffee,
-    items: ["Greek yogurt with berries", "Bulletproof coffee", "Walnuts"],
-    calories: 420,
-    protein: 32,
-    carbs: 18,
-    fat: 24,
-    logged: true,
-  },
-  {
-    type: "lunch",
-    label: "Lunch",
-    icon: Sun,
-    items: ["Grilled chicken salad with olive oil", "Avocado", "Mixed nuts"],
-    calories: 580,
-    protein: 48,
-    carbs: 22,
-    fat: 32,
-    logged: true,
-  },
-  {
-    type: "dinner",
-    label: "Dinner",
-    icon: Moon,
-    items: ["Grass-fed beef steak", "Mixed green salad with olive oil", "Asparagus"],
-    calories: 520,
-    protein: 52,
-    carbs: 16,
-    fat: 28,
-    logged: true,
-  },
-];
-
-const DEFAULT_SNACKS: SnackEntry[] = [
-  { id: "s1", name: "Macadamia nuts", calories: 100, protein: 8, carbs: 3, fat: 6 },
-  { id: "s2", name: "Grass-fed beef jerky", calories: 60, protein: 8, carbs: 3, fat: 3 },
-];
-
-// ─── Barcode Scanner Component ─────────────────────────────────
-function BarcodeScanner({
-  onProductFound,
-  onError,
-}: {
-  onProductFound: (product: ScannedProduct) => void;
-  onError: (msg: string) => void;
-}) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const scanningRef = useRef(false);
-  const [scanning, setScanning] = useState(false);
-  const [manualBarcode, setManualBarcode] = useState("");
-  const [lookingUp, setLookingUp] = useState(false);
-  const [hasBarcodeDetector, setHasBarcodeDetector] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setHasBarcodeDetector("BarcodeDetector" in window);
-  }, []);
-
-  const lookupBarcode = useCallback(
-    async (barcode: string): Promise<ScannedProduct | null> => {
-      setLookingUp(true);
-      try {
-        const res = await fetch(
-          `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
-        );
-        const data = await res.json();
-        if (data.status === 1) {
-          const p = data.product;
-          return {
-            name: p.product_name || "Unknown Product",
-            brand: p.brands || "",
-            servingSize: p.serving_size || "100g",
-            calories: Math.round(p.nutriments?.["energy-kcal_100g"] || 0),
-            protein: Math.round(p.nutriments?.proteins_100g || 0),
-            carbs: Math.round(p.nutriments?.carbohydrates_100g || 0),
-            fat: Math.round(p.nutriments?.fat_100g || 0),
-            fiber: Math.round(p.nutriments?.fiber_100g || 0),
-            barcode,
-          };
-        }
-        return null;
-      } catch {
-        return null;
-      } finally {
-        setLookingUp(false);
-      }
-    },
-    []
+// ─── Circular Progress Ring ───────────────────────────────────
+function MacroRing({ pct, label, value }: { pct: number; label: string; value: string }) {
+  const c = 2 * Math.PI * 45;
+  const offset = c - (Math.min(pct, 100) / 100) * c;
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-24 h-24 mb-1.5">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="6" className="text-kairos-royal-surface" />
+          <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="6"
+            strokeDasharray={c} strokeDashoffset={offset}
+            className="text-kairos-gold transition-all duration-500" strokeLinecap="round" />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-base font-bold text-kairos-gold">{Math.round(pct)}%</span>
+          <span className="text-[10px] text-kairos-silver-dark">{value}</span>
+        </div>
+      </div>
+      <p className="text-xs font-body text-kairos-silver-dark">{label}</p>
+    </div>
   );
+}
 
-  const stopScanning = useCallback(() => {
-    scanningRef.current = false;
-    setScanning(false);
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  }, []);
+// ─── Log Meal Modal ──────────────────────────────────────────
+function LogMealModal({
+  planMeals,
+  onClose,
+  onSave,
+  isSaving,
+}: {
+  planMeals: PlanMeal[];
+  onClose: () => void;
+  onSave: (data: { mealType: MealCategory; items: { foodId: string; name: string; quantity: number; unit: string; calories: number; protein: number; carbs: number; fat: number }[] }) => void;
+  isSaving: boolean;
+}) {
+  const [mealType, setMealType] = useState<MealCategory>("breakfast");
+  const [mode, setMode] = useState<"manual" | "plan">("manual");
+  const [name, setName] = useState("");
+  const [calories, setCalories] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
 
-  const startScanning = useCallback(async () => {
-    setCameraError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      scanningRef.current = true;
-      setScanning(true);
+  const filteredPlanMeals = planMeals.filter((m) => m.category === mealType);
 
-      if ("BarcodeDetector" in window) {
-        const detector = new (window as any).BarcodeDetector({
-          formats: ["ean_13", "ean_8", "upc_a", "upc_e"],
-        });
-        const detectLoop = async () => {
-          if (!videoRef.current || !scanningRef.current) return;
-          try {
-            const barcodes = await detector.detect(videoRef.current);
-            if (barcodes.length > 0) {
-              const product = await lookupBarcode(barcodes[0].rawValue);
-              if (product) {
-                onProductFound(product);
-              } else {
-                onError(
-                  `Product not found for barcode: ${barcodes[0].rawValue}`
-                );
-              }
-              stopScanning();
-              return;
-            }
-          } catch {
-            // detection frame error, continue
-          }
-          if (scanningRef.current) {
-            requestAnimationFrame(detectLoop);
-          }
-        };
-        detectLoop();
-      }
-    } catch (err: any) {
-      setCameraError(
-        err?.name === "NotAllowedError"
-          ? "Camera access denied. Please allow camera permissions."
-          : "Unable to access camera. Use manual barcode entry below."
-      );
-    }
-  }, [lookupBarcode, onProductFound, onError, stopScanning]);
+  const handlePickPlan = (m: PlanMeal) => {
+    onSave({
+      mealType,
+      items: [{ foodId: m.id, name: m.name, quantity: 1, unit: "serving", calories: m.calories, protein: m.proteinG, carbs: m.carbsG, fat: m.fatG }],
+    });
+  };
 
-  useEffect(() => {
-    return () => {
-      scanningRef.current = false;
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-      }
-    };
-  }, []);
-
-  const handleManualLookup = async () => {
-    if (!manualBarcode.trim()) return;
-    const product = await lookupBarcode(manualBarcode.trim());
-    if (product) {
-      onProductFound(product);
-    } else {
-      onError(`Product not found for barcode: ${manualBarcode.trim()}`);
-    }
+  const handleManualSave = () => {
+    if (!name.trim()) return;
+    onSave({
+      mealType,
+      items: [{ foodId: crypto.randomUUID(), name: name.trim(), quantity: 1, unit: "serving", calories: Number(calories) || 0, protein: Number(protein) || 0, carbs: Number(carbs) || 0, fat: Number(fat) || 0 }],
+    });
   };
 
   return (
-    <div className="space-y-4">
-      {/* Camera Scanner */}
-      <div className="relative">
-        {scanning ? (
-          <div className="relative rounded-kairos-sm overflow-hidden bg-black">
-            <video
-              ref={videoRef}
-              className="w-full h-56 object-cover"
-              playsInline
-              muted
-            />
-            {/* Scanning overlay */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-48 h-32 border-2 border-kairos-gold rounded-lg relative">
-                <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-kairos-gold" />
-                <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-kairos-gold" />
-                <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-kairos-gold" />
-                <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-kairos-gold" />
-                {/* Animated scan line */}
-                <div className="absolute left-1 right-1 h-0.5 bg-kairos-gold/80 animate-pulse top-1/2" />
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-kairos-royal-surface border border-kairos-border rounded-kairos-sm max-w-lg w-full max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-kairos-border sticky top-0 bg-kairos-royal-surface z-10">
+          <h3 className="font-heading font-bold text-lg text-white">Log Meal</h3>
+          <button onClick={onClose} className="text-kairos-silver-dark hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Meal type */}
+          <div>
+            <label className="block text-xs font-heading font-semibold text-kairos-silver-dark mb-1.5">Meal Type</label>
+            <select value={mealType} onChange={(e) => setMealType(e.target.value as MealCategory)}
+              className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none">
+              <option value="breakfast">Breakfast</option>
+              <option value="lunch">Lunch</option>
+              <option value="dinner">Dinner</option>
+              <option value="snack">Snack</option>
+            </select>
+          </div>
+
+          {/* Mode toggle */}
+          {planMeals.length > 0 && (
+            <div className="flex gap-1 bg-kairos-card rounded-kairos-sm p-1">
+              <button onClick={() => setMode("manual")}
+                className={`flex-1 px-3 py-1.5 text-xs font-heading font-semibold rounded-kairos-sm transition-colors ${mode === "manual" ? "bg-kairos-gold text-kairos-royal-dark" : "text-kairos-silver-dark hover:text-white"}`}>
+                Manual Entry
+              </button>
+              <button onClick={() => setMode("plan")}
+                className={`flex-1 px-3 py-1.5 text-xs font-heading font-semibold rounded-kairos-sm transition-colors ${mode === "plan" ? "bg-kairos-gold text-kairos-royal-dark" : "text-kairos-silver-dark hover:text-white"}`}>
+                Pick from Plan
+              </button>
+            </div>
+          )}
+
+          {mode === "manual" ? (
+            <>
+              <div>
+                <label className="block text-xs font-heading font-semibold text-kairos-silver-dark mb-1.5">Food Name</label>
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Grilled chicken salad"
+                  className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none" />
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { l: "Calories", v: calories, s: setCalories },
+                  { l: "Protein (g)", v: protein, s: setProtein },
+                  { l: "Carbs (g)", v: carbs, s: setCarbs },
+                  { l: "Fat (g)", v: fat, s: setFat },
+                ].map((f) => (
+                  <div key={f.l}>
+                    <label className="block text-xs font-heading font-semibold text-kairos-silver-dark mb-1.5">{f.l}</label>
+                    <input type="number" value={f.v} onChange={(e) => f.s(e.target.value)} placeholder="0"
+                      className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none" />
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {filteredPlanMeals.length === 0 ? (
+                <p className="text-sm text-kairos-silver-dark text-center py-6 italic">No {MEAL_TYPE_META[mealType].label.toLowerCase()} meals in your plan</p>
+              ) : filteredPlanMeals.map((m) => (
+                <button key={m.id} onClick={() => handlePickPlan(m)} disabled={isSaving}
+                  className="w-full text-left border border-kairos-border rounded-kairos-sm p-3 hover:border-kairos-gold/60 transition-colors disabled:opacity-50">
+                  <p className="text-sm font-heading font-semibold text-white">{m.name}</p>
+                  <p className="text-xs text-kairos-silver-dark mt-0.5">{m.calories} kcal &middot; P:{m.proteinG}g C:{m.carbsG}g F:{m.fatG}g</p>
+                </button>
+              ))}
             </div>
-            {/* Scanning indicator */}
-            <div className="absolute bottom-3 left-0 right-0 flex justify-center">
-              <span className="bg-black/70 text-kairos-gold text-xs font-heading px-3 py-1 rounded-full flex items-center gap-2">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Scanning for barcode...
-              </span>
-            </div>
-            <button
-              onClick={stopScanning}
-              className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1.5 hover:bg-black/90 transition-colors"
-            >
-              <X className="w-4 h-4" />
+          )}
+        </div>
+
+        {mode === "manual" && (
+          <div className="flex gap-3 p-5 border-t border-kairos-border">
+            <button onClick={onClose} disabled={isSaving} className="flex-1 kairos-btn-outline disabled:opacity-50">Cancel</button>
+            <button onClick={handleManualSave} disabled={isSaving || !name.trim()} className="flex-1 kairos-btn-gold disabled:opacity-50">
+              {isSaving ? "Saving..." : "Save Meal"}
             </button>
           </div>
-        ) : (
-          <button
-            onClick={startScanning}
-            disabled={lookingUp}
-            className="w-full border-2 border-dashed border-kairos-border rounded-kairos-sm p-8 text-center hover:border-kairos-gold transition-colors cursor-pointer disabled:opacity-50"
-          >
-            <Camera className="w-10 h-10 text-kairos-gold mx-auto mb-3" />
-            <p className="text-sm text-white font-heading font-semibold mb-1">
-              Open Camera Scanner
-            </p>
-            <p className="text-xs text-kairos-silver-dark font-body">
-              {hasBarcodeDetector
-                ? "Point your camera at a barcode to scan"
-                : "Camera preview available (manual entry recommended for this browser)"}
-            </p>
-          </button>
         )}
-
-        {cameraError && (
-          <div className="mt-2 flex items-center gap-2 text-xs text-amber-400 font-body">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{cameraError}</span>
-          </div>
-        )}
-      </div>
-
-      {!hasBarcodeDetector && !scanning && (
-        <div className="flex items-center gap-2 text-xs text-amber-400/80 font-body bg-amber-400/10 rounded-kairos-sm px-3 py-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>
-            BarcodeDetector API is not supported in this browser. Use manual
-            entry below, or try Chrome/Edge.
-          </span>
-        </div>
-      )}
-
-      {/* Manual barcode entry */}
-      <div>
-        <label className="block text-xs font-heading font-semibold text-kairos-silver-dark mb-1.5 flex items-center gap-1.5">
-          <Keyboard className="w-3.5 h-3.5" />
-          Manual Barcode Entry
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            placeholder="Enter barcode number (e.g. 3017620422003)"
-            value={manualBarcode}
-            onChange={(e) => setManualBarcode(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleManualLookup();
-            }}
-            className="flex-1 bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-          />
-          <button
-            onClick={handleManualLookup}
-            disabled={lookingUp || !manualBarcode.trim()}
-            className="kairos-btn-gold px-4 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {lookingUp ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Search className="w-4 h-4" />
-            )}
-            Look Up
-          </button>
-        </div>
-      </div>
-
-      {lookingUp && (
-        <div className="flex items-center justify-center gap-2 py-4 text-kairos-silver-dark text-sm font-body">
-          <Loader2 className="w-5 h-5 animate-spin text-kairos-gold" />
-          Looking up product in Open Food Facts...
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Scanned Product Confirmation Card ─────────────────────────
-function ScannedProductCard({
-  product,
-  onConfirm,
-  onCancel,
-}: {
-  product: ScannedProduct;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="border border-kairos-gold/40 rounded-kairos-sm bg-kairos-gold/5 p-4 space-y-3">
-      <div className="flex items-start justify-between">
-        <div>
-          <h4 className="font-heading font-bold text-white text-sm">
-            {product.name}
-          </h4>
-          {product.brand && (
-            <p className="text-xs text-kairos-silver-dark font-body">
-              {product.brand}
-            </p>
-          )}
-          <p className="text-xs text-kairos-silver-dark font-body mt-0.5">
-            Serving: {product.servingSize} | Barcode: {product.barcode}
-          </p>
-        </div>
-        <ScanBarcode className="w-5 h-5 text-kairos-gold shrink-0" />
-      </div>
-
-      <div className="grid grid-cols-4 gap-2 text-xs">
-        <div className="bg-kairos-royal-surface rounded px-2 py-1.5 text-center">
-          <p className="text-kairos-silver-dark">Cal</p>
-          <p className="text-kairos-gold font-bold">{product.calories}</p>
-        </div>
-        <div className="bg-kairos-royal-surface rounded px-2 py-1.5 text-center">
-          <p className="text-kairos-silver-dark">Protein</p>
-          <p className="text-kairos-gold font-bold">{product.protein}g</p>
-        </div>
-        <div className="bg-kairos-royal-surface rounded px-2 py-1.5 text-center">
-          <p className="text-kairos-silver-dark">Carbs</p>
-          <p className="text-kairos-gold font-bold">{product.carbs}g</p>
-        </div>
-        <div className="bg-kairos-royal-surface rounded px-2 py-1.5 text-center">
-          <p className="text-kairos-silver-dark">Fat</p>
-          <p className="text-kairos-gold font-bold">{product.fat}g</p>
-        </div>
-      </div>
-
-      <div className="flex gap-2">
-        <button
-          onClick={onCancel}
-          className="flex-1 kairos-btn-outline text-xs"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={onConfirm}
-          className="flex-1 kairos-btn-gold text-xs flex items-center justify-center gap-1.5"
-        >
-          <Check className="w-3.5 h-3.5" />
-          Add to Meal
-        </button>
       </div>
     </div>
   );
 }
 
-// ─── Main Page Component ───────────────────────────────────────
+// ─── Main Page ───────────────────────────────────────────────
 export default function NutritionPage() {
-  const {
-    period,
-    setPeriod,
-    dateRange,
-    formattedRange,
-    isCurrent,
-    canForward,
-    goBack,
-    goForward,
-    goToToday,
-  } = useDateRange({ initialPeriod: "day" });
+  const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } = useDateRange({ initialPeriod: "day" });
+  const utils = trpc.useUtils();
 
-  const [waterGlasses, setWaterGlasses] = useState(6);
-  const waterTarget = 8;
+  // ─── Page tab state ────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<PageTab>("log");
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [expandedMealId, setExpandedMealId] = useState<string | null>(null);
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
 
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<AddMealTab>("manual");
-  const [scannedProduct, setScannedProduct] = useState<ScannedProduct | null>(
-    null
-  );
-  const [scanError, setScanError] = useState<string | null>(null);
+  // ─── Date range for tRPC ───────────────────────────────────
+  const range = useMemo(() => ({
+    startDate: dateRange.startDate.toISOString().split("T")[0],
+    endDate: dateRange.endDate.toISOString().split("T")[0],
+  }), [dateRange]);
 
-  const [formState, setFormState] = useState<MealFormState>({
-    mealType: "breakfast",
-    photo: null,
-    foodItems: [
-      {
-        id: "1",
-        name: "",
-        quantity: 1,
-        unit: "g",
-        calories: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-      },
-    ],
-    notes: "",
-  });
+  // ─── tRPC Queries ──────────────────────────────────────────
+  const mealsQuery = trpc.clientPortal.nutrition.listMeals.useQuery(range);
+  const summaryQuery = trpc.clientPortal.nutrition.dailySummary.useQuery(range);
+  const planQuery = trpc.clientPortal.nutrition.getActivePlan.useQuery();
 
-  // Meal slot expansion state
-  const [expandedSlots, setExpandedSlots] = useState<Set<string>>(new Set());
-
-  // Snacks state
-  const [snacks, setSnacks] = useState<SnackEntry[]>(DEFAULT_SNACKS);
-
-  const { records: nutritionData, stats: nutritionStats } =
-    useNutrition(dateRange);
-  const stats = nutritionStats;
-
-  const macros = {
-    calories: {
-      target: 2000,
-      actual: stats.calories,
-      unit: "kcal",
-      label: "Calories",
-    },
-    protein: {
-      target: 150,
-      actual: stats.protein,
-      unit: "g",
-      label: "Protein",
-    },
-    carbs: { target: 100, actual: stats.carbs, unit: "g", label: "Carbs" },
-    fat: { target: 120, actual: stats.fat, unit: "g", label: "Fat" },
-  };
-
-  const mealSlots = DEFAULT_MEAL_SLOTS;
-
-  const calculatePercentage = (actual: number, target: number) =>
-    Math.min((actual / target) * 100, 100);
-
-  // tRPC mutation for saving meals
-  const saveMealMutation = trpc.clientPortal.meals.add.useMutation({
+  // ─── tRPC Mutations ────────────────────────────────────────
+  const logMealMut = trpc.clientPortal.nutrition.logMeal.useMutation({
     onSuccess: () => {
-      handleCloseModal();
+      setShowLogModal(false);
+      utils.clientPortal.nutrition.listMeals.invalidate();
+      utils.clientPortal.nutrition.dailySummary.invalidate();
     },
   });
 
-  const handleOpenModal = (
-    mealType: "breakfast" | "lunch" | "dinner" | "snack"
-  ) => {
-    setFormState({
-      mealType,
-      photo: null,
-      foodItems: [
-        {
-          id: "1",
-          name: "",
-          quantity: 1,
-          unit: "g",
-          calories: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-        },
-      ],
-      notes: "",
-    });
-    setActiveTab("manual");
-    setScannedProduct(null);
-    setScanError(null);
-    setIsModalOpen(true);
+  const savePlanMut = trpc.clientPortal.nutrition.savePlan.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.nutrition.getActivePlan.invalidate();
+    },
+  });
+
+  const deletePlanMut = trpc.clientPortal.nutrition.deletePlan.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.nutrition.getActivePlan.invalidate();
+    },
+  });
+
+  // ─── Derived data ──────────────────────────────────────────
+  const meals = mealsQuery.data ?? [];
+  const plan = planQuery.data;
+  const library: MealLibrary | null = plan?.meals ? (plan.meals as unknown as MealLibrary) : null;
+  const planMeals: PlanMeal[] = library?.meals ?? [];
+
+  const targets = library?.dailyTargets ?? (plan?.macroTargets as MealLibrary["dailyTargets"] | null) ?? { calories: 2000, proteinG: 150, carbsG: 150, fatG: 70, fiberG: 30 };
+
+  const daySummary = useMemo(() => {
+    const data = summaryQuery.data ?? [];
+    if (data.length === 0) return { totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFat: 0 };
+    const totCal = data.reduce((s, d) => s + d.totalCalories, 0);
+    const totP = data.reduce((s, d) => s + d.totalProtein, 0);
+    const totC = data.reduce((s, d) => s + d.totalCarbs, 0);
+    const totF = data.reduce((s, d) => s + d.totalFat, 0);
+    const days = data.length || 1;
+    if (period === "day") return { totalCalories: totCal, totalProtein: totP, totalCarbs: totC, totalFat: totF };
+    return { totalCalories: Math.round(totCal / days), totalProtein: Math.round(totP / days), totalCarbs: Math.round(totC / days), totalFat: Math.round(totF / days) };
+  }, [summaryQuery.data, period]);
+
+  const mealsByType = useMemo(() => {
+    const grouped: Record<MealCategory, typeof meals> = { breakfast: [], lunch: [], dinner: [], snack: [] };
+    meals.forEach((m) => { if (grouped[m.mealType as MealCategory]) grouped[m.mealType as MealCategory].push(m); });
+    return grouped;
+  }, [meals]);
+
+  // ─── Handlers ──────────────────────────────────────────────
+  const handleLogMeal = (data: { mealType: MealCategory; items: { foodId: string; name: string; quantity: number; unit: string; calories: number; protein: number; carbs: number; fat: number }[] }) => {
+    logMealMut.mutate({ date: range.startDate, mealType: data.mealType, items: data.items });
   };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setScannedProduct(null);
-    setScanError(null);
-    setActiveTab("manual");
-    setFormState({
-      mealType: "breakfast",
-      photo: null,
-      foodItems: [
-        {
-          id: "1",
-          name: "",
-          quantity: 1,
-          unit: "g",
-          calories: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-        },
-      ],
-      notes: "",
-    });
-  };
-
-  const handleAddFoodItem = () => {
-    const newItem: FoodItem = {
-      id: Date.now().toString(),
-      name: "",
-      quantity: 1,
-      unit: "g",
-      calories: 0,
-      protein: 0,
-      carbs: 0,
-      fat: 0,
-    };
-    setFormState({
-      ...formState,
-      foodItems: [...formState.foodItems, newItem],
-    });
-  };
-
-  const handleRemoveFoodItem = (id: string) => {
-    setFormState({
-      ...formState,
-      foodItems: formState.foodItems.filter((item) => item.id !== id),
-    });
-  };
-
-  const handleFoodItemChange = (
-    id: string,
-    field: keyof FoodItem,
-    value: any
-  ) => {
-    setFormState({
-      ...formState,
-      foodItems: formState.foodItems.map((item) =>
-        item.id === id ? { ...item, [field]: value } : item
-      ),
-    });
-  };
-
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFormState({
-        ...formState,
-        photo: e.target.files[0],
+  const handleGenerate = useCallback(async () => {
+    setGenerating(true);
+    setGenError(null);
+    try {
+      const res = await fetch("/api/meals/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userRequest: "Create a personalized meal library based on all my health data." }),
       });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error ?? "Generation failed");
+      await savePlanMut.mutateAsync({ name: json.library.libraryName ?? "AI Meal Library", meals: json.library, isAiGenerated: true });
+    } catch (err: unknown) {
+      setGenError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setGenerating(false);
     }
+  }, [savePlanMut]);
+
+  const handleDeletePlan = () => {
+    if (!plan) return;
+    deletePlanMut.mutate({ planId: plan.id });
   };
 
-  const handleProductScanned = (product: ScannedProduct) => {
-    setScannedProduct(product);
-    setScanError(null);
-  };
-
-  const handleConfirmScannedProduct = () => {
-    if (!scannedProduct) return;
-    const newItem: FoodItem = {
-      id: Date.now().toString(),
-      name: scannedProduct.brand
-        ? `${scannedProduct.name} (${scannedProduct.brand})`
-        : scannedProduct.name,
-      quantity: 1,
-      unit: scannedProduct.servingSize || "serving",
-      calories: scannedProduct.calories,
-      protein: scannedProduct.protein,
-      carbs: scannedProduct.carbs,
-      fat: scannedProduct.fat,
-    };
-    // Add to food items, replacing empty first item if applicable
-    const existingItems = formState.foodItems.filter(
-      (item) => item.name.trim() !== ""
+  // ─── Shopping list derived from plan ───────────────────────
+  const shoppingList = useMemo(() => {
+    if (!planMeals.length) return [];
+    const map = new Map<string, { name: string; amount: string; category: string }>();
+    planMeals.forEach((m) =>
+      m.ingredients?.forEach((ing) => {
+        const key = ing.name.toLowerCase();
+        if (!map.has(key)) map.set(key, { name: ing.name, amount: ing.amount, category: ing.category ?? "other" });
+        else {
+          const existing = map.get(key)!;
+          map.set(key, { ...existing, amount: `${existing.amount}; ${ing.amount}` });
+        }
+      })
     );
-    setFormState({
-      ...formState,
-      foodItems: [...existingItems, newItem],
+    return Array.from(map.values());
+  }, [planMeals]);
+
+  const groupedIngredients = useMemo(() => {
+    const groups: Record<string, typeof shoppingList> = {};
+    INGREDIENT_CATEGORIES.forEach((c) => { groups[c] = []; });
+    shoppingList.forEach((item) => {
+      const cat = INGREDIENT_CATEGORIES.find((c) => c.toLowerCase() === item.category.toLowerCase()) ?? "Other";
+      groups[cat].push(item);
     });
-    setScannedProduct(null);
-    setActiveTab("manual"); // Switch to manual to show the added item
-  };
+    return groups;
+  }, [shoppingList]);
 
-  const handleSaveMeal = async () => {
-    const totalCalories = formState.foodItems.reduce(
-      (sum, item) => sum + item.calories,
-      0
-    );
-    const totalProtein = formState.foodItems.reduce(
-      (sum, item) => sum + item.protein,
-      0
-    );
-    const totalCarbs = formState.foodItems.reduce(
-      (sum, item) => sum + item.carbs,
-      0
-    );
-    const totalFat = formState.foodItems.reduce(
-      (sum, item) => sum + item.fat,
-      0
-    );
+  const totalItems = shoppingList.length;
+  const remaining = totalItems - checkedItems.size;
 
-    saveMealMutation.mutate({
-      date:
-        dateRange.startDate instanceof Date
-          ? dateRange.startDate.toISOString().split("T")[0]
-          : String(dateRange.startDate),
-      mealType: formState.mealType,
-      items: formState.foodItems.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        unit: item.unit,
-        calories: item.calories,
-        protein: item.protein,
-        carbs: item.carbs,
-        fat: item.fat,
-      })),
-      photoUrl: formState.photo
-        ? URL.createObjectURL(formState.photo)
-        : undefined,
-      totalCalories,
-      totalProtein,
-      totalCarbs,
-      totalFat,
-      totalFiber: 0,
-    });
-  };
-
-  const toggleSlot = (type: string) => {
-    setExpandedSlots((prev) => {
+  const toggleCheck = (name: string) => {
+    setCheckedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(type)) {
-        next.delete(type);
-      } else {
-        next.add(type);
-      }
+      if (next.has(name)) next.delete(name); else next.add(name);
       return next;
     });
   };
 
-  const renderCircularProgress = (
-    percentage: number,
-    label: string,
-    value: string
-  ) => {
-    const circumference = 2 * Math.PI * 45;
-    const strokeDashoffset =
-      circumference - (percentage / 100) * circumference;
-    return (
-      <div className="flex flex-col items-center">
-        <div className="relative w-28 h-28 mb-2">
-          <svg
-            className="w-full h-full transform -rotate-90"
-            viewBox="0 0 100 100"
-          >
-            <circle
-              cx="50"
-              cy="50"
-              r="45"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="6"
-              className="text-kairos-royal-surface"
-            />
-            <circle
-              cx="50"
-              cy="50"
-              r="45"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="6"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              className="text-kairos-gold transition-all duration-500"
-              strokeLinecap="round"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-lg font-bold text-kairos-gold">
-              {Math.round(percentage)}%
-            </span>
-            <span className="text-xs text-kairos-silver-dark">{value}</span>
-          </div>
-        </div>
-        <p className="text-sm font-body text-kairos-silver-dark">{label}</p>
-      </div>
-    );
-  };
-
-  // ─── Render ────────────────────────────────────────────────────
+  // ─── Render ────────────────────────────────────────────────
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Page Header */}
+      {/* Header */}
       <div>
-        <h1 className="font-heading font-bold text-3xl text-white mb-2">
-          Nutrition Protocol
-        </h1>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-heading font-semibold px-3 py-1 rounded-full bg-kairos-gold/20 text-kairos-gold">
-            Mediterranean-Keto Hybrid
-          </span>
-          <span className="text-xs font-body text-kairos-silver-dark">
-            Optimized for longevity
-          </span>
-        </div>
+        <h1 className="font-heading font-bold text-3xl text-white mb-1">Nutrition</h1>
+        <p className="text-sm font-body text-kairos-silver-dark">Track meals, build your library, and plan your shopping.</p>
       </div>
 
-      {/* Date Navigator */}
-      <DateRangeNavigator
-        availablePeriods={["day", "week", "month"]}
-        selectedPeriod={period}
-        onPeriodChange={setPeriod}
-        formattedRange={formattedRange}
-        isCurrent={isCurrent}
-        canForward={canForward}
-        onBack={goBack}
-        onForward={goForward}
-        onToday={goToToday}
-      />
-
-      {/* Daily Macros Progress */}
-      <div className="kairos-card">
-        <div className="flex items-center gap-2 mb-6">
-          <Target className="w-5 h-5 text-kairos-gold" />
-          <h2 className="font-heading font-bold text-lg text-white">
-            {period === "day"
-              ? "Today's Macros"
-              : `Avg Daily Macros — ${formattedRange}`}
-          </h2>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Object.entries(macros).map(([key, macro]) => (
-            <div key={key}>
-              {renderCircularProgress(
-                calculatePercentage(macro.actual, macro.target),
-                macro.label,
-                `${macro.actual}/${macro.target}${macro.unit}`
-              )}
-            </div>
-          ))}
-        </div>
+      {/* Page Tabs */}
+      <div className="flex gap-1 bg-kairos-card rounded-kairos-sm p-1">
+        {([
+          { key: "log" as PageTab, label: "Daily Log", icon: UtensilsCrossed },
+          { key: "library" as PageTab, label: "Meal Library", icon: BookOpen },
+          { key: "shopping" as PageTab, label: "Shopping List", icon: ShoppingCart },
+        ]).map((t) => {
+          const Icon = t.icon;
+          return (
+            <button key={t.key} onClick={() => setActiveTab(t.key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-heading font-semibold rounded-kairos-sm transition-colors ${activeTab === t.key ? "bg-kairos-gold text-kairos-royal-dark" : "text-kairos-silver-dark hover:text-white"}`}>
+              <Icon className="w-3.5 h-3.5" />
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* DAY VIEW: Meal Slots + Snacks */}
-      {period === "day" && (
+      {/* ═══════════════════════════════════════════════════════════
+          TAB 1: DAILY LOG
+         ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "log" && (
         <>
-          {/* Meal Slots */}
+          <DateRangeNavigator
+            availablePeriods={["day", "week", "month"]}
+            selectedPeriod={period} onPeriodChange={setPeriod}
+            formattedRange={formattedRange} isCurrent={isCurrent} canForward={canForward}
+            onBack={goBack} onForward={goForward} onToday={goToToday}
+          />
+
+          {/* Macro Summary Cards */}
           <div className="kairos-card">
-            <div className="flex items-center gap-2 mb-6">
-              <UtensilsCrossed className="w-5 h-5 text-kairos-gold" />
+            <div className="flex items-center gap-2 mb-5">
+              <Target className="w-5 h-5 text-kairos-gold" />
               <h2 className="font-heading font-bold text-lg text-white">
-                Meal Log
+                {period === "day" ? "Today's Macros" : `Avg Daily Macros`}
               </h2>
             </div>
-
-            <div className="space-y-4">
-              {mealSlots.map((slot) => {
-                const SlotIcon = slot.icon;
-                const isExpanded = expandedSlots.has(slot.type);
-
-                return (
-                  <div
-                    key={slot.type}
-                    className="border border-kairos-border rounded-kairos-sm bg-kairos-royal-surface/50 overflow-hidden"
-                  >
-                    {/* Slot Header - always visible */}
-                    <button
-                      onClick={() => toggleSlot(slot.type)}
-                      className="w-full flex items-center justify-between p-4 text-left hover:bg-kairos-royal-surface/80 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-kairos-gold/10 flex items-center justify-center">
-                          <SlotIcon className="w-4.5 h-4.5 text-kairos-gold" />
-                        </div>
-                        <div>
-                          <h3 className="font-heading font-semibold text-white text-sm">
-                            {slot.label}
-                          </h3>
-                          {slot.logged && (
-                            <p className="text-xs text-kairos-silver-dark font-body">
-                              {slot.items.length} items logged
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {slot.logged && (
-                          <span className="text-kairos-gold font-bold text-sm font-heading">
-                            {slot.calories} kcal
-                          </span>
-                        )}
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-kairos-silver-dark" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-kairos-silver-dark" />
-                        )}
-                      </div>
-                    </button>
-
-                    {/* Expanded Content */}
-                    {isExpanded && (
-                      <div className="px-4 pb-4 border-t border-kairos-border/50">
-                        {slot.logged ? (
-                          <>
-                            <ul className="text-sm text-kairos-silver-dark font-body my-3 space-y-1">
-                              {slot.items.map((item, i) => (
-                                <li key={i}>
-                                  <span className="text-kairos-gold/60 mr-1.5">
-                                    &bull;
-                                  </span>
-                                  {item}
-                                </li>
-                              ))}
-                            </ul>
-                            <div className="grid grid-cols-3 gap-2 text-xs mb-3">
-                              <div className="bg-kairos-royal-surface rounded px-2 py-1">
-                                <span className="text-kairos-silver-dark">
-                                  P:{" "}
-                                </span>
-                                <span className="text-kairos-gold font-semibold">
-                                  {slot.protein}g
-                                </span>
-                              </div>
-                              <div className="bg-kairos-royal-surface rounded px-2 py-1">
-                                <span className="text-kairos-silver-dark">
-                                  C:{" "}
-                                </span>
-                                <span className="text-kairos-gold font-semibold">
-                                  {slot.carbs}g
-                                </span>
-                              </div>
-                              <div className="bg-kairos-royal-surface rounded px-2 py-1">
-                                <span className="text-kairos-silver-dark">
-                                  F:{" "}
-                                </span>
-                                <span className="text-kairos-gold font-semibold">
-                                  {slot.fat}g
-                                </span>
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          <p className="text-sm text-kairos-silver-dark font-body my-3 italic">
-                            No items logged yet
-                          </p>
-                        )}
-                        <button
-                          onClick={() => handleOpenModal(slot.type)}
-                          className="w-full kairos-btn-outline flex items-center justify-center gap-2 text-xs"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          {slot.logged ? "Add More Items" : "Log Food"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <MacroRing pct={(daySummary.totalCalories / targets.calories) * 100} label="Calories" value={`${daySummary.totalCalories}/${targets.calories}`} />
+              <MacroRing pct={(daySummary.totalProtein / targets.proteinG) * 100} label="Protein" value={`${daySummary.totalProtein}/${targets.proteinG}g`} />
+              <MacroRing pct={(daySummary.totalCarbs / targets.carbsG) * 100} label="Carbs" value={`${daySummary.totalCarbs}/${targets.carbsG}g`} />
+              <MacroRing pct={(daySummary.totalFat / targets.fatG) * 100} label="Fat" value={`${daySummary.totalFat}/${targets.fatG}g`} />
             </div>
           </div>
 
-          {/* Snacks Section */}
+          {/* Meal log grouped by type */}
           <div className="kairos-card">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
-                <Cookie className="w-5 h-5 text-kairos-gold" />
-                <h2 className="font-heading font-bold text-lg text-white">
-                  Snacks
-                </h2>
+                <UtensilsCrossed className="w-5 h-5 text-kairos-gold" />
+                <h2 className="font-heading font-bold text-lg text-white">Meals</h2>
               </div>
-              <button
-                onClick={() => handleOpenModal("snack")}
-                className="kairos-btn-gold flex items-center gap-2 text-xs px-3 py-1.5"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add Snack
+              <button onClick={() => setShowLogModal(true)} className="kairos-btn-gold flex items-center gap-1.5 text-xs px-3 py-1.5">
+                <Plus className="w-3.5 h-3.5" /> Log Meal
               </button>
             </div>
 
-            {snacks.length > 0 ? (
-              <div className="space-y-2">
-                {snacks.map((snack) => (
-                  <div
-                    key={snack.id}
-                    className="flex items-center justify-between border border-kairos-border rounded-kairos-sm bg-kairos-royal-surface/50 px-4 py-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-kairos-gold/10 flex items-center justify-center">
-                        <Cookie className="w-3.5 h-3.5 text-kairos-gold" />
-                      </div>
-                      <span className="text-sm text-white font-body">
-                        {snack.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-3 text-xs text-kairos-silver-dark font-body">
-                        <span>
-                          P:
-                          <span className="text-kairos-gold font-semibold ml-0.5">
-                            {snack.protein}g
-                          </span>
-                        </span>
-                        <span>
-                          C:
-                          <span className="text-kairos-gold font-semibold ml-0.5">
-                            {snack.carbs}g
-                          </span>
-                        </span>
-                        <span>
-                          F:
-                          <span className="text-kairos-gold font-semibold ml-0.5">
-                            {snack.fat}g
-                          </span>
-                        </span>
-                      </div>
-                      <span className="text-kairos-gold font-bold text-sm font-heading whitespace-nowrap">
-                        {snack.calories} kcal
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {/* Snack total */}
-                <div className="flex items-center justify-end px-4 pt-1">
-                  <span className="text-xs text-kairos-silver-dark font-body">
-                    Total:{" "}
-                    <span className="text-kairos-gold font-semibold">
-                      {snacks.reduce((sum, s) => sum + s.calories, 0)} kcal
-                    </span>
-                  </span>
-                </div>
-              </div>
+            {mealsQuery.isLoading ? (
+              <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-kairos-gold" /></div>
+            ) : meals.length === 0 ? (
+              <p className="text-sm text-kairos-silver-dark text-center py-8 italic">No meals logged for this period.</p>
             ) : (
-              <p className="text-sm text-kairos-silver-dark font-body text-center py-4 italic">
-                No snacks logged today
-              </p>
+              <div className="space-y-3">
+                {(["breakfast", "lunch", "dinner", "snack"] as MealCategory[]).map((type) => {
+                  const items = mealsByType[type];
+                  if (items.length === 0) return null;
+                  const meta = MEAL_TYPE_META[type];
+                  const Icon = meta.icon;
+                  const totalCal = items.reduce((s, m) => s + (m.totalCalories ?? 0), 0);
+
+                  return (
+                    <div key={type} className="border border-kairos-border rounded-kairos-sm bg-kairos-royal-surface/50">
+                      <div className="flex items-center justify-between p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-kairos-gold/10 flex items-center justify-center">
+                            <Icon className="w-4 h-4 text-kairos-gold" />
+                          </div>
+                          <div>
+                            <h3 className="font-heading font-semibold text-white text-sm">{meta.label}</h3>
+                            <p className="text-xs text-kairos-silver-dark">{items.length} {items.length === 1 ? "entry" : "entries"}</p>
+                          </div>
+                        </div>
+                        <span className="text-kairos-gold font-bold text-sm font-heading">{Math.round(totalCal)} kcal</span>
+                      </div>
+                      <div className="px-4 pb-3 space-y-1.5">
+                        {items.map((m) => {
+                          const mealItems = (m.items as { name: string }[] | null) ?? [];
+                          return (
+                            <div key={m.id} className="flex items-center justify-between text-xs">
+                              <span className="text-kairos-silver-dark font-body">
+                                {mealItems.map((i) => i.name).join(", ") || "Meal logged"}
+                              </span>
+                              <span className="text-kairos-silver-dark font-body whitespace-nowrap ml-3">
+                                P:{m.totalProtein ?? 0}g C:{m.totalCarbs ?? 0}g F:{m.totalFat ?? 0}g
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </>
       )}
 
-      {/* WEEK/MONTH VIEW: Daily nutrition trend */}
-      {(period === "week" || period === "month") && (
-        <div className="kairos-card">
-          <div className="flex items-center gap-2 mb-6">
-            <TrendingUp className="w-5 h-5 text-kairos-gold" />
-            <h2 className="font-heading font-bold text-lg text-white">
-              Daily Calorie Trend &mdash; {formattedRange}
-            </h2>
-          </div>
-          <div className="space-y-2">
-            {nutritionData
-              .slice(0, period === "week" ? 7 : 30)
-              .map((day, i) => {
-                const pct = Math.min((day.calories / 2500) * 100, 100);
+      {/* ═══════════════════════════════════════════════════════════
+          TAB 2: MEAL LIBRARY
+         ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "library" && (
+        <div className="space-y-6">
+          {planQuery.isLoading ? (
+            <div className="kairos-card flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-kairos-gold" /></div>
+          ) : !library ? (
+            /* No plan CTA */
+            <div className="kairos-card flex flex-col items-center py-16 text-center">
+              <Sparkles className="w-12 h-12 text-kairos-gold mb-4" />
+              <h2 className="font-heading font-bold text-xl text-white mb-2">Generate Your AI Meal Library</h2>
+              <p className="text-sm text-kairos-silver-dark font-body max-w-md mb-6">
+                We will analyze your health data, genetics, lab results, and goals to create a fully personalized meal library with recipes, macros, and shopping lists.
+              </p>
+              {genError && <p className="text-sm text-red-400 mb-4">{genError}</p>}
+              <button onClick={handleGenerate} disabled={generating}
+                className="kairos-btn-gold flex items-center gap-2 px-6 py-2.5 disabled:opacity-50">
+                {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</> : <><Sparkles className="w-4 h-4" /> Generate AI Meal Library</>}
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Library header */}
+              <div className="kairos-card">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="font-heading font-bold text-lg text-white">{library.libraryName}</h2>
+                    {library.description && <p className="text-sm text-kairos-silver-dark font-body mt-1">{library.description}</p>}
+                    <p className="text-xs text-kairos-silver-dark font-body mt-2">
+                      {planMeals.length} meals &middot; {library.dailyTargets.calories} kcal/day target
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleGenerate} disabled={generating || deletePlanMut.isPending}
+                      className="kairos-btn-outline flex items-center gap-1.5 text-xs px-3 py-1.5 disabled:opacity-50">
+                      {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />} Regenerate
+                    </button>
+                    <button onClick={handleDeletePlan} disabled={deletePlanMut.isPending || generating}
+                      className="kairos-btn-outline flex items-center gap-1.5 text-xs px-3 py-1.5 text-red-400 border-red-400/30 hover:bg-red-400/10 disabled:opacity-50">
+                      <Trash2 className="w-3.5 h-3.5" /> Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {genError && <p className="text-sm text-red-400">{genError}</p>}
+
+              {/* Meals grouped by category */}
+              {(["breakfast", "lunch", "dinner", "snack"] as MealCategory[]).map((cat) => {
+                const catMeals = planMeals.filter((m) => m.category === cat);
+                if (catMeals.length === 0) return null;
+                const meta = MEAL_TYPE_META[cat];
+                const CatIcon = meta.icon;
                 return (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="text-xs font-heading text-kairos-silver-dark w-10">
-                      {day.dateLabel}
-                    </span>
-                    <div className="flex-1 h-6 bg-kairos-royal-surface rounded-kairos-sm overflow-hidden relative">
-                      <div
-                        className="h-full bg-kairos-gold/30 rounded-kairos-sm"
-                        style={{ width: `${pct}%` }}
-                      />
-                      <span className="absolute inset-0 flex items-center px-2 text-xs font-heading font-semibold text-white">
-                        {day.calories} kcal
-                      </span>
+                  <div key={cat}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <CatIcon className="w-4 h-4 text-kairos-gold" />
+                      <h3 className="font-heading font-bold text-white">{meta.label}</h3>
+                      <span className="text-xs text-kairos-silver-dark">({catMeals.length})</span>
                     </div>
-                    <span className="text-xs font-body text-kairos-silver-dark w-16 text-right">
-                      P:{day.protein}g
-                    </span>
+                    <div className="space-y-2">
+                      {catMeals.map((meal) => {
+                        const isExpanded = expandedMealId === meal.id;
+                        return (
+                          <div key={meal.id} className="kairos-card !p-0 overflow-hidden">
+                            <button onClick={() => setExpandedMealId(isExpanded ? null : meal.id)}
+                              className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-heading font-semibold text-white text-sm truncate">{meal.name}</p>
+                                <div className="flex items-center gap-3 mt-1 text-xs text-kairos-silver-dark">
+                                  <span className="text-kairos-gold font-semibold">{meal.calories} kcal</span>
+                                  <span>P:{meal.proteinG}g</span>
+                                  <span>C:{meal.carbsG}g</span>
+                                  <span>F:{meal.fatG}g</span>
+                                  {meal.prepTimeMinutes > 0 && (
+                                    <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{meal.prepTimeMinutes}m</span>
+                                  )}
+                                </div>
+                                {meal.tags?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {meal.tags.slice(0, 4).map((tag) => (
+                                      <span key={tag} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold">
+                                        <Tag className="w-2.5 h-2.5" />{tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              {isExpanded ? <ChevronUp className="w-4 h-4 text-kairos-silver-dark shrink-0 ml-2" /> : <ChevronDown className="w-4 h-4 text-kairos-silver-dark shrink-0 ml-2" />}
+                            </button>
+
+                            {isExpanded && (
+                              <div className="px-4 pb-4 border-t border-kairos-border/50 space-y-4 pt-3">
+                                {/* Ingredients */}
+                                {meal.ingredients?.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-heading font-semibold text-kairos-gold mb-1.5">Ingredients</p>
+                                    <ul className="text-sm text-kairos-silver-dark font-body space-y-0.5">
+                                      {meal.ingredients.map((ing, i) => (
+                                        <li key={i}><span className="text-kairos-gold/60 mr-1">&bull;</span>{ing.amount} {ing.name}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {/* Instructions */}
+                                {meal.instructions && (
+                                  <div>
+                                    <p className="text-xs font-heading font-semibold text-kairos-gold mb-1.5">Instructions</p>
+                                    <p className="text-sm text-kairos-silver-dark font-body whitespace-pre-line">{meal.instructions}</p>
+                                  </div>
+                                )}
+                                {/* Rationale */}
+                                {meal.rationale && (
+                                  <div>
+                                    <p className="text-xs font-heading font-semibold text-kairos-gold mb-1.5">Why This Meal</p>
+                                    <p className="text-sm text-kairos-silver-dark font-body">{meal.rationale}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}
-          </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* Dietary Guidelines + Hydration */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="kairos-card">
-          <div className="flex items-center gap-2 mb-4">
-            <Apple className="w-5 h-5 text-kairos-gold" />
-            <h3 className="font-heading font-bold text-white">
-              Dietary Guidelines
-            </h3>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs font-heading font-semibold text-kairos-gold mb-2">
-                Foods to Emphasize
+      {/* ═══════════════════════════════════════════════════════════
+          TAB 3: SHOPPING LIST
+         ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "shopping" && (
+        <div className="space-y-6">
+          {planQuery.isLoading ? (
+            <div className="kairos-card flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-kairos-gold" /></div>
+          ) : !library || shoppingList.length === 0 ? (
+            <div className="kairos-card flex flex-col items-center py-16 text-center">
+              <ShoppingCart className="w-12 h-12 text-kairos-silver-dark/40 mb-4" />
+              <h2 className="font-heading font-bold text-lg text-white mb-2">No Shopping List</h2>
+              <p className="text-sm text-kairos-silver-dark font-body max-w-sm">
+                Generate a meal library first. Your shopping list will be auto-created from the ingredients.
               </p>
-              <ul className="text-sm text-kairos-silver-dark font-body space-y-1">
-                <li>
-                  &#10003; Fatty fish (salmon, mackerel, sardines) - high
-                  omega-3
-                </li>
-                <li>
-                  &#10003; Anti-inflammatory vegetables (broccoli, leafy greens)
-                </li>
-                <li>
-                  &#10003; Grass-fed beef and pasture-raised eggs
-                </li>
-                <li>&#10003; Nuts and seeds (almonds, macadamia)</li>
-                <li>
-                  &#10003; Extra virgin olive oil for healthy fats
-                </li>
-              </ul>
             </div>
-            <div className="border-t border-kairos-border pt-4">
-              <p className="text-xs font-heading font-semibold text-kairos-gold mb-2">
-                Foods to Minimize
-              </p>
-              <ul className="text-sm text-kairos-silver-dark font-body space-y-1">
-                <li>&#10005; Refined carbohydrates and sugar</li>
-                <li>&#10005; Seed oils (soybean, canola, sunflower)</li>
-                <li>
-                  &#10005; Processed foods and ultra-processed ingredients
-                </li>
-                <li>&#10005; High-sugar fruits (limit dried fruits)</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div className="kairos-card">
-          <div className="flex items-center gap-2 mb-4">
-            <Droplets className="w-5 h-5 text-kairos-gold" />
-            <h3 className="font-heading font-bold text-white">
-              Hydration Tracker
-            </h3>
-          </div>
-          <div className="flex flex-col items-center justify-center py-6">
-            <div className="grid grid-cols-4 gap-2 mb-6">
-              {Array.from({ length: waterTarget }).map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setWaterGlasses(i + 1)}
-                  className={`w-12 h-12 rounded-kairos-sm border-2 transition-all ${
-                    i < waterGlasses
-                      ? "bg-kairos-gold border-kairos-gold"
-                      : "border-kairos-border bg-kairos-royal-surface hover:border-kairos-gold"
-                  }`}
-                  title={`Glass ${i + 1}`}
-                  aria-label={`Water glass ${i + 1}`}
-                >
-                  <Droplets
-                    className={`w-5 h-5 mx-auto ${
-                      i < waterGlasses
-                        ? "text-kairos-royal"
-                        : "text-kairos-silver-dark"
-                    }`}
-                  />
+          ) : (
+            <>
+              {/* Summary bar */}
+              <div className="kairos-card flex items-center justify-between">
+                <div>
+                  <h2 className="font-heading font-bold text-lg text-white">Shopping List</h2>
+                  <p className="text-xs text-kairos-silver-dark font-body mt-0.5">
+                    {remaining} of {totalItems} items remaining
+                  </p>
+                </div>
+                <button onClick={() => setCheckedItems(new Set())}
+                  className="kairos-btn-outline text-xs px-3 py-1.5">
+                  Clear All
                 </button>
-              ))}
-            </div>
-            <p className="text-center">
-              <span className="text-2xl font-heading font-bold text-kairos-gold">
-                {waterGlasses}
-              </span>
-              <span className="text-kairos-silver-dark font-body text-sm">
-                {" "}
-                / {waterTarget} glasses
-              </span>
-            </p>
-            <p className="text-xs text-kairos-silver-dark font-body mt-3">
-              {waterGlasses >= waterTarget ? (
-                <span className="flex items-center gap-1 text-kairos-gold">
-                  <CheckCircle className="w-4 h-4" /> Hydration goal met!
-                </span>
-              ) : (
-                <span>
-                  {waterTarget - waterGlasses} more glasses to goal
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Daily Summary */}
-      <div className="kairos-card">
-        <div className="flex items-center gap-2 mb-4">
-          <Flame className="w-5 h-5 text-kairos-gold" />
-          <h3 className="font-heading font-bold text-white">Daily Summary</h3>
-        </div>
-        <div className="grid md:grid-cols-3 gap-4 text-center">
-          <div className="bg-kairos-royal-surface rounded-kairos-sm p-3">
-            <p className="text-xs text-kairos-silver-dark font-body mb-1">
-              Avg Calories
-            </p>
-            <p className="text-2xl font-heading font-bold text-kairos-gold">
-              {stats.calories} / 2000
-            </p>
-            <p className="text-xs text-kairos-silver-dark font-body mt-1">
-              {Math.round((stats.calories / 2000) * 100)}% of target
-            </p>
-          </div>
-          <div className="bg-kairos-royal-surface rounded-kairos-sm p-3">
-            <p className="text-xs text-kairos-silver-dark font-body mb-1">
-              Macro Balance
-            </p>
-            <p className="text-2xl font-heading font-bold text-kairos-gold">
-              94% Score
-            </p>
-            <p className="text-xs text-kairos-silver-dark font-body mt-1">
-              Excellent adherence
-            </p>
-          </div>
-          <div className="bg-kairos-royal-surface rounded-kairos-sm p-3">
-            <p className="text-xs text-kairos-silver-dark font-body mb-1">
-              Meal Frequency
-            </p>
-            <p className="text-2xl font-heading font-bold text-kairos-gold">
-              4 Meals
-            </p>
-            <p className="text-xs text-kairos-silver-dark font-body mt-1">
-              Well distributed
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Add Meal Modal ──────────────────────────────────────── */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-kairos-royal-surface border border-kairos-border rounded-kairos-sm max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-kairos-border sticky top-0 bg-kairos-royal-surface z-10">
-              <h3 className="font-heading font-bold text-xl text-white">
-                Add{" "}
-                {formState.mealType.charAt(0).toUpperCase() +
-                  formState.mealType.slice(1)}
-              </h3>
-              <button
-                onClick={handleCloseModal}
-                className="text-kairos-silver-dark hover:text-white transition-colors"
-                aria-label="Close modal"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Tab Navigation */}
-            <div className="flex border-b border-kairos-border">
-              {(
-                [
-                  { key: "manual" as AddMealTab, label: "Manual", icon: UtensilsCrossed },
-                  { key: "scan" as AddMealTab, label: "Scan", icon: ScanBarcode },
-                  { key: "search" as AddMealTab, label: "Search", icon: Search },
-                ] as const
-              ).map((tab) => {
-                const TabIcon = tab.icon;
-                return (
-                  <button
-                    key={tab.key}
-                    onClick={() => {
-                      setActiveTab(tab.key);
-                      setScanError(null);
-                    }}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-heading font-semibold transition-colors border-b-2 ${
-                      activeTab === tab.key
-                        ? "text-kairos-gold border-kairos-gold"
-                        : "text-kairos-silver-dark border-transparent hover:text-white"
-                    }`}
-                  >
-                    <TabIcon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 space-y-6">
-              {/* Meal Type Selector */}
-              <div>
-                <label className="block text-sm font-heading font-semibold text-white mb-2">
-                  Meal Type
-                </label>
-                <select
-                  value={formState.mealType}
-                  onChange={(e) =>
-                    setFormState({
-                      ...formState,
-                      mealType: e.target.value as
-                        | "breakfast"
-                        | "lunch"
-                        | "dinner"
-                        | "snack",
-                    })
-                  }
-                  className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-                >
-                  <option value="breakfast">Breakfast</option>
-                  <option value="lunch">Lunch</option>
-                  <option value="dinner">Dinner</option>
-                  <option value="snack">Snack</option>
-                </select>
               </div>
 
-              {/* ── SCAN TAB ─────────────────────────────────────── */}
-              {activeTab === "scan" && (
-                <div className="space-y-4">
-                  <BarcodeScanner
-                    onProductFound={handleProductScanned}
-                    onError={(msg) => setScanError(msg)}
-                  />
+              {/* Progress bar */}
+              <div className="h-2 bg-kairos-royal-surface rounded-full overflow-hidden">
+                <div className="h-full bg-kairos-gold transition-all duration-300 rounded-full"
+                  style={{ width: `${totalItems > 0 ? ((totalItems - remaining) / totalItems) * 100 : 0}%` }} />
+              </div>
 
-                  {scanError && (
-                    <div className="flex items-center gap-2 text-xs text-red-400 font-body bg-red-400/10 rounded-kairos-sm px-3 py-2">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>{scanError}</span>
-                    </div>
-                  )}
-
-                  {scannedProduct && (
-                    <ScannedProductCard
-                      product={scannedProduct}
-                      onConfirm={handleConfirmScannedProduct}
-                      onCancel={() => setScannedProduct(null)}
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* ── SEARCH TAB ───────────────────────────────────── */}
-              {activeTab === "search" && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-heading font-semibold text-white mb-2">
-                      Search Food Database
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Search for a food (e.g. chicken breast, almonds)..."
-                        className="flex-1 bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-                      />
-                      <button className="kairos-btn-gold px-4 flex items-center gap-2">
-                        <Search className="w-4 h-4" />
-                        Search
-                      </button>
-                    </div>
-                  </div>
-                  <div className="text-center py-8">
-                    <Search className="w-10 h-10 text-kairos-silver-dark/50 mx-auto mb-3" />
-                    <p className="text-sm text-kairos-silver-dark font-body">
-                      Search our food database to quickly find nutritional
-                      information
-                    </p>
-                    <p className="text-xs text-kairos-silver-dark/60 font-body mt-1">
-                      Coming soon: AI-powered food recognition
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* ── MANUAL TAB / Shared Food Items Section ───────── */}
-              {activeTab === "manual" && (
-                <>
-                  {/* Photo Upload */}
-                  <div>
-                    <label className="block text-sm font-heading font-semibold text-white mb-2">
-                      Photo
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handlePhotoUpload}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
-                      <div className="border-2 border-dashed border-kairos-border rounded-kairos-sm p-6 text-center hover:border-kairos-gold transition-colors cursor-pointer">
-                        <Camera className="w-8 h-8 text-kairos-gold mx-auto mb-2" />
-                        <p className="text-sm text-white font-body">
-                          {formState.photo
-                            ? formState.photo.name
-                            : "Click to upload photo"}
-                        </p>
-                        <p className="text-xs text-kairos-silver-dark font-body">
-                          or drag and drop
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Food Items */}
-                  <div>
-                    <label className="block text-sm font-heading font-semibold text-white mb-3">
-                      Food Items
-                    </label>
-                    <div className="space-y-4">
-                      {formState.foodItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className="border border-kairos-border rounded-kairos-sm p-4 bg-kairos-royal-surface/50"
-                        >
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                            <input
-                              type="text"
-                              placeholder="Food name"
-                              value={item.name}
-                              onChange={(e) =>
-                                handleFoodItemChange(
-                                  item.id,
-                                  "name",
-                                  e.target.value
-                                )
-                              }
-                              className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-                            />
-                            <div className="flex gap-2">
-                              <input
-                                type="number"
-                                placeholder="Qty"
-                                value={item.quantity}
-                                onChange={(e) =>
-                                  handleFoodItemChange(
-                                    item.id,
-                                    "quantity",
-                                    parseFloat(e.target.value)
-                                  )
-                                }
-                                className="flex-1 bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-                              />
-                              <select
-                                value={item.unit}
-                                onChange={(e) =>
-                                  handleFoodItemChange(
-                                    item.id,
-                                    "unit",
-                                    e.target.value
-                                  )
-                                }
-                                className="w-16 bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-2 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-                              >
-                                <option value="g">g</option>
-                                <option value="oz">oz</option>
-                                <option value="ml">ml</option>
-                                <option value="cup">cup</option>
-                                <option value="tbsp">tbsp</option>
-                                <option value="tsp">tsp</option>
-                                <option value="serving">srv</option>
-                              </select>
+              {/* Categories */}
+              {INGREDIENT_CATEGORIES.map((cat) => {
+                const items = groupedIngredients[cat];
+                if (!items || items.length === 0) return null;
+                return (
+                  <div key={cat} className="kairos-card">
+                    <h3 className="font-heading font-bold text-white text-sm mb-3">{cat}</h3>
+                    <div className="space-y-1.5">
+                      {items.map((item) => {
+                        const key = item.name.toLowerCase();
+                        const done = checkedItems.has(key);
+                        return (
+                          <button key={key} onClick={() => toggleCheck(key)}
+                            className={`w-full flex items-center gap-3 text-left px-3 py-2 rounded-kairos-sm transition-colors ${done ? "bg-kairos-gold/5" : "hover:bg-white/[0.02]"}`}>
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${done ? "border-kairos-gold bg-kairos-gold" : "border-kairos-border"}`}>
+                              {done && <Check className="w-3 h-3 text-kairos-royal-dark" />}
                             </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                            <input
-                              type="number"
-                              placeholder="Calories"
-                              value={item.calories}
-                              onChange={(e) =>
-                                handleFoodItemChange(
-                                  item.id,
-                                  "calories",
-                                  parseFloat(e.target.value)
-                                )
-                              }
-                              className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-                            />
-                            <input
-                              type="number"
-                              placeholder="Protein (g)"
-                              value={item.protein}
-                              onChange={(e) =>
-                                handleFoodItemChange(
-                                  item.id,
-                                  "protein",
-                                  parseFloat(e.target.value)
-                                )
-                              }
-                              className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-                            />
-                            <input
-                              type="number"
-                              placeholder="Carbs (g)"
-                              value={item.carbs}
-                              onChange={(e) =>
-                                handleFoodItemChange(
-                                  item.id,
-                                  "carbs",
-                                  parseFloat(e.target.value)
-                                )
-                              }
-                              className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-                            />
-                            <input
-                              type="number"
-                              placeholder="Fat (g)"
-                              value={item.fat}
-                              onChange={(e) =>
-                                handleFoodItemChange(
-                                  item.id,
-                                  "fat",
-                                  parseFloat(e.target.value)
-                                )
-                              }
-                              className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-                            />
-                          </div>
-
-                          {formState.foodItems.length > 1 && (
-                            <button
-                              onClick={() => handleRemoveFoodItem(item.id)}
-                              className="w-full kairos-btn-outline flex items-center justify-center gap-2 text-xs"
-                            >
-                              <X className="w-3 h-3" />
-                              Remove Item
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                            <span className={`text-sm font-body flex-1 ${done ? "line-through text-kairos-silver-dark/50" : "text-white"}`}>{item.name}</span>
+                            <span className={`text-xs font-body ${done ? "text-kairos-silver-dark/40" : "text-kairos-silver-dark"}`}>{item.amount}</span>
+                          </button>
+                        );
+                      })}
                     </div>
-
-                    <button
-                      onClick={handleAddFoodItem}
-                      className="w-full kairos-btn-outline flex items-center justify-center gap-2 text-sm mt-4"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Food Item
-                    </button>
                   </div>
-
-                  {/* Notes */}
-                  <div>
-                    <label className="block text-sm font-heading font-semibold text-white mb-2">
-                      Notes
-                    </label>
-                    <textarea
-                      value={formState.notes}
-                      onChange={(e) =>
-                        setFormState({
-                          ...formState,
-                          notes: e.target.value,
-                        })
-                      }
-                      placeholder="Add notes about this meal..."
-                      rows={3}
-                      className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none resize-none"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex gap-3 p-6 border-t border-kairos-border bg-kairos-royal-surface sticky bottom-0">
-              <button
-                onClick={handleCloseModal}
-                disabled={saveMealMutation.isPending}
-                className="flex-1 kairos-btn-outline disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveMeal}
-                disabled={
-                  saveMealMutation.isPending ||
-                  formState.foodItems.every((item) => item.name.trim() === "")
-                }
-                className="flex-1 kairos-btn-gold disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saveMealMutation.isPending ? "Saving..." : "Save Meal"}
-              </button>
-            </div>
-          </div>
+                );
+              })}
+            </>
+          )}
         </div>
+      )}
+
+      {/* Log Meal Modal */}
+      {showLogModal && (
+        <LogMealModal
+          planMeals={planMeals}
+          onClose={() => setShowLogModal(false)}
+          onSave={handleLogMeal}
+          isSaving={logMealMut.isPending}
+        />
       )}
     </div>
   );
