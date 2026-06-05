@@ -125,4 +125,49 @@ export const clientNutritionRouter = router({
     });
     return plan ?? null;
   }),
+
+  // List all meal plans
+  listPlans: clientProcedure.query(async ({ ctx }) => {
+    return ctx.db.query.mealPlans.findMany({
+      where: eq(mealPlans.clientId, ctx.dbUserId),
+      orderBy: desc(mealPlans.createdAt),
+    });
+  }),
+
+  // Save a meal plan (from AI generation)
+  savePlan: clientProcedure
+    .input(z.object({
+      name: z.string(),
+      meals: z.unknown(),
+      macroTargets: z.unknown().optional(),
+      isAiGenerated: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Deactivate existing plans
+      await ctx.db.update(mealPlans).set({ status: "inactive" }).where(
+        and(eq(mealPlans.clientId, ctx.dbUserId), eq(mealPlans.status, "active"))
+      );
+
+      const [plan] = await ctx.db.insert(mealPlans).values({
+        trainerId: null,
+        clientId: ctx.dbUserId,
+        isAiGenerated: input.isAiGenerated ?? false,
+        name: input.name,
+        meals: input.meals as Record<string, unknown>,
+        macroTargets: (input.macroTargets ?? {}) as { calories: number; protein: number; carbs: number; fat: number; fiber: number },
+        status: "active",
+      }).returning();
+
+      return plan;
+    }),
+
+  // Delete a meal plan
+  deletePlan: clientProcedure
+    .input(z.object({ planId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.delete(mealPlans).where(
+        and(eq(mealPlans.id, input.planId), eq(mealPlans.clientId, ctx.dbUserId))
+      );
+      return { success: true };
+    }),
 });

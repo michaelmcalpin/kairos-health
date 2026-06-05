@@ -82,7 +82,70 @@ export const clientFastingRouter = router({
       };
     }),
 
-  // Start/end a fast
+  // Create or update fasting protocol
+  setProtocol: clientProcedure
+    .input(z.object({
+      type: z.string(),
+      feedingStartHour: z.number().min(0).max(23).optional(),
+      feedingEndHour: z.number().min(0).max(23).optional(),
+      activeDays: z.array(z.number()).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Deactivate existing protocols
+      await ctx.db
+        .update(fastingProtocols)
+        .set({ status: "inactive" })
+        .where(and(eq(fastingProtocols.clientId, ctx.dbUserId), eq(fastingProtocols.status, "active")));
+
+      // Create new protocol
+      const [protocol] = await ctx.db.insert(fastingProtocols).values({
+        clientId: ctx.dbUserId,
+        type: input.type as "16_8",
+        feedingStartHour: input.feedingStartHour,
+        feedingEndHour: input.feedingEndHour,
+        activeDays: input.activeDays ?? [0, 1, 2, 3, 4, 5, 6],
+        status: "active",
+      }).returning();
+
+      return protocol;
+    }),
+
+  // Start a new fast
+  startFast: clientProcedure.mutation(async ({ ctx }) => {
+    const [log] = await ctx.db.insert(fastingLogs).values({
+      clientId: ctx.dbUserId,
+      date: new Date().toISOString().split("T")[0],
+      startedAt: new Date(),
+      completed: false,
+    }).returning();
+    return log;
+  }),
+
+  // End current fast
+  endFast: clientProcedure
+    .input(z.object({ logId: z.string(), completed: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const [updated] = await ctx.db
+        .update(fastingLogs)
+        .set({ endedAt: new Date(), completed: input.completed })
+        .where(and(eq(fastingLogs.id, input.logId), eq(fastingLogs.clientId, ctx.dbUserId)))
+        .returning();
+      return updated;
+    }),
+
+  // Get current active fast (in progress)
+  getActiveFast: clientProcedure.query(async ({ ctx }) => {
+    const activeFast = await ctx.db.query.fastingLogs.findFirst({
+      where: and(
+        eq(fastingLogs.clientId, ctx.dbUserId),
+        sql`${fastingLogs.endedAt} IS NULL`,
+      ),
+      orderBy: desc(fastingLogs.startedAt),
+    });
+    return activeFast ?? null;
+  }),
+
+  // Log a completed fast (manual entry)
   logFast: clientProcedure
     .input(
       z.object({
