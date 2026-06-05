@@ -32,6 +32,7 @@ export default function SettingsPage() {
   // tRPC mutations
   const updateProfileMutation = trpc.clientPortal.settings.updateProfile.useMutation();
   const updateClientProfileMutation = trpc.clientPortal.settings.updateClientProfile.useMutation();
+  const updateContactInfoMutation = trpc.clientPortal.settings.updateContactInfo.useMutation();
   const updateNotificationsMutation = trpc.clientPortal.settings.updateNotificationPreferences.useMutation();
 
   const { theme, setTheme } = useTheme();
@@ -137,6 +138,18 @@ export default function SettingsPage() {
       }));
     }
   }, [settingsData?.user]);
+
+  // Hydrate contact info from database on load
+  useEffect(() => {
+    if (settingsData?.contactInfo) {
+      const ci = settingsData.contactInfo;
+      setFormData((prev) => ({
+        ...prev,
+        phone: ci.phone ?? prev.phone,
+        timezone: ci.timezone ?? prev.timezone,
+      }));
+    }
+  }, [settingsData?.contactInfo]);
 
   // Hydrate health profile from database on load
   useEffect(() => {
@@ -244,7 +257,15 @@ export default function SettingsPage() {
       });
     } catch { errors.push("name"); }
 
-    // 2. Update health profile (DOB, gender, height, goals)
+    // 2. Update contact info (phone, timezone)
+    try {
+      await updateContactInfoMutation.mutateAsync({
+        phone: formData.phone || undefined,
+        timezone: formData.timezone || undefined,
+      });
+    } catch { errors.push("contact info"); }
+
+    // 3. Update health profile (DOB, gender, height, goals)
     try {
       const feet = parseInt(profileForm.heightFeet) || 0;
       const inches = parseInt(profileForm.heightInches) || 0;
@@ -257,7 +278,7 @@ export default function SettingsPage() {
       });
     } catch { errors.push("health profile"); }
 
-    // 3. Update health history / exercise screening
+    // 4. Update health history / exercise screening
     try {
       const rawAnswer = [
         historyForm.medicalConditions.length ? `Medical conditions: ${historyForm.medicalConditions.join(", ")}` : "",
@@ -280,7 +301,7 @@ export default function SettingsPage() {
       }
     } catch { errors.push("health history"); }
 
-    // 4. Update notification preferences
+    // 5. Update notification preferences
     try {
       await updateNotificationsMutation.mutateAsync({
         categories: {

@@ -78,6 +78,22 @@ export const clientProfiles = pgTable("client_profiles", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Extended user contact/profile info — separate table to avoid breaking clientProfiles queries
+export const userContactInfo = pgTable("user_contact_info", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id).unique(),
+  phone: varchar("phone", { length: 20 }),
+  timezone: varchar("timezone", { length: 50 }),
+  occupation: varchar("occupation", { length: 150 }),
+  address: text("address"),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 50 }),
+  zipCode: varchar("zip_code", { length: 20 }),
+  emergencyContact: varchar("emergency_contact", { length: 255 }),
+  emergencyPhone: varchar("emergency_phone", { length: 20 }),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Exercise screening — separate table to avoid breaking clientProfiles queries during migration
 export const exerciseScreenings = pgTable("exercise_screenings", {
   id: uuid("id").primaryKey().defaultRandom(),

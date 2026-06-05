@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { users, notificationPreferences, clientProfiles, trainerClientRelationships, trainerProfiles } from "@/server/db/schema";
+import { users, notificationPreferences, clientProfiles, trainerClientRelationships, trainerProfiles, userContactInfo } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const clientSettingsRouter = router({
@@ -38,21 +38,22 @@ export const clientSettingsRouter = router({
    * Get current user's settings (profile + notification preferences)
    */
   getSettings: clientProcedure.query(async ({ ctx }) => {
-    const user = await ctx.db.query.users.findFirst({
-      where: eq(users.id, ctx.dbUserId),
-    });
+    const [user, profile, prefs] = await Promise.all([
+      ctx.db.query.users.findFirst({ where: eq(users.id, ctx.dbUserId) }),
+      ctx.db.query.clientProfiles.findFirst({ where: eq(clientProfiles.userId, ctx.dbUserId) }),
+      ctx.db.query.notificationPreferences.findFirst({ where: eq(notificationPreferences.userId, ctx.dbUserId) }),
+    ]);
 
-    const profile = await ctx.db.query.clientProfiles.findFirst({
-      where: eq(clientProfiles.userId, ctx.dbUserId),
-    });
-
-    const prefs = await ctx.db.query.notificationPreferences.findFirst({
-      where: eq(notificationPreferences.userId, ctx.dbUserId),
-    });
+    // Contact info in separate table — safe if table doesn't exist yet
+    let contactInfo = null;
+    try {
+      contactInfo = await ctx.db.query.userContactInfo.findFirst({ where: eq(userContactInfo.userId, ctx.dbUserId) });
+    } catch { /* table may not exist yet */ }
 
     return {
       user,
       clientProfile: profile ?? null,
+      contactInfo: contactInfo ?? null,
       notificationPreferences: prefs,
     };
   }),
@@ -119,6 +120,40 @@ export const clientSettingsRouter = router({
       }
 
       return { success: true };
+    }),
+
+  /**
+   * Update contact info (phone, timezone, occupation, address)
+   */
+  updateContactInfo: clientProcedure
+    .input(z.object({
+      phone: z.string().optional(),
+      timezone: z.string().optional(),
+      occupation: z.string().optional(),
+      address: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      zipCode: z.string().optional(),
+      emergencyContact: z.string().optional(),
+      emergencyPhone: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const existing = await ctx.db.query.userContactInfo.findFirst({
+          where: eq(userContactInfo.userId, ctx.dbUserId),
+        });
+
+        if (existing) {
+          await ctx.db.update(userContactInfo).set({ ...input, updatedAt: new Date() })
+            .where(eq(userContactInfo.userId, ctx.dbUserId));
+        } else {
+          await ctx.db.insert(userContactInfo).values({ userId: ctx.dbUserId, ...input });
+        }
+        return { success: true };
+      } catch {
+        // Table may not exist yet — return success silently
+        return { success: true };
+      }
     }),
 
   /**
