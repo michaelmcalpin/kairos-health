@@ -232,42 +232,33 @@ export default function SettingsPage() {
   };
 
   const handleSaveChanges = async () => {
+    const errors: string[] = [];
+
+    // 1. Update user profile (name)
     try {
-      // Parse display name into firstName and lastName
       const [firstName, ...lastNameParts] = formData.displayName.split(" ");
       const lastName = lastNameParts.join(" ");
-
-      // Update profile
       await updateProfileMutation.mutateAsync({
         firstName: firstName || undefined,
         lastName: lastName || undefined,
       });
+    } catch { errors.push("name"); }
 
-      // Update notification preferences
-      await updateNotificationsMutation.mutateAsync({
-        categories: {
-          email: {
-            in_app: notifications.emailAlerts,
-            email: notifications.emailAlerts,
-            push: false,
-            sms: false,
-          },
-          push: {
-            in_app: notifications.pushNotifications,
-            email: false,
-            push: notifications.pushNotifications,
-            sms: false,
-          },
-          sms: {
-            in_app: notifications.smsAlerts,
-            email: false,
-            push: false,
-            sms: notifications.smsAlerts,
-          },
-        },
+    // 2. Update health profile (DOB, gender, height, goals)
+    try {
+      const feet = parseInt(profileForm.heightFeet) || 0;
+      const inches = parseInt(profileForm.heightInches) || 0;
+      const totalInches = feet * 12 + inches;
+      await updateClientProfileMutation.mutateAsync({
+        dateOfBirth: profileForm.dateOfBirth || undefined,
+        gender: profileForm.gender || undefined,
+        heightInches: totalInches > 0 ? totalInches : undefined,
+        goals: profileForm.goals.length > 0 ? profileForm.goals : undefined,
       });
+    } catch { errors.push("health profile"); }
 
-      // Update health history / exercise screening
+    // 3. Update health history / exercise screening
+    try {
       const rawAnswer = [
         historyForm.medicalConditions.length ? `Medical conditions: ${historyForm.medicalConditions.join(", ")}` : "",
         historyForm.injuries ? `Injuries/limitations: ${historyForm.injuries}` : "",
@@ -279,34 +270,36 @@ export default function SettingsPage() {
       ].filter(Boolean).join(". ");
       if (rawAnswer) {
         await saveScreeningMutation.mutateAsync({
-          injuries: historyForm.injuries,
-          conditions: historyForm.medicalConditions.join(", "),
+          injuries: historyForm.injuries || "",
+          conditions: historyForm.medicalConditions.join(", ") || "",
           equipment: "",
-          experience: historyForm.exerciseFrequency,
-          schedule: historyForm.exerciseTypes.join(", "),
+          experience: historyForm.exerciseFrequency || "",
+          schedule: historyForm.exerciseTypes.join(", ") || "",
           rawAnswer,
         });
       }
+    } catch { errors.push("health history"); }
 
-      // Update health profile
-      const feet = parseInt(profileForm.heightFeet) || 0;
-      const inches = parseInt(profileForm.heightInches) || 0;
-      const totalInches = feet * 12 + inches;
-      await updateClientProfileMutation.mutateAsync({
-        dateOfBirth: profileForm.dateOfBirth || undefined,
-        gender: profileForm.gender || undefined,
-        heightInches: totalInches > 0 ? totalInches : undefined,
-        goals: profileForm.goals.length > 0 ? profileForm.goals : undefined,
+    // 4. Update notification preferences
+    try {
+      await updateNotificationsMutation.mutateAsync({
+        categories: {
+          email: { in_app: notifications.emailAlerts, email: notifications.emailAlerts, push: false, sms: false },
+          push: { in_app: notifications.pushNotifications, email: false, push: notifications.pushNotifications, sms: false },
+          sms: { in_app: notifications.smsAlerts, email: false, push: false, sms: notifications.smsAlerts },
+        },
       });
+    } catch { errors.push("notifications"); }
 
-      settingsQuery.refetch();
-      setSaveMessage("Changes saved successfully");
-      setTimeout(() => setSaveMessage(""), 3000);
-    } catch (error) {
-      // Error is already shown to user via setSaveMessage
-      setSaveMessage("Failed to save changes. Please try again.");
-      setTimeout(() => setSaveMessage(""), 3000);
+    settingsQuery.refetch();
+    screeningQuery.refetch();
+
+    if (errors.length === 0) {
+      setSaveMessage("All changes saved successfully");
+    } else {
+      setSaveMessage(`Saved with issues: ${errors.join(", ")} failed to update`);
     }
+    setTimeout(() => setSaveMessage(""), 4000);
   };
 
   // Show loading state while data is being fetched
