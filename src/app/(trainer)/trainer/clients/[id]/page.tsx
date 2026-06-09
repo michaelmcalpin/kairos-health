@@ -104,6 +104,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [schedDate, setSchedDate] = useState("");
   const [schedTime, setSchedTime] = useState("09:00");
   const [schedNotes, setSchedNotes] = useState("");
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
 
   // ── tRPC queries ──────────────────────────────────────────────
   const detailQuery = trpc.coach.clients.getDetail.useQuery(
@@ -162,6 +163,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       setShowScheduleModal(false);
       setSchedNotes("");
       healthQuery.refetch();
+    },
+  });
+
+  const removeClientMutation = trpc.coach.clients.removeClient.useMutation({
+    onSuccess: () => {
+      router.push("/trainer/clients");
     },
   });
 
@@ -277,6 +284,10 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           </button>
           <button onClick={() => setShowProtocolModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors">
             <Settings size={14} /> Adjust Protocol
+          </button>
+          <div className="flex-1" />
+          <button onClick={() => setShowRemoveConfirm(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-red-500/5 text-red-400/70 border border-red-500/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors">
+            <X size={14} /> Remove
           </button>
         </div>
       </div>
@@ -523,6 +534,30 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             >
               {bookAppointmentMutation.isPending ? "Booking..." : "Book Session"}
             </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Remove Client Confirmation Modal */}
+      {showRemoveConfirm && (
+        <Modal title="Remove Client" onClose={() => setShowRemoveConfirm(false)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-400">
+              Are you sure you want to remove <span className="text-white font-semibold">{client.name}</span> from your client roster?
+            </p>
+            <p className="text-xs text-gray-500">
+              This will deactivate the relationship. The client&apos;s data will be preserved and they can be re-assigned later.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShowRemoveConfirm(false)} className="kairos-btn-outline flex-1">Cancel</button>
+              <button
+                onClick={() => removeClientMutation.mutate({ clientId: params.id })}
+                disabled={removeClientMutation.isPending}
+                className="flex-1 py-2 rounded-xl text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+              >
+                {removeClientMutation.isPending ? "Removing..." : "Remove Client"}
+              </button>
+            </div>
           </div>
         </Modal>
       )}

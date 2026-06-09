@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "@/server/trpc";
-import { users, clientProfiles, trainerProfiles } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { users, clientProfiles, trainerProfiles, clientInvitations, trainerClientRelationships } from "@/server/db/schema";
+import { eq, and, ilike } from "drizzle-orm";
 import { auth as clerkAuth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { logger } from "@/lib/middleware/logger";
 
@@ -78,7 +78,41 @@ export const authRouter = router({
 
     // Create role-specific profile
     if (role === "client" && newUser) {
-      await ctx.db.insert(clientProfiles).values({ userId: newUser.id, tier: "tier1" });
+      // Check for pending invitations — use invited tier if available
+      let invitedTier: "tier1" | "tier2" | "tier3" = "tier1";
+      try {
+        const pendingInvites = await ctx.db.query.clientInvitations.findMany({
+          where: and(
+            ilike(clientInvitations.email, email),
+            eq(clientInvitations.status, "pending"),
+          ),
+        });
+
+        if (pendingInvites.length > 0) {
+          // Use the tier from the first invitation
+          invitedTier = (pendingInvites[0].tier as "tier1" | "tier2" | "tier3") ?? "tier1";
+
+          // Auto-create trainer-client relationships for all pending invitations
+          for (const invite of pendingInvites) {
+            await ctx.db.insert(trainerClientRelationships).values({
+              trainerId: invite.trainerId,
+              clientId: newUser.id,
+              status: "active",
+            });
+
+            // Mark invitation as accepted
+            await ctx.db.update(clientInvitations)
+              .set({ status: "accepted", acceptedAt: new Date() })
+              .where(eq(clientInvitations.id, invite.id));
+          }
+
+          logger.info("auth", `Auto-assigned new user to ${pendingInvites.length} trainer(s) from invitations`, { email });
+        }
+      } catch {
+        // clientInvitations table may not exist yet — safe to ignore
+      }
+
+      await ctx.db.insert(clientProfiles).values({ userId: newUser.id, tier: invitedTier });
     } else if (role === "trainer" && newUser) {
       await ctx.db.insert(trainerProfiles).values({ userId: newUser.id });
     }
