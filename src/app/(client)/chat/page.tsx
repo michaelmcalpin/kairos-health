@@ -965,32 +965,31 @@ function ChatPageContent() {
   const initialTab = searchParams.get("tab") === "coach" ? "coach" : "ai";
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
 
-  // Check for assigned coach via trainer_client_relationships
+  // Primary source: check trainer_client_relationships via getMyCoach
+  const { data: assignedCoach } = trpc.clientPortal.settings.getMyCoach.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+
+  // Secondary source: existing conversations
   const { data: coachConversations = [] } = trpc.clientPortal.messaging.listConversations.useQuery(
     { filter: "human_coach" },
     { staleTime: 30_000 }
   );
 
-  // Also check scheduling for coach info
-  const { data: appointments = [] } = trpc.clientPortal.scheduling.listAppointments.useQuery(
-    { filter: "upcoming" },
-    { staleTime: 60_000, retry: false }
-  );
-
-  // Derive coach info from conversations or appointments
+  // Derive coach info — relationship table first, then conversations fallback
   const coachInfo = useMemo(() => {
-    // Check if there's an existing coach conversation
+    // Primary: assigned coach from trainerClientRelationships
+    if (assignedCoach) {
+      const name = `${assignedCoach.firstName ?? ""} ${assignedCoach.lastName ?? ""}`.trim() || "Your Coach";
+      return { id: assignedCoach.id, name };
+    }
+    // Fallback: existing coach conversation
     const coachConv = coachConversations.find((c) => c.coachId);
     if (coachConv) {
       return { id: coachConv.coachId!, name: coachConv.coachName ?? "Your Coach" };
     }
-    // Check appointments for coach info
-    const upcoming = appointments[0];
-    if (upcoming && "coachId" in upcoming && "coachName" in upcoming) {
-      return { id: upcoming.coachId as string, name: (upcoming.coachName as string) ?? "Your Coach" };
-    }
     return null;
-  }, [coachConversations, appointments]);
+  }, [assignedCoach, coachConversations]);
 
   const hasCoach = !!coachInfo;
 
