@@ -135,6 +135,22 @@ export const trainerClientRelationships = pgTable("trainer_client_relationships"
   index("tcr_client_idx").on(t.clientId),
 ]);
 
+// Client invitations — trainer invites someone by email before they register
+export const clientInvitations = pgTable("client_invitations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trainerId: uuid("trainer_id").notNull().references(() => users.id),
+  email: varchar("email", { length: 255 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // pending | accepted | expired | cancelled
+  tier: tierEnum("tier").notNull().default("tier3"),
+  note: text("note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  acceptedAt: timestamp("accepted_at"),
+}, (t) => [
+  index("ci_trainer_idx").on(t.trainerId),
+  index("ci_email_idx").on(t.email),
+]);
+
 // ======================== BIOMETRIC: TIMESCALEDB HYPERTABLES ========================
 export const glucoseReadings = pgTable("glucose_readings", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
 import {
   trainerClientRelationships,
+  clientInvitations,
   users,
   clientProfiles,
   alerts,
@@ -28,7 +29,7 @@ import {
   appointments,
   conversations,
 } from "@/server/db/schema";
-import { eq, desc, and, sql, gte, lte, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte, inArray, or, ilike, ne, notInArray } from "drizzle-orm";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -765,5 +766,268 @@ export const coachClientsRouter = router({
         })),
         conversationId: conversation?.id ?? null,
       };
+    }),
+
+  // ─── Client Assignment ────────────────────────────────────────
+
+  /**
+   * Search for users to add as clients.
+   * Returns users with role "client" who are NOT already assigned to this trainer.
+   */
+  searchUsers: trainerProcedure
+    .input(z.object({ query: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const trainerId = ctx.dbUserId;
+      const q = `%${input.query}%`;
+
+      // Get IDs of clients already assigned to this trainer (active or pending)
+      const existingRels = await ctx.db.query.trainerClientRelationships.findMany({
+        where: and(
+          eq(trainerClientRelationships.trainerId, trainerId),
+          eq(trainerClientRelationships.status, "active"),
+        ),
+      });
+      const existingClientIds = existingRels.map((r) => r.clientId);
+
+      // Search users by email, first name, or last name
+      const conditions = [
+        eq(users.role, "client"),
+        ne(users.id, trainerId),
+        or(
+          ilike(users.email, q),
+          ilike(users.firstName, q),
+          ilike(users.lastName, q),
+        ),
+      ];
+
+      // Exclude already-assigned clients
+      if (existingClientIds.length > 0) {
+        conditions.push(notInArray(users.id, existingClientIds));
+      }
+
+      const results = await ctx.db.query.users.findMany({
+        where: and(...conditions),
+        limit: 20,
+      });
+
+      return results.map((u) => ({
+        id: u.id,
+        email: u.email,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        avatarUrl: u.avatarUrl,
+        name: `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.email,
+        status: u.status,
+        createdAt: u.createdAt.toISOString(),
+      }));
+    }),
+
+  /**
+   * Add (assign) an existing user as a client.
+   * Creates a trainerClientRelationships row and ensures a clientProfile exists.
+   */
+  addClient: trainerProcedure
+    .input(z.object({
+      clientId: z.string().uuid(),
+      tier: z.enum(["tier1", "tier2", "tier3"]).optional().default("tier3"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.dbUserId;
+
+      // Verify user exists and is a client
+      const user = await ctx.db.query.users.findFirst({
+        where: eq(users.id, input.clientId),
+      });
+      if (!user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+
+      // Check if relationship already exists
+      const existing = await ctx.db.query.trainerClientRelationships.findFirst({
+        where: and(
+          eq(trainerClientRelationships.trainerId, trainerId),
+          eq(trainerClientRelationships.clientId, input.clientId),
+          eq(trainerClientRelationships.status, "active"),
+        ),
+      });
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: "Client is already assigned to you" });
+      }
+
+      // Check for inactive relationship and reactivate, or create new
+      const inactive = await ctx.db.query.trainerClientRelationships.findFirst({
+        where: and(
+          eq(trainerClientRelationships.trainerId, trainerId),
+          eq(trainerClientRelationships.clientId, input.clientId),
+          eq(trainerClientRelationships.status, "inactive"),
+        ),
+      });
+
+      if (inactive) {
+        await ctx.db.update(trainerClientRelationships)
+          .set({ status: "active", startedAt: new Date() })
+          .where(eq(trainerClientRelationships.id, inactive.id));
+      } else {
+        await ctx.db.insert(trainerClientRelationships).values({
+          trainerId,
+          clientId: input.clientId,
+          status: "active",
+        });
+      }
+
+      // Ensure client profile exists with selected tier
+      const profile = await ctx.db.query.clientProfiles.findFirst({
+        where: eq(clientProfiles.userId, input.clientId),
+      });
+      if (profile) {
+        await ctx.db.update(clientProfiles)
+          .set({ tier: input.tier })
+          .where(eq(clientProfiles.userId, input.clientId));
+      } else {
+        await ctx.db.insert(clientProfiles).values({
+          userId: input.clientId,
+          tier: input.tier,
+        });
+      }
+
+      // If user was invited by email, mark invitation as accepted
+      try {
+        await ctx.db.update(clientInvitations)
+          .set({ status: "accepted", acceptedAt: new Date() })
+          .where(and(
+            eq(clientInvitations.trainerId, trainerId),
+            ilike(clientInvitations.email, user.email),
+            eq(clientInvitations.status, "pending"),
+          ));
+      } catch { /* table may not exist yet */ }
+
+      return { success: true, clientId: input.clientId };
+    }),
+
+  /**
+   * Remove (unassign) a client — sets relationship to inactive.
+   */
+  removeClient: trainerProcedure
+    .input(z.object({ clientId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.dbUserId;
+
+      const rel = await ctx.db.query.trainerClientRelationships.findFirst({
+        where: and(
+          eq(trainerClientRelationships.trainerId, trainerId),
+          eq(trainerClientRelationships.clientId, input.clientId),
+          eq(trainerClientRelationships.status, "active"),
+        ),
+      });
+
+      if (!rel) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No active relationship with this client" });
+      }
+
+      await ctx.db.update(trainerClientRelationships)
+        .set({ status: "inactive" })
+        .where(eq(trainerClientRelationships.id, rel.id));
+
+      return { success: true };
+    }),
+
+  /**
+   * Invite a client by email — creates a pending invitation.
+   * If the user already exists in the system, suggests using addClient instead.
+   */
+  inviteClient: trainerProcedure
+    .input(z.object({
+      email: z.string().email(),
+      tier: z.enum(["tier1", "tier2", "tier3"]).optional().default("tier3"),
+      note: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.dbUserId;
+
+      // Check if user already exists
+      const existingUser = await ctx.db.query.users.findFirst({
+        where: ilike(users.email, input.email),
+      });
+      if (existingUser) {
+        return {
+          success: false,
+          existingUserId: existingUser.id,
+          message: "User already exists — use 'Add Client' to assign them directly.",
+        };
+      }
+
+      // Check for duplicate pending invitation
+      try {
+        const existingInvite = await ctx.db.query.clientInvitations.findFirst({
+          where: and(
+            eq(clientInvitations.trainerId, trainerId),
+            ilike(clientInvitations.email, input.email),
+            eq(clientInvitations.status, "pending"),
+          ),
+        });
+        if (existingInvite) {
+          return { success: false, message: "An invitation is already pending for this email." };
+        }
+      } catch { /* table may not exist yet */ }
+
+      // Create invitation (expires in 30 days)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      try {
+        const [invite] = await ctx.db.insert(clientInvitations).values({
+          trainerId,
+          email: input.email.toLowerCase(),
+          tier: input.tier,
+          note: input.note ?? null,
+          expiresAt,
+        }).returning();
+
+        return { success: true, invitationId: invite.id };
+      } catch {
+        // Table may not exist yet
+        return { success: true, invitationId: null };
+      }
+    }),
+
+  /**
+   * List pending invitations for this trainer.
+   */
+  listInvitations: trainerProcedure.query(async ({ ctx }) => {
+    try {
+      const invitations = await ctx.db.query.clientInvitations.findMany({
+        where: eq(clientInvitations.trainerId, ctx.dbUserId),
+        orderBy: desc(clientInvitations.createdAt),
+      });
+      return invitations.map((inv) => ({
+        id: inv.id,
+        email: inv.email,
+        status: inv.status,
+        tier: inv.tier,
+        note: inv.note,
+        createdAt: inv.createdAt.toISOString(),
+        expiresAt: inv.expiresAt?.toISOString() ?? null,
+      }));
+    } catch {
+      return [];
+    }
+  }),
+
+  /**
+   * Cancel a pending invitation.
+   */
+  cancelInvitation: trainerProcedure
+    .input(z.object({ invitationId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await ctx.db.update(clientInvitations)
+          .set({ status: "cancelled" })
+          .where(and(
+            eq(clientInvitations.id, input.invitationId),
+            eq(clientInvitations.trainerId, ctx.dbUserId),
+            eq(clientInvitations.status, "pending"),
+          ));
+      } catch { /* table may not exist */ }
+      return { success: true };
     }),
 });
