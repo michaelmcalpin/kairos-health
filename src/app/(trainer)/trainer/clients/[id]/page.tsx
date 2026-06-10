@@ -105,6 +105,15 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [schedTime, setSchedTime] = useState("09:00");
   const [schedNotes, setSchedNotes] = useState("");
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [showTierDropdown, setShowTierDropdown] = useState(false);
+
+  // Close tier dropdown on outside click
+  useEffect(() => {
+    if (!showTierDropdown) return;
+    const handler = () => setShowTierDropdown(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [showTierDropdown]);
 
   // ── tRPC queries ──────────────────────────────────────────────
   const detailQuery = trpc.coach.clients.getDetail.useQuery(
@@ -169,6 +178,14 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const removeClientMutation = trpc.coach.clients.removeClient.useMutation({
     onSuccess: () => {
       router.push("/trainer/clients");
+    },
+  });
+
+  const updateTierMutation = trpc.coach.clients.updateTier.useMutation({
+    onSuccess: () => {
+      detailQuery.refetch();
+      utils.coach.clients.list.invalidate();
+      setShowTierDropdown(false);
     },
   });
 
@@ -252,9 +269,37 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             <div>
               <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h1 className="text-2xl font-heading font-bold text-white">{client.name}</h1>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${TIER_BADGE_COLORS[client.tier]}`}>
-                  {TIER_LABELS[client.tier]}
-                </span>
+                <div className="relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowTierDropdown((v) => !v); }}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border cursor-pointer hover:opacity-80 transition-opacity ${TIER_BADGE_COLORS[client.tier]}`}
+                  >
+                    {TIER_LABELS[client.tier]}
+                    <ChevronRight size={10} className={`transition-transform ${showTierDropdown ? "rotate-90" : ""}`} />
+                  </button>
+                  {showTierDropdown && (
+                    <div className="absolute top-full left-0 mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[140px]">
+                      {(["tier1", "tier2", "tier3"] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={(e) => { e.stopPropagation(); if (t !== client.tier) updateTierMutation.mutate({ clientId: params.id, tier: t }); }}
+                          disabled={t === client.tier || updateTierMutation.isPending}
+                          className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
+                            t === client.tier
+                              ? "opacity-50 cursor-default bg-gray-800/50"
+                              : "hover:bg-gray-800 cursor-pointer"
+                          }`}
+                        >
+                          <span className={`inline-block w-2 h-2 rounded-full ${
+                            t === "tier1" ? "bg-kairos-gold" : t === "tier2" ? "bg-blue-400" : "bg-purple-400"
+                          }`} />
+                          <span className="text-gray-200">{TIER_LABELS[t]}</span>
+                          {t === client.tier && <CheckCircle size={10} className="ml-auto text-green-400" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-3 text-sm flex-wrap">
                 <div className="flex items-center gap-1.5">

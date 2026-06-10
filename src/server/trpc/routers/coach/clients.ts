@@ -932,6 +932,35 @@ export const coachClientsRouter = router({
     }),
 
   /**
+   * Update a client's tier (Premium, Standard, Basic).
+   */
+  updateTier: trainerProcedure
+    .input(z.object({
+      clientId: z.string().uuid(),
+      tier: z.enum(["tier1", "tier2", "tier3"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+
+      const existing = await ctx.db.query.clientProfiles.findFirst({
+        where: eq(clientProfiles.userId, input.clientId),
+      });
+
+      if (existing) {
+        await ctx.db.update(clientProfiles)
+          .set({ tier: input.tier })
+          .where(eq(clientProfiles.userId, input.clientId));
+      } else {
+        await ctx.db.insert(clientProfiles).values({
+          userId: input.clientId,
+          tier: input.tier,
+        });
+      }
+
+      return { success: true };
+    }),
+
+  /**
    * Invite a client by email — creates a pending invitation.
    * If the user already exists in the system, suggests using addClient instead.
    */
