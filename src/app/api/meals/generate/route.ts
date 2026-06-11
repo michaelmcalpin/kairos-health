@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { getClientContext } from "@/lib/ai/health-context";
+import { callWithRetry } from "@/lib/ai/retry";
 
 export const maxDuration = 120;
 
@@ -86,12 +87,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 8192,
-      system: `${MEAL_SYSTEM_PROMPT}\n\n--- CLIENT HEALTH PROFILE ---\n${healthContext}`,
-      messages,
-    });
+    const response = await callWithRetry(
+      () =>
+        anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 8192,
+          system: `${MEAL_SYSTEM_PROMPT}\n\n--- CLIENT HEALTH PROFILE ---\n${healthContext}`,
+          messages,
+        }),
+      "Meal Generation",
+    );
 
     const textBlock = response.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {

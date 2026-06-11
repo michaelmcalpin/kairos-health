@@ -192,9 +192,9 @@ export default function TrainerSettingsPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {[
-            { label: "Display Name", name: "displayName", type: "text" },
-            { label: "Email", name: "email", type: "email" },
-            { label: "Specialization", name: "specialization", type: "text" },
+            { label: "Display Name", name: "displayName", type: "text", disabled: false },
+            { label: "Email", name: "email", type: "email", disabled: true },
+            { label: "Specialization", name: "specialization", type: "text", disabled: false },
           ].map((field) => (
             <div key={field.name}>
               <label className="block font-body text-kairos-silver-dark text-sm mb-2">{field.label}</label>
@@ -203,8 +203,14 @@ export default function TrainerSettingsPage() {
                 name={field.name}
                 value={formData[field.name as keyof typeof formData]}
                 onChange={handleInputChange}
-                className="w-full kairos-input"
+                disabled={field.disabled}
+                className={`w-full kairos-input ${field.disabled ? "opacity-60 cursor-not-allowed" : ""}`}
               />
+              {field.disabled && (
+                <p className="text-xs text-kairos-silver-dark mt-1">
+                  Email cannot be changed here. Contact support to update your email address.
+                </p>
+              )}
             </div>
           ))}
           <div>

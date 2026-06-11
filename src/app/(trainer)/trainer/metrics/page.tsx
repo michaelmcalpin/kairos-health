@@ -354,7 +354,13 @@ export default function CoachMetricsPage() {
             <div className="flex items-center gap-3 mb-6">
               <TrendingUp className="w-6 h-6 text-kairos-gold" />
               <h2 className="text-xl font-bold font-heading text-white">Monthly Trends (Last 6 Months)</h2>
+              <span className="ml-auto px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                Sample Data
+              </span>
             </div>
+            <p className="text-xs text-kairos-silver-dark mb-4 -mt-2">
+              Historical data is not yet available. Values shown are flat projections based on current month.
+            </p>
 
             {isLoading ? (
               <div className="space-y-8">
@@ -517,7 +523,13 @@ export default function CoachMetricsPage() {
             <div className="flex items-center gap-3 mb-6">
               <Target className="w-6 h-6 text-kairos-gold" />
               <h2 className="text-xl font-bold font-heading text-white">Protocol Effectiveness Summary</h2>
+              <span className="ml-auto px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                Sample Data
+              </span>
             </div>
+            <p className="text-xs text-kairos-silver-dark mb-4 -mt-2">
+              Protocol tracking is not yet supported by the backend. Names, scores, and adherence rates shown below are illustrative only.
+            </p>
             {isLoading ? (
               <div className="space-y-6">
                 {[...Array(3)].map((_, i) => (

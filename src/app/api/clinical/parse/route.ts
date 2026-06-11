@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@clerk/nextjs/server";
+import { callWithRetry } from "@/lib/ai/retry";
 
 // Allow longer processing time for large documents
 export const maxDuration = 120;
@@ -288,16 +289,20 @@ export async function POST(req: NextRequest) {
       text: `Parse this clinical document (${fileName}). ${prompt}\n\nRespond ONLY with valid JSON — no markdown, no code fences, no explanatory text.`,
     });
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 8192,
-      messages: [
-        {
-          role: "user",
-          content: contentBlocks,
-        },
-      ],
-    });
+    const response = await callWithRetry(
+      () =>
+        anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 8192,
+          messages: [
+            {
+              role: "user",
+              content: contentBlocks,
+            },
+          ],
+        }),
+      "Clinical Document Parsing",
+    );
 
     // Extract text from response
     const textBlock = response.content.find((b) => b.type === "text");

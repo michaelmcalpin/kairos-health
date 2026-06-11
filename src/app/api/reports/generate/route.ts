@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { getClientContext } from "@/lib/ai/health-context";
+import { callWithRetry } from "@/lib/ai/retry";
 
 export const maxDuration = 120;
 
@@ -265,22 +266,26 @@ export async function POST(req: NextRequest) {
 
     const anthropic = new Anthropic({ apiKey });
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 8192,
-      system: `You are EVERIST AI, an advanced health analytics engine. You generate structured clinical health reports based on comprehensive client data. You must respond ONLY with valid JSON — no markdown, no code fences, no explanatory text before or after the JSON.
+    const response = await callWithRetry(
+      () =>
+        anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 8192,
+          system: `You are EVERIST AI, an advanced health analytics engine. You generate structured clinical health reports based on comprehensive client data. You must respond ONLY with valid JSON — no markdown, no code fences, no explanatory text before or after the JSON.
 
 ${reportConfig.systemAddendum}
 
 --- COMPLETE CLIENT HEALTH PROFILE ---
 ${healthContext}`,
-      messages: [
-        {
-          role: "user",
-          content: `Generate my ${reportConfig.title} report now. Analyze all available data and produce the structured JSON report.`,
-        },
-      ],
-    });
+          messages: [
+            {
+              role: "user",
+              content: `Generate my ${reportConfig.title} report now. Analyze all available data and produce the structured JSON report.`,
+            },
+          ],
+        }),
+      "Report Generation",
+    );
 
     // Extract text from response
     const textBlock = response.content.find((b) => b.type === "text");

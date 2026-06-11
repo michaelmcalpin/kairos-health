@@ -5,6 +5,7 @@ import { db } from "@/server/db";
 import { users, conversations, messages } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { getClientContext } from "@/lib/ai/health-context";
+import { callWithRetry } from "@/lib/ai/retry";
 
 // ---------------------------------------------------------------------------
 // System prompt — comprehensive health analysis
@@ -117,12 +118,16 @@ export async function POST(req: NextRequest) {
     const anthropic = new Anthropic({ apiKey });
 
     // Stream the response — use higher token limit for comprehensive analysis
-    const stream = await anthropic.messages.stream({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      system: `${SYSTEM_PROMPT}\n\n--- COMPLETE CLIENT HEALTH PROFILE ---\n${healthContext}`,
-      messages: anthropicMessages,
-    });
+    const stream = await callWithRetry(
+      () =>
+        anthropic.messages.stream({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 4096,
+          system: `${SYSTEM_PROMPT}\n\n--- COMPLETE CLIENT HEALTH PROFILE ---\n${healthContext}`,
+          messages: anthropicMessages,
+        }),
+      "AI Chat",
+    );
 
     // Create a ReadableStream that sends SSE events
     const encoder = new TextEncoder();

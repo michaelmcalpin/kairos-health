@@ -160,7 +160,7 @@ export default function RevenueCoachPage() {
                 <TrendingUp className="w-5 h-5 text-kairos-gold" />
               </div>
               <div className="text-3xl font-heading font-bold text-white mb-1">${data.ytdTotal.toLocaleString()}</div>
-              <p className="text-xs text-kairos-silver-dark font-body">Year to date</p>
+              <p className="text-xs text-kairos-silver-dark font-body">Year to date (estimate: monthly &times; 12)</p>
             </div>
           </>
         )}
@@ -168,7 +168,15 @@ export default function RevenueCoachPage() {
 
       {/* Monthly Revenue Trend Chart */}
       <div className="kairos-card p-6 border border-kairos-border">
-        <h2 className="font-heading font-bold text-xl text-white mb-6">Monthly Revenue Trend</h2>
+        <div className="flex items-center gap-3 mb-6">
+          <h2 className="font-heading font-bold text-xl text-white">Monthly Revenue Trend</h2>
+          <span className="ml-auto px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
+            Sample Data
+          </span>
+        </div>
+        <p className="text-xs font-body text-kairos-silver-dark mb-4 -mt-2">
+          Historical monthly data is not yet available. The values below are hardcoded placeholders.
+        </p>
         <div className="h-64 flex items-end justify-between gap-2 px-2">
           {data.monthlyTrend.map((item) => {
             const coachingHeight = maxMonthlyRevenue > 0 ? (item.coaching / maxMonthlyRevenue) * 100 : 0;
@@ -277,7 +285,15 @@ export default function RevenueCoachPage() {
 
       {/* Recent Transactions */}
       <div className="kairos-card p-6 border border-kairos-border">
-        <h2 className="font-heading font-bold text-xl text-white mb-6">Recent Transactions</h2>
+        <div className="flex items-center gap-3 mb-6">
+          <h2 className="font-heading font-bold text-xl text-white">Recent Transactions</h2>
+          <span className="ml-auto px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
+            Sample Data
+          </span>
+        </div>
+        <p className="text-xs font-body text-kairos-silver-dark mb-4 -mt-2">
+          Transaction history is not yet tracked. Entries below are generated from the current client list for illustration.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>

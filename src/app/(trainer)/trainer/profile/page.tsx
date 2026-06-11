@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Mail,
   Phone,
@@ -9,14 +8,10 @@ import {
   Shield,
   Bell,
   Settings,
-  Edit,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 export default function CoachProfilePage() {
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<Record<string, string>>({});
-
   // Fetch user data
   const { data: user, isLoading: userLoading } = trpc.auth.me.useQuery();
 
@@ -54,21 +49,6 @@ export default function CoachProfilePage() {
       .join("")
       .toUpperCase()
       .slice(0, 2);
-  };
-
-  const startEditing = (field: string, value: string) => {
-    setEditingField(field);
-    setEditValues({ ...editValues, [field]: value });
-  };
-
-  const saveEdit = (field: string) => {
-    const value = editValues[field];
-    if (value) {
-      updateProfileMutation.mutate({
-        [field]: isNaN(Number(value)) ? value : Number(value),
-      });
-      setEditingField(null);
-    }
   };
 
   const toggleNotification = (type: "email" | "sms" | "inApp") => {
@@ -228,17 +208,7 @@ export default function CoachProfilePage() {
               <div>
                 <label className="kairos-label mb-2 block flex items-center gap-2">
                   <Clock className="w-4 h-4" />
-                  Total Revenue
-                </label>
-                <p className="text-kairos-silver-dark font-body text-sm">
-                  ${revenue.totalMonthlyRevenue?.toFixed(2) ?? "0.00"}
-                </p>
-              </div>
-
-              <div>
-                <label className="kairos-label mb-2 block flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  This Month
+                  Monthly Revenue
                 </label>
                 <p className="text-kairos-silver-dark font-body text-sm">
                   ${revenue.totalMonthlyRevenue?.toFixed(2) ?? "0.00"}

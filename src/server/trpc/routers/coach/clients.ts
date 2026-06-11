@@ -843,12 +843,20 @@ export const coachClientsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const trainerId = ctx.dbUserId;
 
-      // Verify user exists and is a client
+      // Verify user exists
       const user = await ctx.db.query.users.findFirst({
         where: eq(users.id, input.clientId),
       });
       if (!user) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+
+      // Verify user has the "client" role — prevent assigning trainers or admins as clients
+      if (user.role !== "client") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Cannot add a user with role "${user.role}" as a client. Only users with the "client" role can be assigned.`,
+        });
       }
 
       // Check if relationship already exists

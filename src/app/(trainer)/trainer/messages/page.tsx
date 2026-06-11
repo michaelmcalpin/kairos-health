@@ -8,7 +8,7 @@ import { trpc } from "@/lib/trpc";
 function CoachMessagesContent() {
   const searchParams = useSearchParams();
   const conversationId = searchParams.get("conversationId");
-  const { data: user } = trpc.auth.me.useQuery();
+  const { data: user, isLoading } = trpc.auth.me.useQuery();
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -19,12 +19,16 @@ function CoachMessagesContent() {
         </p>
       </div>
 
-      <MessagingDashboard
-        userId={user?.id ?? ""}
-        role="coach"
-        userName={user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "Trainer" : "Trainer"}
-        initialConversationId={conversationId}
-      />
+      {isLoading || !user?.id ? (
+        <div className="kairos-card h-96 animate-pulse bg-gray-800/50" />
+      ) : (
+        <MessagingDashboard
+          userId={user.id}
+          role="coach"
+          userName={`${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "Trainer"}
+          initialConversationId={conversationId}
+        />
+      )}
     </div>
   );
 }
