@@ -248,6 +248,7 @@ export const coachDashboardRouter = router({
           startTime: appt.startTime,
           client: clientName,
           type: appt.sessionType ?? "Follow-up",
+          meetingLink: appt.meetingLink ?? null,
         };
       });
 

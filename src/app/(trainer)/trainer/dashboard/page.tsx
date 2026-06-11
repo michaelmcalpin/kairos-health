@@ -8,7 +8,7 @@ import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
-import { Users, Bell, Calendar, TrendingUp, DollarSign, Clock, ArrowRight } from "lucide-react";
+import { Users, Bell, Calendar, TrendingUp, DollarSign, Clock, ArrowRight, Video } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   users: <Users size={16} />,
@@ -197,6 +197,17 @@ export default function TrainerDashboard() {
                     <p className="text-sm text-white truncate">{session.client}</p>
                     <p className="text-[10px] text-gray-500">{session.type}</p>
                   </div>
+                  {session.meetingLink && (
+                    <a
+                      href={session.meetingLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-lg text-kairos-gold hover:bg-kairos-gold/15 transition-colors shrink-0"
+                      title="Join Video Call"
+                    >
+                      <Video size={14} />
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

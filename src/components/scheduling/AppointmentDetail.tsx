@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Video } from "lucide-react";
 
 // ─── Local types matching DB schema ─────────────────────────────────
 
@@ -19,6 +20,7 @@ interface AppointmentData {
   status: string;
   notes: string | null;
   cancellationReason: string | null;
+  meetingLink?: string | null;
 }
 
 interface SessionNoteData {
@@ -186,6 +188,19 @@ export function AppointmentDetail({
           <span className="text-sm text-gray-400">Meeting Type</span>
           <span className="text-sm text-white">{MEETING_TYPE_LABELS[appointment.meetingType] ?? appointment.meetingType}</span>
         </div>
+        {appointment.meetingLink && (
+          <div className="py-2 border-b border-gray-800">
+            <a
+              href={appointment.meetingLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-kairos-gold/15 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/25 transition-colors"
+            >
+              <Video size={16} />
+              Join Video Call
+            </a>
+          </div>
+        )}
         {appointment.notes && (
           <div className="py-2">
             <span className="text-sm text-gray-400">Notes</span>

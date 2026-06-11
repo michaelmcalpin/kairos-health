@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
 import { appointments, sessionNotes, coachAvailability, trainerProfiles, users, notificationPreferences, alerts, conversations, messages } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, lt, sql } from "drizzle-orm";
+import { createZoomMeeting, deleteZoomMeeting } from "@/lib/zoom";
 
 const SESSION_DURATIONS: Record<string, number> = {
   initial_consultation: 60,
@@ -287,6 +288,33 @@ export const coachScheduleRouter = router({
         })
         .returning();
 
+      // Create Zoom meeting for video appointments
+      if (input.meetingType === "video") {
+        try {
+          const zoomResult = await createZoomMeeting({
+            topic: `EVERIST - ${sessionLabel} with ${input.clientName}`,
+            startTime: `${input.date}T${input.startTime}:00`,
+            duration,
+            agenda: input.notes || undefined,
+          });
+          if (zoomResult) {
+            await ctx.db
+              .update(appointments)
+              .set({
+                meetingLink: zoomResult.joinUrl,
+                zoomMeetingId: String(zoomResult.meetingId),
+              })
+              .where(eq(appointments.id, created.id));
+            // Update the returned object so downstream code sees the link
+            (created as Record<string, unknown>).meetingLink = zoomResult.joinUrl;
+            (created as Record<string, unknown>).zoomMeetingId = String(zoomResult.meetingId);
+          }
+        } catch (zoomError) {
+          // Zoom failure is non-fatal — appointment was already created
+          console.error("Failed to create Zoom meeting:", zoomError);
+        }
+      }
+
       // Format date for display
       const displayDate = new Date(input.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
       const [h, m] = input.startTime.split(":");
@@ -351,6 +379,17 @@ export const coachScheduleRouter = router({
         .returning();
 
       if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Appointment not found" });
+
+      // Clean up Zoom meeting when appointment is cancelled
+      if (input.status === "cancelled" && updated.zoomMeetingId) {
+        try {
+          await deleteZoomMeeting(updated.zoomMeetingId);
+        } catch (zoomError) {
+          // Zoom cleanup failure is non-fatal — cancellation should still succeed
+          console.error("Failed to delete Zoom meeting:", zoomError);
+        }
+      }
+
       return updated;
     }),
 

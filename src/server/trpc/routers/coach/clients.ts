@@ -1014,6 +1014,7 @@ export const coachClientsRouter = router({
           sessionType: a.sessionType,
           meetingType: a.meetingType,
           status: a.status,
+          meetingLink: a.meetingLink ?? null,
         })),
         conversationId: conversation?.id ?? null,
       };

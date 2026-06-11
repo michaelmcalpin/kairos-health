@@ -33,6 +33,7 @@ interface AppointmentLike {
   status: string;
   notes: string | null;
   cancellationReason: string | null;
+  meetingLink?: string | null;
 }
 
 export default function CoachSchedulePage() {

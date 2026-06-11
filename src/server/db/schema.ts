@@ -735,6 +735,8 @@ export const appointments = pgTable("appointments", {
   status: appointmentStatusEnum("status").notNull().default("pending"),
   notes: text("notes"),
   cancellationReason: text("cancellation_reason"),
+  meetingLink: varchar("meeting_link", { length: 500 }),
+  zoomMeetingId: varchar("zoom_meeting_id", { length: 50 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [

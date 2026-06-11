@@ -427,6 +427,17 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                         {apt.meetingType ?? "video"}
                       </p>
                     </div>
+                    {apt.meetingLink && (
+                      <a
+                        href={apt.meetingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-lg text-kairos-gold hover:bg-kairos-gold/15 transition-colors shrink-0"
+                        title="Join Video Call"
+                      >
+                        <Video size={12} />
+                      </a>
+                    )}
                   </div>
                 ))}
               </div>
@@ -681,7 +692,7 @@ type HealthData = {
   nutrition: { recentMeals: Array<{ date: string; mealType: string | null; calories: number | null; protein: number | null; carbs: number | null; fat: number | null }> };
   supplements: Array<{ name: string; dosage: string | null; frequency: string | null; timeOfDay: string | null; notes: string | null }>;
   checkins: Array<{ date: string; mood: number | null; energy: number | null; stress: number | null; sleepQuality: number | null; trainingType: string | null }>;
-  upcomingAppointments: Array<{ id: string; date: string; startTime: string | null; endTime: string | null; sessionType: string | null; meetingType: string | null; status: string | null }>;
+  upcomingAppointments: Array<{ id: string; date: string; startTime: string | null; endTime: string | null; sessionType: string | null; meetingType: string | null; status: string | null; meetingLink?: string | null }>;
   conversationId: string | null;
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
