@@ -12,7 +12,9 @@ export default function RevenueCoachPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "month" });
 
-  // Fetch revenue summary from tRPC
+  // TODO: Backend endpoints (coach.revenue.getSummary and coach.revenue.getClientRevenue)
+  // need date filtering support (startDate/endDate params) so the DateRangeNavigator
+  // can scope revenue data to the selected period. Currently the navigator is cosmetic.
   const { data: summaryData, isLoading: summaryLoading } =
     trpc.coach.revenue.getSummary.useQuery();
 

@@ -937,7 +937,7 @@ function TabContent({
                         "bg-gray-700 text-gray-400"
                       }`}>{g.status}</span>
                     </div>
-                    <p className="text-[10px] text-gray-500 mb-2">{g.category} &bull; {g.targetDirection} to {g.targetValue} {g.targetUnit}</p>
+                    <p className="text-[10px] text-gray-500 mb-2">{g.category || "General"} &bull; {g.targetDirection || "reach"} to {g.targetValue} {g.targetUnit}</p>
                     <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden mb-1">
                       <div className="h-full bg-kairos-gold rounded-full" style={{ width: `${progress}%` }} />
                     </div>

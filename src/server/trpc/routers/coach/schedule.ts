@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
 import { appointments, sessionNotes, coachAvailability, trainerProfiles, users, notificationPreferences, alerts, conversations, messages } from "@/server/db/schema";
-import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte, lt, sql } from "drizzle-orm";
 
 const SESSION_DURATIONS: Record<string, number> = {
   initial_consultation: 60,
@@ -202,7 +202,7 @@ export const coachScheduleRouter = router({
       const conditions = [eq(appointments.coachId, ctx.dbUserId)];
 
       if (filter === "upcoming") conditions.push(gte(appointments.date, today));
-      if (filter === "past") conditions.push(lte(appointments.date, today));
+      if (filter === "past") conditions.push(lt(appointments.date, today));
 
       return ctx.db.query.appointments.findMany({
         where: and(...conditions),
@@ -246,6 +246,27 @@ export const coachScheduleRouter = router({
         : "Coach";
 
       const duration = SESSION_DURATIONS[input.sessionType] ?? 30;
+      const endTime = addMinutes(input.startTime, duration);
+
+      // Check for overlapping appointments on the same date for this coach
+      const overlapping = await ctx.db.query.appointments.findFirst({
+        where: and(
+          eq(appointments.coachId, ctx.dbUserId),
+          eq(appointments.date, input.date),
+          sql`${appointments.status} NOT IN ('cancelled')`,
+          // Overlap: existing.start < newEnd AND existing.end > newStart
+          sql`${appointments.startTime} < ${endTime}`,
+          sql`coalesce(${appointments.endTime}, ${appointments.startTime}) > ${input.startTime}`,
+        ),
+      });
+
+      if (overlapping) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `This time slot conflicts with an existing appointment at ${overlapping.startTime} on ${overlapping.date}.`,
+        });
+      }
+
       const sessionLabel = SESSION_LABELS[input.sessionType] ?? input.sessionType;
       const meetingLabel = input.meetingType === "video" ? "Video Call" : input.meetingType === "phone" ? "Phone Call" : "In Person";
 
@@ -260,7 +281,7 @@ export const coachScheduleRouter = router({
           meetingType: input.meetingType,
           date: input.date,
           startTime: input.startTime,
-          endTime: addMinutes(input.startTime, duration),
+          endTime,
           durationMinutes: duration,
           notes: input.notes,
         })
@@ -318,7 +339,7 @@ export const coachScheduleRouter = router({
         .update(appointments)
         .set({
           status: input.status,
-          cancellationReason: input.status === "cancelled" ? input.reason : undefined,
+          cancellationReason: input.status === "cancelled" ? input.reason : null,
           updatedAt: new Date(),
         })
         .where(
@@ -378,7 +399,13 @@ export const coachScheduleRouter = router({
         where: eq(coachAvailability.coachId, ctx.dbUserId),
       });
 
-      const dayOfWeek = new Date(input.date).getDay();
+      // Check if the requested date is blocked by the trainer
+      const blockedDates = avail?.blockedDates ?? [];
+      if (blockedDates.includes(input.date)) return [];
+
+      // Append T12:00:00 to avoid UTC midnight interpretation which can
+      // return the wrong day-of-week for users in western timezones.
+      const dayOfWeek = new Date(input.date + "T12:00:00").getDay();
       const schedule = avail?.weeklySchedule ?? [];
       const daySchedule = schedule.find((d) => d.dayOfWeek === dayOfWeek);
 

@@ -23,6 +23,13 @@ export const coachAlertsRouter = router({
         ),
       });
 
+      const allowedClientIds = new Set(relationships.map((r) => r.clientId));
+
+      // If a specific clientId was requested, verify the trainer has a relationship with that client
+      if (input.clientId && !allowedClientIds.has(input.clientId)) {
+        return { alerts: [], total: 0, hasMore: false };
+      }
+
       const clientIds = input.clientId
         ? [input.clientId]
         : relationships.map((r) => r.clientId);

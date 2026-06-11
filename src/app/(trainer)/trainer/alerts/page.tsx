@@ -11,7 +11,7 @@ import type { AlertStatus } from "@/lib/coach-ops/types";
 
 export default function CoachAlertsPage() {
   const router = useRouter();
-  const { period, setPeriod, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
+  const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
   const [filter, setFilter] = useState<"all" | AlertStatus>("all");
@@ -20,7 +20,9 @@ export default function CoachAlertsPage() {
 
   const utils = trpc.useUtils();
 
-  // Fetch alerts and summary from tRPC
+  // TODO: Backend endpoints (coach.alerts.list and coach.alerts.summary) need date
+  // filtering support (startDate/endDate params) so the DateRangeNavigator can
+  // filter alerts to the selected period. For now, filter client-side.
   const { data: alertsData = { alerts: [], total: 0, hasMore: false }, isLoading: alertsLoading } =
     trpc.coach.alerts.list.useQuery({ status: filter === "all" ? "all" : filter, limit: 50 });
 
@@ -34,7 +36,17 @@ export default function CoachAlertsPage() {
     },
   });
 
-  const alerts = alertsData.alerts || [];
+  // Client-side date filtering until backend supports date params
+  const allAlerts = alertsData.alerts || [];
+  const alerts = useMemo(() => {
+    const start = dateRange.startDate.getTime();
+    const end = dateRange.endDate.getTime();
+    return allAlerts.filter((a) => {
+      const t = new Date(a.createdAt).getTime();
+      return t >= start && t <= end;
+    });
+  }, [allAlerts, dateRange]);
+
   const stats = summaryData || { urgent: 0, action: 0, info: 0, total: 0 };
 
   const uniqueClients = useMemo(

@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure as coachProcedure } from "@/server/trpc";
-import { conversations, messages, users } from "@/server/db/schema";
+import { conversations, messages, users, trainerClientRelationships } from "@/server/db/schema";
 import { eq, and, desc, sql, isNull, ilike, inArray } from "drizzle-orm";
+import { eventBus, createRealtimeEvent } from "@/lib/realtime/events";
+import type { CoachMessagePayload } from "@/lib/realtime/events";
 
 export const coachMessagingRouter = router({
   // List all conversations for the coach
@@ -114,6 +116,19 @@ export const coachMessagingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Verify the trainer has an active relationship with this client
+      const relationship = await ctx.db.query.trainerClientRelationships.findFirst({
+        where: and(
+          eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+          eq(trainerClientRelationships.clientId, input.clientId),
+          eq(trainerClientRelationships.status, "active"),
+        ),
+      });
+
+      if (!relationship) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No active relationship with this client" });
+      }
+
       const existing = await ctx.db.query.conversations.findFirst({
         where: and(
           eq(conversations.trainerId, ctx.dbUserId),
@@ -206,6 +221,26 @@ export const coachMessagingRouter = router({
           unreadCountClient: sql`${conversations.unreadCountClient} + 1`,
         })
         .where(eq(conversations.id, input.conversationId));
+
+      // Publish real-time event so the client receives the new message via SSE
+      const coachUser = await ctx.db.query.users.findFirst({
+        where: eq(users.id, ctx.dbUserId),
+      });
+      const coachName = coachUser
+        ? `${coachUser.firstName ?? ""} ${coachUser.lastName ?? ""}`.trim() || coachUser.email
+        : "Coach";
+
+      const payload: CoachMessagePayload = {
+        messageId: msg.id,
+        fromUserId: ctx.dbUserId,
+        fromName: coachName,
+        preview: input.body.slice(0, 100),
+        threadId: input.conversationId,
+      };
+
+      eventBus.publish(
+        createRealtimeEvent("coach:message", conv.clientId, payload),
+      );
 
       return msg;
     }),

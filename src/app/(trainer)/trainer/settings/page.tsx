@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Settings,
   User,
@@ -50,6 +50,31 @@ export default function TrainerSettingsPage() {
 
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  // Sync form state when server data arrives
+  useEffect(() => {
+    if (authUser) {
+      setFormData((prev) => ({
+        ...prev,
+        displayName: authUser.firstName || "",
+        email: authUser.email || "",
+      }));
+    }
+  }, [authUser]);
+
+  // Note: profile from getProfile does not include specialties/timezone fields.
+  // If those are added to the profile query in the future, sync them here.
+
+  useEffect(() => {
+    if (notificationPrefs?.categories) {
+      setNotifications({
+        clientAlerts: notificationPrefs.categories.clientAlerts?.email ?? true,
+        labResults: notificationPrefs.categories.labResults?.email ?? true,
+        appointmentReminders: notificationPrefs.categories.appointmentReminders?.email ?? true,
+        weeklyReports: notificationPrefs.categories.weeklyReports?.email ?? true,
+      });
+    }
+  }, [notificationPrefs]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));

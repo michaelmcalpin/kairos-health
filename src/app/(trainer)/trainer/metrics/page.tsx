@@ -28,7 +28,10 @@ export default function CoachMetricsPage() {
   const { period, setPeriod, formattedRange, dateRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "month" });
 
-  // Fetch real tRPC data
+  // TODO: Backend endpoints (coach.clients.getStats, coach.clients.list,
+  // coach.revenue.getSummary, coach.alerts.summary) need date filtering support
+  // (startDate/endDate params) so the DateRangeNavigator can scope metrics to the
+  // selected period. Currently the DateRangeNavigator is cosmetic on this page.
   const clientStatsQuery = trpc.coach.clients.getStats.useQuery();
   const clientsListQuery = trpc.coach.clients.list.useQuery();
   const revenueSummaryQuery = trpc.coach.revenue.getSummary.useQuery();

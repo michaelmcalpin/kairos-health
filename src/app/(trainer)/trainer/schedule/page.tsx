@@ -39,6 +39,7 @@ export default function CoachSchedulePage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
+  const utils = trpc.useUtils();
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentLike | null>(null);
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [newAppt, setNewAppt] = useState({ clientId: "", clientName: "", date: "", time: "09:00", type: "follow_up" as const, meeting: "video" as const });
@@ -297,6 +298,8 @@ export default function CoachSchedulePage() {
                         onSuccess: () => {
                           setShowNewAppt(false);
                           setNewAppt({ clientId: "", clientName: "", date: "", time: "09:00", type: "follow_up", meeting: "video" });
+                          void utils.coach.schedule.getCalendarWeek.invalidate();
+                          void utils.coach.schedule.getStats.invalidate();
                         },
                       }
                     );

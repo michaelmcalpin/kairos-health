@@ -13,9 +13,9 @@ import { eq, desc, and, sql, gte, between } from "drizzle-orm";
 
 // ─── Tier pricing for revenue calculation ─────────────────────
 const TIER_PRICING: Record<string, number> = {
-  tier1: 1500,
-  tier2: 900,
-  tier3: 450,
+  tier1: 499,
+  tier2: 249,
+  tier3: 99,
 };
 
 export const coachDashboardRouter = router({
@@ -105,7 +105,7 @@ export const coachDashboardRouter = router({
       const avgHealthScore = totalClients > 0
         ? Math.round(clientDetails.reduce((s, c) => s + c.healthScore, 0) / totalClients)
         : 0;
-      const revenue = clientDetails.reduce((s, c) => s + (TIER_PRICING[c.tier] ?? 450), 0);
+      const revenue = clientDetails.reduce((s, c) => s + (TIER_PRICING[c.tier] ?? 99), 0);
 
       // Real session count from appointments table
       const sessionsResult = await ctx.db
@@ -184,12 +184,15 @@ export const coachDashboardRouter = router({
           status: c.status,
         }));
 
-      // ── Today's Schedule from real appointments ──────────────
-      const today = new Date().toISOString().split("T")[0];
+      // ── Schedule from real appointments (respects selected date range) ──
       const todayAppointments = await ctx.db.query.appointments.findMany({
         where: and(
           eq(appointments.coachId, trainerId),
-          sql`${appointments.date}::text = ${today}`,
+          between(
+            appointments.date,
+            sql`${input.startDate}::date`,
+            sql`${input.endDate}::date`,
+          ),
         ),
       });
 
@@ -211,14 +214,15 @@ export const coachDashboardRouter = router({
           return {
             id: appt.id,
             time: timeStr,
+            startTime: appt.startTime,
             client: clientName,
             type: appt.sessionType ?? "Follow-up",
           };
         })
       );
 
-      // Sort by time
-      todaySchedule.sort((a, b) => a.time.localeCompare(b.time));
+      // Sort chronologically using the raw 24h startTime ("HH:MM")
+      todaySchedule.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
       return { kpis, priorityClients, todaySchedule };
     }),

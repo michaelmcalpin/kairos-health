@@ -10,7 +10,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { PRIORITY_COLORS } from "@/lib/coach-ops/types";
 
-type FilterTab = "All" | "Due Today" | "Overdue" | "Upcoming" | "Completed";
+type FilterTab = "All" | "Created Today" | "Older" | "Recent" | "Completed";
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState<FilterTab>("All");
@@ -30,23 +30,25 @@ export default function Page() {
   const todayStr = new Date().toISOString().split("T")[0];
 
   // Calculate stats from the data
+  // Note: alerts only have createdAt (no dueDate), so we filter by creation date
+  const weekAgoStr = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   const stats = {
     total: followUps.length,
     pending: followUps.filter((a) => !a.acknowledgedAt).length,
-    overdue: followUps.filter((a) => !a.acknowledgedAt && a.createdAt < todayStr).length,
-    dueToday: followUps.filter((a) => !a.acknowledgedAt && a.createdAt === todayStr).length,
+    older: followUps.filter((a) => !a.acknowledgedAt && a.createdAt < todayStr).length,
+    createdToday: followUps.filter((a) => !a.acknowledgedAt && a.createdAt.startsWith(todayStr)).length,
     completedThisWeek: followUps.filter((a) => a.acknowledgedAt).length,
   };
 
   const getFilteredFollowUps = () => {
     return followUps.filter((item) => {
       switch (activeTab) {
-        case "Due Today":
-          return !item.acknowledgedAt && item.createdAt === todayStr;
-        case "Overdue":
+        case "Created Today":
+          return !item.acknowledgedAt && item.createdAt.startsWith(todayStr);
+        case "Older":
           return !item.acknowledgedAt && item.createdAt < todayStr;
-        case "Upcoming":
-          return !item.acknowledgedAt && item.createdAt > todayStr;
+        case "Recent":
+          return !item.acknowledgedAt && item.createdAt >= weekAgoStr;
         case "Completed":
           return item.acknowledgedAt;
         case "All":
@@ -60,8 +62,8 @@ export default function Page() {
     acknowledgeAlert({ alertId: id });
   };
 
-  const isOverdue = (dueDate: string, completed: boolean) => {
-    return !completed && dueDate < todayStr;
+  const isOlderAlert = (createdAt: string, completed: boolean) => {
+    return !completed && createdAt < todayStr;
   };
 
   const filteredItems = getFilteredFollowUps();
@@ -89,12 +91,12 @@ export default function Page() {
             <p className="font-heading font-bold text-2xl text-white">{stats.pending}</p>
           </div>
           <div className="kairos-card p-4 border border-kairos-border">
-            <p className="text-xs text-kairos-silver-dark font-body mb-2">Overdue</p>
-            <p className="font-heading font-bold text-2xl text-red-400">{stats.overdue}</p>
+            <p className="text-xs text-kairos-silver-dark font-body mb-2">Older</p>
+            <p className="font-heading font-bold text-2xl text-red-400">{stats.older}</p>
           </div>
           <div className="kairos-card p-4 border border-kairos-border">
-            <p className="text-xs text-kairos-silver-dark font-body mb-2">Due Today</p>
-            <p className="font-heading font-bold text-2xl text-kairos-gold">{stats.dueToday}</p>
+            <p className="text-xs text-kairos-silver-dark font-body mb-2">Created Today</p>
+            <p className="font-heading font-bold text-2xl text-kairos-gold">{stats.createdToday}</p>
           </div>
           <div className="kairos-card p-4 border border-kairos-border">
             <p className="text-xs text-kairos-silver-dark font-body mb-2">Completed (Week)</p>
@@ -105,7 +107,7 @@ export default function Page() {
 
       {/* Filter Tabs */}
       <div className="mb-6 flex gap-2 flex-wrap">
-        {(["All", "Due Today", "Overdue", "Upcoming", "Completed"] as FilterTab[]).map((tab) => (
+        {(["All", "Created Today", "Older", "Recent", "Completed"] as FilterTab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -139,12 +141,12 @@ export default function Page() {
           filteredItems.map((item) => {
             const pColors = (PRIORITY_COLORS as Record<string, { text: string; bg: string }>)[item.priority] ?? PRIORITY_COLORS.medium;
             const isCompleted = !!item.acknowledgedAt;
-            const isOverdueItem = !isCompleted && item.createdAt < todayStr;
+            const isOlderItem = !isCompleted && item.createdAt < todayStr;
             return (
               <div
                 key={item.id}
                 className={`kairos-card border rounded-kairos-sm p-5 transition-all ${
-                  isOverdueItem
+                  isOlderItem
                     ? "border-red-500 border-opacity-50 bg-kairos-card-hover"
                     : "border-kairos-border"
                 } ${isCompleted ? "opacity-60" : ""}`}
@@ -211,9 +213,9 @@ export default function Page() {
                         <Calendar className="w-4 h-4 text-kairos-gold" />
                         <span
                           className={`text-xs font-body font-semibold ${
-                            isOverdueItem
+                            isOlderItem
                               ? "text-red-400"
-                              : item.createdAt === todayStr
+                              : item.createdAt.startsWith(todayStr)
                                 ? "text-kairos-gold"
                                 : "text-kairos-silver-dark"
                           }`}
@@ -221,11 +223,11 @@ export default function Page() {
                           {item.createdAt}
                         </span>
                       </div>
-                      {isOverdueItem && (
+                      {isOlderItem && (
                         <div className="flex items-center gap-1">
                           <AlertTriangle className="w-4 h-4 text-red-400" />
                           <span className="text-xs font-semibold text-red-400 font-body">
-                            Overdue
+                            Needs attention
                           </span>
                         </div>
                       )}

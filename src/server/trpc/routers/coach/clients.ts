@@ -298,7 +298,7 @@ export const coachClientsRouter = router({
           case "healthScore": return (a.healthScore - b.healthScore) * mult;
           case "alerts": return (a.activeAlerts - b.activeAlerts) * mult;
           case "adherence": return (a.adherence - b.adherence) * mult;
-          case "lastActive": return a.lastActive.localeCompare(b.lastActive) * mult;
+          case "lastActive": return a.lastActiveDate.localeCompare(b.lastActiveDate) * mult;
           default: return a.name.localeCompare(b.name) * mult;
         }
       });
@@ -451,9 +451,13 @@ export const coachClientsRouter = router({
     .input(z.object({ clientId: z.string(), noteId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
-      // Toggle pin status
+      // Toggle pin status — only allow if the note belongs to this coach
       const existing = await ctx.db.query.coachNotes.findFirst({
-        where: and(eq(coachNotes.id, input.noteId), eq(coachNotes.clientId, input.clientId)),
+        where: and(
+          eq(coachNotes.id, input.noteId),
+          eq(coachNotes.clientId, input.clientId),
+          eq(coachNotes.coachId, ctx.dbUserId),
+        ),
       });
       if (!existing) return null;
       const [updated] = await ctx.db
@@ -468,9 +472,14 @@ export const coachClientsRouter = router({
     .input(z.object({ clientId: z.string(), noteId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+      // Only allow deleting notes owned by this coach
       const deleted = await ctx.db
         .delete(coachNotes)
-        .where(and(eq(coachNotes.id, input.noteId), eq(coachNotes.clientId, input.clientId)))
+        .where(and(
+          eq(coachNotes.id, input.noteId),
+          eq(coachNotes.clientId, input.clientId),
+          eq(coachNotes.coachId, ctx.dbUserId),
+        ))
         .returning();
       return deleted.length > 0;
     }),
