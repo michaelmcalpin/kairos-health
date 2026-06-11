@@ -9,7 +9,7 @@ import {
   glucoseReadings,
   appointments,
 } from "@/server/db/schema";
-import { eq, desc, and, sql, gte, between } from "drizzle-orm";
+import { eq, desc, and, sql, gte, between, inArray } from "drizzle-orm";
 
 // ─── Tier pricing for revenue calculation ─────────────────────
 const TIER_PRICING: Record<string, number> = {
@@ -46,58 +46,85 @@ export const coachDashboardRouter = router({
 
       const clientIds = relationships.map((r) => r.clientId);
 
-      // ── Gather client details in parallel ──────────────────
-      const clientDetails = await Promise.all(
-        clientIds.map(async (clientId) => {
-          const [user, profile, alertCount, latestSleep, latestGlucose] = await Promise.all([
-            ctx.db.query.users.findFirst({ where: eq(users.id, clientId) }),
-            ctx.db.query.clientProfiles.findFirst({ where: eq(clientProfiles.userId, clientId) }),
-            ctx.db
-              .select({ count: sql<number>`count(*)` })
-              .from(alerts)
-              .where(and(eq(alerts.clientId, clientId), eq(alerts.status, "active"))),
-            ctx.db.query.sleepSessions.findFirst({
-              where: eq(sleepSessions.clientId, clientId),
-              orderBy: desc(sleepSessions.date),
-            }),
-            ctx.db.query.glucoseReadings.findFirst({
-              where: eq(glucoseReadings.clientId, clientId),
-              orderBy: desc(glucoseReadings.timestamp),
-            }),
-          ]);
+      // ── Gather client details with batched queries ─────────
+      // Instead of N individual queries per client, batch into a few bulk queries
+      if (clientIds.length === 0) {
+        return { kpis: [], priorityClients: [], todaySchedule: [] };
+      }
 
-          const activeAlerts = Number(alertCount[0]?.count ?? 0);
-          const firstName = user?.firstName ?? "";
-          const lastName = user?.lastName ?? "";
-          const name = `${firstName} ${lastName}`.trim() || user?.email || "Unknown";
-          const initials = firstName && lastName
-            ? `${firstName[0]}${lastName[0]}`.toUpperCase()
-            : name.slice(0, 2).toUpperCase();
+      const [allUsers, allProfiles, alertCounts, allLatestSleep, allLatestGlucose] = await Promise.all([
+        // Batch: all users at once
+        ctx.db.query.users.findMany({ where: inArray(users.id, clientIds) }),
+        // Batch: all client profiles at once
+        ctx.db.query.clientProfiles.findMany({ where: inArray(clientProfiles.userId, clientIds) }),
+        // Batch: alert counts grouped by client
+        ctx.db
+          .select({ clientId: alerts.clientId, count: sql<number>`count(*)` })
+          .from(alerts)
+          .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")))
+          .groupBy(alerts.clientId),
+        // Batch: latest sleep per client using DISTINCT ON
+        ctx.db.execute(sql`
+          SELECT DISTINCT ON (client_id) *
+          FROM sleep_sessions
+          WHERE client_id = ANY(${clientIds})
+          ORDER BY client_id, date DESC
+        `),
+        // Batch: latest glucose per client using DISTINCT ON
+        ctx.db.execute(sql`
+          SELECT DISTINCT ON (client_id) *
+          FROM glucose_readings
+          WHERE client_id = ANY(${clientIds})
+          ORDER BY client_id, timestamp DESC
+        `),
+      ]);
 
-          // Simple health score derived from available data
-          let healthScore = 75; // baseline
-          if (latestSleep?.score) healthScore += Math.min(10, Math.round((latestSleep.score - 50) / 5));
-          if (latestGlucose?.valueMgdl) {
-            const gv = Number(latestGlucose.valueMgdl);
-            if (gv >= 70 && gv <= 100) healthScore += 10;
-            else if (gv > 100 && gv <= 120) healthScore += 5;
-          }
-          healthScore = Math.max(0, Math.min(100, healthScore));
+      // Build lookup maps
+      const userMap = new Map(allUsers.map((u) => [u.id, u]));
+      const profileMap = new Map(allProfiles.map((p) => [p.userId, p]));
+      const alertCountMap = new Map(alertCounts.map((a) => [a.clientId, Number(a.count)]));
+      const sleepRows = allLatestSleep as unknown as Array<{ client_id: string; score: number | null }>;
+      const sleepMap = new Map(sleepRows.map((s) => [s.client_id, s]));
+      const glucoseRows = allLatestGlucose as unknown as Array<{ client_id: string; value_mgdl: string | null }>;
+      const glucoseMap = new Map(glucoseRows.map((g) => [g.client_id, g]));
 
-          return {
-            id: clientId,
-            name,
-            initials,
-            email: user?.email ?? "",
-            tier: (profile?.tier ?? "tier1") as string,
-            healthScore,
-            activeAlerts,
-            status: activeAlerts >= 3 ? "Critical Review" as const
-              : activeAlerts >= 1 ? "Review Needed" as const
-              : "On Track" as const,
-          };
-        })
-      );
+      const clientDetails = clientIds.map((clientId) => {
+        const user = userMap.get(clientId);
+        const profile = profileMap.get(clientId);
+        const activeAlerts = alertCountMap.get(clientId) ?? 0;
+        const latestSleep = sleepMap.get(clientId) as { score: number | null } | undefined;
+        const latestGlucose = glucoseMap.get(clientId) as { value_mgdl: string | null } | undefined;
+
+        const firstName = user?.firstName ?? "";
+        const lastName = user?.lastName ?? "";
+        const name = `${firstName} ${lastName}`.trim() || user?.email || "Unknown";
+        const initials = firstName && lastName
+          ? `${firstName[0]}${lastName[0]}`.toUpperCase()
+          : name.slice(0, 2).toUpperCase();
+
+        // Simple health score derived from available data
+        let healthScore = 75; // baseline
+        if (latestSleep?.score) healthScore += Math.min(10, Math.round((Number(latestSleep.score) - 50) / 5));
+        if (latestGlucose?.value_mgdl) {
+          const gv = Number(latestGlucose.value_mgdl);
+          if (gv >= 70 && gv <= 100) healthScore += 10;
+          else if (gv > 100 && gv <= 120) healthScore += 5;
+        }
+        healthScore = Math.max(0, Math.min(100, healthScore));
+
+        return {
+          id: clientId,
+          name,
+          initials,
+          email: user?.email ?? "",
+          tier: (profile?.tier ?? "tier1") as string,
+          healthScore,
+          activeAlerts,
+          status: activeAlerts >= 3 ? "Critical Review" as const
+            : activeAlerts >= 1 ? "Review Needed" as const
+            : "On Track" as const,
+        };
+      });
 
       // ── KPIs ───────────────────────────────────────────────
       const totalClients = clientDetails.length;
@@ -196,30 +223,33 @@ export const coachDashboardRouter = router({
         ),
       });
 
-      const todaySchedule = await Promise.all(
-        todayAppointments.map(async (appt) => {
-          const clientUser = await ctx.db.query.users.findFirst({
-            where: eq(users.id, appt.clientId),
-          });
-          const clientName = clientUser
-            ? `${clientUser.firstName ?? ""} ${clientUser.lastName ?? ""}`.trim() || clientUser.email
-            : "Client";
+      // Batch-fetch users for all appointments instead of per-appointment lookups
+      const appointmentClientIds = Array.from(new Set(todayAppointments.map((a) => a.clientId)));
+      const appointmentUsers = appointmentClientIds.length > 0
+        ? await ctx.db.query.users.findMany({ where: inArray(users.id, appointmentClientIds) })
+        : [];
+      const appointmentUserMap = new Map(appointmentUsers.map((u) => [u.id, u]));
 
-          // Format time from 24h "HH:MM" to 12h
-          const [h, m] = appt.startTime.split(":").map(Number);
-          const ampm = h >= 12 ? "PM" : "AM";
-          const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
-          const timeStr = `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+      const todaySchedule = todayAppointments.map((appt) => {
+        const clientUser = appointmentUserMap.get(appt.clientId);
+        const clientName = clientUser
+          ? `${clientUser.firstName ?? ""} ${clientUser.lastName ?? ""}`.trim() || clientUser.email
+          : "Client";
 
-          return {
-            id: appt.id,
-            time: timeStr,
-            startTime: appt.startTime,
-            client: clientName,
-            type: appt.sessionType ?? "Follow-up",
-          };
-        })
-      );
+        // Format time from 24h "HH:MM" to 12h
+        const [h, m] = appt.startTime.split(":").map(Number);
+        const ampm = h >= 12 ? "PM" : "AM";
+        const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+        const timeStr = `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+
+        return {
+          id: appt.id,
+          time: timeStr,
+          startTime: appt.startTime,
+          client: clientName,
+          type: appt.sessionType ?? "Follow-up",
+        };
+      });
 
       // Sort chronologically using the raw 24h startTime ("HH:MM")
       todaySchedule.sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -270,40 +300,55 @@ export const coachDashboardRouter = router({
     const clientIds = relationships.map((r) => r.clientId);
     if (clientIds.length === 0) return [];
 
-    const clients = await Promise.all(
-      clientIds.map(async (clientId) => {
-        const user = await ctx.db.query.users.findFirst({
-          where: eq(users.id, clientId),
-        });
-        const profile = await ctx.db.query.clientProfiles.findFirst({
-          where: eq(clientProfiles.userId, clientId),
-        });
-        const latestSleep = await ctx.db.query.sleepSessions.findFirst({
-          where: eq(sleepSessions.clientId, clientId),
-          orderBy: desc(sleepSessions.date),
-        });
-        const latestGlucose = await ctx.db.query.glucoseReadings.findFirst({
-          where: eq(glucoseReadings.clientId, clientId),
-          orderBy: desc(glucoseReadings.timestamp),
-        });
-        const alertCount = await ctx.db
-          .select({ count: sql<number>`count(*)` })
-          .from(alerts)
-          .where(and(eq(alerts.clientId, clientId), eq(alerts.status, "active")));
+    // Batch all lookups instead of per-client queries
+    const [allUsers, allProfiles, alertCounts, allLatestSleep, allLatestGlucose] = await Promise.all([
+      ctx.db.query.users.findMany({ where: inArray(users.id, clientIds) }),
+      ctx.db.query.clientProfiles.findMany({ where: inArray(clientProfiles.userId, clientIds) }),
+      ctx.db
+        .select({ clientId: alerts.clientId, count: sql<number>`count(*)` })
+        .from(alerts)
+        .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")))
+        .groupBy(alerts.clientId),
+      ctx.db.execute(sql`
+        SELECT DISTINCT ON (client_id) *
+        FROM sleep_sessions
+        WHERE client_id = ANY(${clientIds})
+        ORDER BY client_id, date DESC
+      `),
+      ctx.db.execute(sql`
+        SELECT DISTINCT ON (client_id) *
+        FROM glucose_readings
+        WHERE client_id = ANY(${clientIds})
+        ORDER BY client_id, timestamp DESC
+      `),
+    ]);
 
-        return {
-          id: clientId,
-          firstName: user?.firstName,
-          lastName: user?.lastName,
-          email: user?.email,
-          avatarUrl: user?.avatarUrl,
-          tier: profile?.tier,
-          latestSleepScore: latestSleep?.score ?? null,
-          latestGlucose: latestGlucose?.valueMgdl ?? null,
-          activeAlerts: Number(alertCount[0]?.count ?? 0),
-        };
-      })
-    );
+    const userMap = new Map(allUsers.map((u) => [u.id, u]));
+    const profileMap = new Map(allProfiles.map((p) => [p.userId, p]));
+    const alertCountMap = new Map(alertCounts.map((a) => [a.clientId, Number(a.count)]));
+    const sleepRows2 = allLatestSleep as unknown as Array<{ client_id: string; score: number | null }>;
+    const sleepMap = new Map(sleepRows2.map((s) => [s.client_id, s]));
+    const glucoseRows2 = allLatestGlucose as unknown as Array<{ client_id: string; value_mgdl: string | null }>;
+    const glucoseMap = new Map(glucoseRows2.map((g) => [g.client_id, g]));
+
+    const clients = clientIds.map((clientId) => {
+      const user = userMap.get(clientId);
+      const profile = profileMap.get(clientId);
+      const latestSleep = sleepMap.get(clientId) as { score: number | null } | undefined;
+      const latestGlucose = glucoseMap.get(clientId) as { value_mgdl: string | null } | undefined;
+
+      return {
+        id: clientId,
+        firstName: user?.firstName,
+        lastName: user?.lastName,
+        email: user?.email,
+        avatarUrl: user?.avatarUrl,
+        tier: profile?.tier,
+        latestSleepScore: latestSleep?.score ?? null,
+        latestGlucose: latestGlucose?.value_mgdl ?? null,
+        activeAlerts: alertCountMap.get(clientId) ?? 0,
+      };
+    });
 
     return clients;
   }),

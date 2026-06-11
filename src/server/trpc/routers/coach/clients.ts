@@ -94,7 +94,7 @@ async function verifyCoachClientRelationship(
 
 // ─── Shared client data fetcher ───────────────────────────────
 
-async function fetchClientData(db: typeof import("@/server/db").db, clientId: string) {
+async function fetchClientData(db: typeof import("@/server/db").db, clientId: string, enrolledAt?: Date) {
   const [user, profile, alertRows, recentGlucose, recentSleep, recentHrv, recentWeight, recentCheckins, protocol, adherenceCount] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, clientId) }),
     db.query.clientProfiles.findFirst({ where: eq(clientProfiles.userId, clientId) }),
@@ -158,9 +158,13 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
   const weight = weightValues.length > 0 ? weightValues[weightValues.length - 1] : null;
   const bodyFat = recentWeight[0]?.bodyFatPct ? Number(recentWeight[0].bodyFatPct) : null;
 
-  // Adherence (percentage of last 30 days)
+  // Adherence (percentage based on enrollment duration, capped at 30 days)
   const adherenceTotal = Number(adherenceCount[0]?.count ?? 0);
-  const adherence = Math.min(100, Math.round((adherenceTotal / 30) * 100));
+  const daysSinceEnrollment = enrolledAt
+    ? Math.max(1, Math.floor((Date.now() - enrolledAt.getTime()) / 86400000))
+    : 30;
+  const adherenceDenominator = Math.min(daysSinceEnrollment, 30);
+  const adherence = Math.min(100, Math.round((adherenceTotal / adherenceDenominator) * 100));
 
   // Check-in streak
   let checkInStreak = 0;
@@ -239,6 +243,242 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
   };
 }
 
+// ─── Batched client data fetcher ─────────────────────────────
+// Fetches data for multiple clients using bulk queries instead of per-client N+1
+
+async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientIds: string[], enrollmentDates?: Map<string, Date>) {
+  if (clientIds.length === 0) return [];
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+
+  // 10 bulk queries instead of 10*N individual queries
+  const [
+    allUsers,
+    allProfiles,
+    alertCounts,
+    recentGlucoseAll,
+    recentSleepAll,
+    recentHrvAll,
+    recentWeightAll,
+    recentCheckinsAll,
+    activeProtocols,
+    adherenceCounts,
+  ] = await Promise.all([
+    db.query.users.findMany({ where: inArray(users.id, clientIds) }),
+    db.query.clientProfiles.findMany({ where: inArray(clientProfiles.userId, clientIds) }),
+    db
+      .select({ clientId: alerts.clientId, count: sql<number>`count(*)` })
+      .from(alerts)
+      .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")))
+      .groupBy(alerts.clientId),
+    db.query.glucoseReadings.findMany({
+      where: inArray(glucoseReadings.clientId, clientIds),
+      orderBy: desc(glucoseReadings.timestamp),
+      limit: clientIds.length * 7,
+    }),
+    db.query.sleepSessions.findMany({
+      where: inArray(sleepSessions.clientId, clientIds),
+      orderBy: desc(sleepSessions.date),
+      limit: clientIds.length * 7,
+    }),
+    db.query.hrvReadings.findMany({
+      where: inArray(hrvReadings.clientId, clientIds),
+      orderBy: desc(hrvReadings.timestamp),
+      limit: clientIds.length * 7,
+    }),
+    db.query.bodyMeasurements.findMany({
+      where: inArray(bodyMeasurements.clientId, clientIds),
+      orderBy: desc(bodyMeasurements.date),
+      limit: clientIds.length * 5,
+    }),
+    db.query.dailyCheckins.findMany({
+      where: inArray(dailyCheckins.clientId, clientIds),
+      orderBy: desc(dailyCheckins.date),
+      limit: clientIds.length * 14,
+    }),
+    db.query.supplementProtocols.findMany({
+      where: and(inArray(supplementProtocols.clientId, clientIds), eq(supplementProtocols.status, "active")),
+    }),
+    db
+      .select({ clientId: adherenceLogs.clientId, count: sql<number>`count(*)` })
+      .from(adherenceLogs)
+      .where(and(inArray(adherenceLogs.clientId, clientIds), gte(adherenceLogs.date, thirtyDaysAgo)))
+      .groupBy(adherenceLogs.clientId),
+  ]);
+
+  // Build lookup maps
+  const userMap = new Map(allUsers.map((u) => [u.id, u]));
+  const profileMap = new Map(allProfiles.map((p) => [p.userId, p]));
+  const alertCountMap = new Map(alertCounts.map((a) => [a.clientId, Number(a.count)]));
+  const protocolMap = new Map(activeProtocols.map((p) => [p.clientId, p]));
+  const adherenceMap = new Map(adherenceCounts.map((a) => [a.clientId, Number(a.count)]));
+
+  // Group per-client arrays (take first N per client from sorted results)
+  function groupByClient<T extends { clientId: string }>(items: T[], limit: number): Map<string, T[]> {
+    const map = new Map<string, T[]>();
+    for (const item of items) {
+      const arr = map.get(item.clientId);
+      if (!arr) {
+        map.set(item.clientId, [item]);
+      } else if (arr.length < limit) {
+        arr.push(item);
+      }
+    }
+    return map;
+  }
+
+  const glucoseByClient = groupByClient(recentGlucoseAll, 7);
+  const sleepByClient = groupByClient(recentSleepAll, 7);
+  const hrvByClient = groupByClient(recentHrvAll, 7);
+  const weightByClient = groupByClient(recentWeightAll, 5);
+  const checkinsByClient = groupByClient(recentCheckinsAll, 14);
+
+  // Process each client using the pre-fetched data
+  const results = clientIds.map((clientId) => {
+    const user = userMap.get(clientId);
+    if (!user) return null;
+
+    const profile = profileMap.get(clientId);
+    const activeAlerts = alertCountMap.get(clientId) ?? 0;
+    const recentGlucose = glucoseByClient.get(clientId) ?? [];
+    const recentSleep = sleepByClient.get(clientId) ?? [];
+    const recentHrv = hrvByClient.get(clientId) ?? [];
+    const recentWeight = weightByClient.get(clientId) ?? [];
+    const recentCheckins = checkinsByClient.get(clientId) ?? [];
+    const protocol = protocolMap.get(clientId) ?? null;
+    const adherenceTotal = adherenceMap.get(clientId) ?? 0;
+
+    const name = deriveName(user.firstName, user.lastName, user.email);
+    const initials = getInitials(user.firstName, user.lastName, user.email);
+    const tier = (profile?.tier ?? "tier3") as "tier1" | "tier2" | "tier3";
+
+    // Compute health score from biometrics
+    let healthScore = 75;
+    const latestSleep = recentSleep[0];
+    const latestGlucose = recentGlucose[0];
+    const latestHrv = recentHrv[0];
+    if (latestSleep?.score) healthScore += Math.min(10, Math.round((Number(latestSleep.score) - 50) / 5));
+    if (latestGlucose?.valueMgdl) {
+      const gv = Number(latestGlucose.valueMgdl);
+      if (gv >= 70 && gv <= 100) healthScore += 10;
+      else if (gv > 100 && gv <= 120) healthScore += 5;
+    }
+    if (latestHrv?.rmssd) {
+      const hv = Number(latestHrv.rmssd);
+      if (hv > 50) healthScore += 5;
+      else if (hv > 30) healthScore += 2;
+    }
+    healthScore = Math.max(0, Math.min(100, healthScore));
+
+    // Glucose trend
+    const glucoseValues = recentGlucose.map((g) => Number(g.valueMgdl)).reverse();
+    const glucoseTrend = deriveTrend(glucoseValues);
+    const avgGlucose = glucoseValues.length > 0 ? Math.round(glucoseValues.reduce((a, b) => a + b, 0) / glucoseValues.length) : null;
+
+    // Sleep data
+    const sleepScores = recentSleep.map((s) => Number(s.score ?? 0)).reverse();
+    const sleepHours = recentSleep.map((s) => Number(s.totalMinutes ?? 0) / 60).reverse();
+    const sleepTrend = deriveTrend(sleepScores);
+    const sleepScore = latestSleep?.score ? Number(latestSleep.score) : null;
+
+    // HRV
+    const hrvValues = recentHrv.map((h) => Number(h.rmssd)).reverse();
+    const hrvTrend = deriveTrend(hrvValues);
+    const hrv = latestHrv?.rmssd ? Number(latestHrv.rmssd) : null;
+
+    // Weight
+    const weightValues = recentWeight.map((w) => Number(w.weightLbs ?? 0)).reverse();
+    const weight = weightValues.length > 0 ? weightValues[weightValues.length - 1] : null;
+    const bodyFat = recentWeight[0]?.bodyFatPct ? Number(recentWeight[0].bodyFatPct) : null;
+
+    // Adherence (percentage based on enrollment duration, capped at 30 days)
+    const enrolledAt = enrollmentDates?.get(clientId);
+    const daysSinceEnrollment = enrolledAt
+      ? Math.max(1, Math.floor((Date.now() - enrolledAt.getTime()) / 86400000))
+      : 30;
+    const adherenceDenominator = Math.min(daysSinceEnrollment, 30);
+    const adherence = Math.min(100, Math.round((adherenceTotal / adherenceDenominator) * 100));
+
+    // Check-in streak
+    let checkInStreak = 0;
+    const today = new Date();
+    for (let i = 0; i < recentCheckins.length; i++) {
+      const checkinDate = new Date(recentCheckins[i].date);
+      const expected = new Date(today);
+      expected.setDate(expected.getDate() - i);
+      if (checkinDate.toISOString().split("T")[0] === expected.toISOString().split("T")[0]) {
+        checkInStreak++;
+      } else break;
+    }
+
+    // Score trend from glucose (as proxy for overall health trend)
+    const scoreTrend: ScoreTrend = glucoseTrend === "down" ? "up" : glucoseTrend === "up" ? "down" : "flat";
+
+    // Status
+    const status = deriveStatus(healthScore, activeAlerts);
+
+    // Last active
+    const lastActiveDate = recentCheckins[0]?.submittedAt ?? user.updatedAt ?? user.createdAt;
+    const lastActive = formatRelativeTime(new Date(lastActiveDate));
+
+    // Member since
+    const memberSince = user.createdAt.toISOString().split("T")[0];
+
+    return {
+      id: clientId,
+      name,
+      initials,
+      email: user.email,
+      tier,
+      healthScore,
+      scoreTrend,
+      activeAlerts,
+      adherence,
+      lastActive,
+      lastActiveDate: lastActiveDate instanceof Date ? lastActiveDate.toISOString() : String(lastActiveDate),
+      status,
+      nextSession: null as string | null,
+      memberSince,
+      metrics: {
+        avgGlucose,
+        glucoseTrend,
+        glucoseData: glucoseValues,
+        sleepScore,
+        sleepTrend,
+        sleepData: sleepHours,
+        hrv,
+        hrvTrend: hrvTrend as ScoreTrend,
+        weight,
+        weightData: weightValues,
+        bodyFat,
+        adherence,
+        checkInStreak,
+      },
+      protocol: protocol
+        ? {
+            id: protocol.id,
+            name: `Protocol v${protocol.version}`,
+            startDate: protocol.createdAt.toISOString().split("T")[0],
+            duration: "12 weeks",
+            progress: Math.min(100, Math.round((Date.now() - protocol.createdAt.getTime()) / (12 * 7 * 86400000) * 100)),
+            goals: [] as string[],
+            status: protocol.status as "active" | "paused" | "completed",
+          }
+        : {
+            id: "none",
+            name: "No Active Protocol",
+            startDate: new Date().toISOString().split("T")[0],
+            duration: "—",
+            progress: 0,
+            goals: [],
+            status: "paused" as const,
+          },
+    };
+  });
+
+  return results.filter((c): c is NonNullable<typeof c> => c !== null);
+}
+
 // ─── Router ───────────────────────────────────────────────────
 
 export const coachClientsRouter = router({
@@ -267,12 +507,9 @@ export const coachClientsRouter = router({
       const clientIds = relationships.map((r) => r.clientId);
       if (clientIds.length === 0) return [];
 
-      // Fetch all client data
-      const allClients = await Promise.all(
-        clientIds.map((id) => fetchClientData(ctx.db, id))
-      );
-
-      let clients = allClients.filter((c): c is NonNullable<typeof c> => c !== null);
+      // Fetch all client data using batched queries (eliminates N+1)
+      const enrollmentDates = new Map(relationships.map((r) => [r.clientId, r.startedAt]));
+      let clients = await fetchClientDataBatch(ctx.db, clientIds, enrollmentDates);
 
       // Apply filters
       if (input?.search) {
@@ -311,7 +548,14 @@ export const coachClientsRouter = router({
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
       await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
-      const detail = await fetchClientData(ctx.db, input.clientId);
+      const relationship = await ctx.db.query.trainerClientRelationships.findFirst({
+        where: and(
+          eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+          eq(trainerClientRelationships.clientId, input.clientId),
+          eq(trainerClientRelationships.status, "active"),
+        ),
+      });
+      const detail = await fetchClientData(ctx.db, input.clientId, relationship?.startedAt);
       if (!detail) return null;
 
       // Also fetch alerts list and recent activity
@@ -385,10 +629,8 @@ export const coachClientsRouter = router({
       };
     }
 
-    const allClients = await Promise.all(
-      clientIds.map((id) => fetchClientData(ctx.db, id))
-    );
-    const clients = allClients.filter((c): c is NonNullable<typeof c> => c !== null);
+    const enrollmentDates = new Map(relationships.map((r) => [r.clientId, r.startedAt]));
+    const clients = await fetchClientDataBatch(ctx.db, clientIds, enrollmentDates);
 
     return {
       totalClients: clients.length,
@@ -1003,60 +1245,52 @@ export const coachClientsRouter = router({
       }
 
       // Check for duplicate pending invitation
-      try {
-        const existingInvite = await ctx.db.query.clientInvitations.findFirst({
-          where: and(
-            eq(clientInvitations.trainerId, trainerId),
-            ilike(clientInvitations.email, input.email),
-            eq(clientInvitations.status, "pending"),
-          ),
+      const existingInvite = await ctx.db.query.clientInvitations.findFirst({
+        where: and(
+          eq(clientInvitations.trainerId, trainerId),
+          ilike(clientInvitations.email, input.email),
+          eq(clientInvitations.status, "pending"),
+        ),
+      });
+      if (existingInvite) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "An invitation is already pending for this email.",
         });
-        if (existingInvite) {
-          return { success: false, message: "An invitation is already pending for this email." };
-        }
-      } catch { /* table may not exist yet */ }
+      }
 
       // Create invitation (expires in 30 days)
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
 
-      try {
-        const [invite] = await ctx.db.insert(clientInvitations).values({
-          trainerId,
-          email: input.email.toLowerCase(),
-          tier: input.tier,
-          note: input.note ?? null,
-          expiresAt,
-        }).returning();
+      const [invite] = await ctx.db.insert(clientInvitations).values({
+        trainerId,
+        email: input.email.toLowerCase(),
+        tier: input.tier,
+        note: input.note ?? null,
+        expiresAt,
+      }).returning();
 
-        return { success: true, invitationId: invite.id };
-      } catch {
-        // Table may not exist yet
-        return { success: true, invitationId: null };
-      }
+      return { success: true, invitationId: invite.id };
     }),
 
   /**
    * List pending invitations for this trainer.
    */
   listInvitations: trainerProcedure.query(async ({ ctx }) => {
-    try {
-      const invitations = await ctx.db.query.clientInvitations.findMany({
-        where: eq(clientInvitations.trainerId, ctx.dbUserId),
-        orderBy: desc(clientInvitations.createdAt),
-      });
-      return invitations.map((inv) => ({
-        id: inv.id,
-        email: inv.email,
-        status: inv.status,
-        tier: inv.tier,
-        note: inv.note,
-        createdAt: inv.createdAt.toISOString(),
-        expiresAt: inv.expiresAt?.toISOString() ?? null,
-      }));
-    } catch {
-      return [];
-    }
+    const invitations = await ctx.db.query.clientInvitations.findMany({
+      where: eq(clientInvitations.trainerId, ctx.dbUserId),
+      orderBy: desc(clientInvitations.createdAt),
+    });
+    return invitations.map((inv) => ({
+      id: inv.id,
+      email: inv.email,
+      status: inv.status,
+      tier: inv.tier,
+      note: inv.note,
+      createdAt: inv.createdAt.toISOString(),
+      expiresAt: inv.expiresAt?.toISOString() ?? null,
+    }));
   }),
 
   /**
@@ -1065,15 +1299,13 @@ export const coachClientsRouter = router({
   cancelInvitation: trainerProcedure
     .input(z.object({ invitationId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      try {
-        await ctx.db.update(clientInvitations)
-          .set({ status: "cancelled" })
-          .where(and(
-            eq(clientInvitations.id, input.invitationId),
-            eq(clientInvitations.trainerId, ctx.dbUserId),
-            eq(clientInvitations.status, "pending"),
-          ));
-      } catch { /* table may not exist */ }
+      await ctx.db.update(clientInvitations)
+        .set({ status: "cancelled" })
+        .where(and(
+          eq(clientInvitations.id, input.invitationId),
+          eq(clientInvitations.trainerId, ctx.dbUserId),
+          eq(clientInvitations.status, "pending"),
+        ));
       return { success: true };
     }),
 });

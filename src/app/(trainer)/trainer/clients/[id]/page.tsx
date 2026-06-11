@@ -7,7 +7,7 @@ import {
   ArrowLeft, MessageSquare, Settings, Calendar, Activity, TrendingUp,
   AlertCircle, Clock, Pin, Trash2, CheckCircle, Send, X, Video,
   Droplets, Moon, Heart, Scale, Dumbbell, Target, FlaskConical,
-  Apple, Pill, Zap, ClipboardList, ChevronRight,
+  Apple, Pill, Zap, ClipboardList, ChevronRight, Timer, Footprints,
 } from "lucide-react";
 import { useThemeColors } from "@/lib/theme";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
@@ -20,7 +20,7 @@ import { trpc } from "@/lib/trpc";
 
 // ─── Types ──────────────────────────────────────────────────────
 
-type DataTab = "overview" | "glucose" | "sleep" | "hrv" | "bp" | "body" | "workouts" | "goals" | "labs" | "nutrition" | "supplements" | "checkins";
+type DataTab = "overview" | "glucose" | "sleep" | "hrv" | "bp" | "body" | "workouts" | "activity" | "fasting" | "goals" | "labs" | "nutrition" | "supplements" | "checkins";
 
 const DATA_TABS: { id: DataTab; label: string; icon: typeof Activity }[] = [
   { id: "overview", label: "Overview", icon: Activity },
@@ -30,9 +30,11 @@ const DATA_TABS: { id: DataTab; label: string; icon: typeof Activity }[] = [
   { id: "bp", label: "Blood Pressure", icon: Zap },
   { id: "body", label: "Body", icon: Scale },
   { id: "workouts", label: "Workouts", icon: Dumbbell },
+  { id: "activity", label: "Activity", icon: Footprints },
   { id: "goals", label: "Goals", icon: Target },
   { id: "labs", label: "Labs", icon: FlaskConical },
   { id: "nutrition", label: "Nutrition", icon: Apple },
+  { id: "fasting", label: "Fasting", icon: Timer },
   { id: "supplements", label: "Supplements", icon: Pill },
   { id: "checkins", label: "Check-ins", icon: ClipboardList },
 ];
@@ -914,6 +916,57 @@ function TabContent({
         </div>
       );
 
+    case "activity":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Footprints size={16} /> Activity ({health.activity.length} days)
+          </h2>
+          {health.activity.length === 0 ? (
+            <p className="text-sm text-gray-500 py-6 text-center">No activity data for this period</p>
+          ) : (
+            <>
+              {/* Summary cards */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
+                  <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Steps</p>
+                  <p className="text-lg font-bold text-white">
+                    {health.activity.filter((a) => a.steps != null).length > 0
+                      ? Math.round(health.activity.reduce((sum, a) => sum + (a.steps ?? 0), 0) / health.activity.filter((a) => a.steps != null).length).toLocaleString()
+                      : "—"}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
+                  <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Calories</p>
+                  <p className="text-lg font-bold text-white">
+                    {health.activity.filter((a) => a.caloriesActive != null).length > 0
+                      ? Math.round(health.activity.reduce((sum, a) => sum + (a.caloriesActive ?? 0), 0) / health.activity.filter((a) => a.caloriesActive != null).length)
+                      : "—"}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
+                  <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Active Min</p>
+                  <p className="text-lg font-bold text-white">
+                    {health.activity.filter((a) => a.exerciseMinutes != null).length > 0
+                      ? Math.round(health.activity.reduce((sum, a) => sum + (a.exerciseMinutes ?? 0), 0) / health.activity.filter((a) => a.exerciseMinutes != null).length)
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+              <DataTable
+                headers={["Date", "Steps", "Calories Burned", "Active Minutes"]}
+                rows={health.activity.map((a) => [
+                  a.date,
+                  a.steps != null ? a.steps.toLocaleString() : null,
+                  a.caloriesActive,
+                  a.exerciseMinutes != null ? `${a.exerciseMinutes} min` : null,
+                ])}
+              />
+            </>
+          )}
+        </div>
+      );
+
     case "goals":
       return (
         <div className="kairos-card">
@@ -998,6 +1051,58 @@ function TabContent({
             headers={["Date", "Meal", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"]}
             rows={health.nutrition.recentMeals.map((m) => [m.date, m.mealType, m.calories, m.protein, m.carbs, m.fat])}
           />
+        </div>
+      );
+
+    case "fasting":
+      return (
+        <div className="kairos-card">
+          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+            <Timer size={16} /> Fasting Log ({health.fasting.length} sessions)
+          </h2>
+          {health.fasting.length === 0 ? (
+            <p className="text-sm text-gray-500 py-6 text-center">No fasting data for this period</p>
+          ) : (
+            <>
+              {/* Summary cards */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
+                  <p className="text-[10px] text-gray-500 uppercase mb-1">Total Fasts</p>
+                  <p className="text-lg font-bold text-white">{health.fasting.length}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
+                  <p className="text-[10px] text-gray-500 uppercase mb-1">Completed</p>
+                  <p className="text-lg font-bold text-green-400">{health.fasting.filter((f) => f.completed).length}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
+                  <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Duration</p>
+                  <p className="text-lg font-bold text-white">
+                    {(() => {
+                      const durations = health.fasting
+                        .filter((f) => f.startedAt && f.endedAt)
+                        .map((f) => (new Date(f.endedAt!).getTime() - new Date(f.startedAt!).getTime()) / 3600000);
+                      return durations.length > 0 ? `${(durations.reduce((a, b) => a + b, 0) / durations.length).toFixed(1)}h` : "—";
+                    })()}
+                  </p>
+                </div>
+              </div>
+              <DataTable
+                headers={["Date", "Started", "Ended", "Duration", "Completed"]}
+                rows={health.fasting.map((f) => {
+                  const started = f.startedAt ? new Date(f.startedAt) : null;
+                  const ended = f.endedAt ? new Date(f.endedAt) : null;
+                  const durationHrs = started && ended ? ((ended.getTime() - started.getTime()) / 3600000).toFixed(1) + "h" : "—";
+                  return [
+                    f.date ?? (started ? started.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"),
+                    started ? started.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "—",
+                    ended ? ended.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) : "In progress",
+                    durationHrs,
+                    f.completed ? "Yes" : "No",
+                  ];
+                })}
+              />
+            </>
+          )}
         </div>
       );
 
