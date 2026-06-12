@@ -12,49 +12,49 @@ export async function GET() {
   const results: Record<string, unknown> = {};
 
   try {
-    // 1. Check if the appointments table exists and its columns
+    // 1. Add missing columns: meeting_link and zoom_meeting_id
+    try {
+      await sql`
+        ALTER TABLE appointments
+        ADD COLUMN IF NOT EXISTS meeting_link varchar(500),
+        ADD COLUMN IF NOT EXISTS zoom_meeting_id varchar(50)
+      `;
+      results.addColumns = "success";
+    } catch (e) {
+      results.addColumnsError = e instanceof Error ? e.message : String(e);
+    }
+
+    // 2. Verify columns now exist
     try {
       const cols = await sql`
-        SELECT column_name, data_type, udt_name, is_nullable, column_default
+        SELECT column_name, data_type, udt_name
         FROM information_schema.columns
         WHERE table_name = 'appointments'
         ORDER BY ordinal_position
       `;
-      results.tableColumns = cols;
+      results.columns = cols.map(c => c.column_name);
     } catch (e) {
-      results.tableColumnsError = e instanceof Error ? e.message : String(e);
+      results.columnsError = e instanceof Error ? e.message : String(e);
     }
 
-    // 2. Check enum types
-    try {
-      const enums = await sql`
-        SELECT t.typname, e.enumlabel
-        FROM pg_type t
-        JOIN pg_enum e ON t.oid = e.enumtypid
-        WHERE t.typname IN ('session_type', 'meeting_type', 'appointment_status')
-        ORDER BY t.typname, e.enumsortorder
-      `;
-      results.enumValues = enums;
-    } catch (e) {
-      results.enumValuesError = e instanceof Error ? e.message : String(e);
-    }
-
-    // 3. Try raw SQL INSERT
+    // 3. Test a Drizzle-style INSERT (with all 18 columns)
     try {
       const inserted = await sql`
         INSERT INTO appointments (
           coach_id, client_id, coach_name, client_name,
           session_type, meeting_type, date, start_time,
-          end_time, duration_minutes, notes
+          end_time, duration_minutes, notes,
+          meeting_link, zoom_meeting_id
         ) VALUES (
           '629ce212-9831-4e71-8060-8a6c2f73cbb6',
           '629ce212-9831-4e71-8060-8a6c2f73cbb6',
-          'Michael', 'Test Debug',
+          'Michael', 'Test With Zoom Cols',
           'follow_up', 'phone', '2026-12-31', '09:00',
-          '09:30', 30, 'debug raw sql test'
+          '09:30', 30, 'test with zoom columns',
+          NULL, NULL
         ) RETURNING id
       `;
-      results.insertSuccess = true;
+      results.insertWithZoomCols = "success";
       results.insertedId = inserted[0]?.id;
 
       // Clean up
@@ -63,21 +63,12 @@ export async function GET() {
         results.cleaned = true;
       }
     } catch (e: unknown) {
-      results.insertSuccess = false;
       const err = e as Record<string, unknown>;
+      results.insertWithZoomCols = "failed";
       results.insertError = {
         message: e instanceof Error ? e.message : String(e),
         code: err?.code,
-        constraint: err?.constraint_name ?? err?.constraint,
         detail: err?.detail,
-        table: err?.table_name ?? err?.table,
-        column: err?.column_name ?? err?.column,
-        schema: err?.schema_name ?? err?.schema,
-        severity: err?.severity,
-        routine: err?.routine,
-        hint: err?.hint,
-        where: err?.where,
-        position: err?.position,
       };
     }
 
