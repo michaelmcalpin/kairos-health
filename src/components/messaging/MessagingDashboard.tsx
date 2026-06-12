@@ -8,6 +8,13 @@ import { trpc } from "@/lib/trpc";
 import { ConversationList } from "./ConversationList";
 import { ChatView } from "./ChatView";
 
+interface AssignedClient {
+  id: string;
+  name: string;
+  email: string;
+  initials: string;
+}
+
 interface MessagingDashboardProps {
   userId: string;
   role: "client" | "coach";
@@ -19,7 +26,14 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
   const [filter, setFilter] = useState<ConversationFilter>("all");
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [didAutoSelect, setDidAutoSelect] = useState(false);
+  const [showClientPicker, setShowClientPicker] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
   const utils = trpc.useUtils();
+
+  // For coaches: fetch assigned clients so they can start new conversations
+  const clientsQuery = trpc.coach.clients.list.useQuery(undefined, {
+    enabled: role === "coach",
+  });
 
   // ── tRPC queries (role-based) ─────────────────────────────────
 
@@ -89,8 +103,28 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
       invalidateAll();
     },
   });
-  // Coach start-conversation hook reserved for future use
-  // const coachStartConv = trpc.coach.messaging.startConversation.useMutation(...);
+  const coachStartConv = trpc.coach.messaging.startConversation.useMutation({
+    onSuccess: (conv) => {
+      const client = (clientsQuery.data ?? []).find((c: AssignedClient) => c.id === conv.clientId);
+      const clientName = client?.name || "Client";
+      const enriched: Conversation = {
+        id: conv.id,
+        coachId: conv.trainerId ?? null,
+        clientId: conv.clientId,
+        coachName: userName,
+        clientName,
+        isAiCoach: false,
+        lastMessage: null,
+        unreadCount: 0,
+        createdAt: conv.lastMessageAt ? new Date(conv.lastMessageAt).toISOString() : new Date().toISOString(),
+        updatedAt: conv.lastMessageAt ? new Date(conv.lastMessageAt).toISOString() : new Date().toISOString(),
+      };
+      setSelectedConversation(enriched);
+      setShowClientPicker(false);
+      setClientSearch("");
+      invalidateAll();
+    },
+  });
 
   function invalidateAll() {
     if (role === "client") {
@@ -167,8 +201,18 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
         coachName: "AI Health Coach",
         isAiCoach: true,
       });
+    } else {
+      // Coach: open client picker to choose who to message
+      setShowClientPicker(true);
     }
   }, [role, clientStartConv]);
+
+  const handleStartCoachConversation = useCallback((client: AssignedClient) => {
+    coachStartConv.mutate({
+      clientId: client.id,
+      clientName: client.name,
+    });
+  }, [coachStartConv]);
 
   const handleSelectConversation = useCallback(
     (conv: Conversation) => {
@@ -252,13 +296,75 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
                 </div>
                 <h3 className="text-white font-heading font-semibold mb-1">Select a conversation</h3>
                 <p className="text-sm text-gray-500">
-                  Choose a conversation from the left to start messaging.
+                  {role === "coach"
+                    ? "Choose a conversation from the left, or click + to message a client."
+                    : "Choose a conversation from the left to start messaging."}
                 </p>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Client Picker Modal (Coach only) */}
+      {showClientPicker && role === "coach" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-kairos-card border border-kairos-border rounded-xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-kairos-border">
+              <h3 className="text-white font-heading font-semibold">New Conversation</h3>
+              <button
+                onClick={() => { setShowClientPicker(false); setClientSearch(""); }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-4">
+              <input
+                type="text"
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                placeholder="Search clients..."
+                className="kairos-input w-full mb-3"
+                autoFocus
+              />
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {(clientsQuery.data ?? [])
+                  .filter((c: AssignedClient) => {
+                    if (!clientSearch) return true;
+                    const q = clientSearch.toLowerCase();
+                    return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
+                  })
+                  .map((c: AssignedClient) => (
+                    <button
+                      key={c.id}
+                      onClick={() => handleStartCoachConversation(c)}
+                      disabled={coachStartConv.isPending}
+                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-kairos-card-hover transition-colors text-left disabled:opacity-50"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-kairos-gold/15 text-kairos-gold flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                        {c.initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{c.name}</p>
+                        {c.email && <p className="text-xs text-gray-500 truncate">{c.email}</p>}
+                      </div>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-500 flex-shrink-0">
+                        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" />
+                      </svg>
+                    </button>
+                  ))}
+                {(clientsQuery.data ?? []).length === 0 && !clientsQuery.isLoading && (
+                  <p className="text-center text-gray-500 text-sm py-4">No assigned clients yet.</p>
+                )}
+                {clientsQuery.isLoading && (
+                  <p className="text-center text-gray-500 text-sm py-4">Loading clients...</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

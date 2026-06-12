@@ -16,7 +16,10 @@ export const coachMessagingRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const filter = input?.filter ?? "all";
-      const conditions = [eq(conversations.trainerId, ctx.dbUserId)];
+      // super_admin sees all conversations, trainers see only their own
+      const conditions = ctx.userRole === "super_admin"
+        ? []
+        : [eq(conversations.trainerId, ctx.dbUserId)];
 
       if (filter === "unread") {
         conditions.push(sql`${conversations.unreadCountTrainer} > 0`);
@@ -97,12 +100,10 @@ export const coachMessagingRouter = router({
   getConversation: coachProcedure
     .input(z.object({ conversationId: z.string() }))
     .query(async ({ ctx, input }) => {
-      const conv = await ctx.db.query.conversations.findFirst({
-        where: and(
-          eq(conversations.id, input.conversationId),
-          eq(conversations.trainerId, ctx.dbUserId),
-        ),
-      });
+      const convWhere = ctx.userRole === "super_admin"
+        ? eq(conversations.id, input.conversationId)
+        : and(eq(conversations.id, input.conversationId), eq(conversations.trainerId, ctx.dbUserId));
+      const conv = await ctx.db.query.conversations.findFirst({ where: convWhere });
       if (!conv) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
       return conv;
     }),
@@ -116,17 +117,18 @@ export const coachMessagingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Verify the trainer has an active relationship with this client
-      const relationship = await ctx.db.query.trainerClientRelationships.findFirst({
-        where: and(
-          eq(trainerClientRelationships.trainerId, ctx.dbUserId),
-          eq(trainerClientRelationships.clientId, input.clientId),
-          eq(trainerClientRelationships.status, "active"),
-        ),
-      });
-
-      if (!relationship) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "No active relationship with this client" });
+      // super_admin can message any client; trainers must have a relationship
+      if (ctx.userRole !== "super_admin") {
+        const relationship = await ctx.db.query.trainerClientRelationships.findFirst({
+          where: and(
+            eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+            eq(trainerClientRelationships.clientId, input.clientId),
+            eq(trainerClientRelationships.status, "active"),
+          ),
+        });
+        if (!relationship) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No active relationship with this client" });
+        }
       }
 
       const existing = await ctx.db.query.conversations.findFirst({
@@ -161,12 +163,10 @@ export const coachMessagingRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const conv = await ctx.db.query.conversations.findFirst({
-        where: and(
-          eq(conversations.id, input.conversationId),
-          eq(conversations.trainerId, ctx.dbUserId),
-        ),
-      });
+      const convWhere = ctx.userRole === "super_admin"
+        ? eq(conversations.id, input.conversationId)
+        : and(eq(conversations.id, input.conversationId), eq(conversations.trainerId, ctx.dbUserId));
+      const conv = await ctx.db.query.conversations.findFirst({ where: convWhere });
       if (!conv) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
 
       const conditions = [eq(messages.conversationId, input.conversationId)];
@@ -193,12 +193,10 @@ export const coachMessagingRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const conv = await ctx.db.query.conversations.findFirst({
-        where: and(
-          eq(conversations.id, input.conversationId),
-          eq(conversations.trainerId, ctx.dbUserId),
-        ),
-      });
+      const convWhere = ctx.userRole === "super_admin"
+        ? eq(conversations.id, input.conversationId)
+        : and(eq(conversations.id, input.conversationId), eq(conversations.trainerId, ctx.dbUserId));
+      const conv = await ctx.db.query.conversations.findFirst({ where: convWhere });
       if (!conv) throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
 
       const [msg] = await ctx.db
@@ -249,15 +247,13 @@ export const coachMessagingRouter = router({
   markAsRead: coachProcedure
     .input(z.object({ conversationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      const markWhere = ctx.userRole === "super_admin"
+        ? eq(conversations.id, input.conversationId)
+        : and(eq(conversations.id, input.conversationId), eq(conversations.trainerId, ctx.dbUserId));
       await ctx.db
         .update(conversations)
         .set({ unreadCountTrainer: 0 })
-        .where(
-          and(
-            eq(conversations.id, input.conversationId),
-            eq(conversations.trainerId, ctx.dbUserId),
-          )
-        );
+        .where(markWhere);
 
       await ctx.db
         .update(messages)
@@ -275,10 +271,13 @@ export const coachMessagingRouter = router({
 
   // Get total unread count
   getUnreadCount: coachProcedure.query(async ({ ctx }) => {
+    const unreadWhere = ctx.userRole === "super_admin"
+      ? sql`1=1`
+      : eq(conversations.trainerId, ctx.dbUserId);
     const result = await ctx.db
       .select({ total: sql<number>`coalesce(sum(${conversations.unreadCountTrainer}), 0)` })
       .from(conversations)
-      .where(eq(conversations.trainerId, ctx.dbUserId));
+      .where(unreadWhere);
 
     return { count: Number(result[0]?.total ?? 0) };
   }),
@@ -287,8 +286,11 @@ export const coachMessagingRouter = router({
   search: coachProcedure
     .input(z.object({ query: z.string().min(1).max(200) }))
     .query(async ({ ctx, input }) => {
+      const searchWhere = ctx.userRole === "super_admin"
+        ? undefined
+        : eq(conversations.trainerId, ctx.dbUserId);
       const coachConvs = await ctx.db.query.conversations.findMany({
-        where: eq(conversations.trainerId, ctx.dbUserId),
+        where: searchWhere,
       });
       const convIds = coachConvs.map((c) => c.id);
 
@@ -308,16 +310,19 @@ export const coachMessagingRouter = router({
 
   // Messaging stats
   getStats: coachProcedure.query(async ({ ctx }) => {
+    const statsWhere = ctx.userRole === "super_admin"
+      ? sql`1=1`
+      : eq(conversations.trainerId, ctx.dbUserId);
     const convCount = await ctx.db
       .select({ count: sql<number>`count(*)` })
       .from(conversations)
-      .where(eq(conversations.trainerId, ctx.dbUserId));
+      .where(statsWhere);
 
     const msgCount = await ctx.db
       .select({ count: sql<number>`count(*)` })
       .from(messages)
       .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-      .where(eq(conversations.trainerId, ctx.dbUserId));
+      .where(statsWhere);
 
     return {
       totalConversations: Number(convCount[0]?.count ?? 0),

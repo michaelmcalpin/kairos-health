@@ -200,7 +200,10 @@ export const coachScheduleRouter = router({
     .query(async ({ ctx, input }) => {
       const filter = input?.filter ?? "all";
       const today = new Date().toISOString().split("T")[0];
-      const conditions = [eq(appointments.coachId, ctx.dbUserId)];
+      // super_admin sees all appointments
+      const conditions = ctx.userRole === "super_admin"
+        ? []
+        : [eq(appointments.coachId, ctx.dbUserId)];
 
       if (filter === "upcoming") conditions.push(gte(appointments.date, today));
       if (filter === "past") conditions.push(lt(appointments.date, today));
@@ -308,10 +311,15 @@ export const coachScheduleRouter = router({
             // Update the returned object so downstream code sees the link
             (created as Record<string, unknown>).meetingLink = zoomResult.joinUrl;
             (created as Record<string, unknown>).zoomMeetingId = String(zoomResult.meetingId);
+          } else {
+            // createZoomMeeting returned null — Zoom env vars are not configured
+            console.warn("[Schedule] Zoom not configured — appointment created without video link");
+            (created as Record<string, unknown>).zoomError = "Zoom is not configured. Add ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET to Vercel environment variables.";
           }
         } catch (zoomError) {
           // Zoom failure is non-fatal — appointment was already created
           console.error("Failed to create Zoom meeting:", zoomError);
+          (created as Record<string, unknown>).zoomError = "Failed to create Zoom meeting. Check Zoom credentials.";
         }
       }
 

@@ -79,7 +79,11 @@ async function verifyCoachClientRelationship(
   db: typeof import("@/server/db").db,
   coachId: string,
   clientId: string,
+  userRole?: string,
 ) {
+  // super_admin can access any client's data without a relationship
+  if (userRole === "super_admin") return;
+
   const rel = await db.query.trainerClientRelationships.findFirst({
     where: and(
       eq(trainerClientRelationships.trainerId, coachId),
@@ -497,11 +501,14 @@ export const coachClientsRouter = router({
       const trainerId = ctx.dbUserId;
 
       // Get active client relationships
+      // super_admin sees ALL active relationships, not just their own
       const relationships = await ctx.db.query.trainerClientRelationships.findMany({
-        where: and(
-          eq(trainerClientRelationships.trainerId, trainerId),
-          eq(trainerClientRelationships.status, "active")
-        ),
+        where: ctx.userRole === "super_admin"
+          ? eq(trainerClientRelationships.status, "active")
+          : and(
+              eq(trainerClientRelationships.trainerId, trainerId),
+              eq(trainerClientRelationships.status, "active")
+            ),
       });
 
       const clientIds = relationships.map((r) => r.clientId);
@@ -547,7 +554,7 @@ export const coachClientsRouter = router({
   getDetail: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       const relationship = await ctx.db.query.trainerClientRelationships.findFirst({
         where: and(
           eq(trainerClientRelationships.trainerId, ctx.dbUserId),
@@ -613,11 +620,14 @@ export const coachClientsRouter = router({
   getStats: trainerProcedure.query(async ({ ctx }) => {
     const trainerId = ctx.dbUserId;
 
+    // super_admin sees all active relationships
     const relationships = await ctx.db.query.trainerClientRelationships.findMany({
-      where: and(
-        eq(trainerClientRelationships.trainerId, trainerId),
-        eq(trainerClientRelationships.status, "active")
-      ),
+      where: ctx.userRole === "super_admin"
+        ? eq(trainerClientRelationships.status, "active")
+        : and(
+            eq(trainerClientRelationships.trainerId, trainerId),
+            eq(trainerClientRelationships.status, "active")
+          ),
     });
 
     const clientIds = relationships.map((r) => r.clientId);
@@ -654,7 +664,7 @@ export const coachClientsRouter = router({
   resolveAlert: trainerProcedure
     .input(z.object({ clientId: z.string(), alertId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       const [updated] = await ctx.db
         .update(alerts)
         .set({ status: "resolved", resolvedAt: new Date() })
@@ -667,7 +677,7 @@ export const coachClientsRouter = router({
   addNote: trainerProcedure
     .input(z.object({ clientId: z.string(), content: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       const [note] = await ctx.db
         .insert(coachNotes)
         .values({
@@ -682,7 +692,7 @@ export const coachClientsRouter = router({
   getNotes: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       return ctx.db.query.coachNotes.findMany({
         where: eq(coachNotes.clientId, input.clientId),
         orderBy: [desc(coachNotes.pinned), desc(coachNotes.createdAt)],
@@ -692,7 +702,7 @@ export const coachClientsRouter = router({
   pinNote: trainerProcedure
     .input(z.object({ clientId: z.string(), noteId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       // Toggle pin status — only allow if the note belongs to this coach
       const existing = await ctx.db.query.coachNotes.findFirst({
         where: and(
@@ -713,7 +723,7 @@ export const coachClientsRouter = router({
   deleteNote: trainerProcedure
     .input(z.object({ clientId: z.string(), noteId: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       // Only allow deleting notes owned by this coach
       const deleted = await ctx.db
         .delete(coachNotes)
@@ -736,7 +746,7 @@ export const coachClientsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       // Find the active protocol for this client
       const protocol = await ctx.db.query.supplementProtocols.findFirst({
         where: and(
@@ -779,7 +789,7 @@ export const coachClientsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
 
       const end = input.endDate ?? new Date().toISOString().split("T")[0];
       const start = input.startDate ?? new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
@@ -1200,7 +1210,7 @@ export const coachClientsRouter = router({
       tier: z.enum(["tier1", "tier2", "tier3"]),
     }))
     .mutation(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
 
       const existing = await ctx.db.query.clientProfiles.findFirst({
         where: eq(clientProfiles.userId, input.clientId),
