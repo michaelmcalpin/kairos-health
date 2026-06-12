@@ -290,22 +290,31 @@ export const coachScheduleRouter = router({
       const sessionLabel = SESSION_LABELS[input.sessionType] ?? input.sessionType;
       const meetingLabel = input.meetingType === "video" ? "Video Call" : input.meetingType === "phone" ? "Phone Call" : "In Person";
 
-      const [created] = await ctx.db
-        .insert(appointments)
-        .values({
-          coachId: ctx.dbUserId,
-          clientId: input.clientId,
-          clientName: input.clientName,
-          coachName,
-          sessionType: input.sessionType as "follow_up",
-          meetingType: input.meetingType,
-          date: input.date,
-          startTime: input.startTime,
-          endTime,
-          durationMinutes: duration,
-          notes: input.notes,
-        })
-        .returning();
+      let created;
+      try {
+        [created] = await ctx.db
+          .insert(appointments)
+          .values({
+            coachId: ctx.dbUserId,
+            clientId: input.clientId,
+            clientName: input.clientName,
+            coachName,
+            sessionType: input.sessionType as "follow_up",
+            meetingType: input.meetingType,
+            date: input.date,
+            startTime: input.startTime,
+            endTime,
+            durationMinutes: duration,
+            notes: input.notes,
+          })
+          .returning();
+      } catch (insertErr) {
+        console.error("[Schedule] INSERT appointment failed:", insertErr);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to create appointment: ${insertErr instanceof Error ? insertErr.message : String(insertErr)}`,
+        });
+      }
 
       // Create Zoom meeting for video appointments
       if (input.meetingType === "video") {
@@ -345,33 +354,41 @@ export const coachScheduleRouter = router({
       const hour = parseInt(h, 10);
       const displayTime = `${hour > 12 ? hour - 12 : hour || 12}:${m} ${hour >= 12 ? "PM" : "AM"}`;
 
-      // Create an alert for the client so the booking shows in their alerts
-      await ctx.db.insert(alerts).values({
-        clientId: input.clientId,
-        type: "scheduling",
-        priority: "info",
-        title: `${sessionLabel} scheduled`,
-        message: `${coachName} scheduled a ${sessionLabel.toLowerCase()} (${meetingLabel.toLowerCase()}) for ${displayDate} at ${displayTime}.`,
-        data: { appointmentId: created.id, sessionType: input.sessionType, meetingType: input.meetingType },
-      });
-
-      // Send a chat message if a conversation exists between coach and client
-      const conversation = await ctx.db.query.conversations.findFirst({
-        where: and(eq(conversations.trainerId, ctx.dbUserId), eq(conversations.clientId, input.clientId)),
-      });
-
-      if (conversation) {
-        await ctx.db.insert(messages).values({
-          conversationId: conversation.id,
-          senderId: ctx.dbUserId,
-          senderRole: "coach",
-          body: `I've scheduled a ${sessionLabel.toLowerCase()} (${meetingLabel.toLowerCase()}) for ${displayDate} at ${displayTime}. ${input.notes ? `Notes: ${input.notes}` : "See you then!"}`,
+      // Create an alert for the client so the booking shows in their alerts (non-fatal)
+      try {
+        await ctx.db.insert(alerts).values({
+          clientId: input.clientId,
+          type: "scheduling",
+          priority: "info",
+          title: `${sessionLabel} scheduled`,
+          message: `${coachName} scheduled a ${sessionLabel.toLowerCase()} (${meetingLabel.toLowerCase()}) for ${displayDate} at ${displayTime}.`,
+          data: { appointmentId: created.id, sessionType: input.sessionType, meetingType: input.meetingType },
         });
-        // Update conversation timestamp and unread count for client
-        await ctx.db.update(conversations).set({
-          lastMessageAt: new Date(),
-          unreadCountClient: sql`${conversations.unreadCountClient} + 1`,
-        }).where(eq(conversations.id, conversation.id));
+      } catch (alertErr) {
+        console.error("[Schedule] Failed to create alert (non-fatal):", alertErr);
+      }
+
+      // Send a chat message if a conversation exists between coach and client (non-fatal)
+      try {
+        const conversation = await ctx.db.query.conversations.findFirst({
+          where: and(eq(conversations.trainerId, ctx.dbUserId), eq(conversations.clientId, input.clientId)),
+        });
+
+        if (conversation) {
+          await ctx.db.insert(messages).values({
+            conversationId: conversation.id,
+            senderId: ctx.dbUserId,
+            senderRole: "coach",
+            body: `I've scheduled a ${sessionLabel.toLowerCase()} (${meetingLabel.toLowerCase()}) for ${displayDate} at ${displayTime}. ${input.notes ? `Notes: ${input.notes}` : "See you then!"}`,
+          });
+          // Update conversation timestamp and unread count for client
+          await ctx.db.update(conversations).set({
+            lastMessageAt: new Date(),
+            unreadCountClient: sql`${conversations.unreadCountClient} + 1`,
+          }).where(eq(conversations.id, conversation.id));
+        }
+      } catch (msgErr) {
+        console.error("[Schedule] Failed to send chat notification (non-fatal):", msgErr);
       }
 
       return created;
