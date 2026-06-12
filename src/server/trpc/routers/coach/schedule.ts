@@ -309,7 +309,10 @@ export const coachScheduleRouter = router({
           })
           .returning();
       } catch (insertErr) {
-        console.error("[Schedule] INSERT appointment failed:", insertErr);
+        const e = insertErr as Record<string, unknown>;
+        console.error("[APPT-ERR] code:", e?.code, "constraint:", e?.constraint, "detail:", e?.detail);
+        console.error("[APPT-ERR] msg:", insertErr instanceof Error ? insertErr.message.slice(0, 300) : String(insertErr).slice(0, 300));
+        console.error("[APPT-ERR] inputs:", JSON.stringify({ coachId: ctx.dbUserId, clientId: input.clientId, sessionType: input.sessionType, meetingType: input.meetingType, date: input.date, startTime: input.startTime }));
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: `Failed to create appointment: ${insertErr instanceof Error ? insertErr.message : String(insertErr)}`,
