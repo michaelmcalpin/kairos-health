@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
 import { appointments, sessionNotes, coachAvailability, trainerProfiles, users, notificationPreferences, alerts, conversations, messages } from "@/server/db/schema";
-import { eq, and, desc, gte, lte, lt, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte, lt, ne, sql } from "drizzle-orm";
 import { createZoomMeeting, deleteZoomMeeting } from "@/lib/zoom";
 
 const SESSION_DURATIONS: Record<string, number> = {
@@ -149,12 +149,16 @@ export const coachScheduleRouter = router({
     .input(z.object({ weekStart: z.string() }))
     .query(async ({ ctx, input }) => {
       const { start, end } = getWeekDates(input.weekStart);
+      // super_admin sees all appointments, trainers see only their own
+      const conditions = ctx.userRole === "super_admin"
+        ? []
+        : [eq(appointments.coachId, ctx.dbUserId)];
+      conditions.push(
+        gte(appointments.date, start),
+        lte(appointments.date, end),
+      );
       const results = await ctx.db.query.appointments.findMany({
-        where: and(
-          eq(appointments.coachId, ctx.dbUserId),
-          gte(appointments.date, start),
-          lte(appointments.date, end),
-        ),
+        where: and(...conditions),
         orderBy: [appointments.date, appointments.startTime],
       });
       return { appointments: results };
@@ -165,13 +169,17 @@ export const coachScheduleRouter = router({
     .input(z.object({ weekStart: z.string() }))
     .query(async ({ ctx, input }) => {
       const { start, end } = getWeekDates(input.weekStart);
+      // super_admin sees all appointments, trainers see only their own
+      const conditions = ctx.userRole === "super_admin"
+        ? []
+        : [eq(appointments.coachId, ctx.dbUserId)];
+      conditions.push(
+        gte(appointments.date, start),
+        lte(appointments.date, end),
+        ne(appointments.status, "cancelled"),
+      );
       const appts = await ctx.db.query.appointments.findMany({
-        where: and(
-          eq(appointments.coachId, ctx.dbUserId),
-          gte(appointments.date, start),
-          lte(appointments.date, end),
-          sql`${appointments.status} NOT IN ('cancelled')`,
-        ),
+        where: and(...conditions),
         orderBy: [appointments.date, appointments.startTime],
       });
 
@@ -218,11 +226,11 @@ export const coachScheduleRouter = router({
   getAppointment: trainerProcedure
     .input(z.object({ appointmentId: z.string() }))
     .query(async ({ ctx, input }) => {
+      const apptWhere = ctx.userRole === "super_admin"
+        ? eq(appointments.id, input.appointmentId)
+        : and(eq(appointments.id, input.appointmentId), eq(appointments.coachId, ctx.dbUserId));
       const appt = await ctx.db.query.appointments.findFirst({
-        where: and(
-          eq(appointments.id, input.appointmentId),
-          eq(appointments.coachId, ctx.dbUserId),
-        ),
+        where: apptWhere,
       });
       if (!appt) throw new TRPCError({ code: "NOT_FOUND", message: "Appointment not found" });
       return appt;
@@ -253,22 +261,30 @@ export const coachScheduleRouter = router({
       const endTime = addMinutes(input.startTime, duration);
 
       // Check for overlapping appointments on the same date for this coach
-      const overlapping = await ctx.db.query.appointments.findFirst({
-        where: and(
-          eq(appointments.coachId, ctx.dbUserId),
-          eq(appointments.date, input.date),
-          sql`${appointments.status} NOT IN ('cancelled')`,
-          // Overlap: existing.start < newEnd AND existing.end > newStart
-          sql`${appointments.startTime} < ${endTime}`,
-          sql`coalesce(${appointments.endTime}, ${appointments.startTime}) > ${input.startTime}`,
-        ),
-      });
+      try {
+        const [overlapping] = await ctx.db
+          .select({ id: appointments.id, startTime: appointments.startTime, date: appointments.date })
+          .from(appointments)
+          .where(and(
+            eq(appointments.coachId, ctx.dbUserId),
+            eq(appointments.date, input.date),
+            ne(appointments.status, "cancelled"),
+            lt(appointments.startTime, endTime),
+            sql`coalesce(${appointments.endTime}, ${appointments.startTime}) > ${input.startTime}`,
+          ))
+          .limit(1);
 
-      if (overlapping) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: `This time slot conflicts with an existing appointment at ${overlapping.startTime} on ${overlapping.date}.`,
-        });
+        if (overlapping) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `This time slot conflicts with an existing appointment at ${overlapping.startTime} on ${overlapping.date}.`,
+          });
+        }
+      } catch (err) {
+        // Re-throw CONFLICT errors (overlap found)
+        if (err instanceof TRPCError) throw err;
+        // Log but don't block appointment creation for overlap-check failures
+        console.error("[Schedule] Overlap check failed (non-fatal):", err);
       }
 
       const sessionLabel = SESSION_LABELS[input.sessionType] ?? input.sessionType;
@@ -462,7 +478,7 @@ export const coachScheduleRouter = router({
         where: and(
           eq(appointments.coachId, ctx.dbUserId),
           eq(appointments.date, input.date),
-          sql`${appointments.status} NOT IN ('cancelled')`,
+          ne(appointments.status, "cancelled"),
         ),
       });
 
@@ -630,29 +646,34 @@ export const coachScheduleRouter = router({
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     const weekStartStr = weekStart.toISOString().split("T")[0];
 
+    // super_admin sees all; trainers see only their own
+    const coachFilter = ctx.userRole === "super_admin" ? [] : [eq(appointments.coachId, ctx.dbUserId)];
+
     const upcoming = await ctx.db
       .select({ count: sql<number>`count(*)` })
       .from(appointments)
       .where(and(
-        eq(appointments.coachId, ctx.dbUserId),
+        ...coachFilter,
         gte(appointments.date, today),
-        sql`${appointments.status} NOT IN ('cancelled', 'no_show')`,
+        ne(appointments.status, "cancelled"),
+        ne(appointments.status, "no_show"),
       ));
 
     const todayAppts = await ctx.db
       .select({ count: sql<number>`count(*)` })
       .from(appointments)
       .where(and(
-        eq(appointments.coachId, ctx.dbUserId),
+        ...coachFilter,
         eq(appointments.date, today),
-        sql`${appointments.status} NOT IN ('cancelled', 'no_show')`,
+        ne(appointments.status, "cancelled"),
+        ne(appointments.status, "no_show"),
       ));
 
     const weekAppts = await ctx.db
       .select({ count: sql<number>`count(*)`, totalMin: sql<number>`coalesce(sum(${appointments.durationMinutes}), 0)` })
       .from(appointments)
       .where(and(
-        eq(appointments.coachId, ctx.dbUserId),
+        ...coachFilter,
         gte(appointments.date, weekStartStr),
         lte(appointments.date, today),
         eq(appointments.status, "completed"),

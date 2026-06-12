@@ -56,6 +56,9 @@ export default function CoachSchedulePage() {
   const { data: statsData, isLoading: isStatsLoading } = trpc.coach.schedule.getStats.useQuery();
   const { data: clientsList, isLoading: isClientsLoading } = trpc.coach.clients.list.useQuery();
 
+  // Error state for user feedback
+  const [mutationError, setMutationError] = useState<string | null>(null);
+
   // Mutations
   const createMutation = trpc.coach.schedule.createAppointment.useMutation();
   const updateStatusMutation = trpc.coach.schedule.updateStatus.useMutation();
@@ -280,11 +283,17 @@ export default function CoachSchedulePage() {
                 </select>
               </div>
             </div>
+            {mutationError && (
+              <div className="mx-6 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <p className="text-red-400 text-sm">{mutationError}</p>
+              </div>
+            )}
             <div className="flex gap-3 p-6 border-t border-kairos-border">
-              <button onClick={() => setShowNewAppt(false)} className="kairos-btn-outline flex-1">Cancel</button>
+              <button onClick={() => { setShowNewAppt(false); setMutationError(null); }} className="kairos-btn-outline flex-1">Cancel</button>
               <button
                 onClick={() => {
                   if (newAppt.clientId && newAppt.date) {
+                    setMutationError(null);
                     createMutation.mutate(
                       {
                         clientId: newAppt.clientId,
@@ -298,9 +307,13 @@ export default function CoachSchedulePage() {
                       {
                         onSuccess: () => {
                           setShowNewAppt(false);
+                          setMutationError(null);
                           setNewAppt({ clientId: "", clientName: "", date: "", time: "09:00", type: "follow_up", meeting: "video" });
                           void utils.coach.schedule.getCalendarWeek.invalidate();
                           void utils.coach.schedule.getStats.invalidate();
+                        },
+                        onError: (err) => {
+                          setMutationError(err.message || "Failed to create appointment. Please try again.");
                         },
                       }
                     );
