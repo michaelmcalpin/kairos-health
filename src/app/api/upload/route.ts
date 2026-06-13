@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import { auth } from "@clerk/nextjs/server";
+import { uploadFile } from "@/lib/storage";
 
 /**
  * POST /api/upload
  *
- * Accepts a file upload (multipart/form-data) and stores it in Vercel Blob.
+ * Accepts a file upload (multipart/form-data) and stores it in the configured
+ * cloud storage provider (Vercel Blob or Azure Blob Storage).
  * Returns the public URL. Used for progress photos and any future media uploads.
  *
- * Requires BLOB_READ_WRITE_TOKEN env var on Vercel.
- * Falls back to base64 data URL if Vercel Blob is not configured (dev mode).
+ * Set STORAGE_PROVIDER env var to "vercel" (default) or "azure".
+ * Vercel requires BLOB_READ_WRITE_TOKEN.
+ * Azure requires AZURE_STORAGE_CONNECTION_STRING.
+ *
+ * Falls back to base64 data URL if no storage is configured (dev mode).
  */
 export async function POST(req: NextRequest) {
   try {
@@ -43,8 +47,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if Vercel Blob is configured
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    // Dev fallback: no storage configured
+    const provider = process.env.STORAGE_PROVIDER ?? "vercel";
+    const hasVercelToken = !!process.env.BLOB_READ_WRITE_TOKEN;
+    const hasAzureConn = !!process.env.AZURE_STORAGE_CONNECTION_STRING;
+
+    if (
+      (provider === "vercel" && !hasVercelToken) ||
+      (provider === "azure" && !hasAzureConn)
+    ) {
       // Dev fallback: return base64 data URL
       const buffer = await file.arrayBuffer();
       const base64 = Buffer.from(buffer).toString("base64");
@@ -52,16 +63,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ url: dataUrl, storage: "base64-fallback" });
     }
 
-    // Upload to Vercel Blob
+    // Upload to configured cloud storage
     const ext = file.name.split(".").pop() || "jpg";
     const pathname = `progress-photos/${clerkId}/${Date.now()}.${ext}`;
 
-    const blob = await put(pathname, file, {
+    const result = await uploadFile(file, pathname, {
       access: "public",
-      addRandomSuffix: true,
+      contentType: file.type,
     });
 
-    return NextResponse.json({ url: blob.url, storage: "vercel-blob" });
+    return NextResponse.json({
+      url: result.url,
+      storage: provider === "azure" ? "azure-blob" : "vercel-blob",
+    });
   } catch (err) {
     console.error("[Upload Error]", err);
     return NextResponse.json(
