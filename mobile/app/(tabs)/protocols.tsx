@@ -9,7 +9,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, Pressable } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
@@ -207,6 +207,13 @@ const TIME_SLOTS = [
 export default function ProtocolsScreen() {
   const router = useRouter();
   const [completedIds, setCompletedIds] = useState<Set<string>>(INITIAL_COMPLETED);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Simulate data refresh (will be replaced with real tRPC refetch later)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  }, []);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -268,6 +275,14 @@ export default function ProtocolsScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#C8A951"
+            colors={["#C8A951"]}
+          />
+        }
       >
         {/* ---- Header ---- */}
         <View style={styles.headerRow}>

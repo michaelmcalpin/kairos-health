@@ -8,8 +8,8 @@
  * Currently uses inline sample data; will be wired to tRPC later.
  */
 
-import React, { useState } from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
+import React, { useState, useCallback } from "react";
+import { View, Text, ScrollView, StyleSheet, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -250,8 +250,14 @@ const AI_INSIGHT =
 
 export default function HealthScreen() {
   const router = useRouter();
-  const router = useRouter();
   const [dateRange, setDateRange] = useState<DateRange>("week");
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Simulate data refresh (will be replaced with real tRPC refetch later)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  }, []);
 
   const biometricRoutes: Record<string, string> = {
     sleep: "/health/sleep",
@@ -269,6 +275,14 @@ export default function HealthScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#C8A951"
+            colors={["#C8A951"]}
+          />
+        }
       >
         {/* ─── Header ──────────────────────────────────────── */}
         <View style={styles.headerRow}>

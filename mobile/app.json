@@ -56,7 +56,8 @@
           "faceIDPermission": "Allow Everist.ai to use Face ID for secure authentication."
         }
       ],
-      "expo-image-picker"
+      "expo-image-picker",
+      "expo-haptics"
     ],
     "experiments": {
       "typedRoutes": true

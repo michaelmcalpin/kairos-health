@@ -8,8 +8,8 @@
  * Currently uses inline sample data; will be wired to tRPC later.
  */
 
-import React from "react";
-import { View, Text, ScrollView, StyleSheet, Platform } from "react-native";
+import React, { useState, useCallback } from "react";
+import { View, Text, ScrollView, StyleSheet, Platform, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
@@ -272,6 +272,14 @@ function getAlertIcon(type: string): React.ReactNode {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Simulate data refresh (will be replaced with real tRPC refetch later)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  }, []);
+
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -287,6 +295,14 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#C8A951"
+            colors={["#C8A951"]}
+          />
+        }
       >
         {/* ─── Header ─────────────────────────────────────── */}
         <View style={styles.headerRow}>

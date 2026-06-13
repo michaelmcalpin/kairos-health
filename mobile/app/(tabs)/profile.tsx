@@ -6,7 +6,7 @@
  * privacy & security, support links, and sign-out.
  */
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Pressable,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -81,6 +82,15 @@ const DEVICES = [
 /* ------------------------------------------------------------------ */
 
 export default function ProfileScreen() {
+  /* -- pull to refresh -- */
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Simulate data refresh (will be replaced with real tRPC refetch later)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  }, []);
+
   /* -- notification toggles -- */
   const [pushNotifs, setPushNotifs] = useState(true);
   const [emailNotifs, setEmailNotifs] = useState(true);
@@ -106,6 +116,14 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#C8A951"
+            colors={["#C8A951"]}
+          />
+        }
       >
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* 1. PROFILE HEADER                                         */}

@@ -21,6 +21,7 @@ import {
   StyleSheet,
   Pressable,
   ListRenderItemInfo,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Sparkles, Wifi } from "lucide-react-native";
@@ -133,7 +134,15 @@ function AIAssistantTab() {
   const [messages, setMessages] = useState<ChatMessage[]>(AI_SAMPLE_MESSAGES);
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Simulate data refresh (will be replaced with real tRPC refetch later)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     if (flatListRef.current && messages.length > 0) {
@@ -252,6 +261,8 @@ function AIAssistantTab() {
         ListFooterComponent={renderFooter}
         onContentSizeChange={scrollToBottom}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
       />
 
       {/* Quick action chips */}
@@ -282,7 +293,15 @@ function AIAssistantTab() {
 function CoachChatTab() {
   const [messages, setMessages] = useState<ChatMessage[]>(COACH_SAMPLE_MESSAGES);
   const [inputText, setInputText] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Simulate data refresh (will be replaced with real tRPC refetch later)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     if (flatListRef.current && messages.length > 0) {
@@ -358,6 +377,8 @@ function CoachChatTab() {
         contentContainerStyle={styles.messageList}
         onContentSizeChange={scrollToBottom}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
       />
 
       {/* Input */}
