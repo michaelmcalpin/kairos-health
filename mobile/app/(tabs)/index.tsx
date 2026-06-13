@@ -11,6 +11,7 @@
 import React from "react";
 import { View, Text, ScrollView, StyleSheet, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import {
   Moon,
   Heart,
@@ -270,6 +271,7 @@ function getAlertIcon(type: string): React.ReactNode {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function HomeScreen() {
+  const router = useRouter();
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -334,6 +336,7 @@ export default function HomeScreen() {
             iconBgColor="rgba(96, 165, 250, 0.12)"
             sparkData={KPI_DATA.sleep.sparkData}
             sparkColor="#60A5FA"
+            onPress={() => router.push("/health/sleep")}
           />
           <KPICard
             icon={<Heart size={16} color={Colors.danger} />}
@@ -345,6 +348,7 @@ export default function HomeScreen() {
             iconBgColor="rgba(239, 68, 68, 0.12)"
             sparkData={KPI_DATA.heartRate.sparkData}
             sparkColor={Colors.danger}
+            onPress={() => router.push("/health/body")}
           />
           <KPICard
             icon={<Footprints size={16} color={Colors.success} />}
@@ -357,6 +361,7 @@ export default function HomeScreen() {
             iconBgColor="rgba(34, 197, 94, 0.12)"
             sparkData={KPI_DATA.steps.sparkData}
             sparkColor={Colors.success}
+            onPress={() => router.push("/health/goals")}
           />
           <KPICard
             icon={<Scale size={16} color={Colors.gold} />}
@@ -368,11 +373,12 @@ export default function HomeScreen() {
             iconBgColor="rgba(200, 169, 81, 0.12)"
             sparkData={KPI_DATA.weight.sparkData}
             sparkColor={Colors.gold}
+            onPress={() => router.push("/health/body")}
           />
         </ScrollView>
 
         {/* ─── 3. Today's Schedule ─────────────────────────── */}
-        <SectionHeader title="Today's Schedule" actionLabel="View all" onAction={() => {}} />
+        <SectionHeader title="Today's Schedule" actionLabel="View all" onAction={() => router.push("/appointments")} />
         {SCHEDULE_DATA.map((item) => (
           <ScheduleItem
             key={item.id}
@@ -385,7 +391,7 @@ export default function HomeScreen() {
         ))}
 
         {/* ─── 4. Biometrics Overview ─────────────────────── */}
-        <SectionHeader title="Biometrics" actionLabel="View all" onAction={() => {}} />
+        <SectionHeader title="Biometrics" actionLabel="View all" onAction={() => router.push("/(tabs)/health")} />
         <View style={styles.biometricsGrid}>
           {/* Row 1 */}
           <View style={styles.biometricsRow}>
@@ -398,6 +404,7 @@ export default function HomeScreen() {
               sparkData={BIOMETRICS_DATA.bloodPressure.sparkData}
               sparkColor={BIOMETRICS_DATA.bloodPressure.sparkColor}
               iconBgColor={BIOMETRICS_DATA.bloodPressure.iconBg}
+              onPress={() => router.push("/health/blood-pressure")}
             />
             <BiometricCard
               icon={<Droplets size={14} color="#F59E0B" />}
@@ -408,6 +415,7 @@ export default function HomeScreen() {
               sparkData={BIOMETRICS_DATA.glucose.sparkData}
               sparkColor={BIOMETRICS_DATA.glucose.sparkColor}
               iconBgColor={BIOMETRICS_DATA.glucose.iconBg}
+              onPress={() => router.push("/health/glucose")}
             />
           </View>
           {/* Row 2 */}
@@ -421,6 +429,7 @@ export default function HomeScreen() {
               sparkData={BIOMETRICS_DATA.sleepScore.sparkData}
               sparkColor={BIOMETRICS_DATA.sleepScore.sparkColor}
               iconBgColor={BIOMETRICS_DATA.sleepScore.iconBg}
+              onPress={() => router.push("/health/sleep")}
             />
             <BiometricCard
               icon={<Brain size={14} color="#A78BFA" />}
@@ -431,6 +440,7 @@ export default function HomeScreen() {
               sparkData={BIOMETRICS_DATA.hrv.sparkData}
               sparkColor={BIOMETRICS_DATA.hrv.sparkColor}
               iconBgColor={BIOMETRICS_DATA.hrv.iconBg}
+              onPress={() => router.push("/health/body")}
             />
           </View>
           {/* Row 3 */}
@@ -444,6 +454,7 @@ export default function HomeScreen() {
               sparkData={BIOMETRICS_DATA.bodyWeight.sparkData}
               sparkColor={BIOMETRICS_DATA.bodyWeight.sparkColor}
               iconBgColor={BIOMETRICS_DATA.bodyWeight.iconBg}
+              onPress={() => router.push("/health/body")}
             />
             <BiometricCard
               icon={<Footprints size={14} color={Colors.success} />}
@@ -454,12 +465,13 @@ export default function HomeScreen() {
               sparkData={BIOMETRICS_DATA.dailySteps.sparkData}
               sparkColor={BIOMETRICS_DATA.dailySteps.sparkColor}
               iconBgColor={BIOMETRICS_DATA.dailySteps.iconBg}
+              onPress={() => router.push("/health/goals")}
             />
           </View>
         </View>
 
         {/* ─── 5. Active Protocols ─────────────────────────── */}
-        <SectionHeader title="Active Protocols" actionLabel="View all" onAction={() => {}} />
+        <SectionHeader title="Active Protocols" actionLabel="View all" onAction={() => router.push("/(tabs)/protocols")} />
         <View style={styles.protocolProgress}>
           <View style={styles.progressTrack}>
             <View
@@ -485,7 +497,7 @@ export default function HomeScreen() {
         ))}
 
         {/* ─── 6. Recent Alerts ────────────────────────────── */}
-        <SectionHeader title="Alerts" actionLabel="View all" onAction={() => {}} />
+        <SectionHeader title="Alerts" actionLabel="View all" onAction={() => router.push("/insights")} />
         <View style={styles.alertsBadgeRow}>
           <View style={styles.alertsBadge}>
             <Bell size={12} color={Colors.gold} />

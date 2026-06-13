@@ -80,6 +80,12 @@ export default function RootLayout() {
           {/* Clinical sub-screens */}
           <Stack.Screen name="clinical" options={{ headerShown: false }} />
 
+          {/* Insight Sherpa (AI reports) */}
+          <Stack.Screen name="insights" options={{ headerShown: false }} />
+
+          {/* Appointments */}
+          <Stack.Screen name="appointments" options={{ headerShown: false }} />
+
           {/* 404 */}
           <Stack.Screen name="+not-found" options={{ title: "Not Found" }} />
         </Stack>

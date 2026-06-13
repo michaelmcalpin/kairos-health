@@ -11,6 +11,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import {
   TrendingUp,
   ClipboardList,
@@ -204,6 +205,7 @@ const TIME_SLOTS = [
 // ================================================================
 
 export default function ProtocolsScreen() {
+  const router = useRouter();
   const [completedIds, setCompletedIds] = useState<Set<string>>(INITIAL_COMPLETED);
 
   const today = new Date().toLocaleDateString("en-US", {
@@ -356,7 +358,7 @@ export default function ProtocolsScreen() {
             title="View Full Protocol"
             variant="secondary"
             size="md"
-            onPress={() => {}}
+            onPress={() => router.push("/protocols/supplements")}
             style={styles.actionButton}
             icon={<ClipboardList size={16} color={Colors.gold} />}
           />
@@ -364,7 +366,7 @@ export default function ProtocolsScreen() {
             title="Log Custom Item"
             variant="tertiary"
             size="md"
-            onPress={() => {}}
+            onPress={() => router.push("/protocols/medications")}
             style={styles.actionButton}
             icon={<Plus size={16} color={Colors.silverLight} />}
           />

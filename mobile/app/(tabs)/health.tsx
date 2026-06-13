@@ -10,6 +10,7 @@
 
 import React, { useState } from "react";
 import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Moon,
@@ -248,7 +249,20 @@ const AI_INSIGHT =
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function HealthScreen() {
+  const router = useRouter();
+  const router = useRouter();
   const [dateRange, setDateRange] = useState<DateRange>("week");
+
+  const biometricRoutes: Record<string, string> = {
+    sleep: "/health/sleep",
+    heartRate: "/health/body",
+    bloodPressure: "/health/blood-pressure",
+    glucose: "/health/glucose",
+    hrv: "/health/body",
+    weight: "/health/body",
+    steps: "/health/goals",
+    temperature: "/health/body",
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -275,7 +289,7 @@ export default function HealthScreen() {
         />
 
         {/* ─── 3. Biometric Categories Grid ────────────────── */}
-        <SectionHeader title="Biometrics" actionLabel="View all" onAction={() => {}} />
+        <SectionHeader title="Biometrics" />
         <View style={styles.biometricsGrid}>
           {chunkPairs(BIOMETRIC_CATEGORIES).map((pair, rowIdx) => (
             <View key={rowIdx} style={styles.biometricsRow}>
@@ -290,7 +304,7 @@ export default function HealthScreen() {
                   sparkData={item.sparkData}
                   sparkColor={item.sparkColor}
                   iconBgColor={item.iconBgColor}
-                  onPress={() => {}}
+                  onPress={() => router.push(biometricRoutes[item.id] as any)}
                 />
               ))}
             </View>
@@ -311,7 +325,7 @@ export default function HealthScreen() {
         <SectionHeader
           title="Recent Readings"
           actionLabel="View all"
-          onAction={() => {}}
+          onAction={() => router.push("/health/goals")}
         />
         {RECENT_READINGS.map((group) => (
           <View key={group.date} style={styles.readingGroup}>
@@ -338,7 +352,7 @@ export default function HealthScreen() {
 
         {/* ─── 5. AI Insight ───────────────────────────────── */}
         <SectionHeader title="Insights" />
-        <InsightsCard insight={AI_INSIGHT} onAction={() => {}} />
+        <InsightsCard insight={AI_INSIGHT} onAction={() => router.push("/insights")} />
 
         {/* Bottom spacer for tab bar */}
         <View style={styles.bottomSpacer} />
