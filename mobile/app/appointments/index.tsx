@@ -233,7 +233,7 @@ export default function AppointmentsScreen() {
       {/* ---- FAB ---- */}
       <Pressable
         style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
-        onPress={() => {}}
+        onPress={() => router.push("/appointments/book")}
       >
         <Plus size={28} color={Colors.dark} />
       </Pressable>

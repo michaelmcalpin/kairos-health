@@ -24,6 +24,7 @@ export default function AppointmentsLayout() {
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="detail" options={{ title: "Appointment" }} />
+      <Stack.Screen name="book" options={{ title: "Book Appointment" }} />
     </Stack>
   );
 }

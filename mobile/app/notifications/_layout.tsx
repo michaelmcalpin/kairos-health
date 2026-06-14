@@ -1,5 +1,8 @@
 /**
- * Stack layout for Insight Sherpa sub-screens (AI reports).
+ * Stack layout for the Notifications center.
+ *
+ * Provides a dark-themed header with back navigation,
+ * consistent with the Everist.ai Summit Glyph design.
  */
 
 import React from "react";
@@ -7,7 +10,7 @@ import { Stack } from "expo-router";
 
 import { Colors } from "@/lib/constants";
 
-export default function InsightsLayout() {
+export default function NotificationsLayout() {
   return (
     <Stack
       screenOptions={{
@@ -22,10 +25,14 @@ export default function InsightsLayout() {
         animation: "slide_from_right",
       }}
     >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="report" options={{ title: "Report" }} />
-      <Stack.Screen name="analyze" options={{ title: "Health Analysis" }} />
-      <Stack.Screen name="ask" options={{ title: "Health Q&A" }} />
+      <Stack.Screen
+        name="index"
+        options={{ title: "Notifications", headerShown: false }}
+      />
+      <Stack.Screen
+        name="[id]"
+        options={{ title: "Notification" }}
+      />
     </Stack>
   );
 }
