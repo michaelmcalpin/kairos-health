@@ -102,11 +102,24 @@ export default function RootLayout() {
                 options={{ headerShown: false }}
               />
 
+              {/* Settings sub-screens */}
+              <Stack.Screen name="settings" options={{ headerShown: false }} />
+
               {/* Connected Devices */}
               <Stack.Screen name="devices" options={{ headerShown: false }} />
 
               {/* Manual Data Entry */}
               <Stack.Screen name="data-entry" options={{ headerShown: false }} />
+
+              {/* Global Search */}
+              <Stack.Screen
+                name="search"
+                options={{
+                  headerShown: false,
+                  presentation: "modal",
+                  animation: "fade",
+                }}
+              />
 
               {/* 404 */}
               <Stack.Screen name="+not-found" options={{ title: "Not Found" }} />

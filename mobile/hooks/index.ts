@@ -33,3 +33,40 @@ export {
   useCancelAppointment,
   useTodaySchedule,
 } from "./useAppointments";
+
+// Notifications
+export {
+  useNotifications,
+  useUnreadCount,
+  useMarkAsRead,
+  useMarkAllRead,
+  useDismissNotification,
+} from "./useNotifications";
+
+// Connected Devices
+export {
+  useConnectedDevices,
+  useAvailableDevices,
+  useSyncDevice,
+  useDisconnectDevice,
+} from "./useDevices";
+
+// Manual Data Entry
+export {
+  useRecentEntries,
+  useLogEntry,
+  useEntryTypes,
+} from "./useDataEntry";
+
+// Global Search
+export {
+  useGlobalSearch,
+  useRecentSearches,
+} from "./useSearch";
+
+// AI Insights
+export {
+  useHealthAnalysis,
+  useAnalysisHistory,
+  useAskQuestion,
+} from "./useInsights";

@@ -17,6 +17,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import {
   Bell,
   Shield,
@@ -82,6 +83,8 @@ const DEVICES = [
 /* ------------------------------------------------------------------ */
 
 export default function ProfileScreen() {
+  const router = useRouter();
+
   /* -- pull to refresh -- */
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -148,7 +151,7 @@ export default function ProfileScreen() {
             title="Edit Profile"
             variant="secondary"
             size="sm"
-            onPress={noop}
+            onPress={() => router.push("/settings/edit-profile")}
             style={styles.editProfileBtn}
           />
         </Card>
@@ -315,14 +318,10 @@ export default function ProfileScreen() {
             onValueChange={setDataSharing}
           />
           <SettingsRow
-            icon={<Download size={18} color={Colors.silver} />}
-            label="Export My Data"
-            onPress={() =>
-              confirmAction(
-                "Export Data",
-                "We'll prepare a download of all your health data. You'll receive an email when it's ready."
-              )
-            }
+            icon={<Shield size={18} color={Colors.silver} />}
+            label="Privacy & Security Settings"
+            subtitle="Data export, sessions, 2FA"
+            onPress={() => router.push("/settings/privacy")}
           />
           <SettingsRow
             icon={<Trash2 size={18} color={Colors.danger} />}
@@ -348,28 +347,29 @@ export default function ProfileScreen() {
           <SettingsRow
             icon={<BookOpen size={18} color={Colors.silver} />}
             label="Help Center"
-            onPress={noop}
+            onPress={() => router.push("/settings/help")}
           />
           <SettingsRow
             icon={<MessageCircle size={18} color={Colors.silver} />}
             label="Contact Support"
-            onPress={noop}
+            onPress={() => router.push("/settings/help")}
           />
           <SettingsRow
             icon={<FileText size={18} color={Colors.silver} />}
             label="Terms of Service"
-            onPress={noop}
+            onPress={() => router.push("/settings/about")}
           />
           <SettingsRow
             icon={<Lock size={18} color={Colors.silver} />}
             label="Privacy Policy"
-            onPress={noop}
+            onPress={() => router.push("/settings/about")}
           />
           <SettingsRow
             type="value"
             icon={<Info size={18} color={Colors.silver} />}
             label="App Version"
             value="1.0.0"
+            onPress={() => router.push("/settings/about")}
             last
           />
         </SettingsSection>
