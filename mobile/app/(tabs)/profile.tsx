@@ -46,6 +46,7 @@ import {
   Info,
   Plus,
   Settings,
+  Dumbbell,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
@@ -73,9 +74,10 @@ const USER = {
 };
 
 const DEVICES = [
-  { name: "Apple Watch", connected: true },
-  { name: "Oura Ring", connected: true },
-  { name: "Dexcom G7", connected: true },
+  { name: "Apple Health", connected: true, route: "/devices/apple-health" as const },
+  { name: "Apple Watch", connected: true, route: null },
+  { name: "Oura Ring", connected: true, route: null },
+  { name: "Dexcom G7", connected: true, route: null },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -236,11 +238,21 @@ export default function ProfileScreen() {
             <SettingsRow
               key={d.name}
               type="badge"
-              icon={<Watch size={18} color={Colors.silver} />}
+              icon={
+                d.name === "Apple Health" ? (
+                  <Heart size={18} color={Colors.silver} />
+                ) : (
+                  <Watch size={18} color={Colors.silver} />
+                )
+              }
               label={d.name}
               badgeLabel={d.connected ? "Connected" : "Disconnected"}
               badgeColor={d.connected ? Colors.success : Colors.silver}
-              onPress={noop}
+              onPress={
+                d.route
+                  ? () => router.push(d.route as any)
+                  : noop
+              }
               last={i === DEVICES.length - 1}
             />
           ))}
@@ -283,6 +295,13 @@ export default function ProfileScreen() {
             label="Primary Doctor"
             value="Dr. Sarah Chen"
             onPress={noop}
+          />
+          <SettingsRow
+            type="value"
+            icon={<Dumbbell size={18} color={Colors.silver} />}
+            label="Your Coach"
+            value="Walid Kherat"
+            onPress={() => router.push("/coach")}
           />
           <SettingsRow
             type="value"

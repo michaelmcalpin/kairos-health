@@ -2,12 +2,20 @@
  * Goals screen.
  *
  * Displays active health goals with progress bars, current/target values,
- * deadlines, and an "Add New Goal" button.
+ * deadlines, and navigation to create-goal and goal-detail screens.
+ * Includes a completed goals section at the bottom.
  */
 
 import React from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import {
   Target,
   Scale,
@@ -15,6 +23,9 @@ import {
   Footprints,
   Droplets,
   Plus,
+  CheckCircle2,
+  ChevronRight,
+  Dumbbell,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
@@ -40,13 +51,21 @@ interface Goal {
   status: "on_track" | "at_risk" | "ahead";
 }
 
+interface CompletedGoal {
+  id: string;
+  title: string;
+  completedDate: string;
+  icon: React.ReactNode;
+  iconBgColor: string;
+}
+
 const GOALS: Goal[] = [
   {
     id: "1",
     title: "Reach 175 lbs",
     target: "175 lbs",
-    current: "178.4 lbs",
-    progress: 68,
+    current: "183 lbs",
+    progress: 60,
     deadline: "Aug 15, 2026",
     icon: <Scale size={18} color={Colors.gold} />,
     iconBgColor: "rgba(200, 169, 81, 0.12)",
@@ -91,6 +110,23 @@ const GOALS: Goal[] = [
   },
 ];
 
+const COMPLETED_GOALS: CompletedGoal[] = [
+  {
+    id: "c1",
+    title: "Run 5K without stopping",
+    completedDate: "Feb 28, 2026",
+    icon: <Dumbbell size={18} color={Colors.success} />,
+    iconBgColor: "rgba(34, 197, 94, 0.12)",
+  },
+  {
+    id: "c2",
+    title: "Reduce LDL below 100",
+    completedDate: "Jan 15, 2026",
+    icon: <Droplets size={18} color={Colors.success} />,
+    iconBgColor: "rgba(34, 197, 94, 0.12)",
+  },
+];
+
 const STATUS_LABELS: Record<Goal["status"], { label: string; variant: "success" | "warning" | "info" }> = {
   on_track: { label: "On Track", variant: "success" },
   at_risk: { label: "At Risk", variant: "warning" },
@@ -102,6 +138,8 @@ const STATUS_LABELS: Record<Goal["status"], { label: string; variant: "success" 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function GoalsScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <ScrollView
@@ -121,63 +159,87 @@ export default function GoalsScreen() {
         </Card>
 
         {/* ─── Goals List ───────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Your Goals</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Your Goals</Text>
+          <Pressable
+            onPress={() => router.push("/health/create-goal")}
+            style={styles.addIconButton}
+          >
+            <Plus size={20} color={Colors.gold} />
+          </Pressable>
+        </View>
+
         {GOALS.map((goal) => {
           const statusInfo = STATUS_LABELS[goal.status];
           return (
-            <Card key={goal.id} style={styles.goalCard}>
-              {/* Goal header */}
-              <View style={styles.goalHeader}>
-                <View
-                  style={[
-                    styles.goalIconWrap,
-                    { backgroundColor: goal.iconBgColor },
-                  ]}
-                >
-                  {goal.icon}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.goalTitle}>{goal.title}</Text>
-                  <Text style={styles.goalDeadline}>{goal.deadline}</Text>
-                </View>
-                <Badge
-                  label={statusInfo.label}
-                  variant={statusInfo.variant}
-                />
-              </View>
-
-              {/* Progress */}
-              <View style={styles.progressSection}>
-                <View style={styles.progressHeader}>
-                  <Text style={styles.progressPct}>{goal.progress}%</Text>
-                </View>
-                <ProgressBar
-                  progress={goal.progress}
-                  color={goal.color}
-                  height={8}
-                />
-              </View>
-
-              {/* Current / Target */}
-              <View style={styles.goalValues}>
-                <View style={styles.goalValueItem}>
-                  <Text style={styles.goalValueLabel}>Current</Text>
-                  <Text style={styles.goalValueText}>{goal.current}</Text>
-                </View>
-                <View style={styles.goalValueDivider} />
-                <View style={styles.goalValueItem}>
-                  <Text style={styles.goalValueLabel}>Target</Text>
-                  <Text
+            <Pressable
+              key={goal.id}
+              onPress={() =>
+                router.push({
+                  pathname: "/health/goal-detail",
+                  params: { id: goal.id },
+                })
+              }
+            >
+              <Card style={styles.goalCard}>
+                {/* Goal header */}
+                <View style={styles.goalHeader}>
+                  <View
                     style={[
-                      styles.goalValueText,
-                      { color: goal.color },
+                      styles.goalIconWrap,
+                      { backgroundColor: goal.iconBgColor },
                     ]}
                   >
-                    {goal.target}
-                  </Text>
+                    {goal.icon}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.goalTitle}>{goal.title}</Text>
+                    <Text style={styles.goalDeadline}>{goal.deadline}</Text>
+                  </View>
+                  <Badge
+                    label={statusInfo.label}
+                    variant={statusInfo.variant}
+                  />
+                  <ChevronRight
+                    size={18}
+                    color={Colors.silver}
+                    style={{ marginLeft: Spacing.xs }}
+                  />
                 </View>
-              </View>
-            </Card>
+
+                {/* Progress */}
+                <View style={styles.progressSection}>
+                  <View style={styles.progressHeader}>
+                    <Text style={styles.progressPct}>{goal.progress}%</Text>
+                  </View>
+                  <ProgressBar
+                    progress={goal.progress}
+                    color={goal.color}
+                    height={8}
+                  />
+                </View>
+
+                {/* Current / Target */}
+                <View style={styles.goalValues}>
+                  <View style={styles.goalValueItem}>
+                    <Text style={styles.goalValueLabel}>Current</Text>
+                    <Text style={styles.goalValueText}>{goal.current}</Text>
+                  </View>
+                  <View style={styles.goalValueDivider} />
+                  <View style={styles.goalValueItem}>
+                    <Text style={styles.goalValueLabel}>Target</Text>
+                    <Text
+                      style={[
+                        styles.goalValueText,
+                        { color: goal.color },
+                      ]}
+                    >
+                      {goal.target}
+                    </Text>
+                  </View>
+                </View>
+              </Card>
+            </Pressable>
           );
         })}
 
@@ -187,9 +249,37 @@ export default function GoalsScreen() {
           variant="secondary"
           size="lg"
           icon={<Plus size={18} color={Colors.gold} />}
-          onPress={() => {}}
+          onPress={() => router.push("/health/create-goal")}
           style={styles.addButton}
         />
+
+        {/* ─── Completed Goals ──────────────────────────────── */}
+        {COMPLETED_GOALS.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Completed</Text>
+            {COMPLETED_GOALS.map((goal) => (
+              <Card key={goal.id} style={styles.completedCard}>
+                <View style={styles.completedRow}>
+                  <View
+                    style={[
+                      styles.goalIconWrap,
+                      { backgroundColor: goal.iconBgColor },
+                    ]}
+                  >
+                    {goal.icon}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.completedTitle}>{goal.title}</Text>
+                    <Text style={styles.completedDate}>
+                      Completed {goal.completedDate}
+                    </Text>
+                  </View>
+                  <CheckCircle2 size={22} color={Colors.success} />
+                </View>
+              </Card>
+            ))}
+          </>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -244,12 +334,27 @@ const styles = StyleSheet.create({
   },
 
   // Section
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
   sectionTitle: {
     color: Colors.white,
     fontSize: FontSizes.lg,
     fontWeight: "700",
     marginTop: Spacing.lg,
     marginBottom: Spacing.sm,
+  },
+  addIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(200, 169, 81, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Goal card
@@ -327,6 +432,26 @@ const styles = StyleSheet.create({
   // Add button
   addButton: {
     marginTop: Spacing.lg,
+  },
+
+  // Completed goals
+  completedCard: {
+    marginBottom: Spacing.sm,
+  },
+  completedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  completedTitle: {
+    color: Colors.silverLight,
+    fontSize: FontSizes.md,
+    fontWeight: "600",
+  },
+  completedDate: {
+    color: Colors.silver,
+    fontSize: FontSizes.xs,
+    fontWeight: "500",
   },
 
   // Bottom spacer

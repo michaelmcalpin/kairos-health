@@ -133,7 +133,11 @@ export default function DevicesScreen() {
   };
 
   const handleConnect = (device: SupportedDevice) => {
-    router.push("/devices/add");
+    if (device.id === "apple-health") {
+      router.push("/devices/apple-health");
+    } else {
+      router.push("/devices/add");
+    }
   };
 
   return (

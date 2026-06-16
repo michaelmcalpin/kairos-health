@@ -27,6 +27,10 @@ export default function DevicesLayout() {
     >
       <Stack.Screen name="index" options={{ title: "Connected Devices" }} />
       <Stack.Screen name="add" options={{ title: "Add Device" }} />
+      <Stack.Screen
+        name="apple-health"
+        options={{ title: "Apple Health" }}
+      />
     </Stack>
   );
 }

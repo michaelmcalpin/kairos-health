@@ -105,6 +105,9 @@ export default function RootLayout() {
               {/* Settings sub-screens */}
               <Stack.Screen name="settings" options={{ headerShown: false }} />
 
+              {/* Coach */}
+              <Stack.Screen name="coach" options={{ headerShown: false }} />
+
               {/* Connected Devices */}
               <Stack.Screen name="devices" options={{ headerShown: false }} />
 

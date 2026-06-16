@@ -26,6 +26,7 @@ export default function InsightsLayout() {
       <Stack.Screen name="report" options={{ title: "Report" }} />
       <Stack.Screen name="analyze" options={{ title: "Health Analysis" }} />
       <Stack.Screen name="ask" options={{ title: "Health Q&A" }} />
+      <Stack.Screen name="export" options={{ title: "Health Report" }} />
     </Stack>
   );
 }

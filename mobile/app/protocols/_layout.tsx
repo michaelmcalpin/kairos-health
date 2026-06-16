@@ -21,11 +21,14 @@ export default function ProtocolsLayout() {
   return (
     <Stack screenOptions={sharedOptions}>
       <Stack.Screen name="workouts" options={{ title: "Workouts" }} />
+      <Stack.Screen name="workout-session" options={{ title: "Workout", presentation: "modal" }} />
+      <Stack.Screen name="workout-history" options={{ title: "Workout History" }} />
       <Stack.Screen name="meals" options={{ title: "Meals" }} />
       <Stack.Screen name="supplements" options={{ title: "Supplements" }} />
       <Stack.Screen name="medications" options={{ title: "Medications" }} />
       <Stack.Screen name="fasting" options={{ title: "Fasting" }} />
       <Stack.Screen name="peptides" options={{ title: "Peptides" }} />
+      <Stack.Screen name="shopping-list" options={{ title: "Shopping List" }} />
     </Stack>
   );
 }

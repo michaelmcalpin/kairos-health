@@ -1,5 +1,5 @@
 /**
- * Stack layout for health detail sub-screens.
+ * Stack layout for coach sub-screens.
  *
  * Provides a dark-themed header with back navigation,
  * consistent with the Everist.ai Summit Glyph design.
@@ -10,7 +10,7 @@ import { Stack } from "expo-router";
 
 import { Colors } from "@/lib/constants";
 
-export default function HealthLayout() {
+export default function CoachLayout() {
   return (
     <Stack
       screenOptions={{
@@ -25,16 +25,7 @@ export default function HealthLayout() {
         animation: "slide_from_right",
       }}
     >
-      <Stack.Screen name="sleep" options={{ title: "Sleep" }} />
-      <Stack.Screen name="glucose" options={{ title: "Glucose" }} />
-      <Stack.Screen
-        name="blood-pressure"
-        options={{ title: "Blood Pressure" }}
-      />
-      <Stack.Screen name="body" options={{ title: "Body Measurements" }} />
-      <Stack.Screen name="goals" options={{ title: "Goals" }} />
-      <Stack.Screen name="goal-detail" options={{ title: "Goal Detail" }} />
-      <Stack.Screen name="create-goal" options={{ title: "New Goal" }} />
+      <Stack.Screen name="index" options={{ title: "Coach Profile" }} />
     </Stack>
   );
 }

@@ -10,7 +10,7 @@ import {
   StyleSheet,
   SafeAreaView,
 } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import Svg, { Circle } from "react-native-svg";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
@@ -113,6 +113,8 @@ function ProgressRing({
 /* ------------------------------------------------------------------ */
 
 export default function MealsScreen() {
+  const router = useRouter();
+
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ title: "Meals & Nutrition" }} />
@@ -190,6 +192,13 @@ export default function MealsScreen() {
           <Button title="Log Meal" variant="primary" style={styles.flex1} />
           <Button title="Scan Barcode" variant="secondary" style={styles.flex1} />
         </View>
+
+        {/* Shopping List Navigation */}
+        <Button
+          title="Shopping List"
+          variant="tertiary"
+          onPress={() => router.push("/protocols/shopping-list")}
+        />
 
         {/* Water Intake */}
         <Card style={styles.section}>

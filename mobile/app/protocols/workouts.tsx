@@ -9,8 +9,10 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  Pressable,
 } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
+import { History } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
@@ -52,11 +54,24 @@ const RECENT_HISTORY = [
 /* ------------------------------------------------------------------ */
 
 export default function WorkoutsScreen() {
+  const router = useRouter();
   const progress = ACTIVE_PROGRAM.completedWorkouts / ACTIVE_PROGRAM.totalWorkouts;
 
   return (
     <SafeAreaView style={styles.safe}>
-      <Stack.Screen options={{ title: "Workouts" }} />
+      <Stack.Screen
+        options={{
+          title: "Workouts",
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push("/protocols/workout-history")}
+              style={{ padding: 8 }}
+            >
+              <History size={22} color={Colors.gold} />
+            </Pressable>
+          ),
+        }}
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -123,6 +138,7 @@ export default function WorkoutsScreen() {
             variant="primary"
             size="lg"
             style={styles.startButton}
+            onPress={() => router.push("/protocols/workout-session")}
           />
         </Card>
 

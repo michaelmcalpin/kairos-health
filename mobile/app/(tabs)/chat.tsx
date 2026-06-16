@@ -24,6 +24,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Sparkles, Wifi } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
@@ -291,6 +292,7 @@ function AIAssistantTab() {
 // ---------------------------------------------------------------------------
 
 function CoachChatTab() {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>(COACH_SAMPLE_MESSAGES);
   const [inputText, setInputText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -339,7 +341,7 @@ function CoachChatTab() {
         timestamp={item.timestamp}
         isUser={item.isUser}
         avatarMode="coach"
-        coachInitials="DR"
+        coachInitials="WK"
         showReadReceipt
         isRead={item.isRead}
       />
@@ -351,20 +353,28 @@ function CoachChatTab() {
     <View style={styles.tabContent}>
       {/* Coach Header */}
       <View style={styles.coachHeader}>
-        <View style={styles.coachHeaderAvatar}>
-          <Text style={styles.coachAvatarText}>DR</Text>
-          {/* Online indicator dot */}
-          <View style={styles.coachOnlineBadge} />
-        </View>
-        <View style={styles.coachHeaderInfo}>
-          <Text style={styles.coachHeaderName}>Dr. Rachel Kim</Text>
-          <View style={styles.onlineRow}>
-            <Wifi size={11} color={Colors.success} />
-            <Text style={styles.coachOnlineText}>Online</Text>
+        <Pressable
+          style={styles.coachHeaderLeft}
+          onPress={() => router.push("/coach")}
+        >
+          <View style={styles.coachHeaderAvatar}>
+            <Text style={styles.coachAvatarText}>WK</Text>
+            {/* Online indicator dot */}
+            <View style={styles.coachOnlineBadge} />
           </View>
-        </View>
-        <Pressable style={styles.coachActionBtn}>
-          <Text style={styles.coachActionText}>Schedule</Text>
+          <View style={styles.coachHeaderInfo}>
+            <Text style={styles.coachHeaderName}>Coach Walid Kherat</Text>
+            <View style={styles.onlineRow}>
+              <Wifi size={11} color={Colors.success} />
+              <Text style={styles.coachOnlineText}>Online</Text>
+            </View>
+          </View>
+        </Pressable>
+        <Pressable
+          style={styles.coachActionBtn}
+          onPress={() => router.push("/coach")}
+        >
+          <Text style={styles.coachActionText}>Profile</Text>
         </Pressable>
       </View>
 
@@ -516,6 +526,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.dark,
+    gap: 12,
+  },
+  coachHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
     gap: 12,
   },
   coachHeaderAvatar: {
