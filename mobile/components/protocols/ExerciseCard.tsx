@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.success,
   },
   setDotCurrent: {
-    backgroundColor: "rgba(200, 169, 81, 0.2)",
+    backgroundColor: "rgba(74, 144, 217, 0.2)",
     borderColor: Colors.gold,
     borderWidth: 2,
   },

@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   chipPressed: {
-    backgroundColor: "rgba(200, 169, 81, 0.12)",
+    backgroundColor: "rgba(74, 144, 217, 0.12)",
     borderColor: Colors.gold,
   },
   chipText: {

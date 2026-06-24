@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   },
   cardSelected: {
     borderColor: Colors.gold,
-    backgroundColor: "rgba(200, 169, 81, 0.08)",
+    backgroundColor: "rgba(74, 144, 217, 0.08)",
   },
   cardPressed: {
     opacity: 0.85,

@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   waterFilled: {
-    backgroundColor: "rgba(59, 130, 246, 0.2)",
+    backgroundColor: "rgba(74, 144, 217, 0.2)",
   },
   waterEmpty: {
     backgroundColor: Colors.navyLight,

@@ -36,22 +36,22 @@ const ENTRY_TYPES: EntryType[] = [
   {
     id: "blood-pressure",
     label: "Blood Pressure",
-    icon: <Heart size={22} color="#EF4444" />,
-    iconColor: "#EF4444",
+    icon: <Heart size={22} color="#C65D5D" />,
+    iconColor: "#C65D5D",
     lastEntry: "2 hours ago",
   },
   {
     id: "weight",
     label: "Body Weight",
-    icon: <Scale size={22} color="#EAB308" />,
-    iconColor: "#EAB308",
+    icon: <Scale size={22} color="#D4A843" />,
+    iconColor: "#D4A843",
     lastEntry: "This morning",
   },
   {
     id: "glucose",
     label: "Blood Glucose",
-    icon: <Droplets size={22} color="#22C55E" />,
-    iconColor: "#22C55E",
+    icon: <Droplets size={22} color="#4A9D5B" />,
+    iconColor: "#4A9D5B",
     lastEntry: "4 hours ago",
   },
   {
@@ -71,8 +71,8 @@ const ENTRY_TYPES: EntryType[] = [
   {
     id: "symptoms",
     label: "Symptoms / Notes",
-    icon: <FileText size={22} color="#3B82F6" />,
-    iconColor: "#3B82F6",
+    icon: <FileText size={22} color="#4A90D9" />,
+    iconColor: "#4A90D9",
     lastEntry: "1 day ago",
   },
 ];
@@ -153,8 +153,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   tipCard: {
-    backgroundColor: "rgba(200, 169, 81, 0.08)",
-    borderColor: "rgba(200, 169, 81, 0.2)",
+    backgroundColor: "rgba(74, 144, 217, 0.08)",
+    borderColor: "rgba(74, 144, 217, 0.2)",
     marginTop: Spacing.md,
   },
   tipTitle: {

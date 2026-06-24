@@ -505,7 +505,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: Radii.md,
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   scopeChipActive: {
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
     borderColor: Colors.gold,
   },
   scopeText: {

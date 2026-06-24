@@ -39,6 +39,7 @@ import {
   AlertItem,
   SectionHeader,
 } from "@/components/dashboard";
+import { SummitGlyph } from "@/components/brand";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Sample Data — will be replaced with tRPC queries
@@ -111,8 +112,8 @@ const BIOMETRICS_DATA = {
     unit: "mmHg",
     status: "normal" as const,
     sparkData: [122, 120, 119, 121, 118, 117, 118],
-    sparkColor: "#EF4444",
-    iconBg: "rgba(239, 68, 68, 0.12)",
+    sparkColor: "#C65D5D",
+    iconBg: "rgba(198, 93, 93, 0.12)",
   },
   glucose: {
     value: 92,
@@ -144,7 +145,7 @@ const BIOMETRICS_DATA = {
     status: "normal" as const,
     sparkData: [181.2, 180.5, 180.1, 179.6, 179.2, 178.8, 178.4],
     sparkColor: Colors.gold,
-    iconBg: "rgba(200, 169, 81, 0.12)",
+    iconBg: "rgba(74, 144, 217, 0.12)",
   },
   dailySteps: {
     value: "8,742",
@@ -152,7 +153,7 @@ const BIOMETRICS_DATA = {
     status: "normal" as const,
     sparkData: [6200, 9100, 7800, 10200, 8400, 11300, 8742],
     sparkColor: Colors.success,
-    iconBg: "rgba(34, 197, 94, 0.12)",
+    iconBg: "rgba(74, 157, 91, 0.12)",
   },
 };
 
@@ -299,15 +300,18 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#C8A951"
-            colors={["#C8A951"]}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
           />
         }
       >
         {/* ─── Header ─────────────────────────────────────── */}
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.headerTitle}>Dashboard</Text>
+            <View style={styles.headerTitleRow}>
+              <SummitGlyph size={32} />
+              <Text style={styles.headerTitle}>Dashboard</Text>
+            </View>
             <Text style={styles.headerDate}>{today}</Text>
           </View>
         </View>
@@ -361,7 +365,7 @@ export default function HomeScreen() {
             unit="bpm"
             subtitle={`Resting: ${KPI_DATA.heartRate.resting} bpm`}
             trend="down"
-            iconBgColor="rgba(239, 68, 68, 0.12)"
+            iconBgColor="rgba(198, 93, 93, 0.12)"
             sparkData={KPI_DATA.heartRate.sparkData}
             sparkColor={Colors.danger}
             onPress={() => router.push("/health/body")}
@@ -374,7 +378,7 @@ export default function HomeScreen() {
             subtitle={`Goal: ${KPI_DATA.steps.goal.toLocaleString()}`}
             trend="up"
             trendValue={`${Math.round((KPI_DATA.steps.count / KPI_DATA.steps.goal) * 100)}%`}
-            iconBgColor="rgba(34, 197, 94, 0.12)"
+            iconBgColor="rgba(74, 157, 91, 0.12)"
             sparkData={KPI_DATA.steps.sparkData}
             sparkColor={Colors.success}
             onPress={() => router.push("/health/goals")}
@@ -386,7 +390,7 @@ export default function HomeScreen() {
             unit="lbs"
             subtitle={KPI_DATA.weight.trendValue}
             trend={KPI_DATA.weight.trend}
-            iconBgColor="rgba(200, 169, 81, 0.12)"
+            iconBgColor="rgba(74, 144, 217, 0.12)"
             sparkData={KPI_DATA.weight.sparkData}
             sparkColor={Colors.gold}
             onPress={() => router.push("/health/body")}
@@ -560,6 +564,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: Spacing.md,
   },
+  headerTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   headerTitle: {
     color: Colors.white,
     fontSize: FontSizes.xxl,
@@ -671,7 +680,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     alignSelf: "flex-start",
-    backgroundColor: "rgba(200, 169, 81, 0.1)",
+    backgroundColor: "rgba(74, 144, 217, 0.1)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: Radii.full,

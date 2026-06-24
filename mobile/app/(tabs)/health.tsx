@@ -73,7 +73,7 @@ const BIOMETRIC_CATEGORIES = [
     lastUpdated: "5m ago",
     sparkData: [64, 61, 63, 60, 62, 59, 62],
     sparkColor: Colors.danger,
-    iconBgColor: "rgba(239, 68, 68, 0.12)",
+    iconBgColor: "rgba(198, 93, 93, 0.12)",
     icon: <Heart size={14} color={Colors.danger} />,
   },
   {
@@ -84,9 +84,9 @@ const BIOMETRIC_CATEGORIES = [
     status: "normal" as const,
     lastUpdated: "1h ago",
     sparkData: [122, 120, 119, 121, 118, 117, 118],
-    sparkColor: "#EF4444",
-    iconBgColor: "rgba(239, 68, 68, 0.12)",
-    icon: <Activity size={14} color="#EF4444" />,
+    sparkColor: Colors.danger,
+    iconBgColor: "rgba(198, 93, 93, 0.12)",
+    icon: <Activity size={14} color={Colors.danger} />,
   },
   {
     id: "glucose",
@@ -121,7 +121,7 @@ const BIOMETRIC_CATEGORIES = [
     lastUpdated: "6h ago",
     sparkData: [181.2, 180.5, 180.1, 179.6, 179.2, 178.8, 178.4],
     sparkColor: Colors.gold,
-    iconBgColor: "rgba(200, 169, 81, 0.12)",
+    iconBgColor: "rgba(74, 144, 217, 0.12)",
     icon: <Scale size={14} color={Colors.gold} />,
   },
   {
@@ -133,7 +133,7 @@ const BIOMETRIC_CATEGORIES = [
     lastUpdated: "Live",
     sparkData: [6200, 9100, 7800, 10200, 8400, 11300, 8742],
     sparkColor: Colors.success,
-    iconBgColor: "rgba(34, 197, 94, 0.12)",
+    iconBgColor: "rgba(74, 157, 91, 0.12)",
     icon: <Footprints size={14} color={Colors.success} />,
   },
   {
@@ -176,7 +176,7 @@ const RECENT_READINGS: RecentGroup[] = [
         value: "62 bpm (resting)",
         source: "Apple Watch Ultra",
         icon: <Heart size={12} color={Colors.danger} />,
-        iconBgColor: "rgba(239, 68, 68, 0.12)",
+        iconBgColor: "rgba(198, 93, 93, 0.12)",
       },
       {
         id: "r2",
@@ -184,8 +184,8 @@ const RECENT_READINGS: RecentGroup[] = [
         type: "Blood Pressure",
         value: "118/76 mmHg",
         source: "Withings BPM Connect",
-        icon: <Activity size={12} color="#EF4444" />,
-        iconBgColor: "rgba(239, 68, 68, 0.12)",
+        icon: <Activity size={12} color={Colors.danger} />,
+        iconBgColor: "rgba(198, 93, 93, 0.12)",
       },
       {
         id: "r3",
@@ -226,7 +226,7 @@ const RECENT_READINGS: RecentGroup[] = [
         value: "178.8 lbs",
         source: "Withings Body+",
         icon: <Scale size={12} color={Colors.gold} />,
-        iconBgColor: "rgba(200, 169, 81, 0.12)",
+        iconBgColor: "rgba(74, 144, 217, 0.12)",
       },
       {
         id: "r7",
@@ -235,7 +235,7 @@ const RECENT_READINGS: RecentGroup[] = [
         value: "11,302 steps",
         source: "Apple Watch Ultra",
         icon: <Footprints size={12} color={Colors.success} />,
-        iconBgColor: "rgba(34, 197, 94, 0.12)",
+        iconBgColor: "rgba(74, 157, 91, 0.12)",
       },
     ],
   },
@@ -279,8 +279,8 @@ export default function HealthScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#C8A951"
-            colors={["#C8A951"]}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
           />
         }
       >

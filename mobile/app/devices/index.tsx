@@ -42,7 +42,7 @@ const CONNECTED_DEVICES: ConnectedDevice[] = [
     lastSync: "5 min ago",
     dataTypes: ["Heart Rate", "Steps", "HRV", "Sleep", "SpO2", "ECG"],
     iconType: "watch",
-    iconColor: "#3B82F6",
+    iconColor: "#4A90D9",
   },
   {
     id: "oura-ring",
@@ -64,7 +64,7 @@ const CONNECTED_DEVICES: ConnectedDevice[] = [
     lastSync: "3 min ago",
     dataTypes: ["Blood Glucose", "Glucose Trends", "Time in Range"],
     iconType: "cgm",
-    iconColor: "#22C55E",
+    iconColor: "#4A9D5B",
   },
   {
     id: "withings-scale",
@@ -75,7 +75,7 @@ const CONNECTED_DEVICES: ConnectedDevice[] = [
     lastSync: "6h ago",
     dataTypes: ["Weight", "Body Fat %", "Muscle Mass", "BMI"],
     iconType: "scale",
-    iconColor: "#EAB308",
+    iconColor: "#D4A843",
   },
   {
     id: "withings-bpm",
@@ -86,14 +86,14 @@ const CONNECTED_DEVICES: ConnectedDevice[] = [
     lastSync: "1h ago",
     dataTypes: ["Systolic", "Diastolic", "Pulse"],
     iconType: "bp",
-    iconColor: "#EF4444",
+    iconColor: "#C65D5D",
   },
 ];
 
 const SUPPORTED_DEVICES: SupportedDevice[] = [
-  { id: "apple-health", name: "Apple Health", iconType: "health", iconColor: "#EF4444" },
-  { id: "google-fit", name: "Google Fit", iconType: "fitness", iconColor: "#22C55E" },
-  { id: "garmin", name: "Garmin", iconType: "garmin", iconColor: "#3B82F6" },
+  { id: "apple-health", name: "Apple Health", iconType: "health", iconColor: "#C65D5D" },
+  { id: "google-fit", name: "Google Fit", iconType: "fitness", iconColor: "#4A9D5B" },
+  { id: "garmin", name: "Garmin", iconType: "garmin", iconColor: "#4A90D9" },
   { id: "fitbit", name: "Fitbit", iconType: "fitbit", iconColor: "#06B6D4" },
   { id: "whoop", name: "Whoop", iconType: "whoop", iconColor: "#F97316" },
   { id: "eight-sleep", name: "Eight Sleep", iconType: "sleep", iconColor: "#8B5CF6" },
@@ -262,8 +262,8 @@ const styles = StyleSheet.create({
     width: "48.5%",
   },
   infoCard: {
-    backgroundColor: "rgba(200, 169, 81, 0.08)",
-    borderColor: "rgba(200, 169, 81, 0.2)",
+    backgroundColor: "rgba(74, 144, 217, 0.08)",
+    borderColor: "rgba(74, 144, 217, 0.2)",
   },
   infoRow: {
     flexDirection: "row",
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },

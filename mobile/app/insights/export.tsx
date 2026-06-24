@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
   },
   reportTypeCardSelected: {
     borderColor: Colors.gold,
-    backgroundColor: "rgba(200, 169, 81, 0.08)",
+    backgroundColor: "rgba(74, 144, 217, 0.08)",
   },
   reportTypeIcon: {
     fontSize: 24,
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   dateRangeChipSelected: {
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
     borderColor: Colors.gold,
   },
   dateRangeChipText: {

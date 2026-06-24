@@ -33,9 +33,9 @@ const priorityBorderColors: Record<AlertPriority, string> = {
 };
 
 const priorityBgColors: Record<AlertPriority, string> = {
-  urgent: "rgba(239, 68, 68, 0.06)",
-  action: "rgba(234, 179, 8, 0.06)",
-  info: "rgba(59, 130, 246, 0.06)",
+  urgent: "rgba(198, 93, 93, 0.06)",
+  action: "rgba(212, 168, 67, 0.06)",
+  info: "rgba(74, 144, 217, 0.06)",
 };
 
 export function AlertItem({

@@ -94,9 +94,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   currentContainer: {
-    backgroundColor: "rgba(200, 169, 81, 0.08)",
+    backgroundColor: "rgba(74, 144, 217, 0.08)",
     borderWidth: 1,
-    borderColor: "rgba(200, 169, 81, 0.2)",
+    borderColor: "rgba(74, 144, 217, 0.2)",
   },
   completedContainer: {
     opacity: 0.7,
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.successMuted,
   },
   statusCurrent: {
-    backgroundColor: "rgba(200, 169, 81, 0.2)",
+    backgroundColor: "rgba(74, 144, 217, 0.2)",
   },
   statusUpcoming: {
     backgroundColor: Colors.navyLight,
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   currentBadge: {
-    backgroundColor: "rgba(200, 169, 81, 0.2)",
+    backgroundColor: "rgba(74, 144, 217, 0.2)",
     paddingVertical: 3,
     paddingHorizontal: 8,
     borderRadius: Radii.full,

@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
   },
   genderOptionActive: {
     borderColor: Colors.gold,
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
   },
   genderText: {
     color: Colors.silver,

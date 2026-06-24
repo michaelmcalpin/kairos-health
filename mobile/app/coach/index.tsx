@@ -440,9 +440,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 14,
     borderRadius: Radii.full,
-    backgroundColor: "rgba(200, 169, 81, 0.12)",
+    backgroundColor: "rgba(74, 144, 217, 0.12)",
     borderWidth: 1,
-    borderColor: "rgba(200, 169, 81, 0.25)",
+    borderColor: "rgba(74, 144, 217, 0.25)",
   },
   specialtyText: {
     color: Colors.gold,

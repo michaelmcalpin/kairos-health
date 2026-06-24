@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     marginBottom: 18, // offset for meta row
   },
   avatarAi: {
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
   },
   avatarCoach: {
     backgroundColor: "rgba(16, 185, 129, 0.2)",

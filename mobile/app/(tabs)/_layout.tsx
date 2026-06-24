@@ -19,6 +19,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors } from "@/lib/constants";
+import { SummitGlyph } from "@/components/brand";
 
 const ICON_SIZE = 24;
 
@@ -45,7 +46,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          headerTitle: "Everist.ai",
+          headerTitle: () => <SummitGlyph size={28} showText />,
           tabBarIcon: ({ color, focused }) => (
             <House
               size={ICON_SIZE}

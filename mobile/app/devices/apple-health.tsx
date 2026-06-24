@@ -176,13 +176,13 @@ export default function AppleHealthScreen() {
           </Text>
 
           <DataRow
-            icon={<Footprints size={18} color="#3B82F6" />}
+            icon={<Footprints size={18} color="#4A90D9" />}
             label="Steps"
             value={readSteps}
             onValueChange={setReadSteps}
           />
           <DataRow
-            icon={<Heart size={18} color="#EF4444" />}
+            icon={<Heart size={18} color="#C65D5D" />}
             label="Heart Rate"
             value={readHeartRate}
             onValueChange={setReadHeartRate}
@@ -230,7 +230,7 @@ export default function AppleHealthScreen() {
             onValueChange={setReadBodyTemp}
           />
           <DataRow
-            icon={<Activity size={18} color="#22C55E" />}
+            icon={<Activity size={18} color="#4A9D5B" />}
             label="Electrocardiogram"
             value={readECG}
             onValueChange={setReadECG}
@@ -254,13 +254,13 @@ export default function AppleHealthScreen() {
             onValueChange={setWriteWorkouts}
           />
           <DataRow
-            icon={<Scale size={18} color="#3B82F6" />}
+            icon={<Scale size={18} color="#4A90D9" />}
             label="Body Weight"
             value={writeBodyWeight}
             onValueChange={setWriteBodyWeight}
           />
           <DataRow
-            icon={<Heart size={18} color="#EF4444" />}
+            icon={<Heart size={18} color="#C65D5D" />}
             label="Blood Pressure"
             value={writeBloodPressure}
             onValueChange={setWriteBloodPressure}
@@ -458,8 +458,8 @@ const styles = StyleSheet.create({
   /* -- Connection status card -- */
   statusCard: {
     marginBottom: Spacing.md,
-    backgroundColor: "rgba(34, 197, 94, 0.06)",
-    borderColor: "rgba(34, 197, 94, 0.2)",
+    backgroundColor: "rgba(74, 157, 91, 0.06)",
+    borderColor: "rgba(74, 157, 91, 0.2)",
   },
   statusRow: {
     flexDirection: "row",
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   frequencyOptionActive: {
-    backgroundColor: "rgba(200, 169, 81, 0.1)",
+    backgroundColor: "rgba(74, 144, 217, 0.1)",
   },
   frequencyOptionText: {
     color: Colors.silver,
@@ -605,8 +605,8 @@ const styles = StyleSheet.create({
   /* -- Info / privacy cards -- */
   infoCard: {
     marginBottom: Spacing.md,
-    backgroundColor: "rgba(59, 130, 246, 0.06)",
-    borderColor: "rgba(59, 130, 246, 0.2)",
+    backgroundColor: "rgba(74, 144, 217, 0.06)",
+    borderColor: "rgba(74, 144, 217, 0.2)",
   },
   infoRow: {
     flexDirection: "row",
@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(59, 130, 246, 0.12)",
+    backgroundColor: "rgba(74, 144, 217, 0.12)",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,
@@ -630,14 +630,14 @@ const styles = StyleSheet.create({
   },
   privacyCard: {
     marginBottom: Spacing.lg,
-    backgroundColor: "rgba(34, 197, 94, 0.06)",
-    borderColor: "rgba(34, 197, 94, 0.2)",
+    backgroundColor: "rgba(74, 157, 91, 0.06)",
+    borderColor: "rgba(74, 157, 91, 0.2)",
   },
   privacyIconCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(34, 197, 94, 0.12)",
+    backgroundColor: "rgba(74, 157, 91, 0.12)",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,

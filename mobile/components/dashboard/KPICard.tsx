@@ -46,7 +46,7 @@ export function KPICard({
   subtitle,
   trend,
   trendValue,
-  iconBgColor = "rgba(200, 169, 81, 0.15)",
+  iconBgColor = "rgba(74, 144, 217, 0.15)",
   sparkData,
   sparkColor,
   onPress,

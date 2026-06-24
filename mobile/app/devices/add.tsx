@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
     alignItems: "center",
     justifyContent: "center",
     marginRight: Spacing.md,
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
   },
   permCard: {
     backgroundColor: Colors.infoMuted,
-    borderColor: "rgba(59, 130, 246, 0.2)",
+    borderColor: "rgba(74, 144, 217, 0.2)",
     marginBottom: Spacing.md,
   },
   permRow: {

@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
     right: "20%",
     top: 0,
     bottom: 0,
-    backgroundColor: "rgba(34, 197, 94, 0.25)",
+    backgroundColor: "rgba(74, 157, 91, 0.25)",
     borderRadius: Radii.full,
   },
   rangeBarMarker: {

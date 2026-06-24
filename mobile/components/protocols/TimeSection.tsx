@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     borderRadius: Radii.full,
   },
   countBadgeDone: {
-    backgroundColor: "rgba(34, 197, 94, 0.15)",
+    backgroundColor: "rgba(74, 157, 91, 0.15)",
   },
   countText: {
     color: Colors.silver,

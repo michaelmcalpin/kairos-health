@@ -22,7 +22,7 @@ export function RecentReadingItem({
   value,
   source,
   icon,
-  iconBgColor = "rgba(200, 169, 81, 0.15)",
+  iconBgColor = "rgba(74, 144, 217, 0.15)",
 }: RecentReadingItemProps) {
   return (
     <View style={styles.row}>

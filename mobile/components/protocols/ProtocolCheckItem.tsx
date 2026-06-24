@@ -78,7 +78,7 @@ export function ProtocolCheckItem({
           {
             borderColor: completed ? Colors.success : Colors.silver,
             backgroundColor: completed
-              ? "rgba(34, 197, 94, 0.2)"
+              ? "rgba(74, 157, 91, 0.2)"
               : "transparent",
           },
         ]}
@@ -132,8 +132,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   containerCompleted: {
-    borderColor: "rgba(34, 197, 94, 0.2)",
-    backgroundColor: "rgba(34, 197, 94, 0.03)",
+    borderColor: "rgba(74, 157, 91, 0.2)",
+    backgroundColor: "rgba(74, 157, 91, 0.03)",
   },
   pressed: {
     opacity: 0.85,

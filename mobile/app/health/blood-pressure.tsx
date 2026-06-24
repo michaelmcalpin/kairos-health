@@ -102,7 +102,7 @@ export default function BloodPressureScreen() {
         <Card style={styles.latestCard}>
           <View style={styles.latestHeader}>
             <View style={styles.latestIconWrap}>
-              <Activity size={24} color="#EF4444" />
+              <Activity size={24} color="#C65D5D" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.latestLabel}>Latest Reading</Text>
@@ -199,7 +199,7 @@ export default function BloodPressureScreen() {
               <View
                 style={[
                   styles.trendLegendDot,
-                  { backgroundColor: "#EF4444" },
+                  { backgroundColor: "#C65D5D" },
                 ]}
               />
               <Text style={styles.trendLegendLabel}>Systolic</Text>
@@ -216,7 +216,7 @@ export default function BloodPressureScreen() {
           </View>
           <TrendLine
             data={SYSTOLIC_TREND}
-            color="#EF4444"
+            color="#C65D5D"
             secondaryData={DIASTOLIC_TREND}
             secondaryColor={Colors.info}
             height={120}
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    backgroundColor: "rgba(198, 93, 93, 0.12)",
     alignItems: "center",
     justifyContent: "center",
   },

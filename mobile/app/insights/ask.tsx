@@ -445,8 +445,8 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   questionChipPressed: {
-    backgroundColor: "rgba(200, 169, 81, 0.1)",
-    borderColor: "rgba(200, 169, 81, 0.3)",
+    backgroundColor: "rgba(74, 144, 217, 0.1)",
+    borderColor: "rgba(74, 144, 217, 0.3)",
   },
   questionChipText: {
     fontSize: FontSizes.sm,
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 18,
@@ -601,7 +601,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   inlineChipPressed: {
-    backgroundColor: "rgba(200, 169, 81, 0.12)",
+    backgroundColor: "rgba(74, 144, 217, 0.12)",
     borderColor: Colors.gold,
   },
   inlineChipText: {

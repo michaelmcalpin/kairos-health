@@ -1,9 +1,3 @@
 /// <reference types="expo/types" />
 
-// Ensure the EXPO_PUBLIC_* env vars are typed.
-declare namespace NodeJS {
-  interface ProcessEnv {
-    EXPO_PUBLIC_API_URL?: string;
-    EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY?: string;
-  }
-}
+// NOTE: This file should not be edited and should be in your git ignore

@@ -279,8 +279,8 @@ export default function ProtocolsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#C8A951"
-            colors={["#C8A951"]}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
           />
         }
       >
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(200, 169, 81, 0.12)",
+    backgroundColor: "rgba(74, 144, 217, 0.12)",
     paddingVertical: 5,
     paddingHorizontal: 12,
     borderRadius: Radii.full,

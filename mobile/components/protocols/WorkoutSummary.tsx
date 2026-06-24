@@ -69,7 +69,7 @@ export function WorkoutSummary({
         </View>
 
         <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: "rgba(200, 169, 81, 0.15)" }]}>
+          <View style={[styles.statIcon, { backgroundColor: "rgba(74, 144, 217, 0.15)" }]}>
             <Trophy size={18} color={Colors.gold} />
           </View>
           <Text style={styles.statValue}>{prsHit}</Text>

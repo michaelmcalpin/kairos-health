@@ -200,7 +200,7 @@ function Chip({
         selected && {
           backgroundColor: color
             ? `${color}22`
-            : "rgba(200, 169, 81, 0.15)",
+            : "rgba(74, 144, 217, 0.15)",
           borderColor: color ?? Colors.gold,
         },
       ]}
@@ -262,7 +262,7 @@ function SelectorRow({
               isSelected && {
                 backgroundColor: color
                   ? `${color}22`
-                  : "rgba(200, 169, 81, 0.15)",
+                  : "rgba(74, 144, 217, 0.15)",
                 borderColor: color ?? Colors.gold,
               },
             ]}

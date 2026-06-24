@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dayCircleWorkout: {
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
   },
   dayCircleToday: {
     backgroundColor: Colors.gold,

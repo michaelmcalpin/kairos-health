@@ -283,11 +283,11 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "rgba(200, 169, 81, 0.3)",
+    borderColor: "rgba(74, 144, 217, 0.3)",
   },
   providerInfo: {
     flex: 1,

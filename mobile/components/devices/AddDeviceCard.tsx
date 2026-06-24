@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   connectBtn: {
-    backgroundColor: "rgba(200, 169, 81, 0.12)",
+    backgroundColor: "rgba(74, 144, 217, 0.12)",
     borderWidth: 1,
     borderColor: Colors.gold,
     paddingVertical: 6,

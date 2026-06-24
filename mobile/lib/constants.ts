@@ -15,40 +15,54 @@ export const CLERK_PUBLISHABLE_KEY =
 
 /**
  * Color palette matching the Everist.ai Summit Glyph web theme.
+ *
+ * Summit theme — matches web app's default theme
  */
 export const Colors = {
   /** Primary backgrounds */
-  dark: "#0A1628",
-  navy: "#0F1D32",
-  navyLight: "#162440",
+  dark: "#0A1628",        // Glacial Navy
+  bg: "#050D18",          // Deep Abyss (web page bg)
+  navy: "#0F1D32",        // Card background
+  navyLight: "#162440",   // Elevated card
 
-  /** Accent — gold */
-  gold: "#C8A951",
-  goldLight: "#D4BC6A",
-  goldDark: "#A68B3C",
+  /** Accent — Ice Blue (property names kept as 'gold' for compatibility) */
+  gold: "#4A90D9",        // Ice Blue (web accent)
+  goldLight: "#6AAAE8",   // Ice Blue Light
+  goldDark: "#3A78BE",    // Ice Blue Deep
 
   /** Neutral text */
-  silver: "#94A3B8",
+  silver: "#C0C5CE",      // Silver Ridge (matches web)
   silverLight: "#CBD5E1",
   white: "#F8FAFC",
 
-  /** Semantic */
-  success: "#22C55E",
-  successMuted: "rgba(34, 197, 94, 0.15)",
-  warning: "#EAB308",
-  warningMuted: "rgba(234, 179, 8, 0.15)",
-  danger: "#EF4444",
-  dangerMuted: "rgba(239, 68, 68, 0.15)",
-  info: "#3B82F6",
-  infoMuted: "rgba(59, 130, 246, 0.15)",
+  /** Semantic (matches web exactly) */
+  success: "#4A9D5B",
+  successMuted: "rgba(74, 157, 91, 0.15)",
+  warning: "#D4A843",
+  warningMuted: "rgba(212, 168, 67, 0.15)",
+  danger: "#C65D5D",
+  dangerMuted: "rgba(198, 93, 93, 0.15)",
+  info: "#4A90D9",
+  infoMuted: "rgba(74, 144, 217, 0.15)",
 
   /** Borders & dividers */
-  border: "rgba(148, 163, 184, 0.15)",
-  borderLight: "rgba(148, 163, 184, 0.25)",
+  border: "rgba(192, 197, 206, 0.15)",
+  borderLight: "rgba(192, 197, 206, 0.25)",
 
   /** Transparent overlays */
   overlay: "rgba(10, 22, 40, 0.8)",
-  cardShadow: "rgba(0, 0, 0, 0.3)",
+  cardShadow: "rgba(5, 13, 24, 0.4)",
+} as const;
+
+/**
+ * Font families — matches web app's Summit theme typography.
+ * Uses system fonts as fallback until Montserrat/Open Sans are installed.
+ */
+export const Fonts = {
+  heading: "Montserrat",
+  body: "OpenSans",
+  headingFallback: "System",
+  bodyFallback: "System",
 } as const;
 
 /**

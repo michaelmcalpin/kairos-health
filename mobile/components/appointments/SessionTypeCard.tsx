@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   },
   cardSelected: {
     borderColor: Colors.gold,
-    backgroundColor: "rgba(200, 169, 81, 0.08)",
+    backgroundColor: "rgba(74, 144, 217, 0.08)",
   },
   cardPressed: {
     opacity: 0.85,
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.md,
   },
   iconCircleSelected: {
-    backgroundColor: "rgba(200, 169, 81, 0.15)",
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
   },
   info: {
     flex: 1,

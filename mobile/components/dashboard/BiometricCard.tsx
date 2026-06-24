@@ -40,7 +40,7 @@ export function BiometricCard({
   status,
   sparkData,
   sparkColor,
-  iconBgColor = "rgba(200, 169, 81, 0.15)",
+  iconBgColor = "rgba(74, 144, 217, 0.15)",
   onPress,
 }: BiometricCardProps) {
   const statusStyle = status ? statusStyles[status] : null;

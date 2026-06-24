@@ -30,10 +30,10 @@ const LAST_NIGHT = {
 };
 
 const SLEEP_STAGES = [
-  { label: "Deep", value: 1.2, color: "#3B82F6" },
+  { label: "Deep", value: 1.2, color: "#4A90D9" },
   { label: "REM", value: 1.8, color: "#8B5CF6" },
   { label: "Light", value: 3.4, color: "#60A5FA" },
-  { label: "Awake", value: 0.3, color: "#EF4444" },
+  { label: "Awake", value: 0.3, color: "#C65D5D" },
 ];
 
 const WEEKLY_TREND = [

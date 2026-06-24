@@ -49,12 +49,13 @@ import {
   Dumbbell,
 } from "lucide-react-native";
 
-import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { Colors, Spacing, FontSizes, Radii, APP_VERSION } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsSection } from "@/components/settings/SettingsSection";
+import { SummitGlyph } from "@/components/brand";
 
 /* ------------------------------------------------------------------ */
 /* Sample data                                                         */
@@ -125,8 +126,8 @@ export default function ProfileScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#C8A951"
-            colors={["#C8A951"]}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
           />
         }
       >
@@ -413,7 +414,10 @@ export default function ProfileScreen() {
         </Pressable>
 
         {/* Footer */}
-        <Text style={styles.versionText}>Everist.ai v1.0.0</Text>
+        <View style={styles.footerRow}>
+          <SummitGlyph size={20} />
+          <Text style={styles.versionText}>Everist.ai v{APP_VERSION}</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -574,11 +578,16 @@ const styles = StyleSheet.create({
   },
 
   /* -- Footer -- */
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: Spacing.md,
+    gap: 8,
+  },
   versionText: {
     color: Colors.silver,
     fontSize: FontSizes.xs,
-    textAlign: "center",
-    marginTop: Spacing.md,
     opacity: 0.6,
   },
 });
