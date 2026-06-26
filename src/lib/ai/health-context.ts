@@ -35,7 +35,7 @@ import {
   peptideLogs,
   appointments,
 } from "@/server/db/schema";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc, and, gte, ne } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Comprehensive health context builder — shared by chat + report generation
@@ -117,8 +117,13 @@ export async function getClientContext(dbUserId: string) {
     recentMeals,
     activeGoals,
   ] = await Promise.all([
+    // Include any genetics profile that isn't in "error" state — markers may be
+    // imported even when the profile is still "pending" or "processing".
     db.query.geneticProfiles.findFirst({
-      where: and(eq(geneticProfiles.clientId, dbUserId), eq(geneticProfiles.status, "complete")),
+      where: and(
+        eq(geneticProfiles.clientId, dbUserId),
+        ne(geneticProfiles.status, "error"),
+      ),
       orderBy: desc(geneticProfiles.createdAt),
     }),
     db.query.clinicalDocuments.findMany({
@@ -350,7 +355,14 @@ export async function getClientContext(dbUserId: string) {
   }
 
   // ── 8. Genetic Profile ──────────────────────────────────
-  if (geneticMarkersData.length > 0 || pathwayScores.length > 0) {
+  if (geneticProfile && geneticMarkersData.length === 0 && pathwayScores.length === 0) {
+    // Profile exists but no markers parsed yet — tell the AI it exists
+    sections.push(
+      `## GENETIC PROFILE\nGenetic profile uploaded (status: ${geneticProfile.status}).` +
+      `${geneticProfile.uploadType ? ` Source: ${geneticProfile.uploadType}.` : ""}` +
+      ` Marker data is still being processed — results will appear once parsing is complete.`
+    );
+  } else if (geneticMarkersData.length > 0 || pathwayScores.length > 0) {
     const genLines: string[] = [];
 
     if (pathwayScores.length > 0) {
@@ -404,24 +416,65 @@ export async function getClientContext(dbUserId: string) {
     const latest = dexaDocs[0];
     const dp = latest.parsedData as Record<string, unknown> | null;
     let dexaInfo = `**Latest DEXA Scan** (${latest.reportDate ?? "unknown date"})`;
-    if (dp) {
+    if (dp && Object.keys(dp).length > 0) {
       const dParts: string[] = [];
-      if (dp.totalBodyFatPct != null) dParts.push(`Body Fat: ${dp.totalBodyFatPct}%`);
-      if (dp.totalMassLbs != null) dParts.push(`Total Mass: ${dp.totalMassLbs} lbs`);
-      if (dp.leanMassLbs != null) dParts.push(`Lean Mass: ${dp.leanMassLbs} lbs`);
-      if (dp.fatMassLbs != null) dParts.push(`Fat Mass: ${dp.fatMassLbs} lbs`);
-      if (dp.boneMineralContent != null) dParts.push(`BMC: ${dp.boneMineralContent} lbs`);
-      if (dp.visceralFatLbs != null) dParts.push(`Visceral Fat: ${dp.visceralFatLbs} lbs`);
-      if (dp.androidFatPct != null) dParts.push(`Android Fat: ${dp.androidFatPct}%`);
-      if (dp.gynoidFatPct != null) dParts.push(`Gynoid Fat: ${dp.gynoidFatPct}%`);
-      if (dp.agRatio != null) dParts.push(`A/G Ratio: ${dp.agRatio}`);
-      dexaInfo += `\n${dParts.join(" | ")}`;
+      // Check both camelCase and snake_case field names to handle varied parsing
+      const get = (keys: string[]) => {
+        for (const k of keys) if (dp[k] != null) return dp[k];
+        return null;
+      };
+      const bodyFat = get(["totalBodyFatPct", "total_body_fat_pct", "bodyFatPercentage", "body_fat_percentage"]);
+      const totalMass = get(["totalMassLbs", "total_mass_lbs", "totalWeight", "total_weight"]);
+      const leanMass = get(["leanMassLbs", "lean_mass_lbs", "leanMass", "lean_mass"]);
+      const fatMass = get(["fatMassLbs", "fat_mass_lbs", "fatMass", "fat_mass"]);
+      const bmc = get(["boneMineralContent", "bone_mineral_content", "bmc", "BMC"]);
+      const visceral = get(["visceralFatLbs", "visceral_fat_lbs", "visceralFat", "visceral_fat"]);
+      const androidFat = get(["androidFatPct", "android_fat_pct", "androidFat", "android_fat"]);
+      const gynoidFat = get(["gynoidFatPct", "gynoid_fat_pct", "gynoidFat", "gynoid_fat"]);
+      const agRatio = get(["agRatio", "ag_ratio", "a_g_ratio"]);
+      const tScore = get(["tScore", "t_score"]);
+      const zScore = get(["zScore", "z_score"]);
+      const bmd = get(["boneMineralDensity", "bone_mineral_density", "bmd"]);
+
+      if (bodyFat != null) dParts.push(`Body Fat: ${bodyFat}%`);
+      if (totalMass != null) dParts.push(`Total Mass: ${totalMass} lbs`);
+      if (leanMass != null) dParts.push(`Lean Mass: ${leanMass} lbs`);
+      if (fatMass != null) dParts.push(`Fat Mass: ${fatMass} lbs`);
+      if (bmc != null) dParts.push(`BMC: ${bmc} lbs`);
+      if (visceral != null) dParts.push(`Visceral Fat: ${visceral} lbs`);
+      if (androidFat != null) dParts.push(`Android Fat: ${androidFat}%`);
+      if (gynoidFat != null) dParts.push(`Gynoid Fat: ${gynoidFat}%`);
+      if (agRatio != null) dParts.push(`A/G Ratio: ${agRatio}`);
+      if (tScore != null) dParts.push(`T-Score: ${tScore}`);
+      if (zScore != null) dParts.push(`Z-Score: ${zScore}`);
+      if (bmd != null) dParts.push(`BMD: ${bmd}`);
+
+      if (dParts.length > 0) {
+        dexaInfo += `\n${dParts.join(" | ")}`;
+      } else {
+        // parsedData exists but has no recognized fields — dump top-level keys
+        const summary = Object.entries(dp)
+          .filter(([, v]) => v != null && typeof v !== "object")
+          .slice(0, 15)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(" | ");
+        if (summary) dexaInfo += `\n${summary}`;
+      }
+    } else {
+      // No parsed data — still tell the AI a DEXA exists
+      dexaInfo += `\nStatus: ${latest.status ?? "pending"} (document uploaded, awaiting full parsing)`;
+      if (latest.title) dexaInfo += `\nTitle: ${latest.title}`;
     }
     // Show comparison if 2+ scans
     if (dexaDocs.length >= 2) {
       const prev = dexaDocs[1].parsedData as Record<string, unknown> | null;
-      if (prev?.totalBodyFatPct != null && dp?.totalBodyFatPct != null) {
-        dexaInfo += `\nPrevious scan (${dexaDocs[1].reportDate ?? "?"}): Body Fat ${prev.totalBodyFatPct}% | Lean ${prev.leanMassLbs ?? "?"} lbs`;
+      if (prev && dp) {
+        const prevFat = prev.totalBodyFatPct ?? prev.total_body_fat_pct ?? prev.bodyFatPercentage;
+        const curFat = dp.totalBodyFatPct ?? dp.total_body_fat_pct ?? dp.bodyFatPercentage;
+        if (prevFat != null && curFat != null) {
+          const prevLean = prev.leanMassLbs ?? prev.lean_mass_lbs ?? prev.leanMass;
+          dexaInfo += `\nPrevious scan (${dexaDocs[1].reportDate ?? "?"}): Body Fat ${prevFat}%${prevLean ? ` | Lean ${prevLean} lbs` : ""}`;
+        }
       }
     }
     sections.push(`## DEXA SCAN\n${dexaInfo}`);
@@ -431,7 +484,7 @@ export async function getClientContext(dbUserId: string) {
     const latest = gutDocs[0];
     const gp = latest.parsedData as Record<string, unknown> | null;
     let gutInfo = `**Latest Gut Biome Report** (${latest.reportDate ?? "unknown date"})`;
-    if (gp) {
+    if (gp && Object.keys(gp).length > 0) {
       const healthScores = gp.healthScores as Array<{ name: string; status: string }> | undefined;
       if (healthScores?.length) {
         const attention = healthScores.filter(s => s.status?.toLowerCase() === "attention");
@@ -444,6 +497,17 @@ export async function getClientContext(dbUserId: string) {
       if (gp.diversityScore != null) gutInfo += `\nDiversity Score: ${gp.diversityScore}/100 (${gp.diversityRating ?? "?"})`;
       const microbes = gp.activeMicrobes as Array<{ name: string; type: string }> | undefined;
       if (microbes?.length) gutInfo += `\nActive microbes: ${microbes.length} detected`;
+      // Fallback: dump top-level keys if no specific fields matched
+      if (!healthScores?.length && gp.diversityScore == null && !microbes?.length) {
+        const summary = Object.entries(gp)
+          .filter(([, v]) => v != null && typeof v !== "object")
+          .slice(0, 10)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(" | ");
+        if (summary) gutInfo += `\n${summary}`;
+      }
+    } else {
+      gutInfo += `\nStatus: ${latest.status ?? "pending"} (document uploaded, awaiting full parsing)`;
     }
     sections.push(`## GUT BIOME\n${gutInfo}`);
   }

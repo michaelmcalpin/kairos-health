@@ -455,12 +455,41 @@ export const coachScheduleRouter = router({
       });
       if (!appt) throw new TRPCError({ code: "NOT_FOUND", message: "Appointment not found" });
 
+      const duration = appt.durationMinutes ?? 60;
+      const newEndTime = addMinutes(input.newStartTime, duration);
+
+      // Check for overlapping appointments (exclude the current one)
+      try {
+        const [overlapping] = await ctx.db
+          .select({ id: appointments.id, startTime: appointments.startTime, date: appointments.date })
+          .from(appointments)
+          .where(and(
+            eq(appointments.coachId, ctx.dbUserId),
+            eq(appointments.date, input.newDate),
+            ne(appointments.status, "cancelled"),
+            ne(appointments.id, input.appointmentId),
+            lt(appointments.startTime, newEndTime),
+            sql`coalesce(${appointments.endTime}, ${appointments.startTime}) > ${input.newStartTime}`,
+          ))
+          .limit(1);
+
+        if (overlapping) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `This time slot conflicts with an existing appointment at ${overlapping.startTime} on ${overlapping.date}.`,
+          });
+        }
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        console.error("[Schedule] Overlap check failed (non-fatal):", err);
+      }
+
       const [updated] = await ctx.db
         .update(appointments)
         .set({
           date: input.newDate,
           startTime: input.newStartTime,
-          endTime: addMinutes(input.newStartTime, appt.durationMinutes ?? 60),
+          endTime: newEndTime,
           updatedAt: new Date(),
         })
         .where(eq(appointments.id, input.appointmentId))

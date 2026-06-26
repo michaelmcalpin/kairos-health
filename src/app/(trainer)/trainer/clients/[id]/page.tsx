@@ -8,6 +8,7 @@ import {
   AlertCircle, Clock, Pin, Trash2, CheckCircle, Send, X, Video,
   Droplets, Moon, Heart, Scale, Dumbbell, Target, FlaskConical,
   Apple, Pill, Zap, ClipboardList, ChevronRight, Timer, Footprints,
+  Dna, FileText,
 } from "lucide-react";
 import { useThemeColors } from "@/lib/theme";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
@@ -20,7 +21,7 @@ import { trpc } from "@/lib/trpc";
 
 // ─── Types ──────────────────────────────────────────────────────
 
-type DataTab = "overview" | "glucose" | "sleep" | "hrv" | "bp" | "body" | "workouts" | "activity" | "fasting" | "goals" | "labs" | "nutrition" | "supplements" | "checkins";
+type DataTab = "overview" | "glucose" | "sleep" | "hrv" | "bp" | "body" | "workouts" | "activity" | "fasting" | "goals" | "labs" | "nutrition" | "supplements" | "checkins" | "genetics" | "clinical";
 
 const DATA_TABS: { id: DataTab; label: string; icon: typeof Activity }[] = [
   { id: "overview", label: "Overview", icon: Activity },
@@ -33,6 +34,8 @@ const DATA_TABS: { id: DataTab; label: string; icon: typeof Activity }[] = [
   { id: "activity", label: "Activity", icon: Footprints },
   { id: "goals", label: "Goals", icon: Target },
   { id: "labs", label: "Labs", icon: FlaskConical },
+  { id: "genetics", label: "Genetics", icon: Dna },
+  { id: "clinical", label: "Clinical Docs", icon: FileText },
   { id: "nutrition", label: "Nutrition", icon: Apple },
   { id: "fasting", label: "Fasting", icon: Timer },
   { id: "supplements", label: "Supplements", icon: Pill },
@@ -694,6 +697,12 @@ type HealthData = {
   checkins: Array<{ date: string; mood: number | null; energy: number | null; stress: number | null; sleepQuality: number | null; trainingType: string | null }>;
   upcomingAppointments: Array<{ id: string; date: string; startTime: string | null; endTime: string | null; sessionType: string | null; meetingType: string | null; status: string | null; meetingLink?: string | null }>;
   conversationId: string | null;
+  genetics?: {
+    profile: { id: string; status: string; uploadType: string | null; createdAt: string } | null;
+    markers: Array<{ gene: string; rsId: string | null; mutation: string | null; pathway: string | null; function: string | null; clinicalPriority: string | null; symptoms: string | null; supplementProtocol: string | null; dietStrategy: string | null; lifestyleStrategy: string | null }>;
+    pathways: Array<{ pathway: string; genesAffected: number; genesInPathway: number; homozygousCount: number; heterozygousCount: number; priorityLevel: string | null }>;
+  };
+  clinicalDocs?: Array<{ id: string; docType: string; title: string; providerName: string | null; reportDate: Date | null; status: string; parsedData: Record<string, unknown> | null; createdAt: string }>;
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -1144,6 +1153,242 @@ function TabContent({
             headers={["Date", "Mood", "Energy", "Stress", "Sleep Quality", "Training"]}
             rows={health.checkins.map((c) => [c.date, c.mood, c.energy, c.stress, c.sleepQuality, c.trainingType])}
           />
+        </div>
+      );
+
+    case "genetics":
+      return (
+        <div className="space-y-6">
+          {/* Genetic Profile Status */}
+          <div className="kairos-card">
+            <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+              <Dna size={16} /> Genetic Profile
+            </h2>
+            {health.genetics?.profile ? (
+              <div className="space-y-1 mb-4">
+                <p className="text-sm text-gray-300">
+                  Status: <span className={health.genetics.profile.status === "complete" ? "text-green-400" : "text-yellow-400"}>{health.genetics.profile.status}</span>
+                </p>
+                {health.genetics.profile.uploadType && <p className="text-sm text-gray-400">Source: {health.genetics.profile.uploadType}</p>}
+                <p className="text-[10px] text-gray-500">Uploaded: {new Date(health.genetics.profile.createdAt).toLocaleDateString()}</p>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 py-4 text-center">No genetic profile uploaded</p>
+            )}
+          </div>
+
+          {/* Pathway Risk Summary */}
+          {health.genetics?.pathways && health.genetics.pathways.length > 0 && (
+            <div className="kairos-card">
+              <h2 className="text-base font-heading font-bold text-kairos-gold mb-3">Pathway Risk Summary</h2>
+              <div className="space-y-2">
+                {health.genetics.pathways.sort((a, b) => (b.homozygousCount ?? 0) - (a.homozygousCount ?? 0)).map((p, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-sm text-white font-medium">{p.pathway}</p>
+                      <span className={`text-[10px] px-2 py-0.5 rounded ${
+                        p.priorityLevel === "critical" ? "bg-red-500/10 text-red-400" :
+                        p.priorityLevel === "high" ? "bg-orange-500/10 text-orange-400" :
+                        p.priorityLevel === "medium" ? "bg-yellow-500/10 text-yellow-400" :
+                        "bg-gray-700 text-gray-400"
+                      }`}>{p.priorityLevel ?? "low"}</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500">
+                      {p.genesAffected ?? 0}/{p.genesInPathway ?? 0} genes affected &bull;{" "}
+                      {p.homozygousCount ?? 0} homozygous, {p.heterozygousCount ?? 0} heterozygous
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* High-Priority Markers */}
+          {health.genetics?.markers && health.genetics.markers.length > 0 && (
+            <div className="kairos-card">
+              <h2 className="text-base font-heading font-bold text-kairos-gold mb-3">
+                Genetic Markers ({health.genetics.markers.length})
+              </h2>
+              <div className="space-y-2">
+                {health.genetics.markers
+                  .sort((a, b) => {
+                    const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+                    return (order[a.clinicalPriority ?? "low"] ?? 3) - (order[b.clinicalPriority ?? "low"] ?? 3);
+                  })
+                  .map((m, i) => (
+                    <div key={i} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
+                      <div className="flex justify-between items-center mb-1">
+                        <p className="text-sm text-white font-medium">{m.gene}{m.rsId ? ` (${m.rsId})` : ""}</p>
+                        <span className={`text-[10px] px-2 py-0.5 rounded ${
+                          m.clinicalPriority === "critical" ? "bg-red-500/10 text-red-400" :
+                          m.clinicalPriority === "high" ? "bg-orange-500/10 text-orange-400" :
+                          m.clinicalPriority === "medium" ? "bg-yellow-500/10 text-yellow-400" :
+                          "bg-gray-700 text-gray-400"
+                        }`}>{m.clinicalPriority ?? "low"}</span>
+                      </div>
+                      <p className="text-[10px] text-gray-400">
+                        {m.mutation ?? "variant"} &bull; {m.pathway ?? ""}{m.function ? ` &bull; ${m.function}` : ""}
+                      </p>
+                      {m.symptoms && <p className="text-[10px] text-gray-500 mt-1">Symptoms: {m.symptoms}</p>}
+                      {m.supplementProtocol && <p className="text-[10px] text-green-400/70 mt-0.5">Supplements: {m.supplementProtocol}</p>}
+                      {m.dietStrategy && <p className="text-[10px] text-blue-400/70 mt-0.5">Diet: {m.dietStrategy}</p>}
+                      {m.lifestyleStrategy && <p className="text-[10px] text-purple-400/70 mt-0.5">Lifestyle: {m.lifestyleStrategy}</p>}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {!health.genetics?.profile && !health.genetics?.markers?.length && (
+            <div className="kairos-card p-6 text-center">
+              <p className="text-sm text-gray-500">No genetic data available for this client</p>
+            </div>
+          )}
+        </div>
+      );
+
+    case "clinical":
+      return (
+        <div className="space-y-6">
+          {!health.clinicalDocs || health.clinicalDocs.length === 0 ? (
+            <div className="kairos-card p-6 text-center">
+              <p className="text-sm text-gray-500">No clinical documents uploaded</p>
+            </div>
+          ) : (
+            <>
+              {/* DEXA Scans */}
+              {(() => {
+                const dexaDocs = health.clinicalDocs.filter((d) => d.docType === "dexa_scan");
+                if (dexaDocs.length === 0) return null;
+                return (
+                  <div className="kairos-card">
+                    <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+                      <Scale size={16} /> DEXA Scans ({dexaDocs.length})
+                    </h2>
+                    <div className="space-y-3">
+                      {dexaDocs.map((doc) => {
+                        const pd = doc.parsedData as Record<string, unknown> | null;
+                        return (
+                          <div key={doc.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
+                            <div className="flex justify-between items-center mb-2">
+                              <p className="text-sm text-white font-medium">{doc.title ?? "DEXA Scan"}</p>
+                              <span className="text-[10px] text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
+                            </div>
+                            {pd && Object.keys(pd).length > 0 ? (
+                              <div className="grid grid-cols-3 gap-2">
+                                {Object.entries(pd)
+                                  .filter(([, v]) => v != null && typeof v !== "object")
+                                  .slice(0, 12)
+                                  .map(([k, v]) => (
+                                    <div key={k} className="text-center p-1.5 rounded bg-gray-800/50">
+                                      <p className="text-[10px] text-gray-500 capitalize">{k.replace(/([A-Z])/g, " $1").replace(/_/g, " ").trim()}</p>
+                                      <p className="text-xs text-white font-medium">{String(v)}</p>
+                                    </div>
+                                  ))}
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
+                            )}
+                            {doc.providerName && <p className="text-[10px] text-gray-500 mt-2">Provider: {doc.providerName}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Gut Biome Reports */}
+              {(() => {
+                const gutDocs = health.clinicalDocs.filter((d) => d.docType === "gut_biome");
+                if (gutDocs.length === 0) return null;
+                return (
+                  <div className="kairos-card">
+                    <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+                      <FlaskConical size={16} /> Gut Biome Reports ({gutDocs.length})
+                    </h2>
+                    <div className="space-y-3">
+                      {gutDocs.map((doc) => {
+                        const pd = doc.parsedData as Record<string, unknown> | null;
+                        return (
+                          <div key={doc.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
+                            <div className="flex justify-between items-center mb-2">
+                              <p className="text-sm text-white font-medium">{doc.title ?? "Gut Biome Report"}</p>
+                              <span className="text-[10px] text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
+                            </div>
+                            {pd && Object.keys(pd).length > 0 ? (
+                              <div className="space-y-1">
+                                {(pd.diversityScore != null) && (
+                                  <p className="text-xs text-gray-300">Diversity Score: <span className="text-white font-medium">{String(pd.diversityScore)}/100</span> ({String(pd.diversityRating ?? "?")})</p>
+                                )}
+                                {(() => {
+                                  const scores = pd.healthScores as Array<{ name: string; status: string }> | undefined;
+                                  if (!scores?.length) return null;
+                                  const attention = scores.filter(s => s.status?.toLowerCase() === "attention");
+                                  const improve = scores.filter(s => s.status?.toLowerCase() === "improve");
+                                  return (
+                                    <>
+                                      {attention.length > 0 && <p className="text-[10px] text-red-400">Attention: {attention.map(s => s.name).join(", ")}</p>}
+                                      {improve.length > 0 && <p className="text-[10px] text-yellow-400">Improve: {improve.map(s => s.name).join(", ")}</p>}
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Medical Records */}
+              {(() => {
+                const medDocs = health.clinicalDocs.filter((d) => d.docType === "medical_record");
+                if (medDocs.length === 0) return null;
+                return (
+                  <div className="kairos-card">
+                    <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+                      <FileText size={16} /> Medical Records ({medDocs.length})
+                    </h2>
+                    <div className="space-y-3">
+                      {medDocs.map((doc) => {
+                        const pd = doc.parsedData as Record<string, unknown> | null;
+                        return (
+                          <div key={doc.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
+                            <div className="flex justify-between items-center mb-2">
+                              <p className="text-sm text-white font-medium">{doc.title ?? "Medical Record"}</p>
+                              <span className="text-[10px] text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
+                            </div>
+                            {doc.providerName && <p className="text-[10px] text-gray-400 mb-1">Provider: {doc.providerName}</p>}
+                            {pd && Object.keys(pd).length > 0 ? (
+                              <div className="space-y-1">
+                                {pd.documentType ? <p className="text-xs text-gray-300">Type: {String(pd.documentType)}</p> : null}
+                                {(pd.diagnoses as string[] | undefined)?.length ? (
+                                  <p className="text-xs text-gray-300">Diagnoses: {(pd.diagnoses as string[]).join(", ")}</p>
+                                ) : null}
+                                {(pd.medications as Array<{ name: string }> | undefined)?.length ? (
+                                  <p className="text-xs text-gray-300">Medications: {(pd.medications as Array<{ name: string }>).map(m => m.name).join(", ")}</p>
+                                ) : null}
+                                {(pd.findings as string[] | undefined)?.length ? (
+                                  <p className="text-xs text-gray-400">Findings: {(pd.findings as string[]).join("; ")}</p>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </div>
       );
 

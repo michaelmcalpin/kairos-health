@@ -28,8 +28,12 @@ import {
   activitySummaries,
   appointments,
   conversations,
+  geneticProfiles,
+  geneticMarkers,
+  geneticPathwayScores,
+  clinicalDocuments,
 } from "@/server/db/schema";
-import { eq, desc, and, sql, gte, lte, inArray, or, ilike, ne, notInArray } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte, inArray, or, ilike, ne, notInArray, isNull } from "drizzle-orm";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -797,6 +801,7 @@ export const coachClientsRouter = router({
       const [
         glucose, sleep, hrvData, bpData, weightData, workouts, activity,
         goals, labs, fasting, meals, protocolData, upcoming, checkins,
+        geneticProfile, clinicalDocsData,
       ] = await Promise.all([
         // Glucose
         ctx.db.query.glucoseReadings.findMany({
@@ -876,6 +881,20 @@ export const coachClientsRouter = router({
           where: and(eq(dailyCheckins.clientId, input.clientId), gte(dailyCheckins.date, start), lte(dailyCheckins.date, end)),
           orderBy: desc(dailyCheckins.date),
         }),
+        // Genetic profile (latest non-error)
+        ctx.db.query.geneticProfiles.findFirst({
+          where: and(
+            eq(geneticProfiles.clientId, input.clientId),
+            ne(geneticProfiles.status, "error"),
+          ),
+          orderBy: desc(geneticProfiles.createdAt),
+        }),
+        // Clinical documents (DEXA, gut biome, medical records)
+        ctx.db.query.clinicalDocuments.findMany({
+          where: eq(clinicalDocuments.clientId, input.clientId),
+          orderBy: desc(clinicalDocuments.reportDate),
+          limit: 20,
+        }),
       ]);
 
       // Fetch protocol items if protocol exists
@@ -904,6 +923,21 @@ export const coachClientsRouter = router({
         [allMilestones, allCheckpoints] = await Promise.all([
           ctx.db.query.goalMilestones.findMany({ where: inArray(goalMilestones.goalId, goalIds) }),
           ctx.db.query.goalCheckpoints.findMany({ where: inArray(goalCheckpoints.goalId, goalIds), orderBy: desc(goalCheckpoints.createdAt) }),
+        ]);
+      }
+
+      // Fetch genetic markers + pathway scores if profile exists
+      let genMarkers: typeof geneticMarkers.$inferSelect[] = [];
+      let genPathways: typeof geneticPathwayScores.$inferSelect[] = [];
+      if (geneticProfile) {
+        [genMarkers, genPathways] = await Promise.all([
+          ctx.db.query.geneticMarkers.findMany({
+            where: eq(geneticMarkers.profileId, geneticProfile.id),
+            limit: 100,
+          }),
+          ctx.db.query.geneticPathwayScores.findMany({
+            where: eq(geneticPathwayScores.profileId, geneticProfile.id),
+          }),
         ]);
       }
 
@@ -1025,6 +1059,46 @@ export const coachClientsRouter = router({
           meetingType: a.meetingType,
           status: a.status,
           meetingLink: a.meetingLink ?? null,
+        })),
+        genetics: {
+          profile: geneticProfile
+            ? {
+                id: geneticProfile.id,
+                status: geneticProfile.status,
+                uploadType: geneticProfile.uploadType,
+                createdAt: geneticProfile.createdAt.toISOString(),
+              }
+            : null,
+          markers: genMarkers.map((m) => ({
+            gene: m.gene,
+            rsId: m.rsId,
+            mutation: m.mutation,
+            pathway: m.pathway,
+            function: m.function,
+            clinicalPriority: m.clinicalPriority,
+            symptoms: m.symptoms,
+            supplementProtocol: m.supplementProtocol,
+            dietStrategy: m.dietStrategy,
+            lifestyleStrategy: m.lifestyleStrategy,
+          })),
+          pathways: genPathways.map((p) => ({
+            pathway: p.pathway,
+            genesAffected: p.genesAffected,
+            genesInPathway: p.genesInPathway,
+            homozygousCount: p.homozygousCount,
+            heterozygousCount: p.heterozygousCount,
+            priorityLevel: p.priorityLevel,
+          })),
+        },
+        clinicalDocs: clinicalDocsData.map((d) => ({
+          id: d.id,
+          docType: d.docType,
+          title: d.title,
+          providerName: d.providerName,
+          reportDate: d.reportDate,
+          status: d.status,
+          parsedData: d.parsedData,
+          createdAt: d.createdAt.toISOString(),
         })),
         conversationId: conversation?.id ?? null,
       };

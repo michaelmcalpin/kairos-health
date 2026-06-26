@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Video } from "lucide-react";
+import { Video, Calendar, Clock } from "lucide-react";
 
 // ─── Local types matching DB schema ─────────────────────────────────
 
@@ -98,6 +98,8 @@ interface AppointmentDetailProps {
     nextSessionFocus: string;
     privateNotes: string;
   }) => void;
+  onReschedule?: (newDate: string, newStartTime: string) => void;
+  rescheduleError?: string | null;
   onClose: () => void;
 }
 
@@ -107,9 +109,14 @@ export function AppointmentDetail({
   role,
   onUpdateStatus,
   onSaveNotes,
+  onReschedule,
+  rescheduleError,
   onClose,
 }: AppointmentDetailProps) {
   const [showNotes, setShowNotes] = useState(false);
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [reschedDate, setReschedDate] = useState(appointment.date);
+  const [reschedTime, setReschedTime] = useState(appointment.startTime);
   const [summary, setSummary] = useState(sessionNotes?.summary ?? "");
   const [keyFindings, setKeyFindings] = useState(sessionNotes?.keyFindings.join("\n") ?? "");
   const [actionItems, setActionItems] = useState(sessionNotes?.actionItems.join("\n") ?? "");
@@ -326,6 +333,67 @@ export function AppointmentDetail({
               className="flex-1 kairos-btn-gold py-1.5 rounded-lg text-sm font-medium"
             >
               Save Notes
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule (Coach only, upcoming appointments) */}
+      {isUpcoming && role === "coach" && onReschedule && !showReschedule && (
+        <button
+          onClick={() => setShowReschedule(true)}
+          className="w-full py-2 border border-dashed border-gray-600 rounded-lg text-sm text-gray-400 hover:text-white hover:border-gray-500 transition-colors mb-4 flex items-center justify-center gap-2"
+        >
+          <Calendar size={14} /> Reschedule Appointment
+        </button>
+      )}
+
+      {showReschedule && (
+        <div className="bg-gray-800/50 rounded-xl p-4 mb-4 space-y-3">
+          <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Clock size={14} /> Reschedule
+          </h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-400">New Date</label>
+              <input
+                type="date"
+                value={reschedDate}
+                onChange={(e) => setReschedDate(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+                className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-kairos-gold/50"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">New Time</label>
+              <input
+                type="time"
+                value={reschedTime}
+                onChange={(e) => setReschedTime(e.target.value)}
+                className="w-full mt-1 px-3 py-2 bg-gray-900/50 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-kairos-gold/50"
+              />
+            </div>
+          </div>
+          {rescheduleError && (
+            <p className="text-xs text-red-400">{rescheduleError}</p>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setShowReschedule(false); setReschedDate(appointment.date); setReschedTime(appointment.startTime); }}
+              className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (reschedDate && reschedTime && onReschedule) {
+                  onReschedule(reschedDate, reschedTime);
+                }
+              }}
+              disabled={!reschedDate || !reschedTime || (reschedDate === appointment.date && reschedTime === appointment.startTime)}
+              className="flex-1 kairos-btn-gold py-1.5 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Confirm Reschedule
             </button>
           </div>
         </div>

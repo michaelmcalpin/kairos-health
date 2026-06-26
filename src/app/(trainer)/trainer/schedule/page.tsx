@@ -63,6 +63,8 @@ export default function CoachSchedulePage() {
   const createMutation = trpc.coach.schedule.createAppointment.useMutation();
   const updateStatusMutation = trpc.coach.schedule.updateStatus.useMutation();
   const saveNotesMutation = trpc.coach.schedule.saveSessionNotes.useMutation();
+  const rescheduleMutation = trpc.coach.schedule.reschedule.useMutation();
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
 
   // Transform tRPC calendar data { weekStart, weekEnd, days: Record<string, appt[]> } into CalendarDay[]
   const calendarDays = useMemo(() => {
@@ -171,6 +173,24 @@ export default function CoachSchedulePage() {
             appointment={selectedAppointment}
             sessionNotes={null}
             role="coach"
+            onReschedule={(newDate, newTime) => {
+              setRescheduleError(null);
+              rescheduleMutation.mutate(
+                { appointmentId: selectedAppointment.id, newDate, newStartTime: newTime },
+                {
+                  onSuccess: () => {
+                    setSelectedAppointment(null);
+                    setRescheduleError(null);
+                    void utils.coach.schedule.getCalendarWeek.invalidate();
+                    void utils.coach.schedule.getStats.invalidate();
+                  },
+                  onError: (err) => {
+                    setRescheduleError(err.message || "Failed to reschedule. Please try again.");
+                  },
+                }
+              );
+            }}
+            rescheduleError={rescheduleError}
             onUpdateStatus={(status, reason) => {
               updateStatusMutation.mutate(
                 { appointmentId: selectedAppointment.id, status, reason },
