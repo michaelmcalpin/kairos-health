@@ -1,8 +1,9 @@
+// DEV MODE: Clerk bypassed — forms navigate directly without auth
 /**
  * Sign In screen for the Everist.ai mobile app.
  *
- * Uses Clerk's useSignIn hook for email/password authentication.
- * Supports social login via Apple and Google OAuth.
+ * Uses local state with direct navigation (Clerk auth disabled).
+ * Supports social login via Apple and Google OAuth (placeholder).
  */
 
 import React, { useState, useCallback } from "react";
@@ -19,14 +20,12 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useSignIn } from "@clerk/clerk-expo";
 import { Eye, EyeOff, Apple, Chrome } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 
 export default function SignInScreen() {
   const router = useRouter();
-  const { signIn, setActive, isLoaded } = useSignIn();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,8 +33,6 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleSignIn = useCallback(async () => {
-    if (!isLoaded) return;
-
     if (!email.trim() || !password.trim()) {
       Alert.alert("Missing Fields", "Please enter your email and password.");
       return;
@@ -43,49 +40,23 @@ export default function SignInScreen() {
 
     setLoading(true);
     try {
-      const result = await signIn.create({
-        identifier: email.trim(),
-        password,
-      });
-
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        router.replace("/(tabs)");
-      } else {
-        Alert.alert(
-          "Sign In Incomplete",
-          "Additional verification may be required. Please try again.",
-        );
-      }
+      // DEV MODE: skip Clerk auth, navigate directly
+      router.replace("/(tabs)");
     } catch (err: any) {
-      const message =
-        err?.errors?.[0]?.longMessage ??
-        err?.errors?.[0]?.message ??
-        "An unexpected error occurred. Please try again.";
-      Alert.alert("Sign In Failed", message);
+      Alert.alert("Sign In Failed", "An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [isLoaded, email, password, signIn, setActive, router]);
+  }, [email, password, router]);
 
   const handleOAuthSignIn = useCallback(
     async (strategy: "oauth_apple" | "oauth_google") => {
-      if (!isLoaded) return;
-
-      try {
-        const { startOAuthFlow } = await import("@clerk/clerk-expo");
-        // OAuth flows require additional setup; this provides the hook point
-        Alert.alert(
-          "OAuth",
-          `${strategy === "oauth_apple" ? "Apple" : "Google"} sign-in requires additional configuration.`,
-        );
-      } catch (err: any) {
-        const message =
-          err?.errors?.[0]?.message ?? "OAuth sign-in failed. Please try again.";
-        Alert.alert("Sign In Failed", message);
-      }
+      Alert.alert(
+        "OAuth",
+        `${strategy === "oauth_apple" ? "Apple" : "Google"} sign-in requires additional configuration.`,
+      );
     },
-    [isLoaded],
+    [],
   );
 
   return (

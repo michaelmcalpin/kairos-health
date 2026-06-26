@@ -1,14 +1,13 @@
 /**
- * Clerk authentication utilities for the Everist.ai mobile app.
+ * Auth utilities — DEV MODE stub.
+ *
+ * Provides mock auth hooks so screens compile without Clerk.
+ * Swap back to the Clerk version when auth is configured.
  */
 
-import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-expo";
 import * as SecureStore from "expo-secure-store";
 
-/** ------------------------------------------------------------------ */
-/** Secure token cache for Clerk (persisted with expo-secure-store)     */
-/** ------------------------------------------------------------------ */
-
+/** Secure token cache (kept for future Clerk integration) */
 export const tokenCache = {
   async getToken(key: string): Promise<string | null> {
     try {
@@ -17,53 +16,37 @@ export const tokenCache = {
       return null;
     }
   },
-
   async saveToken(key: string, value: string): Promise<void> {
     try {
       await SecureStore.setItemAsync(key, value);
-    } catch {
-      // Silently fail — user will just need to re-authenticate
-    }
+    } catch {}
   },
-
   async clearToken(key: string): Promise<void> {
     try {
       await SecureStore.deleteItemAsync(key);
-    } catch {
-      // no-op
-    }
+    } catch {}
   },
 };
 
-/** ------------------------------------------------------------------ */
-/** Hooks                                                              */
-/** ------------------------------------------------------------------ */
-
-/**
- * Convenience wrapper around Clerk's useAuth with typed helpers.
- */
+/** Mock useAuth hook for dev mode */
 export function useAuth() {
-  const { isLoaded, isSignedIn, userId, signOut, getToken } = useClerkAuth();
-  const { user } = useUser();
-
   return {
-    isLoaded,
-    isSignedIn: isSignedIn ?? false,
-    userId,
-    user,
-    signOut,
-    getToken,
+    isLoaded: true,
+    isSignedIn: true,
+    userId: "dev-user-001",
+    user: {
+      firstName: "Michael",
+      lastName: "McAlpin",
+      emailAddresses: [{ emailAddress: "michael.mcalpin@gmail.com" }],
+      imageUrl: null,
+      publicMetadata: { onboarded: true },
+    },
+    signOut: async () => {},
+    getToken: async () => null,
   };
 }
 
-/** ------------------------------------------------------------------ */
-/** Token provider for tRPC                                            */
-/** ------------------------------------------------------------------ */
-
-/**
- * Returns a function that fetches the current Clerk session token.
- * Used by the tRPC client to attach Authorization headers.
- */
+/** Token provider for tRPC */
 export function createTokenProvider(getToken: () => Promise<string | null>) {
   return async (): Promise<string | null> => {
     try {
@@ -74,22 +57,13 @@ export function createTokenProvider(getToken: () => Promise<string | null>) {
   };
 }
 
-/** ------------------------------------------------------------------ */
-/** Sign-out helper                                                    */
-/** ------------------------------------------------------------------ */
-
-/**
- * Full sign-out: clears Clerk session and any locally-cached tokens.
- */
+/** Sign-out helper */
 export async function performSignOut(
   signOut: () => Promise<void>,
 ): Promise<void> {
   try {
     await signOut();
-    // Clear any additional cached data
-    await SecureStore.deleteItemAsync("clerk-session");
   } catch (error) {
     console.error("[Auth] Sign-out error:", error);
-    throw error;
   }
 }

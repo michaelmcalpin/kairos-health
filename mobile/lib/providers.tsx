@@ -1,29 +1,24 @@
 /**
  * Global providers wrapper for the Everist.ai mobile app.
  *
- * Composes Clerk, React Query, and tRPC providers into a single
- * component that wraps the root layout.
+ * DEV MODE: Clerk is bypassed so the app can run without auth.
+ * When Clerk is configured, swap back to the ClerkProvider version.
  */
 
 import React, { useMemo } from "react";
-import { ClerkProvider, useAuth as useClerkAuth } from "@clerk/clerk-expo";
 import { QueryClientProvider } from "@tanstack/react-query";
 
-import { CLERK_PUBLISHABLE_KEY } from "./constants";
-import { tokenCache } from "./auth";
 import { trpc, createQueryClient, createTRPCClient } from "./trpc";
 
 /** ------------------------------------------------------------------ */
-/** Inner provider — needs to be inside ClerkProvider to use useAuth    */
+/** Root Providers (dev mode — no Clerk)                               */
 /** ------------------------------------------------------------------ */
 
-function TRPCQueryProvider({ children }: { children: React.ReactNode }) {
-  const { getToken } = useClerkAuth();
-
+export function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = useMemo(() => createQueryClient(), []);
   const trpcClient = useMemo(
-    () => createTRPCClient(() => getToken()),
-    [getToken],
+    () => createTRPCClient(() => Promise.resolve(null)),
+    [],
   );
 
   return (
@@ -32,20 +27,5 @@ function TRPCQueryProvider({ children }: { children: React.ReactNode }) {
         {children}
       </QueryClientProvider>
     </trpc.Provider>
-  );
-}
-
-/** ------------------------------------------------------------------ */
-/** Root Providers                                                     */
-/** ------------------------------------------------------------------ */
-
-export function Providers({ children }: { children: React.ReactNode }) {
-  return (
-    <ClerkProvider
-      publishableKey={CLERK_PUBLISHABLE_KEY}
-      tokenCache={tokenCache}
-    >
-      <TRPCQueryProvider>{children}</TRPCQueryProvider>
-    </ClerkProvider>
   );
 }

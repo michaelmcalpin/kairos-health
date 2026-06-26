@@ -8,7 +8,6 @@
 import { createTRPCReact } from "@trpc/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { QueryClient } from "@tanstack/react-query";
-import superjson from "superjson";
 
 import { API_URL } from "./constants";
 
@@ -64,8 +63,6 @@ export function createTRPCClient(getToken: () => Promise<string | null>) {
     links: [
       httpBatchLink({
         url: `${API_URL}/api/trpc`,
-        transformer: superjson,
-
         async headers() {
           const token = await getToken();
           return {

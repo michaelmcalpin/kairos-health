@@ -1,8 +1,9 @@
+// DEV MODE: Clerk bypassed — forms navigate directly without auth
 /**
  * Sign Up screen for the Everist.ai mobile app.
  *
- * Uses Clerk's useSignUp hook for email/password registration.
- * Includes email verification step and social OAuth placeholders.
+ * Uses local state with direct navigation (Clerk auth disabled).
+ * Includes social OAuth placeholders.
  */
 
 import React, { useState, useCallback } from "react";
@@ -19,14 +20,12 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useSignUp } from "@clerk/clerk-expo";
 import { Eye, EyeOff, Apple, Chrome } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const { signUp, setActive, isLoaded } = useSignUp();
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -35,13 +34,7 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Verification state
-  const [pendingVerification, setPendingVerification] = useState(false);
-  const [verificationCode, setVerificationCode] = useState("");
-
   const handleSignUp = useCallback(async () => {
-    if (!isLoaded) return;
-
     if (!email.trim() || !password.trim()) {
       Alert.alert("Missing Fields", "Please enter your email and password.");
       return;
@@ -49,147 +42,24 @@ export default function SignUpScreen() {
 
     setLoading(true);
     try {
-      await signUp.create({
-        firstName: firstName.trim() || undefined,
-        lastName: lastName.trim() || undefined,
-        emailAddress: email.trim(),
-        password,
-      });
-
-      // Send email verification code
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-      setPendingVerification(true);
+      // DEV MODE: skip Clerk auth, navigate directly to onboarding
+      router.replace("/onboarding");
     } catch (err: any) {
-      const message =
-        err?.errors?.[0]?.longMessage ??
-        err?.errors?.[0]?.message ??
-        "An unexpected error occurred. Please try again.";
-      Alert.alert("Sign Up Failed", message);
+      Alert.alert("Sign Up Failed", "An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [isLoaded, firstName, lastName, email, password, signUp]);
-
-  const handleVerification = useCallback(async () => {
-    if (!isLoaded) return;
-
-    if (!verificationCode.trim()) {
-      Alert.alert(
-        "Missing Code",
-        "Please enter the verification code sent to your email.",
-      );
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await signUp.attemptEmailAddressVerification({
-        code: verificationCode.trim(),
-      });
-
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        router.replace("/onboarding");
-      } else {
-        Alert.alert(
-          "Verification Incomplete",
-          "Please check the code and try again.",
-        );
-      }
-    } catch (err: any) {
-      const message =
-        err?.errors?.[0]?.longMessage ??
-        err?.errors?.[0]?.message ??
-        "Verification failed. Please try again.";
-      Alert.alert("Verification Failed", message);
-    } finally {
-      setLoading(false);
-    }
-  }, [isLoaded, verificationCode, signUp, setActive, router]);
+  }, [email, password, router]);
 
   const handleOAuthSignUp = useCallback(
     async (strategy: "oauth_apple" | "oauth_google") => {
-      if (!isLoaded) return;
-
-      try {
-        Alert.alert(
-          "OAuth",
-          `${strategy === "oauth_apple" ? "Apple" : "Google"} sign-up requires additional configuration.`,
-        );
-      } catch (err: any) {
-        const message =
-          err?.errors?.[0]?.message ?? "OAuth sign-up failed. Please try again.";
-        Alert.alert("Sign Up Failed", message);
-      }
+      Alert.alert(
+        "OAuth",
+        `${strategy === "oauth_apple" ? "Apple" : "Google"} sign-up requires additional configuration.`,
+      );
     },
-    [isLoaded],
+    [],
   );
-
-  // ---------- Verification view ----------
-  if (pendingVerification) {
-    return (
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.logoArea}>
-            <Text style={styles.logoText}>EVERIST</Text>
-            <Text style={styles.subtitle}>Verify Your Email</Text>
-          </View>
-
-          <View style={styles.form}>
-            <Text style={styles.verificationHint}>
-              We sent a verification code to {email}. Enter it below to
-              complete your registration.
-            </Text>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Verification Code</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter 6-digit code"
-                placeholderTextColor={Colors.silver}
-                value={verificationCode}
-                onChangeText={setVerificationCode}
-                keyboardType="number-pad"
-                autoComplete="one-time-code"
-                editable={!loading}
-              />
-            </View>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryButton,
-                pressed && styles.buttonPressed,
-                loading && styles.buttonDisabled,
-              ]}
-              onPress={handleVerification}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color={Colors.dark} />
-              ) : (
-                <Text style={styles.primaryButtonText}>Verify Email</Text>
-              )}
-            </Pressable>
-
-            <Pressable
-              onPress={() => setPendingVerification(false)}
-              style={styles.backButton}
-            >
-              <Text style={styles.linkText}>Back to Sign Up</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    );
-  }
 
   // ---------- Main sign-up view ----------
   return (
@@ -519,17 +389,5 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: "600",
     color: Colors.gold,
-  },
-
-  /* Verification */
-  verificationHint: {
-    fontSize: FontSizes.sm,
-    color: Colors.silver,
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  backButton: {
-    alignItems: "center",
-    paddingVertical: Spacing.sm,
   },
 });
