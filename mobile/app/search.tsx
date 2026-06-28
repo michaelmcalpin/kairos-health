@@ -158,7 +158,7 @@ export default function SearchScreen() {
   // ── Icon resolver ────────────────────────────────────────
 
   const getIcon = useCallback(
-    (iconName: string, size = 20, color = Colors.silver) => {
+    (iconName: string, size = 20, color: string = Colors.silver) => {
       const IconComponent = ICON_MAP[iconName] ?? Activity;
       return <IconComponent size={size} color={color} />;
     },

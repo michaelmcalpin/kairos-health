@@ -5,13 +5,15 @@
  * FAB button for booking new appointments.
  */
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   Pressable,
   StyleSheet,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -31,27 +33,13 @@ import {
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { useAppointments } from "@/hooks";
 
 /* ------------------------------------------------------------------ */
 /* Sample data                                                        */
 /* ------------------------------------------------------------------ */
 
-type AppointmentMethod = "Video Call" | "In-Person";
-
-interface Appointment {
-  id: string;
-  title: string;
-  type: string;
-  provider: string;
-  date: string;
-  time: string;
-  method: AppointmentMethod;
-  status: "confirmed" | "pending" | "completed" | "cancelled";
-  badgeVariant: "success" | "warning" | "info" | "default" | "danger";
-  icon: React.ComponentType<{ size: number; color: string }>;
-}
-
-const UPCOMING: Appointment[] = [
+const SAMPLE_UPCOMING = [
   {
     id: "apt-1",
     title: "Nutrition Consultation",
@@ -90,7 +78,7 @@ const UPCOMING: Appointment[] = [
   },
 ];
 
-const PAST: Appointment[] = [
+const SAMPLE_PAST = [
   {
     id: "apt-4",
     title: "Annual Physical",
@@ -125,7 +113,31 @@ export default function AppointmentsScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
 
-  const appointments = activeTab === "upcoming" ? UPCOMING : PAST;
+  const { appointments: upcomingData, isLoading: loadingUp, refetch: refetchUp } = useAppointments("upcoming");
+  const { appointments: pastData, isLoading: loadingPast, refetch: refetchPast } = useAppointments("past");
+
+  const mapIcon = (type: string) => {
+    const lower = type.toLowerCase();
+    if (lower.includes("nutrition")) return Utensils;
+    if (lower.includes("lab")) return FlaskConical;
+    if (lower.includes("fitness") || lower.includes("workout") || lower.includes("exercise")) return Dumbbell;
+    if (lower.includes("sleep")) return Clock;
+    return Stethoscope;
+  };
+
+  const rawAppointments = activeTab === "upcoming" ? upcomingData : pastData;
+  const appointments = rawAppointments.map((apt) => ({
+    ...apt,
+    icon: mapIcon(apt.type),
+  }));
+  const isLoading = activeTab === "upcoming" ? loadingUp : loadingPast;
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refetchUp(), refetchPast()]);
+    setRefreshing(false);
+  }, [refetchUp, refetchPast]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -133,6 +145,14 @@ export default function AppointmentsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
+          />
+        }
       >
         {/* ---- Header ---- */}
         <View style={styles.header}>
@@ -164,6 +184,12 @@ export default function AppointmentsScreen() {
             </Pressable>
           ))}
         </View>
+
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+          </View>
+        )}
 
         {/* ---- Appointment Cards ---- */}
         {appointments.map((apt) => {
@@ -340,6 +366,12 @@ const styles = StyleSheet.create({
   aptDetail: {
     fontSize: FontSizes.sm,
     color: Colors.silver,
+  },
+
+  /* Loading */
+  loadingContainer: {
+    paddingVertical: Spacing.xxl,
+    alignItems: "center",
   },
 
   /* Empty */

@@ -5,11 +5,14 @@
  * Displays health score ring, KPI cards, today's schedule, biometrics
  * overview, active protocols, and recent alerts.
  *
- * Currently uses inline sample data; will be wired to tRPC later.
+ * Uses tRPC hooks from @/hooks/useHealthData for live data with
+ * automatic fallback to sample data when the API is unreachable.
+ * Schedule and protocol data still use static sample data until
+ * those endpoints are available.
  */
 
 import React, { useState, useCallback } from "react";
-import { View, Text, ScrollView, StyleSheet, Platform, RefreshControl } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Platform, RefreshControl, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
@@ -29,6 +32,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { SAMPLE_DATA } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import {
   HealthScoreRing,
@@ -40,208 +44,18 @@ import {
   SectionHeader,
 } from "@/components/dashboard";
 import { SummitGlyph } from "@/components/brand";
+import {
+  useHealthScore,
+  useDashboardOverview,
+  useAlerts,
+} from "@/hooks/useHealthData";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample Data — will be replaced with tRPC queries
+// Static data — schedule & protocols (no tRPC hooks yet)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const HEALTH_SCORE = 82;
-
-const KPI_DATA = {
-  sleep: {
-    hours: 7.4,
-    quality: 88,
-    sparkData: [6.8, 7.1, 7.5, 6.9, 7.2, 7.8, 7.4],
-  },
-  heartRate: {
-    bpm: 62,
-    resting: 58,
-    sparkData: [64, 61, 63, 60, 62, 59, 62],
-  },
-  steps: {
-    count: 8742,
-    goal: 10000,
-    sparkData: [6200, 9100, 7800, 10200, 8400, 11300, 8742],
-  },
-  weight: {
-    lbs: 178.4,
-    trend: "down" as const,
-    trendValue: "-1.2 lbs",
-    sparkData: [181.2, 180.5, 180.1, 179.6, 179.2, 178.8, 178.4],
-  },
-};
-
-const SCHEDULE_DATA = [
-  {
-    id: "1",
-    time: "9:00 AM",
-    title: "Blood Panel Review",
-    type: "lab_review" as const,
-    trainerName: "Dr. Chen",
-    duration: "30 min",
-  },
-  {
-    id: "2",
-    time: "11:30 AM",
-    title: "Strength Training",
-    type: "workout" as const,
-    trainerName: "Coach Marcus",
-    duration: "60 min",
-  },
-  {
-    id: "3",
-    time: "2:00 PM",
-    title: "Nutrition Consultation",
-    type: "nutrition" as const,
-    trainerName: "Sarah Miller, RD",
-    duration: "45 min",
-  },
-  {
-    id: "4",
-    time: "5:30 PM",
-    title: "Weekly Check-in",
-    type: "check_in" as const,
-    trainerName: "Dr. Chen",
-    duration: "15 min",
-  },
-];
-
-const BIOMETRICS_DATA = {
-  bloodPressure: {
-    value: "118/76",
-    unit: "mmHg",
-    status: "normal" as const,
-    sparkData: [122, 120, 119, 121, 118, 117, 118],
-    sparkColor: "#C65D5D",
-    iconBg: "rgba(198, 93, 93, 0.12)",
-  },
-  glucose: {
-    value: 92,
-    unit: "mg/dL",
-    status: "optimal" as const,
-    sparkData: [98, 95, 91, 94, 89, 93, 92],
-    sparkColor: "#F59E0B",
-    iconBg: "rgba(245, 158, 11, 0.12)",
-  },
-  sleepScore: {
-    value: 88,
-    unit: "/100",
-    status: "optimal" as const,
-    sparkData: [82, 85, 79, 88, 84, 91, 88],
-    sparkColor: "#60A5FA",
-    iconBg: "rgba(96, 165, 250, 0.12)",
-  },
-  hrv: {
-    value: 48,
-    unit: "ms",
-    status: "normal" as const,
-    sparkData: [42, 45, 44, 47, 43, 49, 48],
-    sparkColor: "#A78BFA",
-    iconBg: "rgba(167, 139, 250, 0.12)",
-  },
-  bodyWeight: {
-    value: 178.4,
-    unit: "lbs",
-    status: "normal" as const,
-    sparkData: [181.2, 180.5, 180.1, 179.6, 179.2, 178.8, 178.4],
-    sparkColor: Colors.gold,
-    iconBg: "rgba(74, 144, 217, 0.12)",
-  },
-  dailySteps: {
-    value: "8,742",
-    unit: "steps",
-    status: "normal" as const,
-    sparkData: [6200, 9100, 7800, 10200, 8400, 11300, 8742],
-    sparkColor: Colors.success,
-    iconBg: "rgba(74, 157, 91, 0.12)",
-  },
-};
-
-const PROTOCOL_DATA = [
-  {
-    id: "p1",
-    title: "Vitamin D3 + K2",
-    dosage: "5,000 IU + 200 mcg",
-    time: "Morning",
-    category: "supplement" as const,
-    completed: true,
-  },
-  {
-    id: "p2",
-    title: "Omega-3 Fish Oil",
-    dosage: "2,000 mg EPA/DHA",
-    time: "Morning",
-    category: "supplement" as const,
-    completed: true,
-  },
-  {
-    id: "p3",
-    title: "Magnesium Glycinate",
-    dosage: "400 mg",
-    time: "Evening",
-    category: "supplement" as const,
-    completed: false,
-  },
-  {
-    id: "p4",
-    title: "Metformin ER",
-    dosage: "500 mg",
-    time: "With dinner",
-    category: "medication" as const,
-    completed: false,
-  },
-  {
-    id: "p5",
-    title: "Zone 2 Cardio",
-    dosage: "45 min, HR 120-135",
-    time: "Afternoon",
-    category: "exercise" as const,
-    completed: false,
-  },
-  {
-    id: "p6",
-    title: "BPC-157",
-    dosage: "250 mcg subQ",
-    time: "Morning",
-    category: "peptide" as const,
-    completed: true,
-  },
-];
-
-const ALERTS_DATA = [
-  {
-    id: "a1",
-    title: "Glucose spike detected",
-    message: "Post-meal glucose reached 162 mg/dL at 1:23 PM yesterday. Consider adjusting carb intake.",
-    timestamp: "2h ago",
-    priority: "action" as const,
-    type: "glucose" as const,
-  },
-  {
-    id: "a2",
-    title: "New lab results available",
-    message: "Your comprehensive metabolic panel results are ready for review.",
-    timestamp: "5h ago",
-    priority: "info" as const,
-    type: "labs" as const,
-  },
-  {
-    id: "a3",
-    title: "Sleep quality declining",
-    message: "Average sleep score dropped 12% over the past week. Review your sleep hygiene routine.",
-    timestamp: "1d ago",
-    priority: "action" as const,
-    type: "sleep" as const,
-  },
-  {
-    id: "a4",
-    title: "Coach message",
-    message: "Great progress on your weight goal this month! Let's discuss next steps.",
-    timestamp: "1d ago",
-    priority: "info" as const,
-    type: "coach" as const,
-  },
-];
+const SCHEDULE_DATA = SAMPLE_DATA.scheduleData;
+const PROTOCOL_DATA = SAMPLE_DATA.dashboardProtocols;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Alert icon helper
@@ -273,13 +87,32 @@ function getAlertIcon(type: string): React.ReactNode {
 
 export default function HomeScreen() {
   const router = useRouter();
+
+  // ── tRPC data hooks ──────────────────────────────────────────
+  const healthScore = useHealthScore();
+  const overview = useDashboardOverview();
+  const alertsHook = useAlerts("active");
+
+  // Derived data from hooks
+  const HEALTH_SCORE = healthScore.healthScore;
+  const healthScoreDetail = healthScore.healthScoreDetail;
+  const KPI_DATA = overview.kpiData;
+  const BIOMETRICS_DATA = overview.biometricsData;
+  const ALERTS_DATA = alertsHook.alerts;
+
+  const isLoading = healthScore.isLoading || overview.isLoading || alertsHook.isLoading;
+
+  // ── Pull-to-refresh ──────────────────────────────────────────
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Simulate data refresh (will be replaced with real tRPC refetch later)
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await Promise.all([
+      healthScore.refetch(),
+      overview.refetch(),
+      alertsHook.refetch(),
+    ]);
     setRefreshing(false);
-  }, []);
+  }, [healthScore.refetch, overview.refetch, alertsHook.refetch]);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -293,6 +126,13 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
+      {/* Subtle top loading bar */}
+      {isLoading && !refreshing && (
+        <View style={styles.loadingBar}>
+          <ActivityIndicator size="small" color={Colors.gold} />
+        </View>
+      )}
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -322,17 +162,17 @@ export default function HomeScreen() {
           <Text style={styles.heroLabel}>Overall Health Score</Text>
           <View style={styles.heroStatsRow}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{KPI_DATA.sleep.quality}</Text>
+              <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[0]?.value ?? KPI_DATA.sleep.quality}</Text>
               <Text style={styles.heroStatLabel}>Sleep</Text>
             </View>
             <View style={styles.heroDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{BIOMETRICS_DATA.glucose.value}</Text>
+              <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[1]?.value ?? BIOMETRICS_DATA.glucose.value}</Text>
               <Text style={styles.heroStatLabel}>Glucose</Text>
             </View>
             <View style={styles.heroDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{BIOMETRICS_DATA.hrv.value}</Text>
+              <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[2]?.value ?? BIOMETRICS_DATA.hrv.value}</Text>
               <Text style={styles.heroStatLabel}>HRV</Text>
             </View>
           </View>
@@ -522,11 +362,11 @@ export default function HomeScreen() {
           <View style={styles.alertsBadge}>
             <Bell size={12} color={Colors.gold} />
             <Text style={styles.alertsBadgeText}>
-              {ALERTS_DATA.length} active
+              {alertsHook.total} active
             </Text>
           </View>
         </View>
-        {ALERTS_DATA.map((alert) => (
+        {ALERTS_DATA.map((alert: any) => (
           <AlertItem
             key={alert.id}
             icon={getAlertIcon(alert.type)}
@@ -555,6 +395,18 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.md,
+  },
+
+  // Loading indicator
+  loadingBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    alignItems: "center",
+    paddingVertical: 4,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
 
   // Header

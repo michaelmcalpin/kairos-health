@@ -5,11 +5,12 @@
  * (supplements, medications, peptides, exercises), weekly adherence chart,
  * and action buttons.
  *
- * Uses inline sample data; will be wired to tRPC later.
+ * Data sourced from useActiveProtocol, useProtocolAdherence, and
+ * useWeeklyAdherence hooks (with sample-data fallback built into the hooks).
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
@@ -28,6 +29,12 @@ import {
   WeeklyAdherenceChart,
 } from "@/components/protocols";
 import type { ItemCategory } from "@/components/protocols";
+import {
+  useActiveProtocol,
+  useProtocolAdherence,
+  useLogAdherence,
+  useWeeklyAdherence,
+} from "@/hooks";
 
 // ================================================================
 // Types
@@ -42,132 +49,6 @@ interface ProtocolItemData {
   timeSlot: "morning" | "afternoon" | "evening" | "bedtime";
   hasNotes?: boolean;
 }
-
-// ================================================================
-// Sample Data
-// ================================================================
-
-const PROTOCOL_ITEMS: ProtocolItemData[] = [
-  // ---- Morning ----
-  {
-    id: "m1",
-    title: "Vitamin D3",
-    dosage: "5,000 IU",
-    category: "supplement",
-    timeSlot: "morning",
-  },
-  {
-    id: "m2",
-    title: "Omega-3 Fish Oil",
-    dosage: "2g",
-    category: "supplement",
-    timeSlot: "morning",
-  },
-  {
-    id: "m3",
-    title: "Metformin",
-    dosage: "500mg",
-    category: "medication",
-    timeSlot: "morning",
-    hasNotes: true,
-  },
-  {
-    id: "m4",
-    title: "BPC-157",
-    dosage: "250mcg",
-    form: "sublingual",
-    category: "peptide",
-    timeSlot: "morning",
-  },
-  {
-    id: "m5",
-    title: "Morning Walk",
-    dosage: "30 min",
-    category: "exercise",
-    timeSlot: "morning",
-  },
-
-  // ---- Afternoon ----
-  {
-    id: "a1",
-    title: "NMN",
-    dosage: "500mg",
-    category: "supplement",
-    timeSlot: "afternoon",
-  },
-  {
-    id: "a2",
-    title: "Magnesium Glycinate",
-    dosage: "400mg",
-    category: "supplement",
-    timeSlot: "afternoon",
-  },
-  {
-    id: "a3",
-    title: "Post-Lunch Walk",
-    dosage: "15 min",
-    category: "exercise",
-    timeSlot: "afternoon",
-  },
-
-  // ---- Evening ----
-  {
-    id: "e1",
-    title: "Strength Training",
-    dosage: "45 min",
-    category: "exercise",
-    timeSlot: "evening",
-  },
-  {
-    id: "e2",
-    title: "Creatine",
-    dosage: "5g",
-    category: "supplement",
-    timeSlot: "evening",
-  },
-  {
-    id: "e3",
-    title: "Zinc",
-    dosage: "30mg",
-    category: "supplement",
-    timeSlot: "evening",
-  },
-
-  // ---- Bedtime ----
-  {
-    id: "b1",
-    title: "Melatonin",
-    dosage: "0.5mg",
-    category: "supplement",
-    timeSlot: "bedtime",
-  },
-  {
-    id: "b2",
-    title: "Glycine",
-    dosage: "3g",
-    category: "supplement",
-    timeSlot: "bedtime",
-  },
-  {
-    id: "b3",
-    title: "Ashwagandha",
-    dosage: "600mg",
-    category: "supplement",
-    timeSlot: "bedtime",
-  },
-];
-
-const INITIAL_COMPLETED = new Set(["m1", "m2", "m4", "m5", "a1", "a2", "a3", "e2", "e3", "e1", "b1", "b2", "b3"]);
-
-const WEEKLY_DATA = [
-  { day: "M", percent: 85, isToday: false },
-  { day: "T", percent: 70, isToday: false },
-  { day: "W", percent: 93, isToday: false },
-  { day: "T", percent: 60, isToday: false },
-  { day: "F", percent: 100, isToday: false },
-  { day: "S", percent: 78, isToday: false },
-  { day: "S", percent: 65, isToday: true },
-];
 
 // ================================================================
 // Time slot configuration
@@ -206,14 +87,52 @@ const TIME_SLOTS = [
 
 export default function ProtocolsScreen() {
   const router = useRouter();
-  const [completedIds, setCompletedIds] = useState<Set<string>>(INITIAL_COMPLETED);
+
+  // ---- Hook data ----
+  const {
+    items: protocolItems,
+    isLoading: protocolLoading,
+    refetch: refetchProtocol,
+  } = useActiveProtocol();
+
+  const {
+    completedIds: hookCompletedIds,
+    isLoading: adherenceLoading,
+    refetch: refetchAdherence,
+  } = useProtocolAdherence();
+
+  const { logItem } = useLogAdherence();
+
+  const {
+    weeklyData: hookWeeklyData,
+    isLoading: weeklyLoading,
+    refetch: refetchWeekly,
+  } = useWeeklyAdherence();
+
+  // Local optimistic state layered on top of the hook data
+  const [localOverrides, setLocalOverrides] = useState<Record<string, boolean>>({});
+
+  const completedIds = useMemo(() => {
+    const base = new Set(hookCompletedIds);
+    for (const [id, completed] of Object.entries(localOverrides)) {
+      if (completed) {
+        base.add(id);
+      } else {
+        base.delete(id);
+      }
+    }
+    return base;
+  }, [hookCompletedIds, localOverrides]);
+
+  const isLoading = protocolLoading || adherenceLoading;
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Simulate data refresh (will be replaced with real tRPC refetch later)
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await Promise.all([refetchProtocol(), refetchAdherence(), refetchWeekly()]);
+    setLocalOverrides({});
     setRefreshing(false);
-  }, []);
+  }, [refetchProtocol, refetchAdherence, refetchWeekly]);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -221,30 +140,36 @@ export default function ProtocolsScreen() {
     day: "numeric",
   });
 
-  const toggleItem = useCallback((id: string) => {
-    setCompletedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
+  const toggleItem = useCallback(
+    (id: string) => {
+      setLocalOverrides((prev) => {
+        const wasDone = hookCompletedIds.has(id)
+          ? prev[id] !== false
+          : !!prev[id];
+        return { ...prev, [id]: !wasDone };
+      });
+      // Fire-and-forget mutation to persist on backend
+      const wasDone = completedIds.has(id);
+      logItem(id, !wasDone);
+    },
+    [hookCompletedIds, completedIds, logItem],
+  );
+
+  // Cast hook items to local ProtocolItemData shape (they already match)
+  const items = protocolItems as ProtocolItemData[];
 
   // Group items by time slot
   const grouped = useMemo(() => {
     const groups: Record<string, ProtocolItemData[]> = {};
-    for (const item of PROTOCOL_ITEMS) {
+    for (const item of items) {
       if (!groups[item.timeSlot]) groups[item.timeSlot] = [];
       groups[item.timeSlot].push(item);
     }
     return groups;
-  }, []);
+  }, [items]);
 
-  const totalItems = PROTOCOL_ITEMS.length;
-  const completedCount = PROTOCOL_ITEMS.filter((i) =>
+  const totalItems = items.length;
+  const completedCount = items.filter((i) =>
     completedIds.has(i.id)
   ).length;
 
@@ -252,23 +177,23 @@ export default function ProtocolsScreen() {
   const sectionCounts = useMemo(() => {
     const counts: Record<string, { completed: number; total: number }> = {};
     for (const slot of TIME_SLOTS) {
-      const items = grouped[slot.key] ?? [];
+      const slotItems = grouped[slot.key] ?? [];
       counts[slot.key] = {
-        total: items.length,
-        completed: items.filter((i) => completedIds.has(i.id)).length,
+        total: slotItems.length,
+        completed: slotItems.filter((i) => completedIds.has(i.id)).length,
       };
     }
     return counts;
   }, [completedIds, grouped]);
 
-  // Update weekly data with today's actual percentage
+  // Merge today's live percentage into the weekly chart data
   const weeklyData = useMemo(() => {
     const todayPercent =
       totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
-    return WEEKLY_DATA.map((d) =>
+    return hookWeeklyData.map((d) =>
       d.isToday ? { ...d, percent: todayPercent } : d
     );
-  }, [completedCount, totalItems]);
+  }, [completedCount, totalItems, hookWeeklyData]);
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -295,6 +220,13 @@ export default function ProtocolsScreen() {
             <Text style={styles.activeBadgeText}>Active</Text>
           </View>
         </View>
+
+        {/* ---- Loading indicator ---- */}
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+          </View>
+        )}
 
         {/* ---- Progress Ring Hero ---- */}
         <Card style={styles.heroCard}>
@@ -405,6 +337,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.md,
+  },
+
+  // Loading
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.lg,
   },
 
   // Header

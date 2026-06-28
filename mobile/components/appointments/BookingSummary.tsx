@@ -36,7 +36,7 @@ function SummaryRow({
   value,
   valueColor,
 }: {
-  icon: React.ComponentType<{ size: number; color: string }>;
+  icon: React.ComponentType<any>;
   label: string;
   value: string;
   valueColor?: string;

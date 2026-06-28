@@ -170,10 +170,10 @@ export function useSparklines() {
 
   const sparklines = query.data
     ? {
-        sleep: query.data.sleep.map((s) => s.hours ?? 0),
-        sleepScores: query.data.sleep.map((s) => s.score ?? 0),
-        glucose: query.data.glucose.map((g) => g.avg),
-        bpSystolic: query.data.bp.map((b) => b.sys),
+        sleep: query.data.sleep.map((s: any) => s.hours ?? 0),
+        sleepScores: query.data.sleep.map((s: any) => s.score ?? 0),
+        glucose: query.data.glucose.map((g: any) => g.avg),
+        bpSystolic: query.data.bp.map((b: any) => b.sys),
       }
     : null;
 

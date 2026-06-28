@@ -12,16 +12,23 @@ import { QueryClient } from "@tanstack/react-query";
 import { API_URL } from "./constants";
 
 // ---- Type import from the backend ---------------------------------
-// The shared AppRouter type lives in the web project.  When the monorepo
-// is properly set up this will be a direct import; until then we use
-// `any` as a placeholder so the rest of the wiring compiles.
+// The shared AppRouter type lives in the web project.  In a monorepo
+// this would be a direct import.  We cast the return value so that
+// procedure paths compile loosely; runtime still works because tRPC
+// resolves paths by name on the server.
 //
-//   import type { AppRouter } from "../../src/server/api/root";
+//   import type { AppRouter } from "../../src/server/trpc/routers/_app";
 //
-type AppRouter = any;
 
-/** The typed tRPC-React hooks instance. */
-export const trpc = createTRPCReact<AppRouter>();
+/** The typed tRPC-React hooks instance.
+ *
+ * We cast to `any` AFTER creation so that `trpc.clientPortal.*` paths
+ * don't trigger TS errors.  `createTRPCReact<any>()` itself produces
+ * collision-error string types in tRPC v11, so we create with a dummy
+ * generic and immediately cast.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const trpc: any = createTRPCReact<any>();
 
 /** ------------------------------------------------------------------ */
 /** Query client                                                       */

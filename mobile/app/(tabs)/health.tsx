@@ -5,11 +5,19 @@
  * summary, biometric categories grid, recent readings timeline, and an
  * AI-generated insight card.
  *
- * Currently uses inline sample data; will be wired to tRPC later.
+ * Uses tRPC hooks (useBiometricCategories, useHealthScore) for live data with
+ * automatic sample-data fallback when the API is unreachable.
  */
 
 import React, { useState, useCallback } from "react";
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  RefreshControl,
+  ActivityIndicator,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -34,121 +42,27 @@ import {
   InsightsCard,
 } from "@/components/health";
 import type { DateRange } from "@/components/health";
+import { useBiometricCategories, useHealthScore } from "@/hooks/useHealthData";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample Data
+// Icon map — categories from the hook carry no JSX; we resolve
+// the icon here so the data layer stays serialisable.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const HEALTH_SCORE = {
-  overall: 82,
-  trend: "up" as const,
-  trendDelta: 3,
-  trendLabel: "Up 3 points from last week",
-  subScores: [
-    { label: "Cardio", value: 85 },
-    { label: "Metabolic", value: 78 },
-    { label: "Recovery", value: 84 },
-  ],
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  sleep: <Moon size={14} color="#60A5FA" />,
+  heartRate: <Heart size={14} color={Colors.danger} />,
+  bloodPressure: <Activity size={14} color={Colors.danger} />,
+  glucose: <Droplets size={14} color="#F59E0B" />,
+  hrv: <Brain size={14} color="#A78BFA" />,
+  weight: <Scale size={14} color={Colors.gold} />,
+  steps: <Footprints size={14} color={Colors.success} />,
+  temperature: <Thermometer size={14} color="#FB923C" />,
 };
 
-const BIOMETRIC_CATEGORIES = [
-  {
-    id: "sleep",
-    label: "Sleep",
-    value: "7.4",
-    unit: "hrs",
-    status: "optimal" as const,
-    lastUpdated: "2h ago",
-    sparkData: [6.8, 7.1, 7.5, 6.9, 7.2, 7.8, 7.4],
-    sparkColor: "#60A5FA",
-    iconBgColor: "rgba(96, 165, 250, 0.12)",
-    icon: <Moon size={14} color="#60A5FA" />,
-  },
-  {
-    id: "heartRate",
-    label: "Heart Rate",
-    value: "62",
-    unit: "bpm",
-    status: "optimal" as const,
-    lastUpdated: "5m ago",
-    sparkData: [64, 61, 63, 60, 62, 59, 62],
-    sparkColor: Colors.danger,
-    iconBgColor: "rgba(198, 93, 93, 0.12)",
-    icon: <Heart size={14} color={Colors.danger} />,
-  },
-  {
-    id: "bloodPressure",
-    label: "Blood Pressure",
-    value: "118/76",
-    unit: "mmHg",
-    status: "normal" as const,
-    lastUpdated: "1h ago",
-    sparkData: [122, 120, 119, 121, 118, 117, 118],
-    sparkColor: Colors.danger,
-    iconBgColor: "rgba(198, 93, 93, 0.12)",
-    icon: <Activity size={14} color={Colors.danger} />,
-  },
-  {
-    id: "glucose",
-    label: "Blood Glucose",
-    value: "92",
-    unit: "mg/dL",
-    status: "normal" as const,
-    lastUpdated: "3h ago",
-    sparkData: [98, 95, 91, 94, 89, 93, 92],
-    sparkColor: "#F59E0B",
-    iconBgColor: "rgba(245, 158, 11, 0.12)",
-    icon: <Droplets size={14} color="#F59E0B" />,
-  },
-  {
-    id: "hrv",
-    label: "HRV",
-    value: "48",
-    unit: "ms",
-    status: "normal" as const,
-    lastUpdated: "5m ago",
-    sparkData: [42, 45, 44, 47, 43, 49, 48],
-    sparkColor: "#A78BFA",
-    iconBgColor: "rgba(167, 139, 250, 0.12)",
-    icon: <Brain size={14} color="#A78BFA" />,
-  },
-  {
-    id: "weight",
-    label: "Body Weight",
-    value: "178.4",
-    unit: "lbs",
-    status: "normal" as const,
-    lastUpdated: "6h ago",
-    sparkData: [181.2, 180.5, 180.1, 179.6, 179.2, 178.8, 178.4],
-    sparkColor: Colors.gold,
-    iconBgColor: "rgba(74, 144, 217, 0.12)",
-    icon: <Scale size={14} color={Colors.gold} />,
-  },
-  {
-    id: "steps",
-    label: "Steps",
-    value: "8,742",
-    unit: "steps",
-    status: "normal" as const,
-    lastUpdated: "Live",
-    sparkData: [6200, 9100, 7800, 10200, 8400, 11300, 8742],
-    sparkColor: Colors.success,
-    iconBgColor: "rgba(74, 157, 91, 0.12)",
-    icon: <Footprints size={14} color={Colors.success} />,
-  },
-  {
-    id: "temperature",
-    label: "Body Temp",
-    value: "98.2",
-    unit: "°F",
-    status: "normal" as const,
-    lastUpdated: "4h ago",
-    sparkData: [98.4, 98.1, 98.3, 98.0, 98.2, 98.1, 98.2],
-    sparkColor: "#FB923C",
-    iconBgColor: "rgba(251, 146, 60, 0.12)",
-    icon: <Thermometer size={14} color="#FB923C" />,
-  },
-];
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Recent readings — still inline (no dedicated tRPC endpoint yet)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 interface RecentReading {
   id: string;
@@ -251,13 +165,29 @@ const AI_INSIGHT =
 export default function HealthScreen() {
   const router = useRouter();
   const [dateRange, setDateRange] = useState<DateRange>("week");
+
+  // ── tRPC data hooks ─────────────────────────────────────────
+  const {
+    categories,
+    isLoading: categoriesLoading,
+    refetch: refetchCategories,
+  } = useBiometricCategories();
+
+  const {
+    healthScoreDetail,
+    isLoading: scoreLoading,
+    refetch: refetchScore,
+  } = useHealthScore();
+
+  const isLoading = categoriesLoading || scoreLoading;
+
+  // ── Pull-to-refresh ─────────────────────────────────────────
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Simulate data refresh (will be replaced with real tRPC refetch later)
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await Promise.all([refetchCategories(), refetchScore()]);
     setRefreshing(false);
-  }, []);
+  }, [refetchCategories, refetchScore]);
 
   const biometricRoutes: Record<string, string> = {
     sleep: "/health/sleep",
@@ -269,6 +199,18 @@ export default function HealthScreen() {
     steps: "/health/goals",
     temperature: "/health/body",
   };
+
+  // ── Initial loading state ───────────────────────────────────
+  if (isLoading && categories.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+          <Text style={styles.loadingText}>Loading health data...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -295,22 +237,22 @@ export default function HealthScreen() {
 
         {/* ─── 2. Health Score Summary ─────────────────────── */}
         <HealthScoreSummary
-          score={HEALTH_SCORE.overall}
-          trend={HEALTH_SCORE.trend}
-          trendDelta={HEALTH_SCORE.trendDelta}
-          trendLabel={HEALTH_SCORE.trendLabel}
-          subScores={HEALTH_SCORE.subScores}
+          score={healthScoreDetail.overall}
+          trend={healthScoreDetail.trend}
+          trendDelta={healthScoreDetail.trendDelta}
+          trendLabel={healthScoreDetail.trendLabel}
+          subScores={healthScoreDetail.subScores}
         />
 
         {/* ─── 3. Biometric Categories Grid ────────────────── */}
         <SectionHeader title="Biometrics" />
         <View style={styles.biometricsGrid}>
-          {chunkPairs(BIOMETRIC_CATEGORIES).map((pair, rowIdx) => (
+          {chunkPairs(categories).map((pair, rowIdx) => (
             <View key={rowIdx} style={styles.biometricsRow}>
               {pair.map((item) => (
                 <BiometricCard
                   key={item.id}
-                  icon={item.icon}
+                  icon={CATEGORY_ICONS[item.id]}
                   label={item.label}
                   value={item.value}
                   unit={item.unit}
@@ -327,7 +269,7 @@ export default function HealthScreen() {
 
         {/* ─── Last Updated Timestamps ─────────────────────── */}
         <View style={styles.timestampsCard}>
-          {BIOMETRIC_CATEGORIES.map((item) => (
+          {categories.map((item) => (
             <View key={item.id} style={styles.timestampRow}>
               <Text style={styles.timestampLabel}>{item.label}</Text>
               <Text style={styles.timestampValue}>{item.lastUpdated}</Text>
@@ -476,6 +418,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
     marginLeft: 44,
     marginBottom: Spacing.sm,
+  },
+
+  // Loading state
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
+    marginTop: Spacing.md,
   },
 
   // Bottom spacer

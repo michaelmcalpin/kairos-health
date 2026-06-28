@@ -2,7 +2,7 @@
  * Workout History — calendar view of past workouts with stats and detail.
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   StyleSheet,
   SafeAreaView,
   Pressable,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Stack } from "expo-router";
 import {
@@ -22,6 +24,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
@@ -222,6 +225,40 @@ function generateSampleWorkouts(): WorkoutLog[] {
 const SAMPLE_WORKOUTS = generateSampleWorkouts();
 
 /* ------------------------------------------------------------------ */
+/* API -> WorkoutLog mapper                                            */
+/* ------------------------------------------------------------------ */
+
+function mapApiWorkout(raw: any): WorkoutLog {
+  const exercises = (raw.exercises ?? []).map((ex: any) => ({
+    name: ex.name ?? "",
+    sets: (ex.sets ?? []).map((s: any) => ({
+      weight: s.weight ?? 0,
+      reps: s.reps ?? 0,
+      rpe: s.rpe ?? null,
+    })),
+  }));
+  const totalVolume = exercises.reduce(
+    (vol: number, ex: any) =>
+      vol + ex.sets.reduce((s: number, set: any) => s + set.weight * set.reps, 0),
+    0
+  );
+  const setsCompleted = exercises.reduce(
+    (n: number, ex: any) => n + ex.sets.length,
+    0
+  );
+  return {
+    id: raw.id,
+    name: raw.name ?? raw.title ?? "Workout",
+    date: raw.date ?? (raw.createdAt ? raw.createdAt.split("T")[0] : ""),
+    durationMinutes: raw.durationMinutes ?? raw.duration ?? 0,
+    totalVolume: raw.totalVolume ?? totalVolume,
+    exerciseCount: exercises.length,
+    setsCompleted: raw.setsCompleted ?? setsCompleted,
+    exercises,
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* Calendar helpers                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -258,18 +295,34 @@ function formatMonthYear(year: number, month: number) {
 /* ------------------------------------------------------------------ */
 
 export default function WorkoutHistoryScreen() {
+  const query = trpc.clientPortal.fitness.listWorkouts.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  const workouts: WorkoutLog[] = query.data
+    ? (query.data as any[]).map(mapApiWorkout)
+    : SAMPLE_WORKOUTS;
+
   const [calendarYear, setCalendarYear] = useState(2026);
   const [calendarMonth, setCalendarMonth] = useState(5); // June (0-indexed)
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutLog | null>(
     null
   );
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await query.refetch();
+    setRefreshing(false);
+  }, [query]);
+
   /* Build a set of dates that have workouts */
   const workoutDates = useMemo(() => {
     const dates = new Set<string>();
-    SAMPLE_WORKOUTS.forEach((w) => dates.add(w.date));
+    workouts.forEach((w) => dates.add(w.date));
     return dates;
-  }, []);
+  }, [workouts]);
 
   /* Stats */
   const today = new Date(2026, 5, 16);
@@ -278,17 +331,17 @@ export default function WorkoutHistoryScreen() {
   const oneMonthAgo = new Date(today);
   oneMonthAgo.setDate(today.getDate() - 30);
 
-  const workoutsThisWeek = SAMPLE_WORKOUTS.filter(
+  const workoutsThisWeek = workouts.filter(
     (w) => new Date(w.date) >= oneWeekAgo
   ).length;
-  const workoutsThisMonth = SAMPLE_WORKOUTS.filter(
+  const workoutsThisMonth = workouts.filter(
     (w) => new Date(w.date) >= oneMonthAgo
   ).length;
 
   // Calculate streak
   const computeStreak = () => {
     let streak = 0;
-    const sorted = [...SAMPLE_WORKOUTS].sort(
+    const sorted = [...workouts].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
     if (sorted.length === 0) return 0;
@@ -354,6 +407,14 @@ export default function WorkoutHistoryScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
+          />
+        }
       >
         {/* Stats summary */}
         <View style={styles.statsRow}>
@@ -373,6 +434,12 @@ export default function WorkoutHistoryScreen() {
             <Text style={styles.statLabel}>Streak</Text>
           </View>
         </View>
+
+        {query.isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+          </View>
+        )}
 
         {/* Calendar */}
         <Card style={styles.calendarCard}>
@@ -445,7 +512,7 @@ export default function WorkoutHistoryScreen() {
         {/* Workout list */}
         <Card style={styles.listCard}>
           <Text style={styles.listTitle}>PAST WORKOUTS</Text>
-          {SAMPLE_WORKOUTS.map((workout) => (
+          {workouts.map((workout) => (
             <Pressable
               key={workout.id}
               onPress={() =>
@@ -579,6 +646,12 @@ const styles = StyleSheet.create({
     color: Colors.silver,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+
+  /* Loading */
+  loadingContainer: {
+    paddingVertical: Spacing.xxl,
+    alignItems: "center",
   },
 
   /* Calendar */

@@ -15,8 +15,10 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useHealthAnalysis } from "@/hooks";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Sparkles,
@@ -71,6 +73,15 @@ const DATA_SCOPES = [
   { id: "90d", label: "Last 90 days" },
   { id: "all", label: "All time" },
 ];
+
+const ANALYSIS_TYPE_MAP: Record<string, string> = {
+  full: "overall",
+  cardio: "cardiovascular",
+  metabolic: "glucose",
+  sleep: "sleep",
+  nutrition: "nutrition",
+  fitness: "exercise",
+};
 
 /* ------------------------------------------------------------------ */
 /* Sample results for "Full Analysis / Last 30 days"                   */
@@ -213,6 +224,36 @@ const DATA_SOURCES = [
 ];
 
 /* ------------------------------------------------------------------ */
+/* Mapping helpers: hook data -> UI shapes                             */
+/* ------------------------------------------------------------------ */
+
+function mapSeverityToStatus(severity: string): { status: string; statusVariant: StatusVariant } {
+  switch (severity) {
+    case "positive": return { status: "Optimal", statusVariant: "success" };
+    case "attention": return { status: "Watch", statusVariant: "warning" };
+    case "warning": return { status: "Alert", statusVariant: "danger" };
+    default: return { status: "Stable", statusVariant: "info" };
+  }
+}
+
+function mapInsightIcon(severity: string): React.ReactNode {
+  switch (severity) {
+    case "positive": return <TrendingUp size={18} color={Colors.gold} />;
+    case "attention": return <Droplets size={18} color={Colors.gold} />;
+    case "warning": return <Flame size={18} color={Colors.gold} />;
+    default: return <Activity size={18} color={Colors.gold} />;
+  }
+}
+
+function mapPriorityToUrgency(priority: string): { urgency: string; urgencyVariant: StatusVariant } {
+  switch (priority) {
+    case "high": return { urgency: "Recommended", urgencyVariant: "info" };
+    case "low": return { urgency: "Maintain", urgencyVariant: "success" };
+    default: return { urgency: "Discuss", urgencyVariant: "warning" };
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -226,14 +267,56 @@ export default function AnalyzeScreen() {
   const [followUpVisible, setFollowUpVisible] = useState(false);
   const [followUpText, setFollowUpText] = useState("");
 
+  /* ---- tRPC hook ---- */
+  const hookType = (ANALYSIS_TYPE_MAP[selectedType] ?? "overall") as any;
+  const hookRange = selectedScope as any;
+  const { analysis, isLoading: analysisLoading, refetch } = useHealthAnalysis(hookType, hookRange);
+
+  /* ---- Derive UI data from hook or fall back to sample data ---- */
+  const findings: Finding[] = analysis?.insights
+    ? analysis.insights.map((ins) => {
+        const { status, statusVariant } = mapSeverityToStatus(ins.severity);
+        return {
+          id: ins.id,
+          icon: mapInsightIcon(ins.severity),
+          title: ins.title,
+          status,
+          statusVariant,
+          explanation: ins.description,
+        };
+      })
+    : SAMPLE_FINDINGS;
+
+  const recommendations: Recommendation[] = analysis?.recommendations
+    ? analysis.recommendations.map((rec) => {
+        const { urgency, urgencyVariant } = mapPriorityToUrgency(rec.priority);
+        return {
+          id: rec.id,
+          title: rec.title,
+          description: rec.description,
+          urgency,
+          urgencyVariant,
+        };
+      })
+    : SAMPLE_RECOMMENDATIONS;
+
+  const risks = SAMPLE_RISKS; // No direct mapping from hook data
+
+  const overallScore = analysis?.score ?? 82;
+  const scoreTrend = analysis?.scoreChange ?? 3;
+  const summaryText = analysis?.summary ??
+    "Your overall health trajectory is positive. Cardiovascular markers are responding well to treatment, sleep quality is excellent, and body composition continues to improve. Primary area of focus: managing post-prandial glucose variability.";
+
   const handleAnalyze = useCallback(() => {
     setIsAnalyzing(true);
-    // Simulate analysis delay
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      setHasAnalyzed(true);
-    }, 1500);
-  }, []);
+    refetch().finally(() => {
+      // Small delay for UX feel, then show results
+      setTimeout(() => {
+        setIsAnalyzing(false);
+        setHasAnalyzed(true);
+      }, 500);
+    });
+  }, [refetch]);
 
   const handleAskQuestion = useCallback(() => {
     if (followUpText.trim()) {
@@ -324,6 +407,13 @@ export default function AnalyzeScreen() {
             style={styles.analyzeBtn}
           />
 
+          {/* ---- Loading indicator ---- */}
+          {analysisLoading && !hasAnalyzed && (
+            <View style={{ paddingVertical: 24, alignItems: "center" }}>
+              <ActivityIndicator size="large" color={Colors.gold} />
+            </View>
+          )}
+
           {/* ---- Results ---- */}
           {hasAnalyzed && (
             <View style={styles.results}>
@@ -335,12 +425,9 @@ export default function AnalyzeScreen() {
                     Overall Assessment
                   </Text>
                 </View>
-                <ScoreGauge score={82} trend={3} label="Health Score" />
+                <ScoreGauge score={overallScore} trend={scoreTrend} label="Health Score" />
                 <Text style={styles.assessmentSummary}>
-                  Your overall health trajectory is positive. Cardiovascular
-                  markers are responding well to treatment, sleep quality is
-                  excellent, and body composition continues to improve. Primary
-                  area of focus: managing post-prandial glucose variability.
+                  {summaryText}
                 </Text>
               </Card>
 
@@ -350,7 +437,7 @@ export default function AnalyzeScreen() {
                   <Zap size={18} color={Colors.gold} />
                   <Text style={styles.sectionTitle}>Key Findings</Text>
                 </View>
-                {SAMPLE_FINDINGS.map((finding) => (
+                {findings.map((finding) => (
                   <FindingCard
                     key={finding.id}
                     icon={finding.icon}
@@ -368,7 +455,7 @@ export default function AnalyzeScreen() {
                   <Shield size={18} color={Colors.gold} />
                   <Text style={styles.sectionTitle}>Risk Factors</Text>
                 </View>
-                {SAMPLE_RISKS.map((risk) => (
+                {risks.map((risk) => (
                   <RiskBar
                     key={risk.id}
                     label={risk.label}
@@ -384,7 +471,7 @@ export default function AnalyzeScreen() {
                   <Sparkles size={18} color={Colors.gold} />
                   <Text style={styles.sectionTitle}>Recommendations</Text>
                 </View>
-                {SAMPLE_RECOMMENDATIONS.map((rec, idx) => (
+                {recommendations.map((rec, idx) => (
                   <RecommendationItem
                     key={rec.id}
                     number={idx + 1}

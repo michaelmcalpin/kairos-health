@@ -1,5 +1,8 @@
 /**
  * Lab Results screen — most recent panel, key markers with status, and historical trends.
+ *
+ * tRPC paths used (under `clientPortal`):
+ *   - labs.listBiomarkers  -> latest biomarker values across all markers
  */
 
 import React, { useState } from "react";
@@ -10,6 +13,7 @@ import {
   StyleSheet,
   SafeAreaView,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -18,12 +22,13 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { StatusVariant } from "@/lib/types";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Sample data (fallback when API is unreachable)                      */
 /* ------------------------------------------------------------------ */
 
-const PANEL = {
+const SAMPLE_PANEL = {
   name: "Comprehensive Metabolic Panel",
   date: "May 28, 2026",
   lab: "Quest Diagnostics",
@@ -46,7 +51,7 @@ const statusToVariant: Record<LabMarker["status"], StatusVariant> = {
   critical: "danger",
 };
 
-const MARKERS: LabMarker[] = [
+const SAMPLE_MARKERS: LabMarker[] = [
   {
     name: "LDL-P",
     value: "980",
@@ -203,6 +208,55 @@ const trendStyles = StyleSheet.create({
 
 export default function LabsScreen() {
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
+
+  // ── tRPC query ──────────────────────────────────────────────────
+  const query = trpc.clientPortal.labs.listBiomarkers.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  // Backend returns: Array<{ code, name, category, value, unit, refLow, refHigh, status, lastMeasured }>
+  const biomarkers = (query.data ?? []) as any[];
+
+  // Build panel info from the most recent measurement date
+  const latestDate = biomarkers.length > 0
+    ? biomarkers.reduce((latest: any, b: any) => {
+        const d = b.lastMeasured ? new Date(b.lastMeasured) : null;
+        return d && (!latest || d > latest) ? d : latest;
+      }, null as Date | null)
+    : null;
+
+  const PANEL = latestDate
+    ? {
+        name: SAMPLE_PANEL.name,
+        date: latestDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        lab: SAMPLE_PANEL.lab,
+        orderedBy: SAMPLE_PANEL.orderedBy,
+      }
+    : SAMPLE_PANEL;
+
+  const mapStatus = (s?: string): LabMarker["status"] => {
+    if (s === "optimal" || s === "normal" || s === "borderline" || s === "critical") return s;
+    if (s === "high" || s === "low") return "borderline";
+    return "normal";
+  };
+
+  const MARKERS: LabMarker[] = biomarkers.length > 0
+    ? biomarkers.map((b: any) => ({
+        name: b.name ?? b.code ?? "",
+        value: String(b.value ?? ""),
+        unit: b.unit ?? "",
+        range: b.refLow != null && b.refHigh != null
+          ? `${b.refLow}-${b.refHigh}`
+          : b.refHigh != null
+            ? `< ${b.refHigh}`
+            : b.refLow != null
+              ? `> ${b.refLow}`
+              : "",
+        status: mapStatus(b.status),
+        history: [], // history requires a separate getBiomarkerHistory call per code
+      }))
+    : SAMPLE_MARKERS;
 
   return (
     <SafeAreaView style={styles.safe}>

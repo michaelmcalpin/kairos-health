@@ -1,6 +1,9 @@
 /**
  * Gut Biome Results screen — overall health score, diversity index,
  * bacterial phyla breakdown, key findings, and dietary recommendations.
+ *
+ * tRPC paths used (under `clientPortal`):
+ *   - clinicalDocs.list({ docType: "gut_biome" })  -> list of gut biome docs with parsedData
  */
 
 import React from "react";
@@ -10,6 +13,7 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  ActivityIndicator,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -18,19 +22,20 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { StatusVariant } from "@/lib/types";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Sample data (fallback when API is unreachable)                      */
 /* ------------------------------------------------------------------ */
 
-const GUT_SCORE = {
+const SAMPLE_GUT_SCORE = {
   overall: 78,
   maxScore: 100,
   testDate: "Apr 22, 2026",
   provider: "Viome",
 };
 
-const DIVERSITY = {
+const SAMPLE_DIVERSITY = {
   shannonIndex: 3.2,
   rating: "Good" as const,
 };
@@ -41,7 +46,7 @@ interface PhylumData {
   color: string;
 }
 
-const PHYLA: PhylumData[] = [
+const SAMPLE_PHYLA: PhylumData[] = [
   { name: "Firmicutes", percentage: 52, color: Colors.info },
   { name: "Bacteroidetes", percentage: 38, color: Colors.success },
   { name: "Proteobacteria", percentage: 6, color: Colors.warning },
@@ -55,7 +60,7 @@ interface KeyFinding {
   note: string;
 }
 
-const KEY_FINDINGS: KeyFinding[] = [
+const SAMPLE_KEY_FINDINGS: KeyFinding[] = [
   {
     organism: "Akkermansia",
     status: "Optimal",
@@ -87,7 +92,7 @@ interface Recommendation {
   items: string[];
 }
 
-const RECOMMENDATIONS: Recommendation[] = [
+const SAMPLE_RECOMMENDATIONS: Recommendation[] = [
   {
     category: "Increase",
     items: [
@@ -119,7 +124,7 @@ const RECOMMENDATIONS: Recommendation[] = [
 
 function ScoreRing({ score, maxScore }: { score: number; maxScore: number }) {
   const percentage = (score / maxScore) * 100;
-  let ringColor = Colors.success;
+  let ringColor: string = Colors.success;
   if (percentage < 50) ringColor = Colors.danger;
   else if (percentage < 70) ringColor = Colors.warning;
 
@@ -185,6 +190,79 @@ const scoreStyles = StyleSheet.create({
 /* ------------------------------------------------------------------ */
 
 export default function GutBiomeScreen() {
+  // ── tRPC query ──────────────────────────────────────────────────
+  const query = trpc.clientPortal.clinicalDocs.list.useQuery(
+    { docType: "gut_biome" },
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  // Backend returns an array of clinical documents with parsedData JSON blobs.
+  // Extract the latest document's parsedData for display, falling back to sample data.
+  const docs = (query.data ?? []) as any[];
+  const latest = docs[0]; // already sorted by createdAt DESC
+  const parsed = latest?.parsedData as Record<string, any> | null | undefined;
+
+  const GUT_SCORE = parsed?.score
+    ? {
+        overall: parsed.score.overall ?? SAMPLE_GUT_SCORE.overall,
+        maxScore: parsed.score.maxScore ?? SAMPLE_GUT_SCORE.maxScore,
+        testDate: parsed.score.testDate ?? SAMPLE_GUT_SCORE.testDate,
+        provider: parsed.score.provider ?? SAMPLE_GUT_SCORE.provider,
+      }
+    : latest
+      ? {
+          ...SAMPLE_GUT_SCORE,
+          testDate: latest.reportDate
+            ? new Date(latest.reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+            : SAMPLE_GUT_SCORE.testDate,
+          provider: latest.providerName ?? SAMPLE_GUT_SCORE.provider,
+        }
+      : SAMPLE_GUT_SCORE;
+
+  const DIVERSITY = parsed?.diversity
+    ? {
+        shannonIndex: parsed.diversity.shannonIndex ?? SAMPLE_DIVERSITY.shannonIndex,
+        rating: (parsed.diversity.rating ?? SAMPLE_DIVERSITY.rating) as "Good",
+      }
+    : SAMPLE_DIVERSITY;
+
+  const phylaColorMap: Record<string, string> = {
+    Firmicutes: Colors.info,
+    Bacteroidetes: Colors.success,
+    Proteobacteria: Colors.warning,
+  };
+
+  const PHYLA: PhylumData[] = parsed?.phyla
+    ? (parsed.phyla as any[]).map((p: any) => ({
+        name: p.name ?? "",
+        percentage: p.percentage ?? 0,
+        color: phylaColorMap[p.name] ?? Colors.silver,
+      }))
+    : SAMPLE_PHYLA;
+
+  const variantMap: Record<string, StatusVariant> = {
+    optimal: "success",
+    low: "warning",
+    normal: "info",
+    high: "danger",
+  };
+
+  const KEY_FINDINGS: KeyFinding[] = parsed?.findings
+    ? (parsed.findings as any[]).map((f: any) => ({
+        organism: f.organism ?? "",
+        status: f.status ?? "",
+        variant: (variantMap[(f.status ?? "").toLowerCase()] ?? "info") as StatusVariant,
+        note: f.note ?? "",
+      }))
+    : SAMPLE_KEY_FINDINGS;
+
+  const RECOMMENDATIONS: Recommendation[] = parsed?.recommendations
+    ? (parsed.recommendations as any[]).map((r: any) => ({
+        category: r.category ?? "",
+        items: r.items ?? [],
+      }))
+    : SAMPLE_RECOMMENDATIONS;
+
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ title: "Gut Biome" }} />

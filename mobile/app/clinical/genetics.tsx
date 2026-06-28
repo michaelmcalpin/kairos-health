@@ -1,5 +1,8 @@
 /**
  * Genetics screen — genetic profile summary, key findings, and risk factors.
+ *
+ * tRPC paths used (under `clientPortal`):
+ *   - genetics.getProfile   -> profile summary + markers (used to build findings + risk factors)
  */
 
 import React from "react";
@@ -9,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  ActivityIndicator,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -17,12 +21,13 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import type { StatusVariant } from "@/lib/types";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Sample data (fallback when API is unreachable)                      */
 /* ------------------------------------------------------------------ */
 
-const PROFILE = {
+const SAMPLE_PROFILE = {
   provider: "Whole Genome Sequencing",
   lab: "Nebula Genomics",
   date: "Feb 14, 2026",
@@ -38,7 +43,7 @@ interface GeneticFinding {
   category: string;
 }
 
-const KEY_FINDINGS: GeneticFinding[] = [
+const SAMPLE_KEY_FINDINGS: GeneticFinding[] = [
   {
     gene: "MTHFR",
     variant: "Heterozygous C677T",
@@ -76,7 +81,7 @@ const riskToVariant: Record<RiskFactor["risk"], StatusVariant> = {
   high: "danger",
 };
 
-const RISK_FACTORS: RiskFactor[] = [
+const SAMPLE_RISK_FACTORS: RiskFactor[] = [
   {
     name: "Type 2 Diabetes",
     risk: "moderate",
@@ -120,6 +125,40 @@ const RISK_FACTORS: RiskFactor[] = [
 /* ------------------------------------------------------------------ */
 
 export default function GeneticsScreen() {
+  // ── tRPC query ──────────────────────────────────────────────────
+  const query = trpc.clientPortal.genetics.getProfile.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  // Map API response → local shapes, falling back to sample data.
+  // Backend returns: { id, uploadType, status, createdAt, markers: [...] } | null
+  const apiData = query.data as any;
+  const PROFILE = apiData
+    ? {
+        provider: apiData.uploadType ?? SAMPLE_PROFILE.provider,
+        lab: SAMPLE_PROFILE.lab,
+        date: apiData.createdAt
+          ? new Date(apiData.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          : SAMPLE_PROFILE.date,
+        variants: apiData.markers?.length ?? SAMPLE_PROFILE.variants,
+        actionable: apiData.markers?.filter((m: any) => m.clinicalPriority === "high").length ?? SAMPLE_PROFILE.actionable,
+      }
+    : SAMPLE_PROFILE;
+
+  const KEY_FINDINGS: GeneticFinding[] = apiData?.markers?.length
+    ? (apiData.markers as any[]).slice(0, 6).map((m: any) => ({
+        gene: m.gene ?? "",
+        variant: m.mutation ?? m.rsId ?? "",
+        interpretation: m.function ?? "",
+        impact: m.supplementProtocol ?? m.dietStrategy ?? m.lifestyleStrategy ?? "",
+        category: m.pathway ?? m.section ?? "",
+      }))
+    : SAMPLE_KEY_FINDINGS;
+
+  // Risk factors are not directly provided by the API — use sample data
+  const RISK_FACTORS: RiskFactor[] = SAMPLE_RISK_FACTORS;
+
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ title: "Genetics" }} />

@@ -1,6 +1,9 @@
 /**
  * Chat tab -- full-featured chat screen with AI Assistant and Coach Chat tabs.
  *
+ * Uses tRPC hooks (clientPortal.chat.getHistory, clientPortal.chat.sendMessage)
+ * for live data with automatic sample-data fallback when the API is unreachable.
+ *
  * Features:
  * - Pill-style tab toggle between AI Assistant and Coach Chat
  * - Message bubbles with avatars and timestamps
@@ -28,6 +31,7 @@ import { useRouter } from "expo-router";
 import { Sparkles, Wifi } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, SAMPLE_DATA, REALTIME_QUERY_OPTIONS } from "@/lib/api";
 import { TabSelector, type ChatTab } from "@/components/chat/TabSelector";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
@@ -35,7 +39,7 @@ import { QuickActionChips } from "@/components/chat/QuickActionChips";
 import { ChatInput } from "@/components/chat/ChatInput";
 
 // ---------------------------------------------------------------------------
-// Sample Data
+// Types & Sample Data Fallback
 // ---------------------------------------------------------------------------
 
 interface ChatMessage {
@@ -46,104 +50,68 @@ interface ChatMessage {
   isRead?: boolean;
 }
 
-const AI_SAMPLE_MESSAGES: ChatMessage[] = [
-  {
-    id: "ai-1",
-    content:
-      "Good morning! I've reviewed your latest health data. Your resting heart rate has improved by 4 BPM over the past month, and your HRV is trending upward. Great progress on the cardiovascular front.",
-    timestamp: "2026-06-13T08:15:00Z",
-    isUser: false,
-  },
-  {
-    id: "ai-2",
-    content:
-      "That's great to hear! How are my recent lab results looking? Anything I should be concerned about?",
-    timestamp: "2026-06-13T08:16:00Z",
-    isUser: true,
-  },
-  {
-    id: "ai-3",
-    content:
-      "Your labs from June 8th look solid overall. A few highlights:\n\n- Vitamin D: 62 ng/mL (optimal range). Your supplementation protocol is working well.\n- hsCRP: 0.4 mg/L (excellent, down from 0.9 in March). Inflammation markers are improving.\n- Fasting glucose: 88 mg/dL (normal).\n- Testosterone: 680 ng/dL (good for your age).\n\nOne thing to watch: your LDL-P is at 1,180 nmol/L, slightly above the optimal threshold of 1,000. I'd recommend discussing apoB testing with your doctor at your next visit.",
-    timestamp: "2026-06-13T08:17:00Z",
-    isUser: false,
-  },
-  {
-    id: "ai-4",
-    content:
-      "Good call on the LDL-P. What about my supplement stack -- am I taking anything that could help with that?",
-    timestamp: "2026-06-13T08:19:00Z",
-    isUser: true,
-  },
-  {
-    id: "ai-5",
-    content:
-      "Your current supplement protocol includes Omega-3 (2g EPA/DHA) which supports healthy lipid levels. You might also consider adding Berberine (500mg with meals) or Citrus Bergamot, both of which have evidence for supporting LDL particle reduction.\n\nHowever, I'd recommend discussing any additions with your healthcare provider first, especially given your current stack of 8 supplements. Let me know if you'd like a full interaction check on your protocol.",
-    timestamp: "2026-06-13T08:20:00Z",
-    isUser: false,
-  },
-];
-
-const COACH_SAMPLE_MESSAGES: ChatMessage[] = [
-  {
-    id: "coach-1",
-    content:
-      "Hey! I reviewed your workout logs from this week. Your volume is progressing nicely on the compound lifts. How's the shoulder feeling after we adjusted your pressing angle?",
-    timestamp: "2026-06-12T14:30:00Z",
-    isUser: false,
-    isRead: true,
-  },
-  {
-    id: "coach-2",
-    content:
-      "Much better actually! No pain during overhead press yesterday. The 15-degree incline adjustment made a big difference.",
-    timestamp: "2026-06-12T14:35:00Z",
-    isUser: true,
-    isRead: true,
-  },
-  {
-    id: "coach-3",
-    content:
-      "Excellent, that's exactly what I was hoping for. Let's keep that angle for the next 2 weeks and then we can reassess.\n\nAlso, I noticed your sleep score dropped to 68 on Tuesday and Wednesday. Are you staying up late or is something else going on? Recovery is crucial during this hypertrophy phase.",
-    timestamp: "2026-06-12T14:38:00Z",
-    isUser: false,
-    isRead: true,
-  },
-  {
-    id: "coach-4",
-    content:
-      "Yeah, I had some work deadlines. Back on track now though. Got 8 hours last night and feel recovered.",
-    timestamp: "2026-06-12T15:02:00Z",
-    isUser: true,
-    isRead: true,
-  },
-  {
-    id: "coach-5",
-    content:
-      "Good to hear. For tomorrow's session, let's do a deload on squats (drop to 80% of your working weight) and focus on tempo work -- 3 seconds eccentric. Your CNS will thank you after this heavy week. I've updated your protocol in the app.",
-    timestamp: "2026-06-12T15:10:00Z",
-    isUser: false,
-    isRead: false,
-  },
-];
+/**
+ * Map API chat history response to the ChatMessage[] shape used by the UI.
+ * The backend returns messages with `role` ("user" | "assistant") and
+ * `createdAt`; we normalise here so the rest of the screen stays unchanged.
+ */
+function mapApiMessages(raw: any[]): ChatMessage[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((m: any, idx: number) => ({
+    id: m.id ?? `msg-${idx}`,
+    content: m.content ?? m.text ?? "",
+    timestamp: m.createdAt ?? m.timestamp ?? new Date().toISOString(),
+    isUser: m.role === "user" || m.isUser === true,
+    isRead: m.isRead,
+  }));
+}
 
 // ---------------------------------------------------------------------------
 // AI Assistant Tab
 // ---------------------------------------------------------------------------
 
 function AIAssistantTab() {
-  const [messages, setMessages] = useState<ChatMessage[]>(AI_SAMPLE_MESSAGES);
+  // ---- tRPC: fetch chat history ----
+  const historyQuery = trpc.clientPortal.chat.getHistory.useQuery(
+    { channel: "ai" },
+    REALTIME_QUERY_OPTIONS,
+  );
+
+  // ---- tRPC: send message mutation ----
+  const sendMutation = trpc.clientPortal.chat.sendMessage.useMutation({
+    onSuccess: () => {
+      historyQuery.refetch();
+    },
+  });
+
+  // Live data with sample-data fallback
+  const apiMessages: ChatMessage[] = historyQuery.data
+    ? mapApiMessages(historyQuery.data as any)
+    : SAMPLE_DATA.aiMessages;
+
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
+  const messages = [...apiMessages, ...localMessages];
+
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
 
+  // Clear optimistic local messages once the server returns fresh data
+  useEffect(() => {
+    if (historyQuery.data) {
+      setLocalMessages([]);
+    }
+  }, [historyQuery.data]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Simulate data refresh (will be replaced with real tRPC refetch later)
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setRefreshing(false);
-  }, []);
+    try {
+      await historyQuery.refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [historyQuery]);
 
   const scrollToBottom = useCallback(() => {
     if (flatListRef.current && messages.length > 0) {
@@ -168,22 +136,36 @@ function AIAssistantTab() {
       isUser: true,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    // Optimistically add the user message
+    setLocalMessages((prev) => [...prev, userMessage]);
     setInputText("");
     setIsTyping(true);
 
-    // Simulate AI response after a delay
-    setTimeout(() => {
-      const aiResponse: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        content: getAIResponse(text),
-        timestamp: new Date().toISOString(),
-        isUser: false,
-      };
-      setIsTyping(false);
-      setMessages((prev) => [...prev, aiResponse]);
-    }, 2000);
-  }, [inputText]);
+    // Try the real mutation; fall back to simulated response
+    sendMutation.mutate(
+      { message: text, channel: "ai" },
+      {
+        onSuccess: (data: any) => {
+          setIsTyping(false);
+          // Server replied — refetch handles showing the response
+          historyQuery.refetch();
+        },
+        onError: () => {
+          // Mutation failed — fall back to simulated AI response
+          setTimeout(() => {
+            const aiResponse: ChatMessage = {
+              id: `ai-${Date.now()}`,
+              content: getAIResponse(text),
+              timestamp: new Date().toISOString(),
+              isUser: false,
+            };
+            setIsTyping(false);
+            setLocalMessages((prev) => [...prev, aiResponse]);
+          }, 2000);
+        },
+      },
+    );
+  }, [inputText, sendMutation, historyQuery]);
 
   const handleQuickAction = useCallback((message: string) => {
     setInputText("");
@@ -194,20 +176,31 @@ function AIAssistantTab() {
       isUser: true,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setLocalMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
 
-    setTimeout(() => {
-      const aiResponse: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        content: getAIResponse(message),
-        timestamp: new Date().toISOString(),
-        isUser: false,
-      };
-      setIsTyping(false);
-      setMessages((prev) => [...prev, aiResponse]);
-    }, 2000);
-  }, []);
+    sendMutation.mutate(
+      { message, channel: "ai" },
+      {
+        onSuccess: () => {
+          setIsTyping(false);
+          historyQuery.refetch();
+        },
+        onError: () => {
+          setTimeout(() => {
+            const aiResponse: ChatMessage = {
+              id: `ai-${Date.now()}`,
+              content: getAIResponse(message),
+              timestamp: new Date().toISOString(),
+              isUser: false,
+            };
+            setIsTyping(false);
+            setLocalMessages((prev) => [...prev, aiResponse]);
+          }, 2000);
+        },
+      },
+    );
+  }, [sendMutation, historyQuery]);
 
   const renderMessage = useCallback(
     ({ item }: ListRenderItemInfo<ChatMessage>) => (
@@ -293,17 +286,47 @@ function AIAssistantTab() {
 
 function CoachChatTab() {
   const router = useRouter();
-  const [messages, setMessages] = useState<ChatMessage[]>(COACH_SAMPLE_MESSAGES);
+
+  // ---- tRPC: fetch coach chat history ----
+  const historyQuery = trpc.clientPortal.chat.getHistory.useQuery(
+    { channel: "coach" },
+    REALTIME_QUERY_OPTIONS,
+  );
+
+  // ---- tRPC: send message mutation ----
+  const sendMutation = trpc.clientPortal.chat.sendMessage.useMutation({
+    onSuccess: () => {
+      historyQuery.refetch();
+    },
+  });
+
+  // Live data with sample-data fallback
+  const apiMessages: ChatMessage[] = historyQuery.data
+    ? mapApiMessages(historyQuery.data as any)
+    : SAMPLE_DATA.coachMessages;
+
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
+  const messages = [...apiMessages, ...localMessages];
+
   const [inputText, setInputText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
 
+  // Clear optimistic local messages once the server returns fresh data
+  useEffect(() => {
+    if (historyQuery.data) {
+      setLocalMessages([]);
+    }
+  }, [historyQuery.data]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Simulate data refresh (will be replaced with real tRPC refetch later)
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setRefreshing(false);
-  }, []);
+    try {
+      await historyQuery.refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [historyQuery]);
 
   const scrollToBottom = useCallback(() => {
     if (flatListRef.current && messages.length > 0) {
@@ -329,9 +352,20 @@ function CoachChatTab() {
       isRead: false,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    // Optimistically add the user message
+    setLocalMessages((prev) => [...prev, userMessage]);
     setInputText("");
-  }, [inputText]);
+
+    // Try the real mutation; on failure the optimistic message stays visible
+    sendMutation.mutate(
+      { message: text, channel: "coach" },
+      {
+        onSuccess: () => {
+          historyQuery.refetch();
+        },
+      },
+    );
+  }, [inputText, sendMutation, historyQuery]);
 
   const renderMessage = useCallback(
     ({ item }: ListRenderItemInfo<ChatMessage>) => (

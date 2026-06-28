@@ -2,7 +2,7 @@
  * Medical Records screen — documents grouped by type with search and upload.
  */
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -11,10 +11,13 @@ import {
   SafeAreaView,
   TextInput,
   Pressable,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Stack } from "expo-router";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -37,7 +40,7 @@ interface RecordGroup {
   records: MedicalRecord[];
 }
 
-const RECORD_GROUPS: RecordGroup[] = [
+const SAMPLE_RECORD_GROUPS: RecordGroup[] = [
   {
     type: "Lab Reports",
     icon: "🧪",
@@ -141,6 +144,43 @@ const RECORD_GROUPS: RecordGroup[] = [
   },
 ];
 
+function mapApiToRecordGroups(docs: any[]): RecordGroup[] {
+  const groupMap: Record<string, MedicalRecord[]> = {};
+  for (const doc of docs) {
+    const groupType = doc.category ?? doc.docSubType ?? "Other";
+    if (!groupMap[groupType]) groupMap[groupType] = [];
+    groupMap[groupType].push({
+      id: doc.id,
+      title: doc.title ?? doc.fileName ?? "Untitled",
+      date: doc.reportDate
+        ? new Date(doc.reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+        : doc.createdAt
+          ? new Date(doc.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          : "",
+      provider: doc.providerName ?? "",
+      fileType: mapFileType(doc.mimeType ?? doc.fileType),
+    });
+  }
+  const iconMap: Record<string, string> = {
+    "Lab Reports": "🧪",
+    "Imaging": "📷",
+    "Visit Notes": "📋",
+    "Prescriptions": "💊",
+  };
+  return Object.entries(groupMap).map(([type, records]) => ({
+    type,
+    icon: iconMap[type] ?? "📄",
+    records,
+  }));
+}
+
+function mapFileType(mime?: string): "pdf" | "image" | "doc" {
+  if (!mime) return "doc";
+  if (mime.includes("pdf")) return "pdf";
+  if (mime.includes("image")) return "image";
+  return "doc";
+}
+
 const FILE_TYPE_LABELS: Record<MedicalRecord["fileType"], { label: string; color: string }> = {
   pdf: { label: "PDF", color: Colors.danger },
   image: { label: "IMG", color: Colors.info },
@@ -153,6 +193,21 @@ const FILE_TYPE_LABELS: Record<MedicalRecord["fileType"], { label: string; color
 
 export default function MedicalRecordsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const query = trpc.clientPortal.clinicalDocs.list.useQuery(
+    { docType: "medical_record" },
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await query.refetch();
+    setRefreshing(false);
+  }, [query]);
+
+  const apiGroups = query.data ? mapApiToRecordGroups(query.data as any[]) : null;
+  const RECORD_GROUPS = apiGroups ?? SAMPLE_RECORD_GROUPS;
 
   const filteredGroups = RECORD_GROUPS.map((group) => ({
     ...group,
@@ -176,6 +231,14 @@ export default function MedicalRecordsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
+          />
+        }
       >
         {/* Search Bar */}
         <View style={styles.searchContainer}>
@@ -193,6 +256,12 @@ export default function MedicalRecordsScreen() {
             </Pressable>
           )}
         </View>
+
+        {query.isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+          </View>
+        )}
 
         {/* Summary */}
         <View style={styles.summaryRow}>
@@ -333,6 +402,10 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: Colors.silver,
     padding: Spacing.xs,
+  },
+  loadingContainer: {
+    paddingVertical: Spacing.xxl,
+    alignItems: "center",
   },
 
   /* Summary */

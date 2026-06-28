@@ -50,6 +50,8 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii, APP_VERSION } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS, SAMPLE_DATA } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -58,23 +60,12 @@ import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SummitGlyph } from "@/components/brand";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Fallback sample data                                                */
 /* ------------------------------------------------------------------ */
 
-const USER = {
-  initials: "MM",
-  name: "Michael McAlpin",
-  email: "michael.mcalpin@gmail.com",
-  memberSince: "January 2024",
-  age: 38,
-  height: "5'10\"",
-  weight: "185 lbs",
-  bloodType: "O+",
-  healthScore: 82,
-  tier: "Premium",
-};
+const FALLBACK_USER = SAMPLE_DATA.userProfile;
 
-const DEVICES = [
+const FALLBACK_DEVICES = [
   { name: "Apple Health", connected: true, route: "/devices/apple-health" as const },
   { name: "Apple Watch", connected: true, route: null },
   { name: "Oura Ring", connected: true, route: null },
@@ -87,15 +78,59 @@ const DEVICES = [
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { user: authUser } = useAuth();
+
+  /* -- tRPC query for profile data -- */
+  const profileQuery = trpc.clientPortal.profile.get.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  /* -- Map API response → local shape, falling back to sample data -- */
+  const profileData = profileQuery.data;
+  const USER = profileData
+    ? {
+        initials:
+          ((profileData.firstName?.[0] ?? "") +
+            (profileData.lastName?.[0] ?? "")).toUpperCase() ||
+          FALLBACK_USER.initials,
+        name:
+          [profileData.firstName, profileData.lastName]
+            .filter(Boolean)
+            .join(" ") || FALLBACK_USER.name,
+        email: profileData.email ?? FALLBACK_USER.email,
+        memberSince: profileData.memberSince ?? FALLBACK_USER.memberSince,
+        age: profileData.age ?? FALLBACK_USER.age,
+        height: profileData.height ?? FALLBACK_USER.height,
+        weight: profileData.weight ?? FALLBACK_USER.weight,
+        bloodType: profileData.bloodType ?? FALLBACK_USER.bloodType,
+        healthScore: profileData.healthScore ?? FALLBACK_USER.healthScore,
+        tier: profileData.tier ?? FALLBACK_USER.tier,
+      }
+    : {
+        ...FALLBACK_USER,
+        // Enrich fallback with auth stub data when available
+        initials:
+          ((authUser?.firstName?.[0] ?? "") +
+            (authUser?.lastName?.[0] ?? "")).toUpperCase() ||
+          FALLBACK_USER.initials,
+        name:
+          [authUser?.firstName, authUser?.lastName]
+            .filter(Boolean)
+            .join(" ") || FALLBACK_USER.name,
+        email:
+          authUser?.emailAddresses?.[0]?.emailAddress ?? FALLBACK_USER.email,
+      };
+
+  const DEVICES = profileData?.devices ?? FALLBACK_DEVICES;
 
   /* -- pull to refresh -- */
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Simulate data refresh (will be replaced with real tRPC refetch later)
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await profileQuery.refetch();
     setRefreshing(false);
-  }, []);
+  }, [profileQuery]);
 
   /* -- notification toggles -- */
   const [pushNotifs, setPushNotifs] = useState(true);
@@ -235,7 +270,7 @@ export default function ProfileScreen() {
           title="Connected Devices"
           icon={<Watch size={16} color={Colors.gold} />}
         >
-          {DEVICES.map((d, i) => (
+          {DEVICES.map((d: any, i: any) => (
             <SettingsRow
               key={d.name}
               type="badge"

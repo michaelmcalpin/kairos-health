@@ -9,7 +9,7 @@
  * - Empty state for filtered views with no results
  */
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
   Pressable,
   StyleSheet,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -26,27 +27,37 @@ import { NotificationCard } from "@/components/notifications/NotificationCard";
 import { FilterTabs } from "@/components/notifications/FilterTabs";
 import { EmptyState } from "@/components/notifications/EmptyState";
 import {
-  SAMPLE_NOTIFICATIONS,
   FILTER_TABS,
   type Notification,
   type FilterTab,
 } from "@/components/notifications/notification-data";
+import {
+  useNotifications,
+  useUnreadCount,
+  useMarkAsRead,
+  useMarkAllRead,
+  useDismissNotification,
+} from "@/hooks";
 
 export default function NotificationCenterScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   // ── State ──────────────────────────────────────────────────────────
-  const [notifications, setNotifications] =
-    useState<Notification[]>(SAMPLE_NOTIFICATIONS);
-  const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [activeTab, setActiveTab] = React.useState<FilterTab>("all");
+
+  // ── Hooks ─────────────────────────────────────────────────────────
+  const {
+    notifications,
+    isLoading: isLoadingNotifications,
+    refetch,
+  } = useNotifications("all");
+  const { count: unreadCount } = useUnreadCount();
+  const { markAsRead } = useMarkAsRead();
+  const { markAllRead } = useMarkAllRead();
+  const { dismiss } = useDismissNotification();
 
   // ── Derived ────────────────────────────────────────────────────────
-  const unreadCount = useMemo(
-    () => notifications.filter((n) => !n.read).length,
-    [notifications]
-  );
-
   const filteredNotifications = useMemo(() => {
     switch (activeTab) {
       case "action_required":
@@ -80,28 +91,29 @@ export default function NotificationCenterScreen() {
   // ── Handlers ───────────────────────────────────────────────────────
   const handlePress = useCallback(
     (id: string) => {
-      // Mark as read when tapped
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-      );
+      markAsRead(id);
       router.push(`/notifications/${id}`);
     },
-    [router]
+    [router, markAsRead]
   );
 
-  const handleMarkRead = useCallback((id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  }, []);
+  const handleMarkRead = useCallback(
+    (id: string) => {
+      markAsRead(id);
+    },
+    [markAsRead]
+  );
 
-  const handleDismiss = useCallback((id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }, []);
+  const handleDismiss = useCallback(
+    (id: string) => {
+      dismiss(id);
+    },
+    [dismiss]
+  );
 
   const handleMarkAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, []);
+    markAllRead();
+  }, [markAllRead]);
 
   const handleBack = useCallback(() => {
     router.back();
@@ -157,17 +169,23 @@ export default function NotificationCenterScreen() {
       <View style={styles.divider} />
 
       {/* ── Notification list ───────────────────────────────────── */}
-      <FlatList
-        data={filteredNotifications}
-        renderItem={renderItem}
-        keyExtractor={keyExtractor}
-        contentContainerStyle={[
-          styles.listContent,
-          filteredNotifications.length === 0 && styles.listContentEmpty,
-        ]}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={<EmptyState filterLabel={activeFilterLabel} />}
-      />
+      {isLoadingNotifications ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredNotifications}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          contentContainerStyle={[
+            styles.listContent,
+            filteredNotifications.length === 0 && styles.listContentEmpty,
+          ]}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={<EmptyState filterLabel={activeFilterLabel} />}
+        />
+      )}
     </View>
   );
 }
@@ -226,6 +244,11 @@ const styles = StyleSheet.create({
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: Colors.border,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   listContent: {
     paddingTop: Spacing.sm,

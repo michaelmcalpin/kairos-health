@@ -1,6 +1,9 @@
 /**
  * DEXA Scan Results screen — body composition summary, regional breakdown,
  * visceral fat, comparison with previous scan.
+ *
+ * tRPC paths used (under `clientPortal`):
+ *   - clinicalDocs.list({ docType: "dexa_scan" })  -> list of DEXA scan documents with parsedData
  */
 
 import React from "react";
@@ -10,6 +13,7 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  ActivityIndicator,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -17,18 +21,19 @@ import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Sample data (fallback when API is unreachable)                      */
 /* ------------------------------------------------------------------ */
 
-const SCAN_INFO = {
+const SAMPLE_SCAN_INFO = {
   date: "May 15, 2026",
   facility: "Longevity Medical Center",
   previousDate: "Nov 12, 2025",
 };
 
-const BODY_COMPOSITION = {
+const SAMPLE_BODY_COMPOSITION = {
   totalBodyFat: 16.8,
   leanMass: 142.3,
   boneMineralDensity: -0.2,
@@ -42,7 +47,7 @@ interface RegionalData {
   prevLeanMass: string;
 }
 
-const REGIONAL_BREAKDOWN: RegionalData[] = [
+const SAMPLE_REGIONAL_BREAKDOWN: RegionalData[] = [
   {
     region: "Arms",
     fatPercent: 14.2,
@@ -80,7 +85,7 @@ const REGIONAL_BREAKDOWN: RegionalData[] = [
   },
 ];
 
-const VISCERAL_FAT = {
+const SAMPLE_VISCERAL_FAT = {
   area: 72,
   unit: "cm²",
   status: "Normal" as const,
@@ -95,7 +100,7 @@ interface ComparisonMetric {
   lowerIsBetter: boolean;
 }
 
-const COMPARISONS: ComparisonMetric[] = [
+const SAMPLE_COMPARISONS: ComparisonMetric[] = [
   {
     label: "Total Body Fat",
     current: "16.8%",
@@ -144,6 +149,73 @@ function getTrendArrow(change: number, lowerIsBetter: boolean): { arrow: string;
 /* ------------------------------------------------------------------ */
 
 export default function DexaScreen() {
+  // ── tRPC query ──────────────────────────────────────────────────
+  const query = trpc.clientPortal.clinicalDocs.list.useQuery(
+    { docType: "dexa_scan" },
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  // Backend returns an array of clinical documents with parsedData JSON blobs.
+  // Extract the latest document's parsedData for display, falling back to sample data.
+  const docs = (query.data ?? []) as any[];
+  const latest = docs[0]; // already sorted by createdAt DESC
+  const parsed = latest?.parsedData as Record<string, any> | null | undefined;
+
+  const SCAN_INFO = parsed?.scanInfo
+    ? {
+        date: parsed.scanInfo.date ?? SAMPLE_SCAN_INFO.date,
+        facility: parsed.scanInfo.facility ?? SAMPLE_SCAN_INFO.facility,
+        previousDate: parsed.scanInfo.previousDate ?? SAMPLE_SCAN_INFO.previousDate,
+      }
+    : latest
+      ? {
+          date: latest.reportDate
+            ? new Date(latest.reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+            : new Date(latest.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          facility: latest.providerName ?? SAMPLE_SCAN_INFO.facility,
+          previousDate: docs[1]?.reportDate
+            ? new Date(docs[1].reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+            : SAMPLE_SCAN_INFO.previousDate,
+        }
+      : SAMPLE_SCAN_INFO;
+
+  const BODY_COMPOSITION = parsed?.composition
+    ? {
+        totalBodyFat: parsed.composition.totalBodyFat ?? SAMPLE_BODY_COMPOSITION.totalBodyFat,
+        leanMass: parsed.composition.leanMass ?? SAMPLE_BODY_COMPOSITION.leanMass,
+        boneMineralDensity: parsed.composition.boneMineralDensity ?? SAMPLE_BODY_COMPOSITION.boneMineralDensity,
+      }
+    : SAMPLE_BODY_COMPOSITION;
+
+  const REGIONAL_BREAKDOWN: RegionalData[] = parsed?.regional
+    ? (parsed.regional as any[]).map((r: any) => ({
+        region: r.region ?? "",
+        fatPercent: r.fatPercent ?? 0,
+        leanMass: r.leanMass ?? "0 lbs",
+        prevFatPercent: r.prevFatPercent ?? 0,
+        prevLeanMass: r.prevLeanMass ?? "0 lbs",
+      }))
+    : SAMPLE_REGIONAL_BREAKDOWN;
+
+  const VISCERAL_FAT = parsed?.visceralFat
+    ? {
+        area: parsed.visceralFat.area ?? SAMPLE_VISCERAL_FAT.area,
+        unit: parsed.visceralFat.unit ?? SAMPLE_VISCERAL_FAT.unit,
+        status: (parsed.visceralFat.status ?? SAMPLE_VISCERAL_FAT.status) as "Normal",
+      }
+    : SAMPLE_VISCERAL_FAT;
+
+  const COMPARISONS: ComparisonMetric[] = parsed?.comparisons
+    ? (parsed.comparisons as any[]).map((c: any) => ({
+        label: c.label ?? "",
+        current: c.current ?? "",
+        previous: c.previous ?? "",
+        change: c.change ?? 0,
+        unit: c.unit ?? "",
+        lowerIsBetter: c.lowerIsBetter ?? false,
+      }))
+    : SAMPLE_COMPARISONS;
+
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ title: "DEXA Scan" }} />

@@ -77,7 +77,7 @@ const RECENT_REPORTS = [
 export default function InsightsScreen() {
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [selectedOption, setSelectedOption] = useState(REPORT_OPTIONS[0]);
+  const [selectedOption, setSelectedOption] = useState<(typeof REPORT_OPTIONS)[number]>(REPORT_OPTIONS[0]);
 
   const handleSelectOption = (opt: (typeof REPORT_OPTIONS)[number]) => {
     setSelectedOption(opt);

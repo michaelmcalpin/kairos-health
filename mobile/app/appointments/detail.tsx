@@ -3,14 +3,17 @@
  * appointment including provider, schedule, notes, and checklist.
  */
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
   Pressable,
   StyleSheet,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Video,
@@ -29,12 +32,13 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { useAppointmentDetail } from "@/hooks";
 
 /* ------------------------------------------------------------------ */
 /* Sample data                                                        */
 /* ------------------------------------------------------------------ */
 
-const APPOINTMENT = {
+const SAMPLE_APPOINTMENT = {
   title: "Lab Review",
   type: "Lab Review",
   status: "Confirmed",
@@ -64,6 +68,32 @@ const APPOINTMENT = {
 /* ------------------------------------------------------------------ */
 
 export default function AppointmentDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { appointment: apiAppointment, isLoading, refetch } = useAppointmentDetail(id ?? null);
+
+  const APPOINTMENT = apiAppointment
+    ? {
+        ...SAMPLE_APPOINTMENT,
+        title: apiAppointment.title,
+        type: apiAppointment.type,
+        status: apiAppointment.status.charAt(0).toUpperCase() + apiAppointment.status.slice(1),
+        date: apiAppointment.date,
+        time: apiAppointment.time,
+        method: apiAppointment.method as "Video Call" | "In-Person",
+        provider: {
+          ...SAMPLE_APPOINTMENT.provider,
+          name: apiAppointment.provider,
+        },
+      }
+    : SAMPLE_APPOINTMENT;
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
   const [checklist, setChecklist] = useState(APPOINTMENT.checklist);
 
   const toggleItem = (id: string) => {
@@ -82,7 +112,21 @@ export default function AppointmentDetailScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
+          />
+        }
       >
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+          </View>
+        )}
+
         {/* ---- Badges ---- */}
         <View style={styles.badges}>
           <Badge label={APPOINTMENT.type} variant="info" />
@@ -374,5 +418,9 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     flex: 1,
+  },
+  loadingContainer: {
+    paddingVertical: Spacing.xxl,
+    alignItems: "center",
   },
 });

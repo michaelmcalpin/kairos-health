@@ -8,7 +8,7 @@
  * - Dismiss button
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   Pressable,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
@@ -24,11 +25,13 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { NotificationIcon } from "@/components/notifications/NotificationIcon";
-import {
-  SAMPLE_NOTIFICATIONS,
-  type NotificationPriority,
-} from "@/components/notifications/notification-data";
+import { type NotificationPriority } from "@/components/notifications/notification-data";
 import type { StatusVariant } from "@/lib/types";
+import {
+  useNotifications,
+  useMarkAsRead,
+  useDismissNotification,
+} from "@/hooks";
 
 const priorityLabels: Record<NotificationPriority, string> = {
   urgent: "Urgent",
@@ -71,14 +74,35 @@ const typeLabels: Record<string, string> = {
 export default function NotificationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const [dismissed, setDismissed] = useState(false);
+
+  // ── Hooks ─────────────────────────────────────────────────────────
+  const { notifications, isLoading } = useNotifications("all");
+  const { markAsRead } = useMarkAsRead();
+  const { dismiss } = useDismissNotification();
 
   const notification = useMemo(
-    () => SAMPLE_NOTIFICATIONS.find((n) => n.id === id),
-    [id]
+    () => notifications.find((n) => n.id === id),
+    [notifications, id]
   );
 
-  if (!notification || dismissed) {
+  // Mark as read when opened
+  React.useEffect(() => {
+    if (notification && !notification.read) {
+      markAsRead(notification.id);
+    }
+  }, [notification?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (isLoading) {
+    return (
+      <View style={styles.screen}>
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </View>
+    );
+  }
+
+  if (!notification) {
     return (
       <View style={styles.screen}>
         <View style={styles.emptyContainer}>
@@ -118,7 +142,7 @@ export default function NotificationDetailScreen() {
   };
 
   const handleDismiss = () => {
-    setDismissed(true);
+    dismiss(notification.id);
     router.back();
   };
 

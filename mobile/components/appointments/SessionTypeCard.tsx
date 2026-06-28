@@ -14,7 +14,7 @@ export interface SessionType {
   duration: string;
   price: string;
   description: string;
-  icon: React.ComponentType<{ size: number; color: string }>;
+  icon: React.ComponentType<any>;
 }
 
 interface SessionTypeCardProps {
