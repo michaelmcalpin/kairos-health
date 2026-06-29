@@ -278,6 +278,68 @@ export const buildCoachMessageEmail = (params: {
   brand?: Partial<EmailBrandConfig>;
 }) => buildTrainerMessageEmail({ ...params, trainerName: params.coachName });
 
+/**
+ * Invitation email — sent when a trainer invites someone by email.
+ */
+export function buildInvitationEmail(params: {
+  trainerName: string;
+  note?: string;
+  brand?: Partial<EmailBrandConfig>;
+}): string {
+  const b = resolveBrand(params.brand);
+  const noteHtml = params.note
+    ? emailInfoBox(`<em>"${escapeHtml(params.note)}"</em><br/><span style="color: ${COLORS.silverDark};">— ${escapeHtml(params.trainerName)}</span>`)
+    : "";
+
+  return wrapEmailLayout(
+    emailHeading("You're Invited") +
+    emailParagraph(
+      `<strong>${escapeHtml(params.trainerName)}</strong> has invited you to join ` +
+      `<strong>${b.companyName}</strong> — a personalized health optimization platform.`
+    ) +
+    noteHtml +
+    emailParagraph("With your account you'll be able to:") +
+    emailParagraph(
+      "✓ Track labs, genetics, gut biome, and body composition<br/>" +
+      "✓ Follow custom exercise, nutrition, and supplement protocols<br/>" +
+      "✓ Chat directly with your health coach<br/>" +
+      "✓ Get AI-powered health insights and reports"
+    ) +
+    emailButton("Create Your Account", "{{baseUrl}}/sign-up", b.accentColor) +
+    emailParagraph(`<span style="color: ${COLORS.silverDark}; font-size: 13px;">This invitation expires in 30 days.</span>`),
+    { preheader: `${params.trainerName} invited you to ${b.companyName}`, brand: b }
+  );
+}
+
+/**
+ * Welcome email — sent when a trainer creates a client profile directly.
+ */
+export function buildClientCreatedEmail(params: {
+  clientName: string;
+  trainerName: string;
+  brand?: Partial<EmailBrandConfig>;
+}): string {
+  const b = resolveBrand(params.brand);
+  return wrapEmailLayout(
+    emailHeading(`Welcome to ${b.companyName}`) +
+    emailParagraph(
+      `Hi ${escapeHtml(params.clientName)},<br/><br/>` +
+      `Your health coach <strong>${escapeHtml(params.trainerName)}</strong> has set up your account on ` +
+      `<strong>${b.companyName}</strong>. Sign up below to access your personalized health dashboard.`
+    ) +
+    emailParagraph(
+      "Your coach can now:<br/>" +
+      "✓ Assign custom workout, nutrition, and supplement protocols<br/>" +
+      "✓ Track your labs, genetics, and body composition<br/>" +
+      "✓ Schedule appointments and send you messages<br/>" +
+      "✓ Monitor your progress with AI-powered insights"
+    ) +
+    emailButton("Activate Your Account", "{{baseUrl}}/sign-up", b.accentColor) +
+    emailParagraph(`<span style="color: ${COLORS.silverDark}; font-size: 13px;">Use the email address this was sent to when creating your account so it links to your coach automatically.</span>`),
+    { preheader: `${params.trainerName} created your ${b.companyName} health profile`, brand: b }
+  );
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function escapeHtml(str: string): string {

@@ -1,11 +1,14 @@
 import { z } from "zod";
+import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
+import { sendInvitationEmail, sendClientCreatedEmail } from "@/lib/email";
 import {
   trainerClientRelationships,
   clientInvitations,
   users,
   clientProfiles,
+  userContactInfo,
   alerts,
   sleepSessions,
   glucoseReadings,
@@ -1356,6 +1359,25 @@ export const coachClientsRouter = router({
         expiresAt,
       }).returning();
 
+      // Send invitation email
+      try {
+        const trainer = await ctx.db.query.users.findFirst({
+          where: eq(users.id, trainerId),
+        });
+        const trainerName = trainer
+          ? `${trainer.firstName ?? ""} ${trainer.lastName ?? ""}`.trim() || trainer.email
+          : "Your Trainer";
+
+        await sendInvitationEmail({
+          to: input.email.toLowerCase(),
+          trainerName,
+          note: input.note,
+        });
+      } catch (emailErr) {
+        // Don't fail the invitation if email fails — record is already created
+        console.error("Failed to send invitation email:", emailErr);
+      }
+
       return { success: true, invitationId: invite.id };
     }),
 
@@ -1392,5 +1414,105 @@ export const coachClientsRouter = router({
           eq(clientInvitations.status, "pending"),
         ));
       return { success: true };
+    }),
+
+  /**
+   * Create a new client stub profile.
+   * Creates a user with a pending clerkId, client profile, contact info,
+   * and trainer-client relationship. Sends a welcome email.
+   */
+  createClient: trainerProcedure
+    .input(z.object({
+      firstName: z.string().min(1).max(100),
+      lastName: z.string().min(1).max(100),
+      email: z.string().email(),
+      phone: z.string().optional(),
+      dateOfBirth: z.string().optional(), // ISO date string
+      gender: z.string().optional(),
+      tier: z.enum(["tier1", "tier2", "tier3"]).optional().default("tier3"),
+      note: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.dbUserId;
+
+      // Check if a user already exists with this email
+      const existingUser = await ctx.db.query.users.findFirst({
+        where: ilike(users.email, input.email),
+      });
+      if (existingUser) {
+        return {
+          success: false,
+          existingUserId: existingUser.id,
+          message: "A user with this email already exists. Use 'Search Users' to assign them instead.",
+        };
+      }
+
+      // Create stub user with a pending clerkId (will be merged on Clerk signup)
+      const pendingClerkId = `pending-${randomUUID()}`;
+
+      const [newUser] = await ctx.db.insert(users).values({
+        clerkId: pendingClerkId,
+        email: input.email.toLowerCase(),
+        firstName: input.firstName,
+        lastName: input.lastName,
+        role: "client",
+        status: "onboarding",
+      }).returning();
+
+      if (!newUser) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create client user." });
+      }
+
+      // Create client profile
+      await ctx.db.insert(clientProfiles).values({
+        userId: newUser.id,
+        tier: input.tier,
+        dateOfBirth: input.dateOfBirth || null,
+        gender: input.gender || null,
+      });
+
+      // Create contact info if phone provided
+      if (input.phone) {
+        await ctx.db.insert(userContactInfo).values({
+          userId: newUser.id,
+          phone: input.phone,
+        });
+      }
+
+      // Create trainer-client relationship
+      await ctx.db.insert(trainerClientRelationships).values({
+        trainerId,
+        clientId: newUser.id,
+        status: "active",
+      });
+
+      // Also create a pending invitation record for tracking
+      await ctx.db.insert(clientInvitations).values({
+        trainerId,
+        email: input.email.toLowerCase(),
+        tier: input.tier,
+        note: input.note ?? null,
+        status: "pending",
+      });
+
+      // Send welcome email
+      try {
+        const trainer = await ctx.db.query.users.findFirst({
+          where: eq(users.id, trainerId),
+        });
+        const trainerName = trainer
+          ? `${trainer.firstName ?? ""} ${trainer.lastName ?? ""}`.trim() || trainer.email
+          : "Your Trainer";
+
+        await sendClientCreatedEmail({
+          to: input.email.toLowerCase(),
+          clientName: input.firstName,
+          trainerName,
+        });
+      } catch (emailErr) {
+        console.error("Failed to send client created email:", emailErr);
+      }
+
+      return { success: true, clientId: newUser.id };
     }),
 });

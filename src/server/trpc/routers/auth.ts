@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "@/server/trpc";
 import { users, clientProfiles, trainerProfiles, clientInvitations, trainerClientRelationships } from "@/server/db/schema";
-import { eq, and, ilike } from "drizzle-orm";
+import { eq, and, ilike, sql } from "drizzle-orm";
 import { auth as clerkAuth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { logger } from "@/lib/middleware/logger";
 
@@ -62,6 +62,54 @@ export const authRouter = router({
       ? (metaRole as ValidRole)
       : "client";
     const companyId = (clerkUser.publicMetadata?.companyId as string) || null;
+
+    // Check if a stub user already exists for this email (created by a trainer)
+    const stubUser = await ctx.db.query.users.findFirst({
+      where: and(
+        ilike(users.email, email),
+        sql`${users.clerkId} LIKE 'pending-%'`,
+      ),
+    });
+
+    if (stubUser) {
+      // Merge: update the stub user with real Clerk data
+      const [mergedUser] = await ctx.db
+        .update(users)
+        .set({
+          clerkId,
+          firstName: clerkUser.firstName ?? stubUser.firstName,
+          lastName: clerkUser.lastName ?? stubUser.lastName,
+          avatarUrl: clerkUser.imageUrl ?? stubUser.avatarUrl ?? undefined,
+          role: role !== "client" ? role : stubUser.role, // preserve role unless Clerk overrides
+          companyId: companyId ?? stubUser.companyId ?? undefined,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, stubUser.id))
+        .returning();
+
+      // Mark any pending invitations as accepted
+      try {
+        const pendingInvites = await ctx.db.query.clientInvitations.findMany({
+          where: and(
+            ilike(clientInvitations.email, email),
+            eq(clientInvitations.status, "pending"),
+          ),
+        });
+        for (const invite of pendingInvites) {
+          await ctx.db.update(clientInvitations)
+            .set({ status: "accepted", acceptedAt: new Date() })
+            .where(eq(clientInvitations.id, invite.id));
+        }
+        if (pendingInvites.length > 0) {
+          logger.info("auth", `Merged stub user and accepted ${pendingInvites.length} invitation(s)`, { email });
+        }
+      } catch {
+        // clientInvitations table may not exist yet
+      }
+
+      logger.info("auth", "Merged stub user with Clerk sign-up", { email, stubId: stubUser.id });
+      return { user: mergedUser, created: false };
+    }
 
     const [newUser] = await ctx.db
       .insert(users)

@@ -18,6 +18,8 @@ import {
   buildWeeklyReportEmail,
   buildAlertEmail,
   buildTrainerMessageEmail,
+  buildInvitationEmail,
+  buildClientCreatedEmail,
 } from "./templates";
 
 // ─── Singleton Resend Client ─────────────────────────────────────────────────
@@ -181,6 +183,44 @@ export async function sendTrainerMessageEmail(params: {
     html,
     from: resolveFrom(params.brand),
     tags: [{ name: "category", value: "coach_message" }],
+  });
+}
+
+// ─── Invitation Email ───────────────────────────────────────────────────────
+
+export async function sendInvitationEmail(params: {
+  to: string;
+  trainerName: string;
+  note?: string;
+  brand?: Partial<EmailBrandConfig>;
+}): Promise<SendEmailResult> {
+  const html = buildInvitationEmail(params);
+  const brandName = params.brand?.companyName ?? "Everist.ai";
+  return sendEmail({
+    to: params.to,
+    subject: `${params.trainerName} invited you to ${brandName}`,
+    html,
+    from: resolveFrom(params.brand),
+    tags: [{ name: "category", value: "invitation" }],
+  });
+}
+
+// ─── Client Created Email ───────────────────────────────────────────────────
+
+export async function sendClientCreatedEmail(params: {
+  to: string;
+  clientName: string;
+  trainerName: string;
+  brand?: Partial<EmailBrandConfig>;
+}): Promise<SendEmailResult> {
+  const html = buildClientCreatedEmail(params);
+  const brandName = params.brand?.companyName ?? "Everist.ai";
+  return sendEmail({
+    to: params.to,
+    subject: `Welcome to ${brandName} — Your Account is Ready`,
+    html,
+    from: resolveFrom(params.brand),
+    tags: [{ name: "category", value: "client_created" }],
   });
 }
 

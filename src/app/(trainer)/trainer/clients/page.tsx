@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Search, Users, UserPlus, X, Mail, Check, Clock, ChevronDown, Trash2 } from "lucide-react";
+import { Search, Users, UserPlus, X, Mail, Check, Clock, ChevronDown, Trash2, Plus, Phone, Calendar } from "lucide-react";
 import { TIER_LABELS, STATUS_LABELS } from "@/lib/coach-clients/types";
 import type { ClientTier, ClientStatus } from "@/lib/coach-clients/types";
 import { ClientCard } from "@/components/coach/ClientCard";
 import { trpc } from "@/lib/trpc";
 
 type SortField = "name" | "healthScore" | "alerts" | "adherence";
-type ModalTab = "search" | "invite" | "pending";
+type ModalTab = "search" | "invite" | "create" | "pending";
 
 export default function CoachClientsPage() {
   const [search, setSearch] = useState("");
@@ -291,6 +291,26 @@ function AddClientModal({
     },
   });
 
+  const createClientMutation = trpc.coach.clients.createClient.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        setFeedback({ type: "success", message: "Client created and welcome email sent!" });
+        onClientAdded();
+      } else {
+        const msg = "message" in result ? (result as { message: string }).message : "Could not create client.";
+        if ("existingUserId" in result) {
+          setFeedback({ type: "error", message: msg });
+          setTab("search");
+        } else {
+          setFeedback({ type: "error", message: msg });
+        }
+      }
+    },
+    onError: (err) => {
+      setFeedback({ type: "error", message: err.message });
+    },
+  });
+
   const cancelInvitationMutation = trpc.coach.clients.cancelInvitation.useMutation({
     onSuccess: () => {
       refetchInvitations();
@@ -338,8 +358,9 @@ function AddClientModal({
         {/* Tabs */}
         <div className="flex border-b border-gray-700/50">
           {([
-            { key: "search" as ModalTab, label: "Search Users", icon: Search },
-            { key: "invite" as ModalTab, label: "Invite by Email", icon: Mail },
+            { key: "search" as ModalTab, label: "Search", icon: Search },
+            { key: "invite" as ModalTab, label: "Invite", icon: Mail },
+            { key: "create" as ModalTab, label: "Create", icon: Plus },
             { key: "pending" as ModalTab, label: `Pending${pendingInvitations.length > 0 ? ` (${pendingInvitations.length})` : ""}`, icon: Clock },
           ]).map(({ key, label, icon: Icon }) => (
             <button
@@ -408,6 +429,16 @@ function AddClientModal({
               onNoteChange={setInviteNote}
               onInvite={handleInvite}
               isInviting={inviteClientMutation.isPending}
+            />
+          )}
+          {tab === "create" && (
+            <CreateClientTab
+              tier={selectedTier}
+              onCreate={(data) => {
+                setFeedback(null);
+                createClientMutation.mutate({ ...data, tier: selectedTier });
+              }}
+              isCreating={createClientMutation.isPending}
             />
           )}
           {tab === "pending" && (
@@ -578,6 +609,174 @@ function InviteTab({
           <>
             <Mail size={16} />
             Send Invitation
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
+
+// ─── Create Client Tab ──────────────────────────────────────
+
+function CreateClientTab({
+  tier,
+  onCreate,
+  isCreating,
+}: {
+  tier: "tier1" | "tier2" | "tier3";
+  onCreate: (data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    note?: string;
+  }) => void;
+  isCreating: boolean;
+}) {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [gender, setGender] = useState("");
+  const [note, setNote] = useState("");
+
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const canSubmit = firstName.trim() && lastName.trim() && isValidEmail;
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    onCreate({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim(),
+      phone: phone.trim() || undefined,
+      dateOfBirth: dateOfBirth || undefined,
+      gender: gender || undefined,
+      note: note.trim() || undefined,
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-gray-400">
+        Create a new client profile. They&apos;ll receive a welcome email to activate their account.
+      </p>
+
+      {/* Name row */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">First Name *</label>
+          <input
+            type="text"
+            placeholder="Jane"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Last Name *</label>
+          <input
+            type="text"
+            placeholder="Doe"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
+          />
+        </div>
+      </div>
+
+      {/* Email */}
+      <div>
+        <label className="block text-xs text-gray-400 mb-1">Email *</label>
+        <div className="relative">
+          <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            type="email"
+            placeholder="jane@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
+          />
+        </div>
+      </div>
+
+      {/* Phone */}
+      <div>
+        <label className="block text-xs text-gray-400 mb-1">Mobile Phone</label>
+        <div className="relative">
+          <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            type="tel"
+            placeholder="(555) 123-4567"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
+          />
+        </div>
+      </div>
+
+      {/* DOB + Gender row */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Date of Birth</label>
+          <div className="relative">
+            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input
+              type="date"
+              value={dateOfBirth}
+              onChange={(e) => setDateOfBirth(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50 [color-scheme:dark]"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Gender</label>
+          <select
+            value={gender}
+            onChange={(e) => setGender(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white focus:outline-none focus:border-kairos-gold/50 appearance-none"
+          >
+            <option value="">Select...</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="non-binary">Non-binary</option>
+            <option value="other">Other</option>
+            <option value="prefer-not-to-say">Prefer not to say</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Note */}
+      <div>
+        <label className="block text-xs text-gray-400 mb-1">Note (optional)</label>
+        <textarea
+          placeholder="Any intake notes or context..."
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50 resize-none"
+        />
+      </div>
+
+      <button
+        onClick={handleSubmit}
+        disabled={!canSubmit || isCreating}
+        className="kairos-btn w-full py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isCreating ? (
+          <>
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            Creating...
+          </>
+        ) : (
+          <>
+            <UserPlus size={16} />
+            Create Client
           </>
         )}
       </button>
