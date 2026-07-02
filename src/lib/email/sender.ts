@@ -20,6 +20,7 @@ import {
   buildTrainerMessageEmail,
   buildInvitationEmail,
   buildClientCreatedEmail,
+  buildAppointmentConfirmationEmail,
 } from "./templates";
 
 // ─── Singleton Resend Client ─────────────────────────────────────────────────
@@ -61,6 +62,12 @@ function interpolateBaseUrl(html: string): string {
 
 // ─── Core Send Function ──────────────────────────────────────────────────────
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+}
+
 export interface SendEmailOptions {
   to: string | string[];
   subject: string;
@@ -68,6 +75,7 @@ export interface SendEmailOptions {
   from?: string;
   replyTo?: string;
   tags?: { name: string; value: string }[];
+  attachments?: EmailAttachment[];
 }
 
 export interface SendEmailResult {
@@ -93,6 +101,15 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       html: interpolateBaseUrl(options.html),
       replyTo: options.replyTo,
       tags: options.tags,
+      ...(options.attachments && options.attachments.length > 0
+        ? {
+            attachments: options.attachments.map((a) => ({
+              filename: a.filename,
+              content: typeof a.content === "string" ? Buffer.from(a.content, "utf-8") : a.content,
+              ...(a.contentType ? { content_type: a.contentType } : {}),
+            })),
+          }
+        : {}),
     });
 
     if (result.error) {
@@ -252,5 +269,55 @@ export async function sendNotificationEmail(params: {
     html,
     from: resolveFrom(params.brand),
     tags: [{ name: "category", value: "notification" }],
+  });
+}
+
+// ─── Appointment Confirmation Email ────────────────────────────────────────
+
+export async function sendAppointmentConfirmationEmail(params: {
+  to: string;
+  recipientName: string;
+  recipientRole: "coach" | "client";
+  sessionType: string;
+  meetingType: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  coachName: string;
+  clientName: string;
+  meetingLink?: string | null;
+  notes?: string | null;
+  icsContent: string;      // Pre-generated .ics file content
+  brand?: Partial<EmailBrandConfig>;
+}): Promise<SendEmailResult> {
+  const html = buildAppointmentConfirmationEmail(params);
+
+  // Format session type for subject line
+  const sessionLabel = params.sessionType
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  // Format date for subject line
+  const dateObj = new Date(params.date + "T12:00:00");
+  const shortDate = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  const otherPerson = params.recipientRole === "coach"
+    ? params.clientName
+    : params.coachName;
+
+  return sendEmail({
+    to: params.to,
+    subject: `Session Confirmed: ${sessionLabel} with ${otherPerson} — ${shortDate}`,
+    html,
+    from: resolveFrom(params.brand),
+    tags: [{ name: "category", value: "appointment_confirmation" }],
+    attachments: [
+      {
+        filename: `everist-session-${params.date}.ics`,
+        content: params.icsContent,
+        contentType: "text/calendar",
+      },
+    ],
   });
 }

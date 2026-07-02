@@ -340,6 +340,93 @@ export function buildClientCreatedEmail(params: {
   );
 }
 
+// ─── Appointment Confirmation Email ────────────────────────────────────────
+
+export function buildAppointmentConfirmationEmail(params: {
+  recipientName: string;
+  recipientRole: "coach" | "client";
+  sessionType: string;
+  meetingType: string;
+  date: string;           // "YYYY-MM-DD"
+  startTime: string;      // "HH:MM"
+  endTime: string;        // "HH:MM"
+  durationMinutes: number;
+  coachName: string;
+  clientName: string;
+  meetingLink?: string | null;
+  notes?: string | null;
+  brand?: Partial<EmailBrandConfig>;
+}): string {
+  const b = resolveBrand(params.brand);
+
+  // Format date for display
+  const dateObj = new Date(params.date + "T12:00:00");
+  const displayDate = dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+
+  // Format time for display
+  const fmtTime = (t: string) => {
+    const [hh, mm] = t.split(":");
+    const hour = parseInt(hh, 10);
+    const suffix = hour >= 12 ? "PM" : "AM";
+    const display = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    return `${display}:${mm} ${suffix}`;
+  };
+  const displayTime = `${fmtTime(params.startTime)} — ${fmtTime(params.endTime)}`;
+
+  // Session type label
+  const sessionLabel = params.sessionType
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const meetingTypeLabel =
+    params.meetingType === "video" ? "Video Call"
+    : params.meetingType === "phone" ? "Phone Call"
+    : "In Person";
+
+  const otherPerson = params.recipientRole === "coach"
+    ? params.clientName
+    : params.coachName;
+
+  const greeting = params.recipientRole === "coach"
+    ? `You have scheduled a new session with <strong>${escapeHtml(params.clientName)}</strong>.`
+    : `Your coach <strong>${escapeHtml(params.coachName)}</strong> has scheduled a session for you.`;
+
+  // Build meeting link section
+  const meetingLinkHtml = params.meetingLink
+    ? emailButton("Join Video Call", params.meetingLink, b.accentColor) +
+      emailParagraph(`<span style="font-size: 13px; color: #9E9E9E;">Or copy this link: ${escapeHtml(params.meetingLink)}</span>`)
+    : "";
+
+  // Build notes section
+  const notesHtml = params.notes
+    ? emailDivider() + emailSubheading("Notes", b.accentColor) + emailInfoBox(escapeHtml(params.notes))
+    : "";
+
+  return wrapEmailLayout(
+    emailHeading("Session Confirmed") +
+    emailParagraph(`Hi ${escapeHtml(params.recipientName)},`) +
+    emailParagraph(greeting) +
+    emailDivider() +
+    emailMetricTable([
+      { label: "Session Type", value: sessionLabel },
+      { label: "Date", value: displayDate },
+      { label: "Time", value: displayTime },
+      { label: "Duration", value: `${params.durationMinutes} minutes` },
+      { label: "Meeting Type", value: meetingTypeLabel },
+      { label: params.recipientRole === "coach" ? "Client" : "Coach", value: otherPerson },
+    ]) +
+    meetingLinkHtml +
+    notesHtml +
+    emailDivider() +
+    emailParagraph(`<span style="font-size: 13px; color: #9E9E9E;">A calendar invite (.ics) is attached to this email. Open it to add this session to your calendar.</span>`) +
+    emailButton("View Appointments", "{{baseUrl}}/appointments", b.accentColor),
+    {
+      preheader: `${sessionLabel} with ${otherPerson} on ${displayDate} at ${fmtTime(params.startTime)}`,
+      brand: b,
+    }
+  );
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function escapeHtml(str: string): string {
