@@ -47,6 +47,8 @@ import {
   Plus,
   Settings,
   Dumbbell,
+  Database,
+  Cloud,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii, APP_VERSION } from "@/lib/constants";
@@ -298,9 +300,36 @@ export default function ProfileScreen() {
               variant="secondary"
               size="sm"
               icon={<Plus size={16} color={Colors.gold} />}
-              onPress={noop}
+              onPress={() => router.push("/devices/connect" as any)}
             />
           </View>
+        </SettingsSection>
+
+        {/* ═══════════════════════════════════════════════════════════ */}
+        {/* 3b-ii. DATA SOURCES                                       */}
+        {/* ═══════════════════════════════════════════════════════════ */}
+        <SettingsSection
+          title="Data"
+          icon={<Database size={16} color={Colors.gold} />}
+        >
+          <SettingsRow
+            icon={<Database size={18} color={Colors.silver} />}
+            label="Data Sources"
+            subtitle="Manage integrations & health data"
+            onPress={() => router.push("/settings/data-sources" as any)}
+          />
+          <SettingsRow
+            icon={<Cloud size={18} color={Colors.silver} />}
+            label="Sync Settings"
+            subtitle="Frequency, historical data"
+            onPress={() => router.push("/devices/apple-health")}
+          />
+          <SettingsRow
+            icon={<Plus size={18} color={Colors.gold} />}
+            label="Connect New Account"
+            onPress={() => router.push("/devices/connect" as any)}
+            last
+          />
         </SettingsSection>
 
         {/* ═══════════════════════════════════════════════════════════ */}

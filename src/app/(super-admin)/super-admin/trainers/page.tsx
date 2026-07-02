@@ -91,9 +91,9 @@ export default function TrainersPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-heading font-bold text-3xl text-white mb-2">Trainer Management</h1>
+          <h1 className="font-heading font-bold text-3xl text-white mb-2">Coach Management</h1>
           <p className="text-sm font-body text-kairos-silver-dark">
-            Manage and monitor your training team performance
+            Manage and monitor your coaching team performance
           </p>
         </div>
         <CompanySelector value={selectedCompany} onChange={setSelectedCompany} />
@@ -113,7 +113,7 @@ export default function TrainersPage() {
           </div>
           <span className="font-heading font-semibold text-white text-sm">{company.name}</span>
           <span className="text-xs text-kairos-silver-dark ml-auto">
-            {company.trainerCount} trainers · capacity {company.maxTrainers}
+            {company.trainerCount} coaches · capacity {company.maxTrainers}
           </span>
         </div>
       )}
@@ -122,7 +122,7 @@ export default function TrainersPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <div className="kairos-card">
           <div className="text-kairos-gold font-heading font-bold text-2xl">{stats.totalCoaches}</div>
-          <div className="text-kairos-silver-dark text-xs font-body mt-1">Total Trainers</div>
+          <div className="text-kairos-silver-dark text-xs font-body mt-1">Total Coaches</div>
         </div>
         <div className="kairos-card">
           <div className="text-green-400 font-heading font-bold text-2xl">{stats.activeCoaches}</div>
@@ -151,7 +151,7 @@ export default function TrainersPage() {
             <Search className="absolute left-3 top-3 w-4 h-4 text-kairos-silver-dark" />
             <input
               type="text"
-              placeholder={company ? "Search trainers..." : "Search trainers or specializations..."}
+              placeholder={company ? "Search coaches..." : "Search coaches or specializations..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-kairos-sm bg-kairos-card border border-kairos-border text-white font-body text-sm placeholder-kairos-silver-dark focus:outline-none focus:border-kairos-gold"
@@ -264,7 +264,7 @@ export default function TrainersPage() {
               ) : (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-kairos-silver-dark font-body">
-                    No trainers found matching your criteria.
+                    No coaches found matching your criteria.
                   </td>
                 </tr>
               )
@@ -308,7 +308,7 @@ export default function TrainersPage() {
               ) : (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-kairos-silver-dark font-body">
-                    No trainers found matching your criteria.
+                    No coaches found matching your criteria.
                   </td>
                 </tr>
               )
@@ -322,7 +322,7 @@ export default function TrainersPage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-kairos-border">
-              <h2 className="font-heading font-bold text-lg text-white">Trainer Profile</h2>
+              <h2 className="font-heading font-bold text-lg text-white">Coach Profile</h2>
               <button onClick={() => setViewingTrainer(null)} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
             </div>
             <div className="p-6 space-y-4">

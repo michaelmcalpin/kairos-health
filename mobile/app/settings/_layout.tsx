@@ -47,6 +47,10 @@ export default function SettingsLayout() {
         name="about"
         options={{ title: "About" }}
       />
+      <Stack.Screen
+        name="data-sources"
+        options={{ title: "Data Sources" }}
+      />
     </Stack>
   );
 }

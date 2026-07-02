@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Video, Calendar, Clock } from "lucide-react";
+import { Video, Calendar, Clock, Download } from "lucide-react";
 
 // ─── Local types matching DB schema ─────────────────────────────────
 
@@ -208,6 +208,17 @@ export function AppointmentDetail({
             </a>
           </div>
         )}
+        {/* Add to Calendar */}
+        <div className="py-2 border-b border-gray-800">
+          <a
+            href={`/api/calendar/export?appointmentId=${appointment.id}`}
+            download
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors"
+          >
+            <Download size={16} />
+            Add to Calendar (.ics)
+          </a>
+        </div>
         {appointment.notes && (
           <div className="py-2">
             <span className="text-sm text-gray-400">Notes</span>

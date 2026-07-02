@@ -79,7 +79,7 @@ export default function CompanyTrainersPage() {
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-kairos-gold border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-xs font-body text-kairos-silver-dark">Loading trainers...</p>
+          <p className="text-xs font-body text-kairos-silver-dark">Loading coaches...</p>
         </div>
       </div>
     );
@@ -89,9 +89,9 @@ export default function CompanyTrainersPage() {
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-heading font-bold text-3xl text-white mb-2">Trainers</h1>
+          <h1 className="font-heading font-bold text-3xl text-white mb-2">Coaches</h1>
           <p className="font-body text-kairos-silver-dark">
-            Manage {company?.name ? `${company.name}'s` : "your company's"} trainers
+            Manage {company?.name ? `${company.name}'s` : "your company's"} coaches
           </p>
         </div>
         <button
@@ -103,7 +103,7 @@ export default function CompanyTrainersPage() {
           }}
         >
           <Plus size={16} />
-          Invite Trainer
+          Invite Coach
         </button>
       </div>
 
@@ -111,7 +111,7 @@ export default function CompanyTrainersPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="kairos-card">
           <div className="flex items-center justify-between mb-1">
-            <p className="kairos-label">Total Trainers</p>
+            <p className="kairos-label">Total Coaches</p>
             <Dumbbell size={14} className="text-blue-400/50" />
           </div>
           <p className="font-heading font-bold text-xl text-white">{allTrainers.length}</p>
@@ -150,7 +150,7 @@ export default function CompanyTrainersPage() {
           <Search className="absolute left-4 top-2.5 w-4 h-4 text-kairos-silver-dark" />
           <input
             type="text"
-            placeholder="Search trainers..."
+            placeholder="Search coaches..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-kairos-card border border-kairos-border rounded-kairos-sm pl-11 pr-4 py-2 text-sm text-white placeholder-kairos-silver-dark focus:outline-none focus:border-kairos-gold/50"
@@ -165,7 +165,7 @@ export default function CompanyTrainersPage() {
             <tr className="border-b border-kairos-border">
               <th className="text-left px-6 py-3">
                 <button onClick={() => toggleSort("name")} className="flex items-center gap-1 kairos-label hover:text-white transition-colors">
-                  Trainer <ArrowUpDown size={12} className={sortField === "name" ? "text-kairos-gold" : ""} />
+                  Coach <ArrowUpDown size={12} className={sortField === "name" ? "text-kairos-gold" : ""} />
                 </button>
               </th>
               <th className="text-left px-6 py-3 kairos-label">Email</th>
@@ -203,7 +203,7 @@ export default function CompanyTrainersPage() {
             {trainers.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-6 py-12 text-center text-kairos-silver-dark font-body">
-                  {search ? "No trainers match your search" : "No trainers yet"}
+                  {search ? "No coaches match your search" : "No coaches yet"}
                 </td>
               </tr>
             )}
@@ -278,7 +278,7 @@ function TrainerRow({
             aria-valuenow={usagePct}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`Trainer capacity: ${t.clientCount} of ${t.capacity} clients`}
+            aria-label={`Coach capacity: ${t.clientCount} of ${t.capacity} clients`}
           >
             <div
               className="h-full rounded-full"
@@ -372,7 +372,7 @@ function InviteTrainerModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-kairos-card border border-kairos-border rounded-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="font-heading font-bold text-xl text-white">Invite Trainer</h3>
+          <h3 className="font-heading font-bold text-xl text-white">Invite Coach</h3>
           <button onClick={onClose} className="p-1 rounded text-gray-400 hover:text-white transition-colors">
             <X size={18} />
           </button>
@@ -485,7 +485,7 @@ function TrainerDetailDrawer({
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h3 className="font-heading font-bold text-xl text-white">Trainer Details</h3>
+            <h3 className="font-heading font-bold text-xl text-white">Coach Details</h3>
             <button onClick={onClose} className="p-1 rounded text-gray-400 hover:text-white transition-colors">
               <X size={18} />
             </button>

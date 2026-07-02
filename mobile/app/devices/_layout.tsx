@@ -40,6 +40,10 @@ export default function DevicesLayout() {
         name="apple-health"
         options={{ title: "Apple Health" }}
       />
+      <Stack.Screen
+        name="connect"
+        options={{ title: "Connect Account" }}
+      />
     </Stack>
   );
 }

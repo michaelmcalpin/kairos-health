@@ -23,12 +23,12 @@ const ROLE_META: Record<
   client: {
     label: "Client Portal",
     subtitle: "Health Dashboard",
-    description: "Access your health dashboard, biometrics, protocols, and communicate with your trainer.",
+    description: "Access your health dashboard, biometrics, protocols, and communicate with your coach.",
     icon: Heart,
     colorClass: "text-kairos-gold bg-kairos-gold/15 group-hover:bg-kairos-gold/25",
   },
   trainer: {
-    label: "Trainer Portal",
+    label: "Coach Portal",
     subtitle: "Client Management",
     description: "Manage your clients, review alerts, track protocols, and grow your practice.",
     icon: Dumbbell,
@@ -37,7 +37,7 @@ const ROLE_META: Record<
   company_admin: {
     label: "Company Portal",
     subtitle: "Team Management",
-    description: "Oversee your trainers and clients, manage company branding and settings.",
+    description: "Oversee your coaches and clients, manage company branding and settings.",
     icon: Building2,
     colorClass: "text-emerald-400 bg-emerald-500/15 group-hover:bg-emerald-500/25",
   },

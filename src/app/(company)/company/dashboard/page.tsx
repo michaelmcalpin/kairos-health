@@ -44,7 +44,7 @@ export default function CompanyDashboardPage() {
             {error ? "Unable to load dashboard" : "No data yet"}
           </h3>
           <p className="text-sm text-gray-400">
-            {error ? "There was an error loading your company dashboard." : "Your dashboard will populate once trainers and clients are added."}
+            {error ? "There was an error loading your company dashboard." : "Your dashboard will populate once coaches and clients are added."}
           </p>
         </div>
       </div>
@@ -78,7 +78,7 @@ export default function CompanyDashboardPage() {
                 {companyData?.name || "Company Dashboard"}
               </h1>
               <p className="text-sm font-body text-kairos-silver-dark">
-                Company administration — manage trainers, clients, and settings
+                Company administration — manage coaches, clients, and settings
               </p>
             </div>
           </div>
@@ -96,7 +96,7 @@ export default function CompanyDashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="kairos-card">
           <div className="flex items-center justify-between mb-2">
-            <p className="kairos-label">Trainers</p>
+            <p className="kairos-label">Coaches</p>
             <Dumbbell size={16} className="text-blue-400/50" />
           </div>
           <p className="font-heading font-bold text-2xl text-white">
@@ -159,7 +159,7 @@ export default function CompanyDashboardPage() {
         {/* Trainers */}
         <div className="kairos-card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-heading font-semibold text-white">Trainers</h2>
+            <h2 className="font-heading font-semibold text-white">Coaches</h2>
             <button
               onClick={() => router.push("/company/trainers")}
               className="text-xs font-heading font-semibold flex items-center gap-1 transition-colors hover:gap-2"
@@ -169,7 +169,7 @@ export default function CompanyDashboardPage() {
             </button>
           </div>
           {trainers.length === 0 ? (
-            <p className="text-sm text-gray-500 py-4">No trainers assigned to this company yet.</p>
+            <p className="text-sm text-gray-500 py-4">No coaches assigned to this company yet.</p>
           ) : (
             <div className="space-y-3">
               {trainers.slice(0, 5).map((t) => (

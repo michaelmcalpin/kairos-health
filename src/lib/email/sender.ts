@@ -179,7 +179,7 @@ export async function sendTrainerMessageEmail(params: {
   const html = buildTrainerMessageEmail(params);
   return sendEmail({
     to: params.to,
-    subject: `New Message from ${params.trainerName}`,
+    subject: `New Message from Your Coach, ${params.trainerName}`,
     html,
     from: resolveFrom(params.brand),
     tags: [{ name: "category", value: "coach_message" }],

@@ -10,7 +10,7 @@ export default function TrainerLoginPage() {
             EVERIST.ai
           </h1>
           <p className="text-sm font-heading text-blue-400 uppercase tracking-widest">
-            Trainer Portal
+            Coach Portal
           </p>
         </div>
         <SignIn
@@ -30,7 +30,7 @@ export default function TrainerLoginPage() {
         />
         <div className="mt-6">
           <p className="text-sm text-kairos-silver-dark">
-            Not a trainer?{" "}
+            Not a coach?{" "}
             <Link href="/sign-in" className="text-blue-400 hover:text-blue-300 font-semibold">
               Sign in as a client →
             </Link>

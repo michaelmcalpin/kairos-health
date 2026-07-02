@@ -330,7 +330,7 @@ export const trainerNavItems: NavItem[] = [
 // ─── Company Admin Nav ───────────────────────────────────────────
 export const companyAdminNavItems: NavItem[] = [
   { label: "Dashboard", href: "/company/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
-  { label: "Trainers", href: "/company/trainers", icon: <Dumbbell size={18} />, section: "People" },
+  { label: "Coaches", href: "/company/trainers", icon: <Dumbbell size={18} />, section: "People" },
   { label: "Clients", href: "/company/clients", icon: <Users size={18} />, section: "People" },
   { label: "Settings", href: "/company/settings", icon: <Settings size={18} />, section: "Manage" },
 ];
@@ -339,7 +339,7 @@ export const companyAdminNavItems: NavItem[] = [
 export const superAdminNavItems: NavItem[] = [
   { label: "Dashboard", href: "/super-admin/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
   { label: "Companies", href: "/super-admin/companies", icon: <Building2 size={18} />, section: "People" },
-  { label: "Trainers", href: "/super-admin/trainers", icon: <Dumbbell size={18} />, section: "People" },
+  { label: "Coaches", href: "/super-admin/trainers", icon: <Dumbbell size={18} />, section: "People" },
   { label: "Users", href: "/super-admin/users", icon: <Users size={18} />, section: "People" },
   { label: "Analytics", href: "/super-admin/analytics", icon: <BarChart3 size={18} />, section: "Data" },
   { label: "Revenue", href: "/super-admin/revenue", icon: <DollarSign size={18} />, section: "Data" },

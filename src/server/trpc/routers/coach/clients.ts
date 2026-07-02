@@ -1366,7 +1366,7 @@ export const coachClientsRouter = router({
         });
         const trainerName = trainer
           ? `${trainer.firstName ?? ""} ${trainer.lastName ?? ""}`.trim() || trainer.email
-          : "Your Trainer";
+          : "Your Coach";
 
         await sendInvitationEmail({
           to: input.email.toLowerCase(),
@@ -1502,7 +1502,7 @@ export const coachClientsRouter = router({
         });
         const trainerName = trainer
           ? `${trainer.firstName ?? ""} ${trainer.lastName ?? ""}`.trim() || trainer.email
-          : "Your Trainer";
+          : "Your Coach";
 
         await sendClientCreatedEmail({
           to: input.email.toLowerCase(),

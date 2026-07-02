@@ -1,264 +1,224 @@
 /**
- * Onboarding screen for the Everist.ai mobile app.
+ * Multi-step onboarding flow for the Everist.ai mobile app.
  *
- * Three swipeable pages introducing the app's core value propositions.
- * Uses ScrollView with pagingEnabled for simple horizontal paging.
+ * Steps:
+ *   1. Welcome — brand intro + value props
+ *   2. Profile — name, DOB, gender, height
+ *   3. Health Goals — multi-select grid
+ *   4. Wearable Selection — "Which wearable do you use?"
+ *   5. Complete — summary + explore CTA
+ *
+ * Persists progress via tRPC onboarding endpoints when available,
+ * with graceful fallback for offline/dev mode.
  */
 
-import React, { useState, useRef, useCallback } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  ScrollView,
-  Dimensions,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
-} from "react-native";
+import React, { useState, useCallback } from "react";
+import { View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Heart, Sparkles, Users } from "lucide-react-native";
 
-import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { Colors, Spacing } from "@/lib/constants";
+import {
+  WelcomeStep,
+  ProfileStep,
+  HealthGoalsStep,
+  WearableStep,
+  CompleteStep,
+} from "@/components/onboarding";
+import type { ProfileData, WearableChoice } from "@/components/onboarding";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+/* ------------------------------------------------------------------ */
+/* Step definitions                                                    */
+/* ------------------------------------------------------------------ */
 
-interface OnboardingPage {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
+type StepId = "welcome" | "profile" | "goals" | "wearable" | "complete";
+
+const STEP_ORDER: StepId[] = [
+  "welcome",
+  "profile",
+  "goals",
+  "wearable",
+  "complete",
+];
+
+/* ------------------------------------------------------------------ */
+/* Progress dots                                                       */
+/* ------------------------------------------------------------------ */
+
+function ProgressDots({
+  current,
+  total,
+}: {
+  current: number;
+  total: number;
+}) {
+  return (
+    <View style={styles.dotsRow}>
+      {Array.from({ length: total }).map((_, i) => (
+        <View
+          key={i}
+          style={[
+            styles.dot,
+            i === current ? styles.dotActive : styles.dotInactive,
+            i < current && styles.dotCompleted,
+          ]}
+        />
+      ))}
+    </View>
+  );
 }
 
-const PAGES: OnboardingPage[] = [
-  {
-    icon: <Heart size={64} color={Colors.gold} strokeWidth={1.5} />,
-    title: "Track Your Health",
-    description:
-      "Monitor biomarkers, vitals, and lab results in one private dashboard. See trends over time and understand what your data means.",
-  },
-  {
-    icon: <Sparkles size={64} color={Colors.gold} strokeWidth={1.5} />,
-    title: "AI-Powered Insights",
-    description:
-      "Our AI analyzes your health data to surface personalized insights, flag potential concerns early, and suggest evidence-based actions.",
-  },
-  {
-    icon: <Users size={64} color={Colors.gold} strokeWidth={1.5} />,
-    title: "Expert Coaching",
-    description:
-      "Connect with board-certified physicians and longevity coaches who review your data and create custom protocols for optimal health.",
-  },
-];
+/* ------------------------------------------------------------------ */
+/* Screen                                                              */
+/* ------------------------------------------------------------------ */
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const scrollRef = useRef<ScrollView>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
 
-  const handleScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const offsetX = event.nativeEvent.contentOffset.x;
-      const index = Math.round(offsetX / SCREEN_WIDTH);
-      setActiveIndex(index);
-    },
+  /* -- State for each step -- */
+  const [currentStep, setCurrentStep] = useState<StepId>("welcome");
+  const [profile, setProfile] = useState<ProfileData>({
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    gender: "",
+    heightFeet: "",
+    heightInches: "",
+  });
+  const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+  const [selectedWearables, setSelectedWearables] = useState<WearableChoice[]>(
     [],
   );
 
-  const handleGetStarted = useCallback(() => {
+  /* -- Navigation helpers -- */
+  const currentIndex = STEP_ORDER.indexOf(currentStep);
+
+  const goNext = useCallback(() => {
+    const nextIndex = currentIndex + 1;
+    if (nextIndex < STEP_ORDER.length) {
+      setCurrentStep(STEP_ORDER[nextIndex]);
+    }
+  }, [currentIndex]);
+
+  const goBack = useCallback(() => {
+    const prevIndex = currentIndex - 1;
+    if (prevIndex >= 0) {
+      setCurrentStep(STEP_ORDER[prevIndex]);
+    }
+  }, [currentIndex]);
+
+  const handleFinish = useCallback(() => {
+    // TODO: Call tRPC onboarding.complete() when wired up
     router.replace("/(tabs)");
   }, [router]);
 
-  const handleSkip = useCallback(() => {
-    router.replace("/(tabs)");
-  }, [router]);
+  /* -- Render current step -- */
+  const renderStep = () => {
+    switch (currentStep) {
+      case "welcome":
+        return <WelcomeStep onContinue={goNext} />;
 
-  const isLastPage = activeIndex === PAGES.length - 1;
+      case "profile":
+        return (
+          <ProfileStep
+            data={profile}
+            onUpdate={setProfile}
+            onContinue={goNext}
+            onBack={goBack}
+          />
+        );
+
+      case "goals":
+        return (
+          <HealthGoalsStep
+            selectedGoals={selectedGoals}
+            onUpdate={setSelectedGoals}
+            onContinue={goNext}
+            onBack={goBack}
+          />
+        );
+
+      case "wearable":
+        return (
+          <WearableStep
+            selected={selectedWearables}
+            onSelect={setSelectedWearables}
+            onContinue={goNext}
+            onBack={goBack}
+          />
+        );
+
+      case "complete":
+        return (
+          <CompleteStep
+            profileName={profile.firstName}
+            goalsCount={selectedGoals.length}
+            devicesCount={
+              selectedWearables.filter((w) => w.id !== "none").length
+            }
+            onFinish={handleFinish}
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Skip button */}
-      <View style={styles.header}>
-        <Pressable onPress={handleSkip} hitSlop={12}>
-          <Text style={styles.skipText}>Skip</Text>
-        </Pressable>
-      </View>
-
-      {/* Swipeable pages */}
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        bounces={false}
-      >
-        {PAGES.map((page, index) => (
-          <View key={index} style={styles.page}>
-            <View style={styles.iconContainer}>{page.icon}</View>
-            <Text style={styles.pageTitle}>{page.title}</Text>
-            <Text style={styles.pageDescription}>{page.description}</Text>
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* Bottom section: dots + button */}
-      <View style={styles.bottomSection}>
-        {/* Dot indicators */}
-        <View style={styles.dotsRow}>
-          {PAGES.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dot,
-                index === activeIndex ? styles.dotActive : styles.dotInactive,
-              ]}
-            />
-          ))}
+      {/* Progress dots (hidden on welcome & complete) */}
+      {currentStep !== "welcome" && currentStep !== "complete" && (
+        <View style={styles.progressWrap}>
+          <ProgressDots
+            current={currentIndex - 1} // offset since welcome isn't a "real" step
+            total={STEP_ORDER.length - 2} // exclude welcome & complete
+          />
         </View>
+      )}
 
-        {/* Get Started / Next area */}
-        {isLastPage ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.getStartedButton,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={handleGetStarted}
-          >
-            <Text style={styles.getStartedText}>Get Started</Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            style={({ pressed }) => [
-              styles.nextButton,
-              pressed && styles.buttonPressed,
-            ]}
-            onPress={() => {
-              const nextIndex = activeIndex + 1;
-              scrollRef.current?.scrollTo({
-                x: nextIndex * SCREEN_WIDTH,
-                animated: true,
-              });
-            }}
-          >
-            <Text style={styles.nextButtonText}>Next</Text>
-          </Pressable>
-        )}
-      </View>
+      {/* Step content */}
+      <View style={styles.content}>{renderStep()}</View>
     </SafeAreaView>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Styles                                                              */
+/* ------------------------------------------------------------------ */
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.dark,
   },
-
-  /* Header */
-  header: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
+  progressWrap: {
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
   },
-  skipText: {
-    fontSize: FontSizes.md,
-    color: Colors.silver,
-    fontWeight: "500",
-  },
-
-  /* Pages */
-  page: {
-    width: SCREEN_WIDTH,
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.xxl,
-  },
-  iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: Radii.full,
-    backgroundColor: Colors.navy,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  pageTitle: {
-    fontSize: FontSizes.xxl,
-    fontWeight: "700",
-    color: Colors.white,
-    textAlign: "center",
-    marginBottom: Spacing.md,
-  },
-  pageDescription: {
-    fontSize: FontSizes.md,
-    color: Colors.silver,
-    textAlign: "center",
-    lineHeight: 24,
-    maxWidth: 320,
-  },
-
-  /* Bottom section */
-  bottomSection: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xl,
-    gap: Spacing.lg,
-  },
-
-  /* Dots */
   dotsRow: {
     flexDirection: "row",
     justifyContent: "center",
     gap: Spacing.sm,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: Radii.full,
+    height: 4,
+    borderRadius: 2,
   },
   dotActive: {
     backgroundColor: Colors.gold,
-    width: 24,
+    width: 32,
   },
   dotInactive: {
     backgroundColor: Colors.border,
+    width: 16,
   },
-
-  /* Buttons */
-  getStartedButton: {
-    backgroundColor: Colors.gold,
-    borderRadius: Radii.md,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
+  dotCompleted: {
+    backgroundColor: Colors.goldDark,
+    width: 16,
   },
-  getStartedText: {
-    fontSize: FontSizes.md,
-    fontWeight: "600",
-    color: Colors.dark,
-  },
-  nextButton: {
-    backgroundColor: "transparent",
-    borderRadius: Radii.md,
-    borderWidth: 1.5,
-    borderColor: Colors.gold,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  nextButtonText: {
-    fontSize: FontSizes.md,
-    fontWeight: "600",
-    color: Colors.gold,
-  },
-  buttonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
+  content: {
+    flex: 1,
   },
 });

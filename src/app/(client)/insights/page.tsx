@@ -627,7 +627,7 @@ function ReportViewer({
           {/* Disclaimer */}
           <div className="p-3 rounded-lg bg-kairos-royal-surface border border-kairos-border">
             <p className="text-[10px] font-body text-kairos-silver-dark">
-              This AI-generated report is for informational purposes only and should not replace professional medical advice. Discuss any changes to your health protocol with your healthcare provider or EVERIST trainer.
+              This AI-generated report is for informational purposes only and should not replace professional medical advice. Discuss any changes to your health protocol with your healthcare provider or EVERIST coach.
             </p>
           </div>
         </div>

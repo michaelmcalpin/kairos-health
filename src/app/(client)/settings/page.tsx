@@ -81,7 +81,7 @@ export default function SettingsPage() {
 
   const [privacy, setPrivacy] = useState({
     dataSharing: true,
-    profileVisibility: "Trainer Only",
+    profileVisibility: "Coach Only",
   });
 
   // Feature toggles (persisted to DB)
@@ -530,7 +530,7 @@ export default function SettingsPage() {
                   <Activity className="w-6 h-6 text-kairos-gold" />
                   <h2 className="font-heading text-xl text-white">Health Goals</h2>
                 </div>
-                <p className="text-sm text-kairos-silver-dark mb-6">Define your health and fitness goals. These are shared with the AI and your trainer to personalize recommendations.</p>
+                <p className="text-sm text-kairos-silver-dark mb-6">Define your health and fitness goals. These are shared with the AI and your coach to personalize recommendations.</p>
                 <div className="space-y-4">
                   <div>
                     <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Health Goals</label>
@@ -1163,7 +1163,7 @@ export default function SettingsPage() {
                   <select value={privacy.profileVisibility}
                     onChange={(e) => handlePrivacyChange("profileVisibility", e.target.value)}
                     className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold focus:border-kairos-gold">
-                    <option value="Trainer Only">Trainer Only</option>
+                    <option value="Coach Only">Coach Only</option>
                     <option value="Team">Team</option>
                     <option value="Private">Private</option>
                   </select>

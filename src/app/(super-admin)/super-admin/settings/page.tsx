@@ -169,7 +169,7 @@ export default function AdminSettingsPage() {
           </div>
           <div className="ml-auto flex items-center gap-4 text-xs text-kairos-silver-dark">
             <span>Brand: <span className="inline-block w-3 h-3 rounded-full align-middle ml-1" style={{ backgroundColor: company.brandColor }} /></span>
-            <span>{company.trainerCount} trainers</span>
+            <span>{company.trainerCount} coaches</span>
             <span>{company.clientCount} clients</span>
           </div>
         </div>
@@ -187,7 +187,7 @@ export default function AdminSettingsPage() {
           {[
             { label: company ? "Company Name" : "Platform Name", name: "platformName", type: "text" },
             { label: company ? "Admin Email" : "Support Email", name: "supportEmail", type: "email" },
-            { label: "Max Clients per Trainer", name: "maxClientsPerTrainer", type: "number" },
+            { label: "Max Clients per Coach", name: "maxClientsPerTrainer", type: "number" },
             { label: "Session Timeout (min)", name: "sessionTimeout", type: "number" },
           ].map((field) => (
             <div key={field.name}>
@@ -221,7 +221,7 @@ export default function AdminSettingsPage() {
               </div>
               <div className="bg-gray-800/30 rounded-xl p-3">
                 <span className="text-xs text-gray-500">Capacity</span>
-                <p className="text-sm text-white mt-1">{company.maxTrainers} trainers / {company.maxClients} clients</p>
+                <p className="text-sm text-white mt-1">{company.maxTrainers} coaches / {company.maxClients} clients</p>
               </div>
             </div>
           </div>
@@ -236,7 +236,7 @@ export default function AdminSettingsPage() {
         </div>
         <div className="space-y-3">
           {([
-            { key: "trainerSignups" as const, label: company ? "New Trainer Joins Company" : "New Trainer Registrations" },
+            { key: "trainerSignups" as const, label: company ? "New Coach Joins Company" : "New Coach Registrations" },
             { key: "revenueAlerts" as const, label: "Revenue Threshold Alerts" },
             { key: "systemErrors" as const, label: "System Error Reports" },
             { key: "weeklyDigest" as const, label: company ? `${company.name} Weekly Digest` : "Weekly Platform Digest" },

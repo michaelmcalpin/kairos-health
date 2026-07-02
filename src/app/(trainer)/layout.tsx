@@ -13,7 +13,7 @@ function TrainerShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen" style={isWhiteLabel ? (cssVars as React.CSSProperties) : undefined}>
       <Sidebar
         items={trainerNavItems}
-        userName="Trainer Portal"
+        userName="Coach Portal"
         companyName={isWhiteLabel ? brand.name : undefined}
         companyLogoUrl={isWhiteLabel ? brand.logoUrl : undefined}
         companyBrandColor={isWhiteLabel ? brand.brandColor : undefined}
@@ -22,7 +22,7 @@ function TrainerShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 ml-64">
         <TopBar
           title={isWhiteLabel ? brand.name : "EVERIST.ai"}
-          subtitle="Trainer Portal"
+          subtitle="Coach Portal"
           brandColor={isWhiteLabel ? brand.brandColor : undefined}
         />
         <main className="p-6">{children}</main>

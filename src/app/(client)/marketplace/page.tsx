@@ -42,7 +42,7 @@ export default function Page() {
       {/* Page Header */}
       <div>
         <h1 className="font-heading font-bold text-3xl text-white mb-1">Supplement Marketplace</h1>
-        <p className="font-body text-kairos-silver-dark">Curated by your trainer</p>
+        <p className="font-body text-kairos-silver-dark">Curated by your coach</p>
       </div>
 
       {/* Category Filters */}

@@ -94,7 +94,7 @@ export default function AnalyticsPage() {
           </h1>
           <p className="text-gray-400">
             {company
-              ? "Company-level insights and trainer performance"
+              ? "Company-level insights and coach performance"
               : "Real-time insights into platform performance and user engagement"}
           </p>
         </div>
@@ -127,7 +127,7 @@ export default function AnalyticsPage() {
           </div>
           <span className="font-heading font-semibold text-white text-sm">{company.name}</span>
           <span className="text-xs text-kairos-silver-dark ml-auto">
-            {company.trainerCount} trainers · {company.clientCount} clients
+            {company.trainerCount} coaches · {company.clientCount} clients
           </span>
         </div>
       )}
@@ -137,7 +137,7 @@ export default function AnalyticsPage() {
           {/* Company KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {[
-              { label: "Active Trainers", value: String(companyAnalytics.trainers), icon: "star", trend: 0 },
+              { label: "Active Coaches", value: String(companyAnalytics.trainers), icon: "star", trend: 0 },
               { label: "Total Clients", value: String(companyAnalytics.clients), icon: "users", trend: 5.2 },
               { label: "Avg Rating", value: companyAnalytics.avgRating.toFixed(1), icon: "heart", trend: 2.1 },
               { label: "Utilization", value: `${companyAnalytics.utilization}%`, icon: "trending", trend: 3.4 },
@@ -194,11 +194,11 @@ export default function AnalyticsPage() {
 
           {/* Trainer Performance Table */}
           <div className="kairos-card p-6 overflow-x-auto">
-            <h3 className="font-heading font-semibold text-white mb-4">Trainer Performance</h3>
+            <h3 className="font-heading font-semibold text-white mb-4">Coach Performance</h3>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-kairos-border">
-                  <th className="text-left py-2 text-xs font-heading text-kairos-silver-dark">Trainer</th>
+                  <th className="text-left py-2 text-xs font-heading text-kairos-silver-dark">Coach</th>
                   <th className="text-center py-2 text-xs font-heading text-kairos-silver-dark">Clients</th>
                   <th className="text-center py-2 text-xs font-heading text-kairos-silver-dark">Capacity</th>
                   <th className="text-center py-2 text-xs font-heading text-kairos-silver-dark">Utilization</th>
@@ -261,7 +261,7 @@ export default function AnalyticsPage() {
               <thead>
                 <tr className="border-b border-kairos-border">
                   <th className="text-left py-2 text-xs font-heading text-kairos-silver-dark">Company</th>
-                  <th className="text-center py-2 text-xs font-heading text-kairos-silver-dark">Trainers</th>
+                  <th className="text-center py-2 text-xs font-heading text-kairos-silver-dark">Coaches</th>
                   <th className="text-center py-2 text-xs font-heading text-kairos-silver-dark">Clients</th>
                   <th className="text-center py-2 text-xs font-heading text-kairos-silver-dark">Utilization</th>
                   <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Est. MRR</th>
