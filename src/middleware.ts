@@ -46,7 +46,7 @@ const securityHeaders: Record<string, string> = {
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.clerk.dev https://*.clerk.accounts.dev https://challenges.cloudflare.com https://cdnjs.cloudflare.com https://js.stripe.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "img-src 'self' data: blob: https://img.clerk.com https://*.clerk.com https://*.clerk.dev https://*.stripe.com",
+    "img-src 'self' data: blob: https://img.clerk.com https://*.clerk.com https://*.clerk.dev https://*.stripe.com https://*.public.blob.vercel-storage.com",
     "font-src 'self' https://fonts.gstatic.com",
     "connect-src 'self' https://api.clerk.com https://api.clerk.dev https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev https://api.stripe.com wss:",
     "frame-src 'self' https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://js.stripe.com https://hooks.stripe.com",
