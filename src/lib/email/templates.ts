@@ -21,7 +21,7 @@ const DEFAULT_BRAND: EmailBrandConfig = {
   primaryColorDark: "#0A0F1F",
   accentColor: "#D4AF37",
   logoUrl: null,
-  fromName: "Everist.ai Health",
+  fromName: "MyHealth",
   footer: "Everist.ai Health Management",
   website: "https://kairos.health",
 };

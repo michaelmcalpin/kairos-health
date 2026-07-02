@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Calendar, Clock, Plus, Users, X } from 'lucide-react';
+import { Calendar, Clock, Plus, Users, X, Settings2 } from 'lucide-react';
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
 import { WeeklyCalendar } from "@/components/scheduling/WeeklyCalendar";
 import { AppointmentDetail } from "@/components/scheduling/AppointmentDetail";
+import { AvailabilityEditor } from "@/components/scheduling/AvailabilityEditor";
 
 // Local session types constant (previously from @/lib/scheduling/types)
 const SESSION_TYPES = [
@@ -36,7 +37,10 @@ interface AppointmentLike {
   meetingLink?: string | null;
 }
 
+type ScheduleTab = "calendar" | "availability";
+
 export default function CoachSchedulePage() {
+  const [activeTab, setActiveTab] = useState<ScheduleTab>("calendar");
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
@@ -106,15 +110,44 @@ export default function CoachSchedulePage() {
             <Calendar className="w-8 h-8 text-kairos-gold" />
             <div>
               <h1 className="font-heading font-bold text-3xl text-white">Schedule</h1>
-              <p className="text-kairos-silver-dark text-sm">Manage your client appointments</p>
+              <p className="text-kairos-silver-dark text-sm">Manage your appointments and availability</p>
             </div>
           </div>
-          <button onClick={() => setShowNewAppt(true)} className="kairos-btn-gold gap-2 flex items-center justify-center">
-            <Plus className="w-5 h-5" />
-            <span>New Appointment</span>
+          {activeTab === "calendar" && (
+            <button onClick={() => setShowNewAppt(true)} className="kairos-btn-gold gap-2 flex items-center justify-center">
+              <Plus className="w-5 h-5" />
+              <span>New Appointment</span>
+            </button>
+          )}
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex gap-1 p-1 bg-kairos-royal-surface rounded-xl mb-8 w-fit">
+          <button
+            onClick={() => setActiveTab("calendar")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-heading font-semibold transition-all ${
+              activeTab === "calendar"
+                ? "bg-kairos-gold text-kairos-royal-deep shadow-sm"
+                : "text-kairos-silver-dark hover:text-white"
+            }`}
+          >
+            <Calendar size={16} />
+            Calendar
+          </button>
+          <button
+            onClick={() => setActiveTab("availability")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-heading font-semibold transition-all ${
+              activeTab === "availability"
+                ? "bg-kairos-gold text-kairos-royal-deep shadow-sm"
+                : "text-kairos-silver-dark hover:text-white"
+            }`}
+          >
+            <Settings2 size={16} />
+            Availability
           </button>
         </div>
 
+        {activeTab === "calendar" && (
         <div className="grid grid-cols-4 gap-4 mb-8">
           <div className="kairos-card p-6">
             <div className="flex items-start justify-between mb-2">
@@ -152,8 +185,13 @@ export default function CoachSchedulePage() {
             <p className="text-xs text-kairos-silver-dark mt-1">This week</p>
           </div>
         </div>
+        )}
       </div>
 
+      {activeTab === "availability" && <AvailabilityEditor />}
+
+      {activeTab === "calendar" && (
+      <>
       <DateRangeNavigator
         availablePeriods={["week", "month"]}
         selectedPeriod={period}
@@ -248,6 +286,9 @@ export default function CoachSchedulePage() {
           ))}
         </div>
       </div>
+
+      </>
+      )}
 
       {/* New Appointment Modal */}
       {showNewAppt && (

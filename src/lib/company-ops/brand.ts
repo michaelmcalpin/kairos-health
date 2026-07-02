@@ -80,7 +80,7 @@ export function lightenHex(hex: string, amount = 0.3): string {
 const EVERIST_DEFAULTS = {
   name: "EVERIST.ai",
   brandColor: "#4A90D9",  // Summit Ice Blue
-  emailFromName: "Everist.ai Health",
+  emailFromName: "MyHealth",
   emailFooter: "Everist.ai Health Management",
   website: "https://everist.ai",
   poweredBy: "Powered by Everist.ai",

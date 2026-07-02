@@ -40,15 +40,15 @@ function getResend(): Resend {
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-const DEFAULT_FROM = process.env.EMAIL_FROM ?? "Everist.ai <noreply@everist.ai>";
+const DEFAULT_FROM = process.env.EMAIL_FROM ?? "MyHealth <MyHealth@app.everist.ai>";
 const APP_URL = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 function resolveFrom(brand?: Partial<EmailBrandConfig>): string {
   if (brand?.fromName) {
-    // Extract domain from DEFAULT_FROM or use kairos.health
+    // Extract email address from DEFAULT_FROM, preserving the sending address
     const match = DEFAULT_FROM.match(/<(.+)>/);
-    const domain = match ? match[1] : "noreply@kairos.health";
-    return `${brand.fromName} <${domain}>`;
+    const emailAddress = match ? match[1] : "MyHealth@app.everist.ai";
+    return `${brand.fromName} <${emailAddress}>`;
   }
   return DEFAULT_FROM;
 }
