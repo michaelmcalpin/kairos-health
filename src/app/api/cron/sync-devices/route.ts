@@ -53,15 +53,27 @@ export async function GET(req: Request) {
     // Sync connections that haven't been synced in the last 14 minutes
     const staleThreshold = new Date(Date.now() - 14 * 60 * 1000);
 
-    const connectionsToSync = await db.query.deviceConnections.findMany({
-      where: and(
-        eq(deviceConnections.status, "connected"),
-        or(
-          lt(deviceConnections.lastSyncAt, staleThreshold),
-          eq(deviceConnections.lastSyncAt, null as unknown as Date),
+    let connectionsToSync;
+    try {
+      connectionsToSync = await db.query.deviceConnections.findMany({
+        where: and(
+          eq(deviceConnections.status, "connected"),
+          or(
+            lt(deviceConnections.lastSyncAt, staleThreshold),
+            eq(deviceConnections.lastSyncAt, null as unknown as Date),
+          ),
         ),
-      ),
-    });
+      });
+    } catch (queryErr) {
+      logger.warn("cron", "device_connections table not available — skipping sync", {
+        error: queryErr instanceof Error ? queryErr.message : "Unknown error",
+      });
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: "device_connections table not available",
+      });
+    }
 
     logger.info("cron", `Found ${connectionsToSync.length} connections to sync`);
 

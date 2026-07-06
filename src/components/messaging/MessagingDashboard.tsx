@@ -36,20 +36,42 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
   });
 
   // ── tRPC queries (role-based) ─────────────────────────────────
+  // All hooks must be called unconditionally (Rules of Hooks).
+  // We use `enabled` to control which actually fire.
 
-  const conversationsQuery = role === "client"
-    ? trpc.clientPortal.messaging.listConversations.useQuery({ filter })
-    : trpc.coach.messaging.listConversations.useQuery({ filter });
+  const isClient = role === "client";
 
-  const statsQuery = role === "client"
-    ? trpc.clientPortal.messaging.getStats.useQuery()
-    : trpc.coach.messaging.getStats.useQuery();
+  const clientConversationsQuery = trpc.clientPortal.messaging.listConversations.useQuery(
+    { filter },
+    { enabled: isClient },
+  );
+  const coachConversationsQuery = trpc.coach.messaging.listConversations.useQuery(
+    { filter },
+    { enabled: !isClient },
+  );
+  const conversationsQuery = isClient ? clientConversationsQuery : coachConversationsQuery;
 
-  const messagesQuery = selectedConversation
-    ? (role === "client"
-        ? trpc.clientPortal.messaging.getMessages.useQuery({ conversationId: selectedConversation.id })
-        : trpc.coach.messaging.getMessages.useQuery({ conversationId: selectedConversation.id }))
-    : { data: undefined };
+  const clientStatsQuery = trpc.clientPortal.messaging.getStats.useQuery(
+    undefined,
+    { enabled: isClient },
+  );
+  const coachStatsQuery = trpc.coach.messaging.getStats.useQuery(
+    undefined,
+    { enabled: !isClient },
+  );
+  const statsQuery = isClient ? clientStatsQuery : coachStatsQuery;
+
+  const selectedConversationId = selectedConversation?.id ?? "";
+
+  const clientMessagesQuery = trpc.clientPortal.messaging.getMessages.useQuery(
+    { conversationId: selectedConversationId },
+    { enabled: isClient && !!selectedConversation },
+  );
+  const coachMessagesQuery = trpc.coach.messaging.getMessages.useQuery(
+    { conversationId: selectedConversationId },
+    { enabled: !isClient && !!selectedConversation },
+  );
+  const messagesQuery = isClient ? clientMessagesQuery : coachMessagesQuery;
 
   // ── Auto-select conversation from deep link ───────────────────
   useEffect(() => {
@@ -67,22 +89,24 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
   }, [initialConversationId, conversationsQuery.data, didAutoSelect]);
 
   // ── tRPC mutations ────────────────────────────────────────────
+  // Both hooks are always called; the component only invokes the
+  // matching one via `sendMessageMutation` / `markAsReadMutation`.
 
-  const sendMessageMutation = role === "client"
-    ? trpc.clientPortal.messaging.sendMessage.useMutation({
-        onSuccess: () => invalidateAll(),
-      })
-    : trpc.coach.messaging.sendMessage.useMutation({
-        onSuccess: () => invalidateAll(),
-      });
+  const clientSendMessage = trpc.clientPortal.messaging.sendMessage.useMutation({
+    onSuccess: () => invalidateAll(),
+  });
+  const coachSendMessage = trpc.coach.messaging.sendMessage.useMutation({
+    onSuccess: () => invalidateAll(),
+  });
+  const sendMessageMutation = isClient ? clientSendMessage : coachSendMessage;
 
-  const markAsReadMutation = role === "client"
-    ? trpc.clientPortal.messaging.markAsRead.useMutation({
-        onSuccess: () => invalidateAll(),
-      })
-    : trpc.coach.messaging.markAsRead.useMutation({
-        onSuccess: () => invalidateAll(),
-      });
+  const clientMarkAsRead = trpc.clientPortal.messaging.markAsRead.useMutation({
+    onSuccess: () => invalidateAll(),
+  });
+  const coachMarkAsRead = trpc.coach.messaging.markAsRead.useMutation({
+    onSuccess: () => invalidateAll(),
+  });
+  const markAsReadMutation = isClient ? clientMarkAsRead : coachMarkAsRead;
 
   const clientStartConv = trpc.clientPortal.messaging.startConversation.useMutation({
     onSuccess: (conv) => {
