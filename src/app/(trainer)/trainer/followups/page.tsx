@@ -220,7 +220,7 @@ export default function Page() {
                                 : "text-kairos-silver-dark"
                           }`}
                         >
-                          {item.createdAt}
+                          {new Date(item.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                         </span>
                       </div>
                       {isOlderItem && (

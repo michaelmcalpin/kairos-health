@@ -206,12 +206,12 @@ async function getFeatureUsageCounts(db: any, startDate: string, endDate: string
     await Promise.all([
       safeQ(() => db.select({ count: sql<number>`count(distinct ${dailyCheckins.clientId})` }).from(dailyCheckins).where(dateFilter(dailyCheckins.date)), [] as { count: number }[]),
       safeQ(() => db.select({ count: sql<number>`count(distinct ${mealLogs.clientId})` }).from(mealLogs).where(dateFilter(mealLogs.date)), [] as { count: number }[]),
-      db.select({ count: sql<number>`count(distinct ${workoutLogs.clientId})` }).from(workoutLogs).where(dateFilter(workoutLogs.date)),
+      safeQ(() => db.select({ count: sql<number>`count(distinct ${workoutLogs.clientId})` }).from(workoutLogs).where(dateFilter(workoutLogs.date)), [] as { count: number }[]),
       safeQ(() => db.select({ count: sql<number>`count(distinct ${adherenceLogs.clientId})` }).from(adherenceLogs).where(dateFilter(adherenceLogs.date)), [] as { count: number }[]),
       safeQ(() => db.select({ count: sql<number>`count(distinct ${sleepSessions.clientId})` }).from(sleepSessions).where(dateFilter(sleepSessions.date)), [] as { count: number }[]),
       safeQ(() => db.select({ count: sql<number>`count(distinct ${glucoseReadings.clientId})` }).from(glucoseReadings).where(tsFilter(glucoseReadings.timestamp)), [] as { count: number }[]),
-      db.select({ count: sql<number>`count(distinct ${healthGoals.clientId})` }).from(healthGoals).where(tsFilter(healthGoals.updatedAt)),
-      db.select({ count: sql<number>`count(distinct ${messages.senderId})` }).from(messages).where(tsFilter(messages.createdAt)),
+      safeQ(() => db.select({ count: sql<number>`count(distinct ${healthGoals.clientId})` }).from(healthGoals).where(tsFilter(healthGoals.updatedAt)), [] as { count: number }[]),
+      safeQ(() => db.select({ count: sql<number>`count(distinct ${messages.senderId})` }).from(messages).where(tsFilter(messages.createdAt)), [] as { count: number }[]),
     ]);
 
   const base = Math.max(1, totalClients);

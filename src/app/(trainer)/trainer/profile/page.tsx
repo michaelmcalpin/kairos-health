@@ -10,6 +10,8 @@ import {
   Settings,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { ROLE_LABELS } from "@/lib/company-ops/types";
+import type { UserRole } from "@/lib/company-ops/types";
 
 export default function CoachProfilePage() {
   // Fetch user data
@@ -143,7 +145,7 @@ export default function CoachProfilePage() {
           {/* User Role */}
           <div>
             <label className="kairos-label mb-2 block">Role</label>
-            <p className="text-kairos-silver-dark font-body text-sm capitalize">{user.role}</p>
+            <p className="text-kairos-silver-dark font-body text-sm">{ROLE_LABELS[user.role as UserRole] ?? user.role}</p>
           </div>
 
           {/* Capacity Information */}

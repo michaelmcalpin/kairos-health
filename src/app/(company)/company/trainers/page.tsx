@@ -460,8 +460,6 @@ function TrainerDetailDrawer({
   accentColor?: string;
   onClose: () => void;
 }) {
-  if (!trainer) return null;
-
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -471,6 +469,8 @@ function TrainerDetailDrawer({
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
   }, [onClose]);
+
+  if (!trainer) return null;
 
   const usagePct = trainer.capacity > 0 ? Math.round((trainer.clientCount / trainer.capacity) * 100) : 0;
 

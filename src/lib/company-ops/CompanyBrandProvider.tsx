@@ -48,19 +48,34 @@ export function CompanyBrandProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Fetch company from DB when companyId is set
-  const { data: companyData } = trpc.admin.companies.list.useQuery(
-    { pageSize: 100 },
-    { enabled: mounted, staleTime: 60_000 }
+  // Fetch the current user's company via the company-admin-safe endpoint.
+  // This uses companyAdminProcedure (not superAdminProcedure), so it works
+  // for both company_admin and super_admin users.
+  const { data: companySettings } = trpc.company.settings.get.useQuery(
+    undefined,
+    { enabled: mounted && !!companyId, staleTime: 60_000 }
   );
 
-  // Resolve company from fetched list
+  // Map the settings response to a Company object for brand resolution
   const company = useMemo(() => {
-    if (!companyId || !companyData?.companies) return null;
-    const found = companyData.companies.find((c) => c.id === companyId);
-    if (!found) return null;
-    return found as unknown as Company;
-  }, [companyId, companyData]);
+    if (!companyId || !companySettings) return null;
+    return {
+      id: companySettings.id,
+      name: companySettings.name,
+      slug: companySettings.slug,
+      logoUrl: companySettings.logoUrl,
+      brandColor: companySettings.brandColor,
+      emailFromName: companySettings.emailFromName,
+      emailFooter: companySettings.emailFooter,
+      website: companySettings.website,
+      status: "active",
+      maxTrainers: companySettings.maxTrainers,
+      maxClients: companySettings.maxClients,
+      trainerCount: 0,
+      clientCount: 0,
+      createdAt: "",
+    } satisfies Company;
+  }, [companyId, companySettings]);
 
   const brand = useMemo(() => resolveCompanyBrand(company), [company]);
   const cssVars = useMemo(() => brandCssVars(brand), [brand]);
@@ -92,11 +107,13 @@ export function useCompanyBrand(): CompanyBrandContextValue {
 }
 
 // ─── Utility: Get all companies for selectors ────────────────────
+// NOTE: This endpoint requires super_admin role. Non-super-admin users
+// will get an empty list instead of a 403 error thanks to the retry/error guard.
 
 export function useCompanyList(): Company[] {
   const { data } = trpc.admin.companies.list.useQuery(
     { pageSize: 100 },
-    { staleTime: 60_000 }
+    { staleTime: 60_000, retry: false }
   );
   return useMemo(() => {
     if (!data?.companies) return [];
