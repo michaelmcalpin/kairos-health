@@ -77,7 +77,7 @@ export default function TrainersPage() {
       onLeaveCoaches: 0,
       pendingCoaches: 0,
       totalClients: active.reduce((s, t) => s + t.clientCount, 0),
-      totalRevenue: active.reduce((s, t) => s + t.clientCount, 0) * 200 * 12,
+      totalRevenue: active.reduce((s, t) => s + t.clientCount, 0) * 249 * 12,
       avgHealthScore: active.length > 0
         ? Math.round((active.reduce((s, t) => s + t.rating, 0) / active.length) * 10) / 10
         : 0,

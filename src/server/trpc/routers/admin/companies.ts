@@ -179,7 +179,7 @@ export const adminCompaniesRouter = router({
         activeCompanies: Number(activeResult?.count ?? 0),
         totalTrainers: Number(trainerResult?.count ?? 0),
         totalClients,
-        mrr: totalClients * 200,
+        mrr: totalClients * 249, // avg estimate; canonical tiers are $499/$249/$99
       };
     }),
 

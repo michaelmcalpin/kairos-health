@@ -177,7 +177,7 @@ export default function CompanyDetailPage() {
         </div>
         <div className="kairos-card">
           <p className="kairos-label mb-1">Est. MRR</p>
-          <p className="font-heading font-bold text-xl text-emerald-400">${(company.clientCount * 200).toLocaleString()}</p>
+          <p className="font-heading font-bold text-xl text-emerald-400">${(company.clientCount * 249).toLocaleString()}</p>
         </div>
         <div className="kairos-card">
           <p className="kairos-label mb-1">Created</p>

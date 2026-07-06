@@ -49,7 +49,7 @@ export const adminDashboardRouter = router({
         activeCompanies: allCompanies.filter((c) => c.status === "active").length,
         totalTrainers,
         totalClients,
-        mrr: totalClients * 200, // simplified estimate
+        mrr: totalClients * 249, // avg estimate; canonical tiers are $499/$249/$99
       };
 
       // ── Period-over-period trend for new signups ────────────
@@ -115,7 +115,7 @@ export const adminDashboardRouter = router({
         },
         {
           label: "Monthly Revenue",
-          value: `$${((totalClients * 200) / 1000).toFixed(1)}K`,
+          value: `$${((totalClients * 249) / 1000).toFixed(1)}K`,
           icon: "dollar",
           highlight: true,
         },
@@ -151,7 +151,7 @@ export const adminDashboardRouter = router({
             id: trainer.id,
             name: `${trainer.firstName ?? ""} ${trainer.lastName ?? ""}`.trim() || trainer.email,
             clientsAssigned: count,
-            revenueGenerated: count * 200 * 12,
+            revenueGenerated: count * 249 * 12,
             avgHealthScore: (profile?.rating ?? 4.0) * 10,
             responseTimeMin: Math.round(10 + (1 - (profile?.rating ?? 4.0) / 5) * 30),
           };
@@ -295,7 +295,7 @@ export const adminDashboardRouter = router({
             specialization: specialties[0] ?? "General Health",
             clientsAssigned: clientCount,
             clientCapacity: profile?.capacity ?? 25,
-            revenueGenerated: clientCount * 200 * 12,
+            revenueGenerated: clientCount * 249 * 12,
             avgHealthScore: profile?.rating ? Math.round(profile.rating * 10) / 10 : 0,
             responseTimeMin: Math.round(10 + (1 - (profile?.rating ?? 4.0) / 5) * 30),
             rating: profile?.rating ?? 0,
@@ -354,7 +354,7 @@ export const adminDashboardRouter = router({
         );
       const count = Number(clientCountResult[0]?.count ?? 0);
       totalClients += count;
-      totalRevenue += count * 200 * 12;
+      totalRevenue += count * 249 * 12;
 
       const profile = await ctx.db.query.trainerProfiles.findFirst({
         where: eq(trainerProfiles.userId, trainer.id),

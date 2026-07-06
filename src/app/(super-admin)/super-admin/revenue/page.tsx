@@ -48,23 +48,27 @@ export default function Page() {
     const trainers = trainersData;
     const clients = clientsData;
 
-    const mrr = company.clientCount * 200;
-    const arr = mrr * 12;
-    const arpu = company.clientCount > 0 ? Math.round((mrr / company.clientCount) * 100) : 0;
+    // Canonical tier pricing: $499/$249/$99
+    const tierPricing: Record<string, number> = { tier1: 499, tier2: 249, tier3: 99 };
 
     // Revenue by tier
     const tierCounts = { tier1: 0, tier2: 0, tier3: 0 };
     clients.forEach((c) => { tierCounts[c.tier]++; });
-    const tier1Rev = tierCounts.tier1 * 100 * 100; // $100/mo in cents
-    const tier2Rev = tierCounts.tier2 * 200 * 100; // $200/mo
-    const tier3Rev = tierCounts.tier3 * 400 * 100; // $400/mo
+    const mrr = (tierCounts.tier1 * tierPricing.tier1) + (tierCounts.tier2 * tierPricing.tier2) + (tierCounts.tier3 * tierPricing.tier3);
+    const arr = mrr * 12;
+    const arpu = company.clientCount > 0 ? Math.round((mrr / company.clientCount) * 100) : 0;
+
+    const tier1Rev = tierCounts.tier1 * tierPricing.tier1 * 100; // in cents
+    const tier2Rev = tierCounts.tier2 * tierPricing.tier2 * 100;
+    const tier3Rev = tierCounts.tier3 * tierPricing.tier3 * 100;
     const totalCents = tier1Rev + tier2Rev + tier3Rev;
 
-    // Revenue by trainer
+    // Revenue by trainer (use avg tier price as estimate)
+    const avgTierPrice = company.clientCount > 0 ? Math.round(mrr / company.clientCount) : 249;
     const trainerRevenue = trainers.map((t) => ({
       name: `${t.firstName} ${t.lastName}`,
       clients: t.clientCount,
-      revenue: t.clientCount * 200,
+      revenue: t.clientCount * avgTierPrice,
       percentage: company.clientCount > 0 ? Math.round((t.clientCount / company.clientCount) * 100) : 0,
     })).sort((a, b) => b.revenue - a.revenue);
 
@@ -307,11 +311,11 @@ export default function Page() {
               <tbody>
                 {(() => {
                   const activeCompanies = companies.filter((c) => c.status === "active");
-                  const totalMRR = activeCompanies.reduce((s, c) => s + c.clientCount * 200, 0);
+                  const totalMRR = activeCompanies.reduce((s, c) => s + c.clientCount * 249, 0);
                   return activeCompanies
                     .sort((a, b) => b.clientCount - a.clientCount)
                     .map((c) => {
-                      const mrr = c.clientCount * 200;
+                      const mrr = c.clientCount * 249;
                       const share = totalMRR > 0 ? Math.round((mrr / totalMRR) * 100) : 0;
                       return (
                         <tr key={c.id} className="border-b border-kairos-border hover:bg-kairos-card-hover transition-colors">

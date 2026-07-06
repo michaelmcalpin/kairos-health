@@ -60,7 +60,7 @@ export function useAdminDashboard(): {
       totalClients: kpisQuery.data.totalClients,
       totalCoaches: kpisQuery.data.totalTrainers,
       activeSubscriptions: kpisQuery.data.activeSubscriptions,
-      mrr: Math.round((kpisQuery.data.totalClients ?? 0) * 200),
+      mrr: Math.round((kpisQuery.data.totalClients ?? 0) * 249),
     };
   }, [kpisQuery.data]);
 

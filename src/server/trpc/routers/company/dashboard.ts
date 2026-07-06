@@ -132,7 +132,7 @@ export const companyDashboardRouter = router({
         totalCapacity,
         utilization: totalCapacity > 0 ? Math.round((totalAssigned / totalCapacity) * 100) : 0,
         avgRating,
-        estMrr: clients.length * 200,
+        estMrr: clients.length * 249, // avg estimate; canonical tiers are $499/$249/$99
       },
       trainers: trainers.sort((a, b) => b.rating - a.rating),
       clients,

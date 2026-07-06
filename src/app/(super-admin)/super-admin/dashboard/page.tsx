@@ -89,8 +89,8 @@ export default function AdminDashboard() {
   const kpis = company
     ? [
         { label: "Trainers", value: String(company.trainerCount), icon: "user-circle" },
-        { label: "Clients", value: String(company.clientCount), icon: "users", trend: "up" as const, trendValue: "+3 this month" },
-        { label: "Est. MRR", value: `$${((company.clientCount * 200) / 1000).toFixed(1)}K`, icon: "dollar", highlight: true },
+        { label: "Clients", value: String(company.clientCount), icon: "users" },
+        { label: "Est. MRR", value: `$${((company.clientCount * 249) / 1000).toFixed(1)}K`, icon: "dollar", highlight: true }, // avg estimate; canonical tiers are $499/$249/$99
         { label: "Max Trainers", value: String(company.maxTrainers), icon: "shield" },
         { label: "Max Clients", value: String(company.maxClients), icon: "activity" },
         { label: "Status", value: company.status, icon: "trending" },

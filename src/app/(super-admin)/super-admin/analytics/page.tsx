@@ -61,7 +61,7 @@ export default function AnalyticsPage() {
     const totalCapacity = active.reduce((s, t) => s + t.capacity, 0);
     const totalAssigned = active.reduce((s, t) => s + t.clientCount, 0);
     const utilization = totalCapacity > 0 ? Math.round((totalAssigned / totalCapacity) * 100) : 0;
-    const mrr = company.clientCount * 200;
+    const mrr = company.clientCount * 249; // avg estimate; canonical tiers are $499/$249/$99
 
     // Tier distribution
     const tierCounts = { tier1: 0, tier2: 0, tier3: 0 };
@@ -137,12 +137,12 @@ export default function AnalyticsPage() {
           {/* Company KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {[
-              { label: "Active Coaches", value: String(companyAnalytics.trainers), icon: "star", trend: 0 },
-              { label: "Total Clients", value: String(companyAnalytics.clients), icon: "users", trend: 5.2 },
-              { label: "Avg Rating", value: companyAnalytics.avgRating.toFixed(1), icon: "heart", trend: 2.1 },
-              { label: "Utilization", value: `${companyAnalytics.utilization}%`, icon: "trending", trend: 3.4 },
-              { label: "Est. MRR", value: `$${companyAnalytics.mrr.toLocaleString()}`, icon: "dollar", trend: 8.0 },
-              { label: "Capacity Left", value: String(company.maxClients - companyAnalytics.clients), icon: "users", trend: 0 },
+              { label: "Active Coaches", value: String(companyAnalytics.trainers), icon: "star" },
+              { label: "Total Clients", value: String(companyAnalytics.clients), icon: "users" },
+              { label: "Avg Rating", value: companyAnalytics.avgRating.toFixed(1), icon: "heart" },
+              { label: "Utilization", value: `${companyAnalytics.utilization}%`, icon: "trending" },
+              { label: "Est. MRR", value: `$${companyAnalytics.mrr.toLocaleString()}`, icon: "dollar" },
+              { label: "Capacity Left", value: String(company.maxClients - companyAnalytics.clients), icon: "users" },
             ].map((kpi) => (
               <div key={kpi.label} className="kairos-card p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -154,11 +154,6 @@ export default function AnalyticsPage() {
                     {KPI_ICONS[kpi.icon] ?? <TrendingUp size={24} />}
                   </div>
                 </div>
-                {kpi.trend !== 0 && (
-                  <div className={`text-xs ${kpi.trend >= 0 ? "text-green-400" : "text-red-400"}`}>
-                    {kpi.trend >= 0 ? "+" : ""}{kpi.trend}% this period
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -306,7 +301,7 @@ export default function AnalyticsPage() {
                           </div>
                         </td>
                         <td className="py-3 text-right font-heading font-semibold text-kairos-gold">
-                          ${(c.clientCount * 200).toLocaleString()}
+                          ${(c.clientCount * 249).toLocaleString()}
                         </td>
                       </tr>
                     );

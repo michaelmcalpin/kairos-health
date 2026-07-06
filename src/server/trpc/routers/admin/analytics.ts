@@ -718,7 +718,7 @@ async function buildCoachPerformance(
         clientRetention: 0, // Would need historical relationship data to compute
         avgResponseTime: 0, // Would need message response time tracking
         sessionsThisPeriod,
-        revenueGenerated: activeClients * 200,
+        revenueGenerated: activeClients * 249, // avg estimate; canonical tiers are $499/$249/$99
         rating,
         reviewCount: reviewCount > 0 ? reviewCount : (profile?.reviewCount ?? 0),
       };
