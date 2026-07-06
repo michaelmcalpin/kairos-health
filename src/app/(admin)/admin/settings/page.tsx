@@ -23,7 +23,7 @@ export default function AdminSettingsPage() {
   // Platform settings
   const [platform, setPlatform] = useState({
     platformName: "Everist.ai Health",
-    supportEmail: "support@kairos.health",
+    supportEmail: "support@everist.ai",
     maxClientsPerCoach: "50",
     sessionTimeout: "30",
   });

@@ -130,7 +130,7 @@ export default function Page() {
           </div>
           <span className="font-heading font-semibold text-white text-sm">{company.name}</span>
           <span className="text-xs text-kairos-silver-dark ml-auto">
-            {company.trainerCount} trainers · {company.clientCount} clients
+            {company.trainerCount} coaches · {company.clientCount} clients
           </span>
         </div>
       )}
@@ -219,7 +219,7 @@ export default function Page() {
 
           {/* Revenue by Trainer */}
           <div className="bg-kairos-card border border-kairos-border rounded-kairos-sm p-6">
-            <h2 className="font-heading font-bold text-lg text-white mb-6">Revenue by Trainer</h2>
+            <h2 className="font-heading font-bold text-lg text-white mb-6">Revenue by Coach</h2>
             <div className="space-y-3">
               {companyRevenueData.trainerRevenue.slice(0, 6).map((trainer) => (
                 <div key={trainer.name}>
@@ -301,7 +301,7 @@ export default function Page() {
               <thead>
                 <tr className="border-b border-kairos-border">
                   <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Company</th>
-                  <th className="text-center font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Trainers</th>
+                  <th className="text-center font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Coaches</th>
                   <th className="text-center font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Clients</th>
                   <th className="text-right font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Est. MRR</th>
                   <th className="text-right font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Est. ARR</th>
@@ -377,11 +377,11 @@ export default function Page() {
 
           {/* Recent Payouts to Trainers */}
           <div className="bg-kairos-card border border-kairos-border rounded-kairos-sm p-6 overflow-x-auto">
-            <h2 className="font-heading font-bold text-lg text-white mb-6">Recent Payouts to Trainers</h2>
+            <h2 className="font-heading font-bold text-lg text-white mb-6">Recent Payouts to Coaches</h2>
             <table className="w-full">
               <thead>
                 <tr className="border-b border-kairos-border">
-                  <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Trainer Name</th>
+                  <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Coach Name</th>
                   <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Amount</th>
                   <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Date</th>
                   <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Status</th>

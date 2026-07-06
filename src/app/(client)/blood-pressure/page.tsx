@@ -108,6 +108,7 @@ export default function BloodPressurePage() {
   );
 
   // ---- Form state ----
+  const [formError, setFormError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -137,14 +138,15 @@ export default function BloodPressurePage() {
   };
 
   const handleSave = async () => {
+    setFormError(null);
     if (!formData.systolic || !formData.diastolic) {
-      alert("Please enter both systolic and diastolic values");
+      setFormError("Please enter both systolic and diastolic values");
       return;
     }
     const sys = parseInt(formData.systolic, 10);
     const dia = parseInt(formData.diastolic, 10);
     if (isNaN(sys) || isNaN(dia)) {
-      alert("Please enter valid numbers for systolic and diastolic");
+      setFormError("Please enter valid numbers for systolic and diastolic");
       return;
     }
     try {
@@ -161,16 +163,17 @@ export default function BloodPressurePage() {
       setShowForm(false);
       resetForm();
     } catch {
-      alert("Failed to save reading. Please try again.");
+      setFormError("Failed to save reading. Please try again.");
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this reading?")) return;
+    setFormError(null);
     try {
       await deleteMutation.mutateAsync(id);
     } catch {
-      alert("Failed to delete reading.");
+      setFormError("Failed to delete reading.");
     }
   };
 
@@ -332,6 +335,13 @@ export default function BloodPressurePage() {
                 className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full resize-none"
               />
             </div>
+
+            {/* Inline error message */}
+            {formError && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm">
+                {formError}
+              </div>
+            )}
 
             {/* Action buttons */}
             <div className="flex gap-3 pt-4">

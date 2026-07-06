@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   },
   description: "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",
   manifest: "/manifest.json",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://kairos.health"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://everist.ai"),
   openGraph: {
     title: "Everist.ai | Private Health Management",
     description: "Clinical-grade biometric tracking, AI-powered coaching, and personalized protocol management.",

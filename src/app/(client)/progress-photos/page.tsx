@@ -29,6 +29,7 @@ export default function ProgressPhotosPage() {
     onSuccess: () => utils.clientPortal.progressPhotos.getRecent.invalidate(),
   });
 
+  const [formError, setFormError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -47,6 +48,7 @@ export default function ProgressPhotosPage() {
 
   async function handleUpload() {
     if (!selectedFile) return;
+    setFormError(null);
     setUploading(true);
     try {
       // Upload file to cloud storage via API
@@ -66,7 +68,7 @@ export default function ProgressPhotosPage() {
         poseType: selectedPose,
       });
     } catch (err) {
-      alert("Failed to upload photo. Please try again.");
+      setFormError("Failed to upload photo. Please try again.");
     } finally {
       setUploading(false);
       setSelectedFile(null);
@@ -158,6 +160,12 @@ export default function ProgressPhotosPage() {
             onChange={handleFileChange}
             className="hidden"
           />
+
+          {formError && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm">
+              {formError}
+            </div>
+          )}
 
           <button
             onClick={handleUpload}

@@ -6,7 +6,7 @@ import { MetadataRoute } from "next";
  * Clerk auth is excluded.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kairos.health";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://everist.ai";
 
   return [
     {

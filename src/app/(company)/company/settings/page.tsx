@@ -319,7 +319,7 @@ export default function CompanySettingsPage() {
           </div>
           <div className="space-y-4">
             {[
-              { key: "trainerSignups" as const, label: "New trainer sign-ups" },
+              { key: "trainerSignups" as const, label: "New coach sign-ups" },
               { key: "clientMilestones" as const, label: "Client milestones" },
               { key: "weeklyReports" as const, label: "Weekly reports" },
             ].map(({ key, label }) => (

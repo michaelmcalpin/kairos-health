@@ -88,10 +88,10 @@ export default function AdminDashboard() {
   // Build KPIs — company-specific when filtered
   const kpis = company
     ? [
-        { label: "Trainers", value: String(company.trainerCount), icon: "user-circle" },
+        { label: "Coaches", value: String(company.trainerCount), icon: "user-circle" },
         { label: "Clients", value: String(company.clientCount), icon: "users" },
         { label: "Est. MRR", value: `$${((company.clientCount * 249) / 1000).toFixed(1)}K`, icon: "dollar", highlight: true }, // avg estimate; canonical tiers are $499/$249/$99
-        { label: "Max Trainers", value: String(company.maxTrainers), icon: "shield" },
+        { label: "Max Coaches", value: String(company.maxTrainers), icon: "shield" },
         { label: "Max Clients", value: String(company.maxClients), icon: "activity" },
         { label: "Status", value: company.status, icon: "trending" },
       ]
@@ -132,7 +132,7 @@ export default function AdminDashboard() {
             <p className="text-[10px] text-kairos-silver-dark">{company.website || company.slug}</p>
           </div>
           <div className="ml-auto text-xs text-kairos-silver-dark">
-            {company.trainerCount} trainers · {company.clientCount} clients
+            {company.trainerCount} coaches · {company.clientCount} clients
           </div>
         </div>
       )}
@@ -150,7 +150,7 @@ export default function AdminDashboard() {
           </div>
           <div className="kairos-card p-3 text-center">
             <p className="text-2xl font-heading font-bold text-white">{data.companyStats.totalTrainers}</p>
-            <p className="text-[10px] text-gray-500 uppercase">Trainers</p>
+            <p className="text-[10px] text-gray-500 uppercase">Coaches</p>
           </div>
           <div className="kairos-card p-3 text-center">
             <p className="text-2xl font-heading font-bold text-white">{data.companyStats.totalClients}</p>
@@ -185,16 +185,16 @@ export default function AdminDashboard() {
         {/* Trainer Performance */}
         <div className="lg:col-span-2 kairos-card">
           <h3 className="font-heading font-semibold text-white mb-4">
-            {company ? `${company.name} — Trainer Performance` : "Trainer Performance"}
+            {company ? `${company.name} — Coach Performance` : "Coach Performance"}
           </h3>
           {data.coachPerformance.length === 0 ? (
-            <p className="text-sm text-gray-500 py-4">No trainers registered yet.</p>
+            <p className="text-sm text-gray-500 py-4">No coaches registered yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-kairos-border">
-                    <th className="text-left py-2 text-xs font-heading text-kairos-silver-dark">Trainer</th>
+                    <th className="text-left py-2 text-xs font-heading text-kairos-silver-dark">Coach</th>
                     <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Clients</th>
                     <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Revenue</th>
                     <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Avg Score</th>

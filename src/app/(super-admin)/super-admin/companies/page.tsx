@@ -111,7 +111,7 @@ export default function CompaniesPage() {
         <div className="kairos-card">
           <div className="flex items-center justify-between">
             <div>
-              <p className="kairos-label mb-1">Trainers</p>
+              <p className="kairos-label mb-1">Coaches</p>
               <p className="font-heading font-bold text-2xl text-blue-400">{stats?.totalTrainers ?? 0}</p>
             </div>
             <Dumbbell className="w-7 h-7 text-blue-400/40" />
@@ -175,7 +175,7 @@ export default function CompaniesPage() {
               <th className="text-left px-6 py-4 kairos-label">Status</th>
               <th className="text-center px-6 py-4">
                 <button onClick={() => toggleSort("trainerCount")} className="flex items-center gap-1 kairos-label hover:text-white transition-colors mx-auto">
-                  Trainers <ArrowUpDown size={12} className={sortBy === "trainerCount" ? "text-kairos-gold" : ""} />
+                  Coaches <ArrowUpDown size={12} className={sortBy === "trainerCount" ? "text-kairos-gold" : ""} />
                 </button>
               </th>
               <th className="text-center px-6 py-4">
@@ -425,7 +425,7 @@ function CreateCompanyModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="kairos-label block mb-1.5">Max Trainers</label>
+              <label className="kairos-label block mb-1.5">Max Coaches</label>
               <input
                 type="number"
                 min={1}

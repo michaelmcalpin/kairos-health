@@ -97,7 +97,7 @@ export default function CompanyClientsPage() {
         <div>
           <h1 className="font-heading font-bold text-3xl text-white mb-2">Clients</h1>
           <p className="font-body text-kairos-silver-dark">
-            All clients across {company?.name ? `${company.name}'s` : "your"} trainers
+            All clients across {company?.name ? `${company.name}'s` : "your"} coaches
           </p>
         </div>
         <div className="flex items-center gap-4 text-right">
@@ -154,7 +154,7 @@ export default function CompanyClientsPage() {
             onChange={(e) => { setTrainerFilter(e.target.value); setPage(1); }}
             className="bg-kairos-card border border-kairos-border rounded-kairos-sm px-3 py-2 text-sm text-white focus:outline-none focus:border-kairos-gold/50"
           >
-            <option value="all">All Trainers</option>
+            <option value="all">All Coaches</option>
             {trainers.map((t) => (
               <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>
             ))}
@@ -174,7 +174,7 @@ export default function CompanyClientsPage() {
               </th>
               <th className="text-left px-6 py-3">
                 <button onClick={() => toggleSort("trainer")} className="flex items-center gap-1 kairos-label hover:text-white transition-colors">
-                  Trainer <ArrowUpDown size={12} className={sortField === "trainer" ? "text-kairos-gold" : ""} />
+                  Coach <ArrowUpDown size={12} className={sortField === "trainer" ? "text-kairos-gold" : ""} />
                 </button>
               </th>
               <th className="text-center px-6 py-3">

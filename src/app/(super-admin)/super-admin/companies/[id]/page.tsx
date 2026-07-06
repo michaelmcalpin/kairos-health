@@ -115,7 +115,7 @@ export default function CompanyDetailPage() {
 
   const TABS: { id: Tab; label: string; icon: typeof Building2 }[] = [
     { id: "overview", label: "Overview", icon: Building2 },
-    { id: "trainers", label: `Trainers (${company.trainerCount})`, icon: Dumbbell },
+    { id: "trainers", label: `Coaches (${company.trainerCount})`, icon: Dumbbell },
     { id: "clients", label: `Clients (${company.clientCount})`, icon: Users },
     { id: "branding", label: "Branding & Config", icon: Palette },
     { id: "audit", label: "Audit Log", icon: Clock },
@@ -166,7 +166,7 @@ export default function CompanyDetailPage() {
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="kairos-card">
-          <p className="kairos-label mb-1">Trainers</p>
+          <p className="kairos-label mb-1">Coaches</p>
           <p className="font-heading font-bold text-xl text-white">{company.trainerCount}<span className="text-kairos-silver-dark text-sm font-normal">/{company.maxTrainers}</span></p>
           <CapacityBar pct={trainerPct} />
         </div>
@@ -278,7 +278,7 @@ function OverviewTab({ company, trainers, clients }: { company: CompanyData; tra
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Top Trainers */}
       <div className="kairos-card">
-        <h3 className="font-heading font-semibold text-white mb-4">Top Trainers</h3>
+        <h3 className="font-heading font-semibold text-white mb-4">Top Coaches</h3>
         <div className="space-y-3">
           {trainers.slice(0, 5).map((t) => (
             <div key={t.id} className="flex items-center justify-between py-2">
@@ -304,7 +304,7 @@ function OverviewTab({ company, trainers, clients }: { company: CompanyData; tra
             </div>
           ))}
           {trainers.length === 0 && (
-            <p className="text-sm text-kairos-silver-dark font-body">No trainers assigned yet</p>
+            <p className="text-sm text-kairos-silver-dark font-body">No coaches assigned yet</p>
           )}
         </div>
       </div>
@@ -317,7 +317,7 @@ function OverviewTab({ company, trainers, clients }: { company: CompanyData; tra
           <DetailRow label="Website" value={company.website || "—"} />
           <DetailRow label="Brand Color" value={company.brandColor} color={company.brandColor} />
           <DetailRow label="Email From" value={company.emailFromName} />
-          <DetailRow label="Max Trainers" value={String(company.maxTrainers)} />
+          <DetailRow label="Max Coaches" value={String(company.maxTrainers)} />
           <DetailRow label="Max Clients" value={String(company.maxClients)} />
           <DetailRow label="Created" value={company.createdAt.slice(0, 10)} />
         </div>
@@ -411,7 +411,7 @@ function TrainersTab({ trainers }: { trainers: TrainerData[] }) {
           ))}
           {trainers.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-6 py-12 text-center text-kairos-silver-dark font-body">No trainers assigned</td>
+              <td colSpan={6} className="px-6 py-12 text-center text-kairos-silver-dark font-body">No coaches assigned</td>
             </tr>
           )}
         </tbody>
@@ -443,7 +443,7 @@ function ClientsTab({ clients }: { clients: ClientData[] }) {
             <tr className="border-b border-kairos-border">
               <th className="text-left px-6 py-3 kairos-label">Name</th>
               <th className="text-left px-6 py-3 kairos-label">Email</th>
-              <th className="text-left px-6 py-3 kairos-label">Trainer</th>
+              <th className="text-left px-6 py-3 kairos-label">Coach</th>
               <th className="text-center px-6 py-3 kairos-label">Tier</th>
               <th className="text-center px-6 py-3 kairos-label">Status</th>
             </tr>
@@ -555,7 +555,7 @@ function BrandingTab({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="kairos-label block mb-1.5">Max Trainers</label>
+              <label className="kairos-label block mb-1.5">Max Coaches</label>
               <input
                 type="number"
                 min={1}
@@ -638,7 +638,7 @@ function BrandingTab({
                 </div>
               </div>
               <div className="space-y-1">
-                {["Dashboard", "Trainers", "Clients", "Settings"].map((item) => (
+                {["Dashboard", "Coaches", "Clients", "Settings"].map((item) => (
                   <div
                     key={item}
                     className="px-3 py-2 rounded-kairos-sm text-xs font-heading"

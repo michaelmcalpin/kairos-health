@@ -121,7 +121,7 @@ export default function AdminUsersPage() {
           </div>
           <span className="font-heading font-semibold text-white text-sm">{company.name}</span>
           <span className="text-xs text-kairos-silver-dark ml-auto">
-            {statsData.totalUsers} users · {statsData.trainerCount} trainers · {statsData.clientCount} clients
+            {statsData.totalUsers} users · {statsData.trainerCount} coaches · {statsData.clientCount} clients
           </span>
         </div>
       )}
@@ -149,7 +149,7 @@ export default function AdminUsersPage() {
         <div className="kairos-card p-3">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ROLE_COLORS.trainer }} />
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Trainers</p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Coaches</p>
           </div>
           <p className="text-xl font-heading font-bold text-white">{statsData.trainerCount}</p>
         </div>

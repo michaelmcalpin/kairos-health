@@ -65,6 +65,7 @@ export default function LabsPage() {
     resultStatus: "normal",
     referenceRange: "",
   });
+  const [formError, setFormError] = useState<string | null>(null);
   const [aiParsing, setAiParsing] = useState(false);
   const [aiParseResult, setAiParseResult] = useState<Record<string, unknown> | null>(null);
   const [aiParseError, setAiParseError] = useState<string | null>(null);
@@ -220,19 +221,20 @@ export default function LabsPage() {
   };
 
   const handleSaveResults = async () => {
+    setFormError(null);
     try {
       if (activeTab === "pdf") {
-        if (!pdfFile) { alert("Please select a PDF file to upload"); return; }
+        if (!pdfFile) { setFormError("Please select a PDF file to upload"); return; }
         // Use AI parsing for PDFs
         await handleAiParsePdf();
         return; // Don't close form — switch to manual review
       } else if (activeTab === "url") {
-        if (!urlInput.trim()) { alert("Please enter a valid URL"); return; }
-        try { new URL(urlInput); } catch { alert("Please enter a valid URL (e.g. https://...)"); return; }
+        if (!urlInput.trim()) { setFormError("Please enter a valid URL"); return; }
+        try { new URL(urlInput); } catch { setFormError("Please enter a valid URL (e.g. https://...)"); return; }
         await importUrlMutation.mutateAsync({ panelName: "Lab Results", provider: "unknown", sourceUrl: urlInput });
       } else if (activeTab === "manual") {
         if (!manualForm.labName || !manualForm.date || manualForm.tests.length === 0) {
-          alert("Please fill in all required fields"); return;
+          setFormError("Please fill in all required fields"); return;
         }
         const biomarkers = manualForm.tests.map((test) => {
           const valueMatch = test.resultValue.match(/^([\d.]+)/);
@@ -252,13 +254,13 @@ export default function LabsPage() {
         });
       }
     } catch (error) {
-      // Error is shown to user via alert
-      alert("Failed to save lab results. Please try again.");
+      setFormError("Failed to save lab results. Please try again.");
     }
   };
 
   const resetForm = () => {
     setShowAddResults(false);
+    setFormError(null);
     setManualForm({ labName: "", requestingDoctor: "", date: new Date().toISOString().split("T")[0], tests: [], notes: "" });
     setCurrentTest({ testName: "", resultValue: "", resultStatus: "normal", referenceRange: "" });
     setUrlInput("");
@@ -384,6 +386,11 @@ export default function LabsPage() {
               </button>
             ))}
           </div>
+          {formError && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm">
+              {formError}
+            </div>
+          )}
           <div className="mt-6">
             {activeTab === "pdf" && (
               <div className="space-y-4">

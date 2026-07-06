@@ -829,7 +829,7 @@ export default function InsightsPage() {
       for (const a of actionPlan) html += `<div class="action"><span class="action-num">${a.priority}</span><strong>${a.action}</strong> <small style="color:#666">${a.category} &bull; ${a.timeframe ?? a.effort ?? ""}</small></div>`;
     }
 
-    html += `<p class="disclaimer">This AI-generated report is for informational purposes only and should not replace professional medical advice. Discuss any changes with your healthcare provider or EVERIST trainer.</p>`;
+    html += `<p class="disclaimer">This AI-generated report is for informational purposes only and should not replace professional medical advice. Discuss any changes with your healthcare provider or EVERIST coach.</p>`;
     html += `<p class="footer">EVERIST.ai &bull; Private Health Management</p>`;
     html += `</body></html>`;
 
