@@ -43,7 +43,7 @@ export const SAMPLE_SCHEDULE_DATA = [
     time: "9:00 AM",
     title: "Blood Panel Review",
     type: "lab_review" as const,
-    trainerName: "Dr. Chen",
+    coachName: "Dr. Chen",
     duration: "30 min",
   },
   {
@@ -51,7 +51,7 @@ export const SAMPLE_SCHEDULE_DATA = [
     time: "11:30 AM",
     title: "Strength Training",
     type: "workout" as const,
-    trainerName: "Coach Marcus",
+    coachName: "Coach Marcus",
     duration: "60 min",
   },
   {
@@ -59,7 +59,7 @@ export const SAMPLE_SCHEDULE_DATA = [
     time: "2:00 PM",
     title: "Nutrition Consultation",
     type: "nutrition" as const,
-    trainerName: "Sarah Miller, RD",
+    coachName: "Sarah Miller, RD",
     duration: "45 min",
   },
   {
@@ -67,7 +67,7 @@ export const SAMPLE_SCHEDULE_DATA = [
     time: "5:30 PM",
     title: "Weekly Check-in",
     type: "check_in" as const,
-    trainerName: "Dr. Chen",
+    coachName: "Dr. Chen",
     duration: "15 min",
   },
 ];

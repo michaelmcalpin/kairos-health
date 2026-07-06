@@ -1,5 +1,5 @@
 /**
- * KAIROS Service Worker
+ * Everist.ai Service Worker
  *
  * Caching strategies:
  * - Static assets (JS, CSS, fonts): Cache-first with versioned cache
@@ -8,7 +8,7 @@
  * - Images/icons: Cache-first with long TTL
  */
 
-const CACHE_VERSION = "kairos-v1";
+const CACHE_VERSION = "everist-v1";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const API_CACHE = `${CACHE_VERSION}-api`;
@@ -49,7 +49,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => name.startsWith("kairos-") && name !== STATIC_CACHE && name !== DYNAMIC_CACHE && name !== API_CACHE)
+          .filter((name) => (name.startsWith("everist-") || name.startsWith("kairos-")) && name !== STATIC_CACHE && name !== DYNAMIC_CACHE && name !== API_CACHE)
           .map((name) => caches.delete(name))
       );
     }).then(() => self.clients.claim())
@@ -161,17 +161,17 @@ async function offlineFallback(request) {
 // ─── Background Sync (for future offline form submissions) ───────────────────
 
 self.addEventListener("sync", (event) => {
-  if (event.tag === "kairos-sync-checkin") {
+  if (event.tag === "everist-sync-checkin") {
     event.waitUntil(syncPendingData("checkins"));
   }
-  if (event.tag === "kairos-sync-glucose") {
+  if (event.tag === "everist-sync-glucose") {
     event.waitUntil(syncPendingData("glucose"));
   }
 });
 
 async function syncPendingData(storeName) {
   // Future: read from IndexedDB and POST to server
-  console.log(`[KAIROS SW] Syncing pending ${storeName} data...`);
+  console.log(`[Everist SW] Syncing pending ${storeName} data...`);
 }
 
 // ─── Push Notifications (future) ─────────────────────────────────────────────
@@ -181,11 +181,11 @@ self.addEventListener("push", (event) => {
 
   const data = event.data.json();
   event.waitUntil(
-    self.registration.showNotification(data.title || "KAIROS", {
+    self.registration.showNotification(data.title || "Everist.ai", {
       body: data.body || "New health update",
       icon: "/icons/icon-192x192.svg",
       badge: "/icons/icon-72x72.svg",
-      tag: data.tag || "kairos-notification",
+      tag: data.tag || "everist-notification",
       data: { url: data.url || "/" },
     })
   );

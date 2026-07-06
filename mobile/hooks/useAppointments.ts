@@ -149,7 +149,7 @@ export function useTodaySchedule() {
           time: a.time,
           title: a.title,
           type: mapSessionType(a.type),
-          trainerName: a.provider,
+          coachName: a.provider,
           duration: "30 min", // default; backend could provide this
         }))
     : SAMPLE_DATA.scheduleData;

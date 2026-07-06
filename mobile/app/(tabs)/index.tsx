@@ -245,7 +245,7 @@ export default function HomeScreen() {
             time={item.time}
             title={item.title}
             type={item.type}
-            trainerName={item.trainerName}
+            coachName={item.coachName}
             duration={item.duration}
           />
         ))}

@@ -1,9 +1,8 @@
-// DEV MODE: Clerk bypassed — forms navigate directly without auth
 /**
  * Sign In screen for the Everist.ai mobile app.
  *
- * Uses local state with direct navigation (Clerk auth disabled).
- * Supports social login via Apple and Google OAuth (placeholder).
+ * Uses Clerk's useSignIn hook for email/password authentication
+ * and useOAuth for Apple / Google social login.
  */
 
 import React, { useState, useCallback } from "react";
@@ -20,19 +19,35 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useSignIn, useOAuth } from "@clerk/clerk-expo";
+import * as WebBrowser from "expo-web-browser";
 import { Eye, EyeOff, Apple, Chrome } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 
+// Required so the OAuth browser session is properly cleaned up on iOS.
+WebBrowser.maybeCompleteAuthSession();
+
 export default function SignInScreen() {
   const router = useRouter();
+  const { signIn, setActive, isLoaded } = useSignIn();
+
+  const { startOAuthFlow: startAppleOAuth } = useOAuth({
+    strategy: "oauth_apple",
+  });
+  const { startOAuthFlow: startGoogleOAuth } = useOAuth({
+    strategy: "oauth_google",
+  });
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  /** Email / password sign-in via Clerk */
   const handleSignIn = useCallback(async () => {
+    if (!isLoaded || !signIn) return;
+
     if (!email.trim() || !password.trim()) {
       Alert.alert("Missing Fields", "Please enter your email and password.");
       return;
@@ -40,23 +55,63 @@ export default function SignInScreen() {
 
     setLoading(true);
     try {
-      // DEV MODE: skip Clerk auth, navigate directly
-      router.replace("/(tabs)");
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      });
+
+      if (result.status === "complete" && result.createdSessionId) {
+        await setActive({ session: result.createdSessionId });
+        // AuthGuard will redirect to /(tabs)
+      } else {
+        // Handle other statuses (e.g. needs_second_factor) if applicable.
+        Alert.alert(
+          "Additional Verification",
+          "Your account requires additional verification. Please check your email.",
+        );
+      }
     } catch (err: any) {
-      Alert.alert("Sign In Failed", "An unexpected error occurred. Please try again.");
+      const message =
+        err?.errors?.[0]?.longMessage ??
+        err?.errors?.[0]?.message ??
+        "An unexpected error occurred. Please try again.";
+      Alert.alert("Sign In Failed", message);
     } finally {
       setLoading(false);
     }
-  }, [email, password, router]);
+  }, [email, password, isLoaded, signIn, setActive]);
 
+  /** OAuth sign-in (Apple / Google) */
   const handleOAuthSignIn = useCallback(
     async (strategy: "oauth_apple" | "oauth_google") => {
-      Alert.alert(
-        "OAuth",
-        `${strategy === "oauth_apple" ? "Apple" : "Google"} sign-in requires additional configuration.`,
-      );
+      if (!isLoaded) return;
+
+      setLoading(true);
+      try {
+        const startFlow =
+          strategy === "oauth_apple" ? startAppleOAuth : startGoogleOAuth;
+
+        const { createdSessionId, setActive: setOAuthActive } =
+          await startFlow();
+
+        if (createdSessionId && setOAuthActive) {
+          await setOAuthActive({ session: createdSessionId });
+          // AuthGuard will redirect to /(tabs)
+        }
+      } catch (err: any) {
+        // User cancelled the OAuth flow — not an error.
+        if (err?.message?.includes("cancelled")) return;
+
+        const message =
+          err?.errors?.[0]?.longMessage ??
+          err?.errors?.[0]?.message ??
+          "OAuth sign-in failed. Please try again.";
+        Alert.alert("Sign In Failed", message);
+      } finally {
+        setLoading(false);
+      }
     },
-    [],
+    [isLoaded, startAppleOAuth, startGoogleOAuth],
   );
 
   return (

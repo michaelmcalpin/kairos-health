@@ -1,7 +1,7 @@
 /**
  * ScheduleItem — Single row for Today's Schedule section.
  *
- * Displays a colored left border, time, appointment type, and trainer name.
+ * Displays a colored left border, time, appointment type, and coach name.
  */
 
 import React from "react";
@@ -20,7 +20,7 @@ interface ScheduleItemProps {
   time: string;
   title: string;
   type: AppointmentType;
-  trainerName?: string;
+  coachName?: string;
   duration?: string;
 }
 
@@ -39,7 +39,7 @@ export function ScheduleItem({
   time,
   title,
   type,
-  trainerName,
+  coachName,
   duration,
 }: ScheduleItemProps) {
   const typeStyle = typeStyles[type];
@@ -65,8 +65,8 @@ export function ScheduleItem({
           >
             {typeStyle.label}
           </Text>
-          {trainerName && (
-            <Text style={styles.trainer}>with {trainerName}</Text>
+          {coachName && (
+            <Text style={styles.coach}>with {coachName}</Text>
           )}
         </View>
       </View>
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  trainer: {
+  coach: {
     color: Colors.silver,
     fontSize: 11,
   },
