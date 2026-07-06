@@ -73,7 +73,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     category: "coach_message",
     defaultPriority: "low",
     defaultChannels: ["in_app"],
-    titleTemplate: "Trainer Note Added",
+    titleTemplate: "Coach Note Added",
     bodyTemplate: "{{trainerName}} added a note about your {{topic}}.",
     actionUrlTemplate: "/messages",
     actionLabel: "View Note",

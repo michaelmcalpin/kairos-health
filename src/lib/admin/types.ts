@@ -145,7 +145,7 @@ export function uid(): string {
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   client: "Client",
-  trainer: "Trainer",
+  trainer: "Coach",
   company_admin: "Company Admin",
   super_admin: "Super Admin",
 };
@@ -194,8 +194,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   "subscription.created": "Subscription Created",
   "subscription.updated": "Subscription Updated",
   "subscription.cancelled": "Subscription Cancelled",
-  "trainer.assigned": "Trainer Assigned",
-  "trainer.unassigned": "Trainer Unassigned",
+  "trainer.assigned": "Coach Assigned",
+  "trainer.unassigned": "Coach Unassigned",
   "admin.login": "Admin Login",
   "admin.setting_changed": "Setting Changed",
   "system.maintenance": "System Maintenance",

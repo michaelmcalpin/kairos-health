@@ -131,7 +131,7 @@ export function ChatView({
         <div className="flex-1">
           <h3 className="text-sm font-semibold text-white">{otherName}</h3>
           <p className="text-xs text-gray-400">
-            {conversation.isAiCoach ? "Always available" : "Trainer"}
+            {conversation.isAiCoach ? "Always available" : "Coach"}
           </p>
         </div>
       </div>

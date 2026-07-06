@@ -109,7 +109,7 @@ export const adminDashboardRouter = router({
           icon: "users",
         },
         {
-          label: "Active Trainers",
+          label: "Active Coaches",
           value: totalTrainers.toString(),
           icon: "user-circle",
         },

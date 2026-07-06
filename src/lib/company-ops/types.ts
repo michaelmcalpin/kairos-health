@@ -70,13 +70,13 @@ export const ROLE_OPTIONS: RoleOption[] = [
   {
     role: "company_admin",
     label: "Company Admin",
-    description: "Manage trainers and clients",
+    description: "Manage coaches and clients",
     icon: "Building2",
     path: "/company/dashboard",
   },
   {
     role: "trainer",
-    label: "Trainer",
+    label: "Coach",
     description: "Manage your clients",
     icon: "Dumbbell",
     path: "/trainer/dashboard",
@@ -93,6 +93,6 @@ export const ROLE_OPTIONS: RoleOption[] = [
 export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
   company_admin: "Company Admin",
-  trainer: "Trainer",
+  trainer: "Coach",
   client: "Client",
 };
