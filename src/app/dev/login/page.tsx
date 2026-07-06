@@ -40,7 +40,7 @@ const DEV_ROLES: {
   },
   {
     role: "trainer",
-    label: "Trainer",
+    label: "Coach",
     description: "Client management, alerts, protocols, revenue",
     icon: Dumbbell,
     colorClass: "bg-blue-500/15 text-blue-400 border-blue-500/30",

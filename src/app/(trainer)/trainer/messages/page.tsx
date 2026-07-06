@@ -15,7 +15,7 @@ function CoachMessagesContent() {
       <div className="mb-6">
         <h1 className="text-2xl font-heading font-bold text-white">Client Messages</h1>
         <p className="text-gray-400 mt-1">
-          Communicate with your clients, review progress, and provide training guidance.
+          Communicate with your clients, review progress, and provide coaching guidance.
         </p>
       </div>
 
@@ -25,7 +25,7 @@ function CoachMessagesContent() {
         <MessagingDashboard
           userId={user.id}
           role="coach"
-          userName={`${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "Trainer"}
+          userName={`${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || "Coach"}
           initialConversationId={conversationId}
         />
       )}
