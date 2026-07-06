@@ -105,22 +105,28 @@ async function verifyCoachClientRelationship(
 
 // ─── Shared client data fetcher ───────────────────────────────
 
+// Helper: safely query tables that may not exist yet (e.g. biometric tables pre-migration)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 async function fetchClientData(db: typeof import("@/server/db").db, clientId: string, enrolledAt?: Date) {
   const [user, profile, alertRows, recentGlucose, recentSleep, recentHrv, recentWeight, recentCheckins, protocol, adherenceCount] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, clientId) }),
     db.query.clientProfiles.findFirst({ where: eq(clientProfiles.userId, clientId) }),
     db.select({ count: sql<number>`count(*)` }).from(alerts).where(and(eq(alerts.clientId, clientId), eq(alerts.status, "active"))),
-    db.query.glucoseReadings.findMany({ where: eq(glucoseReadings.clientId, clientId), orderBy: desc(glucoseReadings.timestamp), limit: 7 }),
-    db.query.sleepSessions.findMany({ where: eq(sleepSessions.clientId, clientId), orderBy: desc(sleepSessions.date), limit: 7 }),
-    db.query.hrvReadings.findMany({ where: eq(hrvReadings.clientId, clientId), orderBy: desc(hrvReadings.timestamp), limit: 7 }),
-    db.query.bodyMeasurements.findMany({ where: eq(bodyMeasurements.clientId, clientId), orderBy: desc(bodyMeasurements.date), limit: 5 }),
-    db.query.dailyCheckins.findMany({ where: eq(dailyCheckins.clientId, clientId), orderBy: desc(dailyCheckins.date), limit: 14 }),
-    db.query.supplementProtocols.findFirst({
+    safeQ(() => db.query.glucoseReadings.findMany({ where: eq(glucoseReadings.clientId, clientId), orderBy: desc(glucoseReadings.timestamp), limit: 7 }), []),
+    safeQ(() => db.query.sleepSessions.findMany({ where: eq(sleepSessions.clientId, clientId), orderBy: desc(sleepSessions.date), limit: 7 }), []),
+    safeQ(() => db.query.hrvReadings.findMany({ where: eq(hrvReadings.clientId, clientId), orderBy: desc(hrvReadings.timestamp), limit: 7 }), []),
+    safeQ(() => db.query.bodyMeasurements.findMany({ where: eq(bodyMeasurements.clientId, clientId), orderBy: desc(bodyMeasurements.date), limit: 5 }), []),
+    safeQ(() => db.query.dailyCheckins.findMany({ where: eq(dailyCheckins.clientId, clientId), orderBy: desc(dailyCheckins.date), limit: 14 }), []),
+    safeQ(() => db.query.supplementProtocols.findFirst({
       where: and(eq(supplementProtocols.clientId, clientId), eq(supplementProtocols.status, "active")),
-    }),
-    db.select({ count: sql<number>`count(*)` }).from(adherenceLogs).where(
+    }), undefined),
+    safeQ(() => db.select({ count: sql<number>`count(*)` }).from(adherenceLogs).where(
       and(eq(adherenceLogs.clientId, clientId), gte(adherenceLogs.date, new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0]))
-    ),
+    ), [{ count: 0 }]),
   ]);
 
   if (!user) return null;
@@ -282,39 +288,39 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
       .from(alerts)
       .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")))
       .groupBy(alerts.clientId),
-    db.query.glucoseReadings.findMany({
+    safeQ(() => db.query.glucoseReadings.findMany({
       where: inArray(glucoseReadings.clientId, clientIds),
       orderBy: desc(glucoseReadings.timestamp),
       limit: clientIds.length * 7,
-    }),
-    db.query.sleepSessions.findMany({
+    }), []),
+    safeQ(() => db.query.sleepSessions.findMany({
       where: inArray(sleepSessions.clientId, clientIds),
       orderBy: desc(sleepSessions.date),
       limit: clientIds.length * 7,
-    }),
-    db.query.hrvReadings.findMany({
+    }), []),
+    safeQ(() => db.query.hrvReadings.findMany({
       where: inArray(hrvReadings.clientId, clientIds),
       orderBy: desc(hrvReadings.timestamp),
       limit: clientIds.length * 7,
-    }),
-    db.query.bodyMeasurements.findMany({
+    }), []),
+    safeQ(() => db.query.bodyMeasurements.findMany({
       where: inArray(bodyMeasurements.clientId, clientIds),
       orderBy: desc(bodyMeasurements.date),
       limit: clientIds.length * 5,
-    }),
-    db.query.dailyCheckins.findMany({
+    }), []),
+    safeQ(() => db.query.dailyCheckins.findMany({
       where: inArray(dailyCheckins.clientId, clientIds),
       orderBy: desc(dailyCheckins.date),
       limit: clientIds.length * 14,
-    }),
-    db.query.supplementProtocols.findMany({
+    }), []),
+    safeQ(() => db.query.supplementProtocols.findMany({
       where: and(inArray(supplementProtocols.clientId, clientIds), eq(supplementProtocols.status, "active")),
-    }),
-    db
+    }), []),
+    safeQ(() => db
       .select({ clientId: adherenceLogs.clientId, count: sql<number>`count(*)` })
       .from(adherenceLogs)
       .where(and(inArray(adherenceLogs.clientId, clientIds), gte(adherenceLogs.date, thirtyDaysAgo)))
-      .groupBy(adherenceLogs.clientId),
+      .groupBy(adherenceLogs.clientId), []),
   ]);
 
   // Build lookup maps
@@ -579,11 +585,11 @@ export const coachClientsRouter = router({
           orderBy: desc(alerts.createdAt),
           limit: 10,
         }),
-        ctx.db.query.dailyCheckins.findMany({
+        safeQ(() => ctx.db.query.dailyCheckins.findMany({
           where: eq(dailyCheckins.clientId, input.clientId),
           orderBy: desc(dailyCheckins.date),
           limit: 8,
-        }),
+        }), []),
       ]);
 
       // Map alerts to the expected shape
@@ -801,76 +807,82 @@ export const coachClientsRouter = router({
       const end = input.endDate ?? new Date().toISOString().split("T")[0];
       const start = input.startDate ?? new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
+      // Helper: safely query tables that may not exist yet in the database
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+        try { return await fn(); } catch { return fallback; }
+      };
+
       const [
         glucose, sleep, hrvData, bpData, weightData, workouts, activity,
         goals, labs, fasting, meals, protocolData, upcoming, checkins,
         geneticProfile, clinicalDocsData,
       ] = await Promise.all([
         // Glucose
-        ctx.db.query.glucoseReadings.findMany({
+        safe(() => ctx.db.query.glucoseReadings.findMany({
           where: and(eq(glucoseReadings.clientId, input.clientId), gte(glucoseReadings.timestamp, new Date(start))),
           orderBy: desc(glucoseReadings.timestamp),
           limit: 200,
-        }),
+        }), []),
         // Sleep
-        ctx.db.query.sleepSessions.findMany({
+        safe(() => ctx.db.query.sleepSessions.findMany({
           where: and(eq(sleepSessions.clientId, input.clientId), gte(sleepSessions.date, start), lte(sleepSessions.date, end)),
           orderBy: desc(sleepSessions.date),
-        }),
+        }), []),
         // HRV
-        ctx.db.query.hrvReadings.findMany({
+        safe(() => ctx.db.query.hrvReadings.findMany({
           where: and(eq(hrvReadings.clientId, input.clientId), gte(hrvReadings.timestamp, new Date(start))),
           orderBy: desc(hrvReadings.timestamp),
           limit: 100,
-        }),
+        }), []),
         // Blood Pressure
-        ctx.db.query.bloodPressureReadings.findMany({
+        safe(() => ctx.db.query.bloodPressureReadings.findMany({
           where: and(eq(bloodPressureReadings.clientId, input.clientId), gte(bloodPressureReadings.date, start), lte(bloodPressureReadings.date, end)),
           orderBy: desc(bloodPressureReadings.date),
-        }),
+        }), []),
         // Body Measurements
-        ctx.db.query.bodyMeasurements.findMany({
+        safe(() => ctx.db.query.bodyMeasurements.findMany({
           where: and(eq(bodyMeasurements.clientId, input.clientId), gte(bodyMeasurements.date, start), lte(bodyMeasurements.date, end)),
           orderBy: desc(bodyMeasurements.date),
-        }),
+        }), []),
         // Workouts
-        ctx.db.query.workoutLogs.findMany({
+        safe(() => ctx.db.query.workoutLogs.findMany({
           where: and(eq(workoutLogs.clientId, input.clientId), gte(workoutLogs.date, start), lte(workoutLogs.date, end)),
           orderBy: desc(workoutLogs.date),
-        }),
+        }), []),
         // Activity Summaries
-        ctx.db.query.activitySummaries.findMany({
+        safe(() => ctx.db.query.activitySummaries.findMany({
           where: and(eq(activitySummaries.clientId, input.clientId), gte(activitySummaries.date, start), lte(activitySummaries.date, end)),
           orderBy: desc(activitySummaries.date),
-        }),
+        }), []),
         // Health Goals (all active)
-        ctx.db.query.healthGoals.findMany({
+        safe(() => ctx.db.query.healthGoals.findMany({
           where: and(eq(healthGoals.clientId, input.clientId)),
           orderBy: desc(healthGoals.createdAt),
-        }),
+        }), []),
         // Lab Results
-        ctx.db.query.labResults.findMany({
+        safe(() => ctx.db.query.labResults.findMany({
           where: eq(labResults.clientId, input.clientId),
           orderBy: desc(labResults.receivedAt),
           limit: 10,
-        }),
+        }), []),
         // Fasting logs
-        ctx.db.query.fastingLogs.findMany({
+        safe(() => ctx.db.query.fastingLogs.findMany({
           where: and(eq(fastingLogs.clientId, input.clientId), gte(fastingLogs.startedAt, new Date(start))),
           orderBy: desc(fastingLogs.startedAt),
-        }),
+        }), []),
         // Meal logs
-        ctx.db.query.mealLogs.findMany({
+        safe(() => ctx.db.query.mealLogs.findMany({
           where: and(eq(mealLogs.clientId, input.clientId), gte(mealLogs.date, start), lte(mealLogs.date, end)),
           orderBy: desc(mealLogs.date),
           limit: 50,
-        }),
+        }), []),
         // Active supplement protocol with items
-        ctx.db.query.supplementProtocols.findFirst({
+        safe(() => ctx.db.query.supplementProtocols.findFirst({
           where: and(eq(supplementProtocols.clientId, input.clientId), eq(supplementProtocols.status, "active")),
-        }),
+        }), undefined),
         // Upcoming appointments
-        ctx.db.query.appointments.findMany({
+        safe(() => ctx.db.query.appointments.findMany({
           where: and(
             eq(appointments.clientId, input.clientId),
             eq(appointments.coachId, ctx.dbUserId),
@@ -878,43 +890,43 @@ export const coachClientsRouter = router({
           ),
           orderBy: appointments.date,
           limit: 5,
-        }),
+        }), []),
         // Daily check-ins
-        ctx.db.query.dailyCheckins.findMany({
+        safe(() => ctx.db.query.dailyCheckins.findMany({
           where: and(eq(dailyCheckins.clientId, input.clientId), gte(dailyCheckins.date, start), lte(dailyCheckins.date, end)),
           orderBy: desc(dailyCheckins.date),
-        }),
+        }), []),
         // Genetic profile (latest non-error)
-        ctx.db.query.geneticProfiles.findFirst({
+        safe(() => ctx.db.query.geneticProfiles.findFirst({
           where: and(
             eq(geneticProfiles.clientId, input.clientId),
             ne(geneticProfiles.status, "error"),
           ),
           orderBy: desc(geneticProfiles.createdAt),
-        }),
+        }), undefined),
         // Clinical documents (DEXA, gut biome, medical records)
-        ctx.db.query.clinicalDocuments.findMany({
+        safe(() => ctx.db.query.clinicalDocuments.findMany({
           where: eq(clinicalDocuments.clientId, input.clientId),
           orderBy: desc(clinicalDocuments.reportDate),
           limit: 20,
-        }),
+        }), []),
       ]);
 
       // Fetch protocol items if protocol exists
       let supplements: typeof protocolItems.$inferSelect[] = [];
       if (protocolData) {
-        supplements = await ctx.db.query.protocolItems.findMany({
+        supplements = await safe(() => ctx.db.query.protocolItems.findMany({
           where: eq(protocolItems.protocolId, protocolData.id),
-        });
+        }), []);
       }
 
       // Fetch biomarker values for labs
       let biomarkers: typeof biomarkerValues.$inferSelect[] = [];
       if (labs.length > 0) {
         const labIds = labs.map((l) => l.id);
-        biomarkers = await ctx.db.query.biomarkerValues.findMany({
+        biomarkers = await safe(() => ctx.db.query.biomarkerValues.findMany({
           where: inArray(biomarkerValues.resultId, labIds),
-        });
+        }), []);
       }
 
       // Fetch goal milestones + checkpoints for active goals
@@ -924,8 +936,8 @@ export const coachClientsRouter = router({
       if (activeGoals.length > 0) {
         const goalIds = activeGoals.map((g) => g.id);
         [allMilestones, allCheckpoints] = await Promise.all([
-          ctx.db.query.goalMilestones.findMany({ where: inArray(goalMilestones.goalId, goalIds) }),
-          ctx.db.query.goalCheckpoints.findMany({ where: inArray(goalCheckpoints.goalId, goalIds), orderBy: desc(goalCheckpoints.createdAt) }),
+          safe(() => ctx.db.query.goalMilestones.findMany({ where: inArray(goalMilestones.goalId, goalIds) }), []),
+          safe(() => ctx.db.query.goalCheckpoints.findMany({ where: inArray(goalCheckpoints.goalId, goalIds), orderBy: desc(goalCheckpoints.createdAt) }), []),
         ]);
       }
 
@@ -934,20 +946,20 @@ export const coachClientsRouter = router({
       let genPathways: typeof geneticPathwayScores.$inferSelect[] = [];
       if (geneticProfile) {
         [genMarkers, genPathways] = await Promise.all([
-          ctx.db.query.geneticMarkers.findMany({
+          safe(() => ctx.db.query.geneticMarkers.findMany({
             where: eq(geneticMarkers.profileId, geneticProfile.id),
             limit: 100,
-          }),
-          ctx.db.query.geneticPathwayScores.findMany({
+          }), []),
+          safe(() => ctx.db.query.geneticPathwayScores.findMany({
             where: eq(geneticPathwayScores.profileId, geneticProfile.id),
-          }),
+          }), []),
         ]);
       }
 
       // Check for existing conversation
-      const conversation = await ctx.db.query.conversations.findFirst({
+      const conversation = await safe(() => ctx.db.query.conversations.findFirst({
         where: and(eq(conversations.trainerId, ctx.dbUserId), eq(conversations.clientId, input.clientId)),
-      });
+      }), undefined);
 
       return {
         glucose: glucose.map((g) => ({ date: g.timestamp.toISOString(), value: Number(g.valueMgdl), source: g.source })),

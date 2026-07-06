@@ -52,6 +52,11 @@ export const coachDashboardRouter = router({
         return { kpis: [], priorityClients: [], todaySchedule: [] };
       }
 
+      // Helper: safely query a table that may not exist yet (returns [] on error)
+      const safeQuery = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+        try { return await fn(); } catch { return fallback; }
+      };
+
       const [allUsers, allProfiles, alertCounts, allLatestSleep, allLatestGlucose] = await Promise.all([
         // Batch: all users at once
         ctx.db.query.users.findMany({ where: inArray(users.id, clientIds) }),
@@ -63,20 +68,26 @@ export const coachDashboardRouter = router({
           .from(alerts)
           .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")))
           .groupBy(alerts.clientId),
-        // Batch: latest sleep per client using DISTINCT ON
-        ctx.db.execute(sql`
-          SELECT DISTINCT ON (client_id) *
-          FROM sleep_sessions
-          WHERE client_id = ANY(${clientIds})
-          ORDER BY client_id, date DESC
-        `),
-        // Batch: latest glucose per client using DISTINCT ON
-        ctx.db.execute(sql`
-          SELECT DISTINCT ON (client_id) *
-          FROM glucose_readings
-          WHERE client_id = ANY(${clientIds})
-          ORDER BY client_id, timestamp DESC
-        `),
+        // Batch: latest sleep per client (table may not exist yet)
+        safeQuery(
+          () => ctx.db.execute(sql`
+            SELECT DISTINCT ON (client_id) *
+            FROM sleep_sessions
+            WHERE client_id = ANY(${clientIds})
+            ORDER BY client_id, date DESC
+          `),
+          [] as unknown as Awaited<ReturnType<typeof ctx.db.execute>>,
+        ),
+        // Batch: latest glucose per client (table may not exist yet)
+        safeQuery(
+          () => ctx.db.execute(sql`
+            SELECT DISTINCT ON (client_id) *
+            FROM glucose_readings
+            WHERE client_id = ANY(${clientIds})
+            ORDER BY client_id, timestamp DESC
+          `),
+          [] as unknown as Awaited<ReturnType<typeof ctx.db.execute>>,
+        ),
       ]);
 
       // Build lookup maps
@@ -302,6 +313,11 @@ export const coachDashboardRouter = router({
     if (clientIds.length === 0) return [];
 
     // Batch all lookups instead of per-client queries
+    // Helper: safely query a table that may not exist yet (returns fallback on error)
+    const safeQuery2 = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+      try { return await fn(); } catch { return fallback; }
+    };
+
     const [allUsers, allProfiles, alertCounts, allLatestSleep, allLatestGlucose] = await Promise.all([
       ctx.db.query.users.findMany({ where: inArray(users.id, clientIds) }),
       ctx.db.query.clientProfiles.findMany({ where: inArray(clientProfiles.userId, clientIds) }),
@@ -310,18 +326,24 @@ export const coachDashboardRouter = router({
         .from(alerts)
         .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")))
         .groupBy(alerts.clientId),
-      ctx.db.execute(sql`
-        SELECT DISTINCT ON (client_id) *
-        FROM sleep_sessions
-        WHERE client_id = ANY(${clientIds})
-        ORDER BY client_id, date DESC
-      `),
-      ctx.db.execute(sql`
-        SELECT DISTINCT ON (client_id) *
-        FROM glucose_readings
-        WHERE client_id = ANY(${clientIds})
-        ORDER BY client_id, timestamp DESC
-      `),
+      safeQuery2(
+        () => ctx.db.execute(sql`
+          SELECT DISTINCT ON (client_id) *
+          FROM sleep_sessions
+          WHERE client_id = ANY(${clientIds})
+          ORDER BY client_id, date DESC
+        `),
+        [] as unknown as Awaited<ReturnType<typeof ctx.db.execute>>,
+      ),
+      safeQuery2(
+        () => ctx.db.execute(sql`
+          SELECT DISTINCT ON (client_id) *
+          FROM glucose_readings
+          WHERE client_id = ANY(${clientIds})
+          ORDER BY client_id, timestamp DESC
+        `),
+        [] as unknown as Awaited<ReturnType<typeof ctx.db.execute>>,
+      ),
     ]);
 
     const userMap = new Map(allUsers.map((u) => [u.id, u]));
