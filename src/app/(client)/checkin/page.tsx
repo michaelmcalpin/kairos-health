@@ -47,7 +47,12 @@ export default function CheckinPage() {
     { enabled: !!dateStr }
   );
   const { data: checkinData, isLoading: isLoadingCheckin } = checkinQuery;
-  const submitMutation = trpc.clientPortal.checkin.submit.useMutation();
+  const utils = trpc.useUtils();
+  const submitMutation = trpc.clientPortal.checkin.submit.useMutation({
+    onSuccess: () => {
+      void utils.clientPortal.checkin.getByDate.invalidate();
+    },
+  });
 
   // Load check-in data when query returns or date changes
   useEffect(() => {

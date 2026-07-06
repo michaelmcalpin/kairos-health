@@ -23,8 +23,14 @@ export default function SupplementsPage() {
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
+  const utils = trpc.useUtils();
   const { data: protocol } = trpc.clientPortal.supplements.getActiveProtocol.useQuery();
-  const logAdherenceMutation = trpc.clientPortal.supplements.logAdherence.useMutation();
+  const logAdherenceMutation = trpc.clientPortal.supplements.logAdherence.useMutation({
+    onSuccess: () => {
+      void utils.clientPortal.supplements.getActiveProtocol.invalidate();
+      void utils.clientPortal.supplements.adherenceStats.invalidate();
+    },
+  });
 
   const [takenIds, setTakenIds] = useState<Set<string>>(new Set());
 

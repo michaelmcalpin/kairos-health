@@ -43,7 +43,7 @@ export default function SettingsPage() {
   const [formData, setFormData] = useState({
     displayName: "",
     email: "",
-    phone: "+1 (555) 123-4567",
+    phone: "",
     timezone: "America/Los_Angeles",
   });
 
@@ -224,12 +224,7 @@ export default function SettingsPage() {
     }));
   };
 
-  const handlePrivacyChange = (key: keyof typeof privacy, value: string | boolean) => {
-    setPrivacy((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  };
+  // Privacy settings are read-only — the backend does not persist these fields yet.
 
   const handleDeviceAction = (deviceId: string) => {
     setDevices((prev) =>
@@ -1142,16 +1137,16 @@ export default function SettingsPage() {
 
               <div className="space-y-6">
                 <div>
-                  <div className="flex items-center justify-between p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border">
+                  <div className="flex items-center justify-between p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border opacity-60">
                     <span className="font-body text-kairos-silver-dark">Data Sharing</span>
-                    <button onClick={() => handlePrivacyChange("dataSharing", !privacy.dataSharing)}
-                      className={`relative w-12 h-6 rounded-full transition-colors ${
+                    <div
+                      className={`relative w-12 h-6 rounded-full cursor-not-allowed ${
                         privacy.dataSharing ? "bg-kairos-gold" : "bg-gray-600 border border-kairos-border"
                       }`}>
-                      <div className={`absolute top-1 w-4 h-4 bg-kairos-card rounded-full transition-transform ${
+                      <div className={`absolute top-1 w-4 h-4 bg-kairos-card rounded-full ${
                         privacy.dataSharing ? "translate-x-6" : "translate-x-1"
                       }`} />
-                    </button>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-2">
                     Allow Everist.ai to use anonymized data for research purposes
@@ -1161,31 +1156,17 @@ export default function SettingsPage() {
                 <div>
                   <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Profile Visibility</label>
                   <select value={privacy.profileVisibility}
-                    onChange={(e) => handlePrivacyChange("profileVisibility", e.target.value)}
-                    className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold focus:border-kairos-gold">
+                    disabled
+                    className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm opacity-60 cursor-not-allowed">
                     <option value="Coach Only">Coach Only</option>
                     <option value="Team">Team</option>
                     <option value="Private">Private</option>
                   </select>
                 </div>
-              </div>
 
-              {/* Save Button */}
-              <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-kairos-border">
-                <button onClick={() => window.location.reload()}
-                  disabled={updateProfileMutation.isPending || updateNotificationsMutation.isPending}
-                  className="px-8 py-3 bg-gray-700 border border-kairos-border text-kairos-silver-dark rounded-kairos-sm font-body font-medium hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  Cancel
-                </button>
-                <button onClick={handleSaveChanges}
-                  disabled={updateProfileMutation.isPending || updateNotificationsMutation.isPending}
-                  className="flex items-center gap-2 px-8 py-3 bg-kairos-gold text-kairos-card rounded-kairos-sm font-body font-medium hover:bg-yellow-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  {updateProfileMutation.isPending || updateNotificationsMutation.isPending ? (
-                    <><div className="w-5 h-5 border-2 border-kairos-card border-t-transparent rounded-full animate-spin" /> Saving...</>
-                  ) : (
-                    <><Save className="w-5 h-5" /> Save Changes</>
-                  )}
-                </button>
+                <p className="text-xs text-gray-500 italic">
+                  Privacy settings are managed by your administrator and cannot be changed here.
+                </p>
               </div>
             </div>
 

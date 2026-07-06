@@ -30,6 +30,8 @@ export default function TrainerSettingsPage() {
   // Fetch notification preferences
   const { data: notificationPrefs } = trpc.coach.schedule.getNotificationPreferences.useQuery();
 
+  const utils = trpc.useUtils();
+
   // Mutations
   const updateProfileMutation = trpc.coach.schedule.updateProfile.useMutation();
   const updateNotificationsMutation = trpc.coach.schedule.updateNotificationPreferences.useMutation();
@@ -123,6 +125,11 @@ export default function TrainerSettingsPage() {
           },
         },
       });
+
+      // Invalidate cached queries so UI reflects saved changes
+      void utils.coach.schedule.getProfile.invalidate();
+      void utils.coach.schedule.getNotificationPreferences.invalidate();
+      void utils.auth.me.invalidate();
 
       setSaveMessage("Changes saved successfully");
       setTimeout(() => setSaveMessage(""), 3000);
