@@ -4,15 +4,20 @@ import { Sidebar, companyAdminNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { CompanyBrandProvider, useCompanyBrand } from "@/lib/company-ops";
+import { trpc } from "@/lib/trpc";
 
 function CompanyShell({ children }: { children: React.ReactNode }) {
   const { brand, cssVars } = useCompanyBrand();
+  const { data: me } = trpc.auth.me.useQuery();
+  const userName = me?.firstName && me?.lastName
+    ? `${me.firstName} ${me.lastName}`
+    : "Company Admin";
 
   return (
     <div className="flex min-h-screen" style={cssVars as React.CSSProperties}>
       <Sidebar
         items={companyAdminNavItems}
-        userName="Company Admin"
+        userName={userName}
         companyName={brand.name}
         companyLogoUrl={brand.logoUrl}
         companyBrandColor={brand.brandColor}

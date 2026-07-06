@@ -31,7 +31,7 @@ export default function AdminSettingsPage() {
 
   const [platform, setPlatform] = useState({
     platformName: "Everist.ai Health",
-    supportEmail: "support@kairos.health",
+    supportEmail: "support@everist.ai",
     maxClientsPerTrainer: "50",
     sessionTimeout: "30",
   });
@@ -64,7 +64,7 @@ export default function AdminSettingsPage() {
     } else {
       setPlatform({
         platformName: "Everist.ai Health",
-        supportEmail: "support@kairos.health",
+        supportEmail: "support@everist.ai",
         maxClientsPerTrainer: "50",
         sessionTimeout: "30",
       });

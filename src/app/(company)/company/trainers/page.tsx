@@ -339,8 +339,6 @@ function InviteTrainerModal({
   accentColor?: string;
   onClose: () => void;
 }) {
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const inviteLink = `${typeof window !== "undefined" ? window.location.origin : ""}/join/${companyName.toLowerCase().replace(/\s+/g, "-")}`;
@@ -354,13 +352,6 @@ function InviteTrainerModal({
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
   }, [onClose]);
-
-  function handleSendInvite() {
-    if (!email.trim()) return;
-    setSent(true);
-    setTimeout(() => setSent(false), 3000);
-    setEmail("");
-  }
 
   function handleCopyLink() {
     navigator.clipboard.writeText(inviteLink);
@@ -378,37 +369,31 @@ function InviteTrainerModal({
           </button>
         </div>
 
-        {/* Email Invite */}
+        {/* Email Invite — coming soon */}
         <div className="mb-6">
           <label className="block text-xs text-kairos-silver-dark mb-2">Send invite via email</label>
           <div className="flex gap-2">
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              disabled
               placeholder="trainer@example.com"
-              className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50"
+              className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-500 placeholder-gray-600 cursor-not-allowed"
             />
             <button
-              onClick={handleSendInvite}
-              className="px-4 py-2 rounded-lg font-heading font-semibold text-sm transition-colors"
-              style={{
-                backgroundColor: accentColor || "rgb(var(--k-accent))",
-                color: accentColor ? "#fff" : "rgb(var(--k-bg))",
-              }}
+              disabled
+              className="px-4 py-2 rounded-lg font-heading font-semibold text-sm transition-colors opacity-50 cursor-not-allowed bg-gray-700 text-gray-400"
+              title="Email invitations coming soon"
             >
-              {sent ? "Sent!" : "Send"}
+              Send
             </button>
           </div>
-          {sent && (
-            <p className="text-xs text-green-400 mt-2">Invitation sent successfully!</p>
-          )}
+          <p className="text-xs text-kairos-silver-dark mt-2">Email invitations coming soon. Use the invite link below instead.</p>
         </div>
 
         {/* Or separator */}
         <div className="flex items-center gap-3 mb-6">
           <div className="flex-1 h-px bg-gray-700" />
-          <span className="text-xs text-gray-500">or share link</span>
+          <span className="text-xs text-gray-500">share link</span>
           <div className="flex-1 h-px bg-gray-700" />
         </div>
 

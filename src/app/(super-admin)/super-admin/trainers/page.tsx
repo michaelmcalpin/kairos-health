@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, MessageSquare, User, X, Send } from "lucide-react";
+import { Search, MessageSquare, User, X } from "lucide-react";
 import { CompanySelector, useCompanyFilter } from "@/components/admin/CompanySelector";
 import { trpc } from "@/lib/trpc";
 
@@ -27,8 +27,6 @@ export default function TrainersPage() {
   const [statusFilter, setStatusFilter] = useState<TrainerStatus | "All">("All");
   const [viewingTrainer, setViewingTrainer] = useState<{ name: string; email?: string; specialization?: string; clients: number; capacity: number; revenue?: number; score?: number } | null>(null);
   const [messagingTrainer, setMessagingTrainer] = useState<string | null>(null);
-  const [messageText, setMessageText] = useState("");
-  const [messageSent, setMessageSent] = useState(false);
 
   // Platform-level data via tRPC
   const { data: platformStatsData } = trpc.admin.dashboard.getTrainerStats.useQuery(
@@ -384,41 +382,19 @@ export default function TrainersPage() {
           <div className="bg-kairos-card border border-kairos-border rounded-kairos w-full max-w-md">
             <div className="flex items-center justify-between p-6 border-b border-kairos-border">
               <h2 className="font-heading font-bold text-lg text-white">Message {messagingTrainer}</h2>
-              <button onClick={() => { setMessagingTrainer(null); setMessageText(""); setMessageSent(false); }} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
+              <button onClick={() => { setMessagingTrainer(null); }} className="text-kairos-silver-dark hover:text-white"><X size={20} /></button>
             </div>
             <div className="p-6 space-y-4">
-              {messageSent ? (
-                <div className="text-center py-4">
-                  <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-3">
-                    <Send className="w-5 h-5 text-green-400" />
-                  </div>
-                  <p className="text-white font-heading font-semibold">Message Sent!</p>
-                  <p className="text-sm text-kairos-silver-dark mt-1">Your message has been delivered to {messagingTrainer}.</p>
+              <div className="text-center py-6">
+                <div className="w-12 h-12 rounded-full bg-kairos-gold/10 flex items-center justify-center mx-auto mb-3">
+                  <MessageSquare className="w-5 h-5 text-kairos-gold" />
                 </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="kairos-label mb-1 block">Subject</label>
-                    <input placeholder="Message subject..." className="kairos-input w-full" />
-                  </div>
-                  <div>
-                    <label className="kairos-label mb-1 block">Message</label>
-                    <textarea value={messageText} onChange={(e) => setMessageText(e.target.value)} placeholder="Write your message..." className="kairos-input w-full h-32 resize-none" />
-                  </div>
-                </>
-              )}
+                <p className="text-white font-heading font-semibold">Direct Messaging Coming Soon</p>
+                <p className="text-sm text-kairos-silver-dark mt-2">Admin-to-coach messaging is not yet available from this page. Use the messaging section to communicate with coaches.</p>
+              </div>
             </div>
             <div className="flex gap-3 p-6 border-t border-kairos-border">
-              <button onClick={() => { setMessagingTrainer(null); setMessageText(""); setMessageSent(false); }} className="kairos-btn-outline flex-1">{messageSent ? "Close" : "Cancel"}</button>
-              {!messageSent && (
-                <button
-                  onClick={() => { setMessageSent(true); setTimeout(() => { setMessagingTrainer(null); setMessageText(""); setMessageSent(false); }, 2000); }}
-                  disabled={!messageText.trim()}
-                  className="kairos-btn-gold flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  <Send className="w-4 h-4" /> Send Message
-                </button>
-              )}
+              <button onClick={() => { setMessagingTrainer(null); }} className="kairos-btn-outline flex-1">Close</button>
             </div>
           </div>
         </div>

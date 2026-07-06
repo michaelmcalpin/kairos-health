@@ -24,7 +24,7 @@ export default function AdminError({
         </div>
         <h2 className="font-heading font-bold text-xl text-white mb-2">Something Went Wrong</h2>
         <p className="font-body text-sm text-kairos-silver-dark mb-2">
-          An unexpected error occurred in the Admin Portal.
+          An unexpected error occurred in Everist Admin.
         </p>
         {error.digest && (
           <p className="font-body text-xs text-kairos-silver-dark mb-6">
