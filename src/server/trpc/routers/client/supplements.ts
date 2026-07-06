@@ -4,22 +4,26 @@ import { supplementProtocols, protocolItems, adherenceLogs } from "@/server/db/s
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientSupplementsRouter = router({
   // Get active supplement protocol with items
   getActiveProtocol: clientProcedure.query(async ({ ctx }) => {
-    const protocol = await ctx.db.query.supplementProtocols.findFirst({
+    const protocol = await safeQ(() => ctx.db.query.supplementProtocols.findFirst({
       where: and(
         eq(supplementProtocols.clientId, ctx.dbUserId),
         eq(supplementProtocols.status, "active")
       ),
       orderBy: desc(supplementProtocols.createdAt),
-    });
+    }), undefined);
 
     if (!protocol) return null;
 
-    const items = await ctx.db.query.protocolItems.findMany({
+    const items = await safeQ(() => ctx.db.query.protocolItems.findMany({
       where: eq(protocolItems.protocolId, protocol.id),
-    });
+    }), []);
 
     return {
       id: protocol.id,
@@ -46,14 +50,14 @@ export const clientSupplementsRouter = router({
   getAdherence: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const results = await ctx.db.query.adherenceLogs.findMany({
+      const results = await safeQ(() => ctx.db.query.adherenceLogs.findMany({
         where: and(
           eq(adherenceLogs.clientId, ctx.dbUserId),
           gte(adherenceLogs.date, input.startDate),
           lte(adherenceLogs.date, input.endDate)
         ),
         orderBy: desc(adherenceLogs.date),
-      });
+      }), []);
 
       return results.map((a) => ({
         id: a.id,
@@ -69,7 +73,7 @@ export const clientSupplementsRouter = router({
   adherenceStats: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const result = await ctx.db
+      const result = await safeQ(() => ctx.db
         .select({
           date: adherenceLogs.date,
           total: sql<number>`count(*)`,
@@ -84,7 +88,7 @@ export const clientSupplementsRouter = router({
           )
         )
         .groupBy(adherenceLogs.date)
-        .orderBy(adherenceLogs.date);
+        .orderBy(adherenceLogs.date), []);
 
       return result.map((r) => ({
         date: r.date,

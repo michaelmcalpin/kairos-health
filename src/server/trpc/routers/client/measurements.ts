@@ -4,19 +4,23 @@ import { bodyMeasurements, heartRateReadings, bloodPressureReadings } from "@/se
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientMeasurementsRouter = router({
   // List body measurements within a date range
   list: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const results = await ctx.db.query.bodyMeasurements.findMany({
+      const results = await safeQ(() => ctx.db.query.bodyMeasurements.findMany({
         where: and(
           eq(bodyMeasurements.clientId, ctx.dbUserId),
           gte(bodyMeasurements.date, input.startDate),
           lte(bodyMeasurements.date, input.endDate)
         ),
         orderBy: desc(bodyMeasurements.date),
-      });
+      }), []);
 
       return results.map((m) => ({
         id: m.id,
@@ -41,10 +45,10 @@ export const clientMeasurementsRouter = router({
 
   // Get latest measurement
   latest: clientProcedure.query(async ({ ctx }) => {
-    const result = await ctx.db.query.bodyMeasurements.findFirst({
+    const result = await safeQ(() => ctx.db.query.bodyMeasurements.findFirst({
       where: eq(bodyMeasurements.clientId, ctx.dbUserId),
       orderBy: desc(bodyMeasurements.date),
-    });
+    }), undefined);
     return result ?? null;
   }),
 

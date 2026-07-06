@@ -4,34 +4,38 @@ import { bloodPressureReadings } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientBloodPressureRouter = router({
   // Get readings within a date range
   getHistory: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      return await ctx.db.query.bloodPressureReadings.findMany({
+      return await safeQ(() => ctx.db.query.bloodPressureReadings.findMany({
         where: and(
           eq(bloodPressureReadings.clientId, ctx.dbUserId),
           gte(bloodPressureReadings.date, input.startDate),
           lte(bloodPressureReadings.date, input.endDate)
         ),
         orderBy: desc(bloodPressureReadings.date),
-      });
+      }), []);
     }),
 
   // Get latest reading
   getLatest: clientProcedure.query(async ({ ctx }) => {
-    return await ctx.db.query.bloodPressureReadings.findFirst({
+    return await safeQ(() => ctx.db.query.bloodPressureReadings.findFirst({
       where: eq(bloodPressureReadings.clientId, ctx.dbUserId),
       orderBy: desc(bloodPressureReadings.date),
-    });
+    }), undefined);
   }),
 
   // Get averages for a date range
   getAverages: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const result = await ctx.db
+      const result = await safeQ(() => ctx.db
         .select({
           avgSystolic: sql<number>`round(avg(${bloodPressureReadings.systolic}))`,
           avgDiastolic: sql<number>`round(avg(${bloodPressureReadings.diastolic}))`,
@@ -47,7 +51,7 @@ export const clientBloodPressureRouter = router({
             gte(bloodPressureReadings.date, input.startDate),
             lte(bloodPressureReadings.date, input.endDate)
           )
-        );
+        ), []);
 
       return result[0] ?? {
         avgSystolic: 0,

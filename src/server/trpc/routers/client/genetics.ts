@@ -4,19 +4,29 @@ import { router, clientProcedure } from "@/server/trpc";
 import { geneticProfiles, geneticMarkers, geneticPathwayScores } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientGeneticsRouter = router({
   // Get the client's genetic profile with markers
   getProfile: clientProcedure.query(async ({ ctx }) => {
-    const profile = await ctx.db.query.geneticProfiles.findFirst({
-      where: eq(geneticProfiles.clientId, ctx.dbUserId),
-      orderBy: desc(geneticProfiles.createdAt),
-    });
+    const profile = await safeQ(
+      () => ctx.db.query.geneticProfiles.findFirst({
+        where: eq(geneticProfiles.clientId, ctx.dbUserId),
+        orderBy: desc(geneticProfiles.createdAt),
+      }),
+      undefined,
+    );
 
     if (!profile) return null;
 
-    const markers = await ctx.db.query.geneticMarkers.findMany({
-      where: eq(geneticMarkers.profileId, profile.id),
-    });
+    const markers = await safeQ(
+      () => ctx.db.query.geneticMarkers.findMany({
+        where: eq(geneticMarkers.profileId, profile.id),
+      }),
+      [],
+    );
 
     return {
       id: profile.id,
@@ -53,23 +63,32 @@ export const clientGeneticsRouter = router({
       // If no profileId provided, use the latest profile
       let profileId = input?.profileId;
       if (!profileId) {
-        const profile = await ctx.db.query.geneticProfiles.findFirst({
-          where: eq(geneticProfiles.clientId, ctx.dbUserId),
-          orderBy: desc(geneticProfiles.createdAt),
-        });
+        const profile = await safeQ(
+          () => ctx.db.query.geneticProfiles.findFirst({
+            where: eq(geneticProfiles.clientId, ctx.dbUserId),
+            orderBy: desc(geneticProfiles.createdAt),
+          }),
+          undefined,
+        );
         if (!profile) return [];
         profileId = profile.id;
       } else {
         // Verify ownership when profileId is explicitly provided
-        const profile = await ctx.db.query.geneticProfiles.findFirst({
-          where: and(eq(geneticProfiles.id, profileId), eq(geneticProfiles.clientId, ctx.dbUserId)),
-        });
+        const profile = await safeQ(
+          () => ctx.db.query.geneticProfiles.findFirst({
+            where: and(eq(geneticProfiles.id, profileId!), eq(geneticProfiles.clientId, ctx.dbUserId)),
+          }),
+          undefined,
+        );
         if (!profile) return [];
       }
 
-      return ctx.db.query.geneticPathwayScores.findMany({
-        where: eq(geneticPathwayScores.profileId, profileId),
-      });
+      return safeQ(
+        () => ctx.db.query.geneticPathwayScores.findMany({
+          where: eq(geneticPathwayScores.profileId, profileId!),
+        }),
+        [],
+      );
     }),
 
   // Create a new genetic profile
@@ -161,27 +180,36 @@ export const clientGeneticsRouter = router({
       // If no profileId provided, use the latest profile
       let profileId = input?.profileId;
       if (!profileId) {
-        const profile = await ctx.db.query.geneticProfiles.findFirst({
-          where: eq(geneticProfiles.clientId, ctx.dbUserId),
-          orderBy: desc(geneticProfiles.createdAt),
-        });
+        const profile = await safeQ(
+          () => ctx.db.query.geneticProfiles.findFirst({
+            where: eq(geneticProfiles.clientId, ctx.dbUserId),
+            orderBy: desc(geneticProfiles.createdAt),
+          }),
+          undefined,
+        );
         if (!profile) return [];
         profileId = profile.id;
       } else {
         // Verify ownership when profileId is explicitly provided
-        const profile = await ctx.db.query.geneticProfiles.findFirst({
-          where: and(eq(geneticProfiles.id, profileId), eq(geneticProfiles.clientId, ctx.dbUserId)),
-        });
+        const profile = await safeQ(
+          () => ctx.db.query.geneticProfiles.findFirst({
+            where: and(eq(geneticProfiles.id, profileId!), eq(geneticProfiles.clientId, ctx.dbUserId)),
+          }),
+          undefined,
+        );
         if (!profile) return [];
       }
 
-      const conditions = [eq(geneticMarkers.profileId, profileId)];
+      const conditions = [eq(geneticMarkers.profileId, profileId!)];
       if (input?.section) {
         conditions.push(eq(geneticMarkers.section, input.section));
       }
 
-      return ctx.db.query.geneticMarkers.findMany({
-        where: and(...conditions),
-      });
+      return safeQ(
+        () => ctx.db.query.geneticMarkers.findMany({
+          where: and(...conditions),
+        }),
+        [],
+      );
     }),
 });

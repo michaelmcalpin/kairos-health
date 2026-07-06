@@ -4,6 +4,10 @@ import { fastingProtocols, fastingLogs } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientFastingRouter = router({
   // Get active fasting protocol
   getProtocol: clientProcedure.query(async ({ ctx }) => {
@@ -32,14 +36,17 @@ export const clientFastingRouter = router({
   listLogs: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const results = await ctx.db.query.fastingLogs.findMany({
-        where: and(
-          eq(fastingLogs.clientId, ctx.dbUserId),
-          gte(fastingLogs.date, input.startDate),
-          lte(fastingLogs.date, input.endDate)
-        ),
-        orderBy: desc(fastingLogs.date),
-      });
+      const results = await safeQ(
+        () => ctx.db.query.fastingLogs.findMany({
+          where: and(
+            eq(fastingLogs.clientId, ctx.dbUserId),
+            gte(fastingLogs.date, input.startDate),
+            lte(fastingLogs.date, input.endDate)
+          ),
+          orderBy: desc(fastingLogs.date),
+        }),
+        [],
+      );
 
       return results.map((f) => ({
         id: f.id,
@@ -55,20 +62,23 @@ export const clientFastingRouter = router({
   stats: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const result = await ctx.db
-        .select({
-          totalFasts: sql<number>`count(*)`,
-          completedFasts: sql<number>`count(*) filter (where ${fastingLogs.completed} = true)`,
-          avgDurationMinutes: sql<number>`avg(extract(epoch from (${fastingLogs.endedAt} - ${fastingLogs.startedAt})) / 60)`,
-        })
-        .from(fastingLogs)
-        .where(
-          and(
-            eq(fastingLogs.clientId, ctx.dbUserId),
-            gte(fastingLogs.date, input.startDate),
-            lte(fastingLogs.date, input.endDate)
-          )
-        );
+      const result = await safeQ(
+        () => ctx.db
+          .select({
+            totalFasts: sql<number>`count(*)`,
+            completedFasts: sql<number>`count(*) filter (where ${fastingLogs.completed} = true)`,
+            avgDurationMinutes: sql<number>`avg(extract(epoch from (${fastingLogs.endedAt} - ${fastingLogs.startedAt})) / 60)`,
+          })
+          .from(fastingLogs)
+          .where(
+            and(
+              eq(fastingLogs.clientId, ctx.dbUserId),
+              gte(fastingLogs.date, input.startDate),
+              lte(fastingLogs.date, input.endDate)
+            )
+          ),
+        [],
+      );
 
       const row = result[0];
       return {
@@ -135,13 +145,16 @@ export const clientFastingRouter = router({
 
   // Get current active fast (in progress)
   getActiveFast: clientProcedure.query(async ({ ctx }) => {
-    const activeFast = await ctx.db.query.fastingLogs.findFirst({
-      where: and(
-        eq(fastingLogs.clientId, ctx.dbUserId),
-        sql`${fastingLogs.endedAt} IS NULL`,
-      ),
-      orderBy: desc(fastingLogs.startedAt),
-    });
+    const activeFast = await safeQ(
+      () => ctx.db.query.fastingLogs.findFirst({
+        where: and(
+          eq(fastingLogs.clientId, ctx.dbUserId),
+          sql`${fastingLogs.endedAt} IS NULL`,
+        ),
+        orderBy: desc(fastingLogs.startedAt),
+      }),
+      undefined,
+    );
     return activeFast ?? null;
   }),
 

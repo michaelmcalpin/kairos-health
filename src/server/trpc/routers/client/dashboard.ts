@@ -20,6 +20,11 @@ import {
 } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 
+// Helper: safely query a table that may not exist yet (returns fallback on error)
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientDashboardRouter = router({
   // ── Dashboard overview KPIs ──────────────────────────────
   getOverview: clientProcedure.query(async ({ ctx }) => {
@@ -44,54 +49,54 @@ export const clientDashboardRouter = router({
       ctx.db.query.clientProfiles.findFirst({
         where: eq(clientProfiles.userId, ctx.dbUserId),
       }),
-      ctx.db.query.glucoseReadings.findFirst({
+      safeQ(() => ctx.db.query.glucoseReadings.findFirst({
         where: eq(glucoseReadings.clientId, ctx.dbUserId),
         orderBy: desc(glucoseReadings.timestamp),
-      }),
-      ctx.db.query.heartRateReadings.findFirst({
+      }), undefined),
+      safeQ(() => ctx.db.query.heartRateReadings.findFirst({
         where: eq(heartRateReadings.clientId, ctx.dbUserId),
         orderBy: desc(heartRateReadings.timestamp),
-      }),
-      ctx.db.query.hrvReadings.findFirst({
+      }), undefined),
+      safeQ(() => ctx.db.query.hrvReadings.findFirst({
         where: eq(hrvReadings.clientId, ctx.dbUserId),
         orderBy: desc(hrvReadings.timestamp),
-      }),
-      ctx.db.query.sleepSessions.findFirst({
+      }), undefined),
+      safeQ(() => ctx.db.query.sleepSessions.findFirst({
         where: eq(sleepSessions.clientId, ctx.dbUserId),
         orderBy: desc(sleepSessions.date),
-      }),
+      }), undefined),
       ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(alerts)
         .where(and(eq(alerts.clientId, ctx.dbUserId), eq(alerts.status, "active"))),
-      ctx.db.query.dailyCheckins.findFirst({
+      safeQ(() => ctx.db.query.dailyCheckins.findFirst({
         where: eq(dailyCheckins.clientId, ctx.dbUserId),
         orderBy: desc(dailyCheckins.date),
-      }),
-      ctx.db.query.dailyCheckins.findFirst({
+      }), undefined),
+      safeQ(() => ctx.db.query.dailyCheckins.findFirst({
         where: and(
           eq(dailyCheckins.clientId, ctx.dbUserId),
           gte(dailyCheckins.date, twentyFourHoursAgo.toISOString().split("T")[0]),
         ),
         orderBy: desc(dailyCheckins.date),
-      }),
-      ctx.db.query.bodyMeasurements.findFirst({
+      }), undefined),
+      safeQ(() => ctx.db.query.bodyMeasurements.findFirst({
         where: eq(bodyMeasurements.clientId, ctx.dbUserId),
         orderBy: desc(bodyMeasurements.date),
-      }),
+      }), undefined),
       // Latest blood pressure
-      ctx.db.query.bloodPressureReadings.findFirst({
+      safeQ(() => ctx.db.query.bloodPressureReadings.findFirst({
         where: eq(bloodPressureReadings.clientId, ctx.dbUserId),
         orderBy: desc(bloodPressureReadings.date),
-      }),
+      }), undefined),
       // Today's glucose readings for spike analysis
-      ctx.db.query.glucoseReadings.findMany({
+      safeQ(() => ctx.db.query.glucoseReadings.findMany({
         where: and(
           eq(glucoseReadings.clientId, ctx.dbUserId),
           gte(glucoseReadings.timestamp, new Date(todayStr)),
         ),
         orderBy: glucoseReadings.timestamp,
-      }),
+      }), []),
     ]);
 
     // Glucose spike analysis: count readings >140 mg/dL as spikes
@@ -167,13 +172,13 @@ export const clientDashboardRouter = router({
     const dayOfWeek = now.getDay(); // 0=Sun
 
     // Fasting protocol
-    const fastingProto = await ctx.db.query.fastingProtocols.findFirst({
+    const fastingProto = await safeQ(() => ctx.db.query.fastingProtocols.findFirst({
       where: and(
         eq(fastingProtocols.clientId, ctx.dbUserId),
         eq(fastingProtocols.status, "active"),
       ),
       orderBy: desc(fastingProtocols.createdAt),
-    });
+    }), undefined);
 
     let fasting = null;
     if (fastingProto) {
@@ -193,12 +198,12 @@ export const clientDashboardRouter = router({
 
     // Active workout assignment
     const todayStr = now.toISOString().split("T")[0];
-    const assignment = await ctx.db.query.clientWorkoutAssignments.findFirst({
+    const assignment = await safeQ(() => ctx.db.query.clientWorkoutAssignments.findFirst({
       where: and(
         eq(clientWorkoutAssignments.clientId, ctx.dbUserId),
         eq(clientWorkoutAssignments.status, "active"),
       ),
-    });
+    }), undefined);
 
     let exercise: { stepGoal: number; workout: { name: string; description: string | null } | null } = {
       stepGoal: 10000,
@@ -243,29 +248,29 @@ export const clientDashboardRouter = router({
 
   // ── Active protocol summary ──────────────────────────────
   getActiveProtocol: clientProcedure.query(async ({ ctx }) => {
-    const protocol = await ctx.db.query.supplementProtocols.findFirst({
+    const protocol = await safeQ(() => ctx.db.query.supplementProtocols.findFirst({
       where: and(
         eq(supplementProtocols.clientId, ctx.dbUserId),
         eq(supplementProtocols.status, "active"),
       ),
       orderBy: desc(supplementProtocols.createdAt),
-    });
+    }), undefined);
 
     if (!protocol) return null;
 
-    const items = await ctx.db.query.protocolItems.findMany({
+    const items = await safeQ(() => ctx.db.query.protocolItems.findMany({
       where: eq(protocolItems.protocolId, protocol.id),
-    });
+    }), []);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const todayAdherence = await ctx.db.query.adherenceLogs.findMany({
+    const todayAdherence = await safeQ(() => ctx.db.query.adherenceLogs.findMany({
       where: and(
         eq(adherenceLogs.clientId, ctx.dbUserId),
         gte(adherenceLogs.date, today.toISOString().split("T")[0]),
       ),
-    });
+    }), []);
 
     return {
       ...protocol,
@@ -283,7 +288,7 @@ export const clientDashboardRouter = router({
     .query(async ({ ctx, input }) => {
       const { startDate, endDate } = input;
 
-      const glucoseDaily = await ctx.db
+      const glucoseDaily = await safeQ(() => ctx.db
         .select({
           date: sql<string>`DATE(${glucoseReadings.timestamp})`.as("date"),
           avg: sql<number>`ROUND(AVG(${glucoseReadings.valueMgdl}))`.as("avg"),
@@ -301,33 +306,33 @@ export const clientDashboardRouter = router({
           ),
         )
         .groupBy(sql`DATE(${glucoseReadings.timestamp})`)
-        .orderBy(sql`DATE(${glucoseReadings.timestamp})`);
+        .orderBy(sql`DATE(${glucoseReadings.timestamp})`), []);
 
-      const sleepDaily = await ctx.db.query.sleepSessions.findMany({
+      const sleepDaily = await safeQ(() => ctx.db.query.sleepSessions.findMany({
         where: and(
           eq(sleepSessions.clientId, ctx.dbUserId),
           gte(sleepSessions.date, startDate),
           lte(sleepSessions.date, endDate),
         ),
         orderBy: sleepSessions.date,
-      });
+      }), []);
 
-      const protocol = await ctx.db.query.supplementProtocols.findFirst({
+      const protocol = await safeQ(() => ctx.db.query.supplementProtocols.findFirst({
         where: and(
           eq(supplementProtocols.clientId, ctx.dbUserId),
           eq(supplementProtocols.status, "active"),
         ),
         orderBy: desc(supplementProtocols.createdAt),
-      });
+      }), undefined);
 
       let adherenceDaily: { date: string; taken: number; total: number }[] = [];
       if (protocol) {
-        const items = await ctx.db.query.protocolItems.findMany({
+        const items = await safeQ(() => ctx.db.query.protocolItems.findMany({
           where: eq(protocolItems.protocolId, protocol.id),
-        });
+        }), []);
         const totalItems = items.length;
 
-        const adherenceRows = await ctx.db
+        const adherenceRows = await safeQ(() => ctx.db
           .select({
             date: adherenceLogs.date,
             taken: sql<number>`COUNT(*) FILTER (WHERE ${adherenceLogs.skipped} = false)`.as("taken"),
@@ -341,7 +346,7 @@ export const clientDashboardRouter = router({
             ),
           )
           .groupBy(adherenceLogs.date)
-          .orderBy(adherenceLogs.date);
+          .orderBy(adherenceLogs.date), []);
 
         adherenceDaily = adherenceRows.map((r) => ({
           date: r.date,
@@ -381,12 +386,12 @@ export const clientDashboardRouter = router({
     const sevenStr = sevenDaysAgo.toISOString().split("T")[0];
 
     const [sleepRows, glucoseRows, bpRows] = await Promise.all([
-      ctx.db.query.sleepSessions.findMany({
+      safeQ(() => ctx.db.query.sleepSessions.findMany({
         where: and(eq(sleepSessions.clientId, ctx.dbUserId), gte(sleepSessions.date, sevenStr)),
         orderBy: sleepSessions.date,
         columns: { date: true, totalMinutes: true, score: true },
-      }),
-      ctx.db
+      }), []),
+      safeQ(() => ctx.db
         .select({
           date: sql<string>`DATE(${glucoseReadings.timestamp})`.as("date"),
           avg: sql<number>`ROUND(AVG(${glucoseReadings.valueMgdl}))`.as("avg"),
@@ -396,12 +401,12 @@ export const clientDashboardRouter = router({
           and(eq(glucoseReadings.clientId, ctx.dbUserId), gte(glucoseReadings.timestamp, sevenDaysAgo)),
         )
         .groupBy(sql`DATE(${glucoseReadings.timestamp})`)
-        .orderBy(sql`DATE(${glucoseReadings.timestamp})`),
-      ctx.db.query.bloodPressureReadings.findMany({
+        .orderBy(sql`DATE(${glucoseReadings.timestamp})`), []),
+      safeQ(() => ctx.db.query.bloodPressureReadings.findMany({
         where: and(eq(bloodPressureReadings.clientId, ctx.dbUserId), gte(bloodPressureReadings.date, sevenStr)),
         orderBy: bloodPressureReadings.date,
         columns: { date: true, systolic: true, diastolic: true },
-      }),
+      }), []),
     ]);
 
     return {
@@ -418,22 +423,22 @@ export const clientDashboardRouter = router({
     const sevenDaysStr = sevenDaysAgo.toISOString().split("T")[0];
 
     const [avgGlucoseResult, avgSleepResult, latestHrv] = await Promise.all([
-      ctx.db
+      safeQ(() => ctx.db
         .select({ avg: sql<number>`ROUND(AVG(${glucoseReadings.valueMgdl}))` })
         .from(glucoseReadings)
         .where(
           and(eq(glucoseReadings.clientId, ctx.dbUserId), gte(glucoseReadings.timestamp, sevenDaysAgo)),
-        ),
-      ctx.db
+        ), []),
+      safeQ(() => ctx.db
         .select({ avg: sql<number>`ROUND(AVG(${sleepSessions.score}))` })
         .from(sleepSessions)
         .where(
           and(eq(sleepSessions.clientId, ctx.dbUserId), gte(sleepSessions.date, sevenDaysStr)),
-        ),
-      ctx.db.query.hrvReadings.findFirst({
+        ), []),
+      safeQ(() => ctx.db.query.hrvReadings.findFirst({
         where: eq(hrvReadings.clientId, ctx.dbUserId),
         orderBy: desc(hrvReadings.timestamp),
-      }),
+      }), undefined),
     ]);
 
     let score = 75;

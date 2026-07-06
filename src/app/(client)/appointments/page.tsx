@@ -57,6 +57,15 @@ export default function AppointmentsPage() {
 
   const utils = trpc.useUtils();
 
+  // Fetch the client's actual coach from the trainer-client relationship
+  const { data: myCoach } = trpc.clientPortal.settings.getMyCoach.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+  const coachId = myCoach?.id ?? "";
+  const coachName = myCoach
+    ? `${myCoach.firstName ?? ""} ${myCoach.lastName ?? ""}`.trim() || "Your Coach"
+    : "Your Coach";
+
   const { data: appointmentsList = [] } = trpc.clientPortal.scheduling.listAppointments.useQuery(
     { filter },
     { staleTime: 15_000 }
@@ -95,8 +104,8 @@ export default function AppointmentsPage() {
     notes: string;
   }) => {
     bookMutation.mutate({
-      coachId: "coach-1",
-      coachName: "Dr. Sarah Mitchell",
+      coachId,
+      coachName,
       sessionType: booking.sessionType,
       meetingType: booking.meetingType,
       date: booking.date,
@@ -126,8 +135,8 @@ export default function AppointmentsPage() {
 
       {view === "book" && (
         <BookingForm
-          coachId="coach-1"
-          coachName="Dr. Sarah Mitchell"
+          coachId={coachId}
+          coachName={coachName}
           onBook={handleBook}
           onCancel={() => setView("list")}
         />

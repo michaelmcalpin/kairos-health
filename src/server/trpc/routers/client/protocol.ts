@@ -3,22 +3,26 @@ import { router, clientProcedure } from "@/server/trpc";
 import { supplementProtocols, protocolItems, adherenceLogs } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientProtocolRouter = router({
   // Get the active supplement protocol with items
   getActive: clientProcedure.query(async ({ ctx }) => {
-    const protocol = await ctx.db.query.supplementProtocols.findFirst({
+    const protocol = await safeQ(() => ctx.db.query.supplementProtocols.findFirst({
       where: and(
         eq(supplementProtocols.clientId, ctx.dbUserId),
         eq(supplementProtocols.status, "active")
       ),
       orderBy: desc(supplementProtocols.createdAt),
-    });
+    }), undefined);
 
     if (!protocol) return null;
 
-    const items = await ctx.db.query.protocolItems.findMany({
+    const items = await safeQ(() => ctx.db.query.protocolItems.findMany({
       where: eq(protocolItems.protocolId, protocol.id),
-    });
+    }), []);
 
     return {
       id: protocol.id,
@@ -45,12 +49,12 @@ export const clientProtocolRouter = router({
   getAdherence: clientProcedure
     .input(z.object({ date: z.string() }))
     .query(async ({ ctx, input }) => {
-      return ctx.db.query.adherenceLogs.findMany({
+      return safeQ(() => ctx.db.query.adherenceLogs.findMany({
         where: and(
           eq(adherenceLogs.clientId, ctx.dbUserId),
           eq(adherenceLogs.date, input.date)
         ),
-      });
+      }), []);
     }),
 
   // Log adherence (taken or skipped)

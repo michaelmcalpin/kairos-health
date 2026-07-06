@@ -16,8 +16,13 @@ export default function GlucosePage() {
   const { readings: rawReadings, dailySummaries, weeklySummaries, stats, isError, refetch } = useGlucose(dateRange);
   const themeColors = useThemeColors();
 
+  const utils = trpc.useUtils();
+
   // tRPC mutation
   const createGlucose = trpc.clientPortal.glucose.create.useMutation();
+
+  // Error/validation state for inline feedback
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Manual entry form state
   const [showManualEntry, setShowManualEntry] = useState(false);
@@ -36,15 +41,17 @@ export default function GlucosePage() {
   };
 
   const handleSave = async () => {
+    setFormError(null);
+
     // Validate required fields
     if (!formData.glucose) {
-      alert("Please enter a glucose value");
+      setFormError("Please enter a glucose value.");
       return;
     }
 
     const glucoseValue = parseFloat(formData.glucose);
     if (isNaN(glucoseValue)) {
-      alert("Please enter a valid glucose value");
+      setFormError("Please enter a valid number for glucose.");
       return;
     }
 
@@ -69,8 +76,14 @@ export default function GlucosePage() {
         source: formData.mealDescription || undefined,
       });
 
+      // Invalidate cache so new reading appears immediately
+      utils.clientPortal.glucose.list.invalidate();
+      utils.clientPortal.glucose.stats.invalidate();
+      utils.clientPortal.glucose.dailyAverages.invalidate();
+
       // Close modal and reset form on success
       setShowManualEntry(false);
+      setFormError(null);
       setFormData({
         date: new Date().toISOString().split("T")[0],
         time: new Date().toTimeString().slice(0, 5),
@@ -79,14 +92,14 @@ export default function GlucosePage() {
         mealDescription: "",
         notes: "",
       });
-    } catch (error) {
-      // Error is shown to user via alert
-      alert("Failed to save glucose reading. Please try again.");
+    } catch {
+      setFormError("Failed to save glucose reading. Please try again.");
     }
   };
 
   const handleCancel = () => {
     setShowManualEntry(false);
+    setFormError(null);
     setFormData({
       date: new Date().toISOString().split("T")[0],
       time: new Date().toTimeString().slice(0, 5),
@@ -239,6 +252,13 @@ export default function GlucosePage() {
               />
             </div>
 
+            {/* Inline error message */}
+            {formError && (
+              <div className="p-3 rounded-kairos-sm bg-red-500/10 border border-red-500/30 text-sm text-red-400">
+                {formError}
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4">
               <button
@@ -278,7 +298,7 @@ export default function GlucosePage() {
         <KPICard label="High" value={stats.max} unit="mg/dL" icon={<TrendingUp size={16} />} />
         <KPICard label="Low" value={stats.min} unit="mg/dL" icon={<TrendingDown size={16} />} />
         <KPICard label="Time in Range" value={stats.timeInRange} unit="%" icon={<Target size={16} />} highlight />
-        <KPICard label="Est. A1C" value="5.2" unit="%" trend="down" trendValue="-0.1" icon={<Clock size={16} />} />
+        <KPICard label="Est. A1C" value={stats.avg ? ((Number(stats.avg) + 46.7) / 28.7).toFixed(1) : "---"} unit="%" trend="flat" trendValue="estimated" icon={<Clock size={16} />} />
       </div>
 
       {/* DAY VIEW: 5-min line chart */}
@@ -376,26 +396,31 @@ export default function GlucosePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="kairos-card">
-          <h3 className="font-heading font-semibold text-white mb-4">Events</h3>
+          <h3 className="font-heading font-semibold text-white mb-4">Recent Readings</h3>
           <div className="space-y-3">
-            {[
-              { time: "7:45 AM", event: "Fasting glucose", value: "82 mg/dL", status: "optimal" },
-              { time: "9:12 AM", event: "Post-breakfast spike", value: "138 mg/dL", status: "normal" },
-              { time: "12:48 PM", event: "Post-lunch spike", value: "142 mg/dL", status: "warning" },
-              { time: "3:30 PM", event: "Afternoon dip", value: "74 mg/dL", status: "normal" },
-              { time: "7:15 PM", event: "Post-dinner spike", value: "156 mg/dL", status: "elevated" },
-            ].map((e, i) => (
-              <div key={i} className="flex items-center gap-3 py-2">
-                <span className="text-xs font-body text-kairos-gold w-16 flex-shrink-0">{e.time}</span>
-                <div className="flex-1"><p className="text-sm font-body text-white">{e.event}</p></div>
-                <span className={`text-xs font-heading font-semibold px-2 py-0.5 rounded-full ${
-                  e.status === "optimal" ? "bg-green-500/15 text-green-400" :
-                  e.status === "warning" ? "bg-yellow-500/15 text-yellow-400" :
-                  e.status === "elevated" ? "bg-red-500/15 text-red-400" :
-                  "bg-kairos-silver/10 text-kairos-silver"
-                }`}>{e.value}</span>
-              </div>
-            ))}
+            {rawReadings.length === 0 ? (
+              <p className="text-sm font-body text-kairos-silver-dark py-4 text-center">No glucose readings for this period.</p>
+            ) : (
+              rawReadings.slice(-5).reverse().map((r, i) => {
+                const val = Number(r.value);
+                const status = val >= 70 && val <= 100 ? "optimal"
+                  : val <= 140 ? "normal"
+                  : val <= 160 ? "warning"
+                  : "elevated";
+                return (
+                  <div key={i} className="flex items-center gap-3 py-2">
+                    <span className="text-xs font-body text-kairos-gold w-16 flex-shrink-0">{r.time}</span>
+                    <div className="flex-1"><p className="text-sm font-body text-white">Glucose reading</p></div>
+                    <span className={`text-xs font-heading font-semibold px-2 py-0.5 rounded-full ${
+                      status === "optimal" ? "bg-green-500/15 text-green-400" :
+                      status === "warning" ? "bg-yellow-500/15 text-yellow-400" :
+                      status === "elevated" ? "bg-red-500/15 text-red-400" :
+                      "bg-kairos-silver/10 text-kairos-silver"
+                    }`}>{val} mg/dL</span>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -419,8 +444,8 @@ export default function GlucosePage() {
             <div className="flex gap-3 p-3 rounded-kairos-sm bg-kairos-gold/5 border border-kairos-gold/20">
               <TrendingDown size={16} className="text-kairos-gold mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-body text-white">Estimated A1C dropped to 5.2%</p>
-                <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Down from 5.3% last month. Excellent metabolic health.</p>
+                <p className="text-sm font-body text-white">Estimated A1C: {stats.avg ? ((Number(stats.avg) + 46.7) / 28.7).toFixed(1) : "---"}%</p>
+                <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Calculated from your average glucose readings.</p>
               </div>
             </div>
           </div>

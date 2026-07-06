@@ -5,6 +5,10 @@ import { dailyCheckins } from "@/server/db/schema";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 // Shared validation schema for check-in fields
 const checkinInputSchema = z.object({
   date: z.string().optional(),
@@ -46,12 +50,12 @@ export const clientCheckinRouter = router({
   // Get today's check-in (if exists)
   getToday: clientProcedure.query(async ({ ctx }) => {
     const today = new Date().toISOString().split("T")[0];
-    const checkin = await ctx.db.query.dailyCheckins.findFirst({
+    const checkin = await safeQ(() => ctx.db.query.dailyCheckins.findFirst({
       where: and(
         eq(dailyCheckins.clientId, ctx.dbUserId),
         eq(dailyCheckins.date, today)
       ),
-    });
+    }), undefined);
     return checkin ?? null;
   }),
 
@@ -61,12 +65,12 @@ export const clientCheckinRouter = router({
       date: z.string(),
     }))
     .query(async ({ ctx, input }) => {
-      const checkin = await ctx.db.query.dailyCheckins.findFirst({
+      const checkin = await safeQ(() => ctx.db.query.dailyCheckins.findFirst({
         where: and(
           eq(dailyCheckins.clientId, ctx.dbUserId),
           eq(dailyCheckins.date, input.date)
         ),
-      });
+      }), undefined);
       return checkin ?? null;
     }),
 
@@ -74,14 +78,14 @@ export const clientCheckinRouter = router({
   getHistory: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const results = await ctx.db.query.dailyCheckins.findMany({
+      const results = await safeQ(() => ctx.db.query.dailyCheckins.findMany({
         where: and(
           eq(dailyCheckins.clientId, ctx.dbUserId),
           gte(dailyCheckins.date, input.startDate),
           lte(dailyCheckins.date, input.endDate)
         ),
         orderBy: desc(dailyCheckins.date),
-      });
+      }), []);
       return results;
     }),
 

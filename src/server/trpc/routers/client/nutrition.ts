@@ -4,19 +4,23 @@ import { mealLogs, mealPlans } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientNutritionRouter = router({
   // List meal logs within a date range
   listMeals: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const results = await ctx.db.query.mealLogs.findMany({
+      const results = await safeQ(() => ctx.db.query.mealLogs.findMany({
         where: and(
           eq(mealLogs.clientId, ctx.dbUserId),
           gte(mealLogs.date, input.startDate),
           lte(mealLogs.date, input.endDate)
         ),
         orderBy: [desc(mealLogs.date), desc(mealLogs.createdAt)],
-      });
+      }), []);
 
       return results.map((m) => ({
         id: m.id,
@@ -37,7 +41,7 @@ export const clientNutritionRouter = router({
   dailySummary: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const results = await ctx.db
+      const results = await safeQ(() => ctx.db
         .select({
           date: mealLogs.date,
           totalCalories: sql<number>`sum(${mealLogs.totalCalories})`,
@@ -56,7 +60,7 @@ export const clientNutritionRouter = router({
           )
         )
         .groupBy(mealLogs.date)
-        .orderBy(mealLogs.date);
+        .orderBy(mealLogs.date), []);
 
       return results.map((r) => ({
         date: r.date,

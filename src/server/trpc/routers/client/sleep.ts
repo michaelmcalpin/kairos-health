@@ -4,19 +4,23 @@ import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 import { z } from "zod";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientSleepRouter = router({
   // List sleep sessions within a date range
   list: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const results = await ctx.db.query.sleepSessions.findMany({
+      const results = await safeQ(() => ctx.db.query.sleepSessions.findMany({
         where: and(
           eq(sleepSessions.clientId, ctx.dbUserId),
           gte(sleepSessions.date, input.startDate),
           lte(sleepSessions.date, input.endDate)
         ),
         orderBy: desc(sleepSessions.date),
-      });
+      }), []);
 
       return results.map((s) => ({
         id: s.id,
@@ -35,7 +39,7 @@ export const clientSleepRouter = router({
   stats: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const result = await ctx.db
+      const result = await safeQ(() => ctx.db
         .select({
           count: sql<number>`count(*)`,
           avgScore: sql<number>`avg(${sleepSessions.score})`,
@@ -52,7 +56,7 @@ export const clientSleepRouter = router({
             gte(sleepSessions.date, input.startDate),
             lte(sleepSessions.date, input.endDate)
           )
-        );
+        ), []);
 
       const row = result[0];
       return {
@@ -68,10 +72,10 @@ export const clientSleepRouter = router({
 
   // Get the most recent sleep session
   latest: clientProcedure.query(async ({ ctx }) => {
-    const result = await ctx.db.query.sleepSessions.findFirst({
+    const result = await safeQ(() => ctx.db.query.sleepSessions.findFirst({
       where: eq(sleepSessions.clientId, ctx.dbUserId),
       orderBy: desc(sleepSessions.date),
-    });
+    }), undefined);
     return result ?? null;
   }),
 

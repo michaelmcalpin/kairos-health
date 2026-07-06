@@ -3,6 +3,10 @@ import { router, clientProcedure } from "@/server/trpc";
 import { mealLogs, mealPhotos } from "@/server/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 const foodItemSchema = z.object({
   foodId: z.string().optional(),
   name: z.string(),
@@ -19,20 +23,20 @@ export const clientMealsRouter = router({
   getByDate: clientProcedure
     .input(z.object({ date: z.string() }))
     .query(async ({ ctx, input }) => {
-      const meals = await ctx.db.query.mealLogs.findMany({
+      const meals = await safeQ(() => ctx.db.query.mealLogs.findMany({
         where: and(
           eq(mealLogs.clientId, ctx.dbUserId),
           eq(mealLogs.date, input.date)
         ),
         orderBy: desc(mealLogs.createdAt),
-      });
+      }), []);
 
       // Get photos for these meals
       const mealIds = meals.map((m) => m.id);
       const photos = mealIds.length > 0
-        ? await ctx.db.query.mealPhotos.findMany({
+        ? await safeQ(() => ctx.db.query.mealPhotos.findMany({
             where: eq(mealPhotos.clientId, ctx.dbUserId),
-          })
+          }), [])
         : [];
 
       return meals.map((m) => ({

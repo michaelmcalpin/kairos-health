@@ -3,6 +3,10 @@ import { router, clientProcedure } from "@/server/trpc";
 import { labOrders, labResults, biomarkerValues } from "@/server/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientLabsRouter = router({
   // List lab orders for the client
   listOrders: clientProcedure
@@ -62,9 +66,9 @@ export const clientLabsRouter = router({
       if (!result) return { order, result: null, biomarkers: [] };
 
       // Get biomarker values
-      const values = await ctx.db.query.biomarkerValues.findMany({
+      const values = await safeQ(() => ctx.db.query.biomarkerValues.findMany({
         where: eq(biomarkerValues.resultId, result.id),
-      });
+      }), []);
 
       return {
         order,
@@ -89,7 +93,7 @@ export const clientLabsRouter = router({
   // Get latest biomarker values across all markers (most recent for each code)
   listBiomarkers: clientProcedure.query(async ({ ctx }) => {
     // Get all unique biomarker codes with latest values for this client
-    const results = await ctx.db
+    const results = await safeQ(() => ctx.db
       .select({
         biomarkerCode: biomarkerValues.biomarkerCode,
         value: biomarkerValues.value,
@@ -102,7 +106,7 @@ export const clientLabsRouter = router({
       .from(biomarkerValues)
       .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
       .where(eq(labResults.clientId, ctx.dbUserId))
-      .orderBy(desc(labResults.receivedAt));
+      .orderBy(desc(labResults.receivedAt)), []);
 
     // Deduplicate: keep only the latest value per biomarker code
     const latestByCode = new Map<string, (typeof results)[0]>();
@@ -136,7 +140,7 @@ export const clientLabsRouter = router({
   getBiomarkerHistory: clientProcedure
     .input(z.object({ code: z.string() }))
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db
+      const rows = await safeQ(() => ctx.db
         .select({
           value: biomarkerValues.value,
           unit: biomarkerValues.unit,
@@ -148,7 +152,7 @@ export const clientLabsRouter = router({
         .from(biomarkerValues)
         .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
         .where(and(eq(labResults.clientId, ctx.dbUserId), eq(biomarkerValues.biomarkerCode, input.code)))
-        .orderBy(labResults.receivedAt);
+        .orderBy(labResults.receivedAt), []);
 
       return rows.map((r) => ({
         value: r.value,
@@ -162,7 +166,7 @@ export const clientLabsRouter = router({
 
   // Get history for ALL biomarkers (for "all trended" view)
   getAllBiomarkerHistory: clientProcedure.query(async ({ ctx }) => {
-    const rows = await ctx.db
+    const rows = await safeQ(() => ctx.db
       .select({
         code: biomarkerValues.biomarkerCode,
         value: biomarkerValues.value,
@@ -175,7 +179,7 @@ export const clientLabsRouter = router({
       .from(biomarkerValues)
       .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
       .where(eq(labResults.clientId, ctx.dbUserId))
-      .orderBy(labResults.receivedAt);
+      .orderBy(labResults.receivedAt), []);
 
     // Group by biomarker code
     const grouped: Record<string, Array<{ value: number; date: string; refLow: number | null; refHigh: number | null }>> = {};

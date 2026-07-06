@@ -48,6 +48,8 @@ export default function SleepPage() {
 
   const displayRecord = lastRecord || { score: 0, total: 0, deep: 0, rem: 0, light: 0, awake: 0, bedtime: "--", wake: "--" };
 
+  const utils = trpc.useUtils();
+
   // tRPC mutation for creating sleep entry
   const createSleep = trpc.clientPortal.sleep.create.useMutation();
 
@@ -116,6 +118,10 @@ export default function SleepPage() {
         score: formData.sleepQuality,
         notes: formData.notes || undefined,
       });
+
+      // Invalidate cache so new entry appears immediately
+      utils.clientPortal.sleep.list.invalidate();
+      utils.clientPortal.sleep.stats.invalidate();
 
       // Show success feedback
       setSaveSuccess(true);

@@ -28,6 +28,10 @@ import {
 } from "@/server/db/schema";
 import { eq, sql, and, gte, lte, between, count as drizzleCount } from "drizzle-orm";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 // ─── Date Helpers ───────────────────────────────────────────────
 
 function getMonthsBetween(start: string, end: string): string[] {
@@ -135,7 +139,7 @@ async function getUserGrowthByMonth(db: any, startDate: string, endDate: string)
 
 /** Count daily check-ins per day within a date range */
 async function getCheckinsByDay(db: any, startDate: string, endDate: string) {
-  const rows = await db
+  const rows = await safeQ(() => db
     .select({
       date: sql<string>`${dailyCheckins.date}::text`,
       count: sql<number>`count(distinct ${dailyCheckins.clientId})`,
@@ -147,7 +151,7 @@ async function getCheckinsByDay(db: any, startDate: string, endDate: string) {
         lte(dailyCheckins.date, sql`${endDate}::date`)
       )
     )
-    .groupBy(dailyCheckins.date);
+    .groupBy(dailyCheckins.date), []);
 
   return new Map<string, number>(rows.map((r: any) => [r.date, Number(r.count)]));
 }
@@ -200,12 +204,12 @@ async function getFeatureUsageCounts(db: any, startDate: string, endDate: string
   // Run all feature counts in parallel
   const [checkinUsers, mealUsers, workoutUsers, supplementUsers, sleepUsers, glucoseUsers, goalUsers, messageUsers] =
     await Promise.all([
-      db.select({ count: sql<number>`count(distinct ${dailyCheckins.clientId})` }).from(dailyCheckins).where(dateFilter(dailyCheckins.date)),
-      db.select({ count: sql<number>`count(distinct ${mealLogs.clientId})` }).from(mealLogs).where(dateFilter(mealLogs.date)),
+      safeQ(() => db.select({ count: sql<number>`count(distinct ${dailyCheckins.clientId})` }).from(dailyCheckins).where(dateFilter(dailyCheckins.date)), [] as { count: number }[]),
+      safeQ(() => db.select({ count: sql<number>`count(distinct ${mealLogs.clientId})` }).from(mealLogs).where(dateFilter(mealLogs.date)), [] as { count: number }[]),
       db.select({ count: sql<number>`count(distinct ${workoutLogs.clientId})` }).from(workoutLogs).where(dateFilter(workoutLogs.date)),
-      db.select({ count: sql<number>`count(distinct ${adherenceLogs.clientId})` }).from(adherenceLogs).where(dateFilter(adherenceLogs.date)),
-      db.select({ count: sql<number>`count(distinct ${sleepSessions.clientId})` }).from(sleepSessions).where(dateFilter(sleepSessions.date)),
-      db.select({ count: sql<number>`count(distinct ${glucoseReadings.clientId})` }).from(glucoseReadings).where(tsFilter(glucoseReadings.timestamp)),
+      safeQ(() => db.select({ count: sql<number>`count(distinct ${adherenceLogs.clientId})` }).from(adherenceLogs).where(dateFilter(adherenceLogs.date)), [] as { count: number }[]),
+      safeQ(() => db.select({ count: sql<number>`count(distinct ${sleepSessions.clientId})` }).from(sleepSessions).where(dateFilter(sleepSessions.date)), [] as { count: number }[]),
+      safeQ(() => db.select({ count: sql<number>`count(distinct ${glucoseReadings.clientId})` }).from(glucoseReadings).where(tsFilter(glucoseReadings.timestamp)), [] as { count: number }[]),
       db.select({ count: sql<number>`count(distinct ${healthGoals.clientId})` }).from(healthGoals).where(tsFilter(healthGoals.updatedAt)),
       db.select({ count: sql<number>`count(distinct ${messages.senderId})` }).from(messages).where(tsFilter(messages.createdAt)),
     ]);
@@ -273,7 +277,7 @@ async function getCohortRetention(db: any, startDate: string, endDate: string) {
       if (!checkMonth) break;
 
       // Count how many cohort users had a check-in in this month
-      const activeResult = await db
+      const activeResult = await safeQ(() => db
         .select({ count: sql<number>`count(distinct ${dailyCheckins.clientId})` })
         .from(dailyCheckins)
         .where(
@@ -281,7 +285,7 @@ async function getCohortRetention(db: any, startDate: string, endDate: string) {
             sql`${dailyCheckins.clientId} IN (${sql.join(userIds.map(id => sql`${id}::uuid`), sql`, `)})`,
             sql`to_char(${dailyCheckins.date}, 'YYYY-MM') = ${checkMonth}`
           )
-        );
+        ), [] as { count: number }[]);
 
       const activeCount = Number(activeResult[0]?.count ?? 0);
       retention.push(Math.round((activeCount / userIds.length) * 1000) / 10);
@@ -751,11 +755,11 @@ async function buildPlatformHealth(db: any) {
   // Real counts from DB to show actual platform usage
   const [totalUsers, totalConnections, recentSyncs] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(users),
-    db
+    safeQ(() => db
       .select({ count: sql<number>`count(*)` })
       .from(deviceConnections)
-      .where(eq(deviceConnections.status, "connected")),
-    db
+      .where(eq(deviceConnections.status, "connected")), [] as { count: number }[]),
+    safeQ(() => db
       .select({ count: sql<number>`count(*)` })
       .from(deviceConnections)
       .where(
@@ -763,7 +767,7 @@ async function buildPlatformHealth(db: any) {
           eq(deviceConnections.status, "connected"),
           gte(deviceConnections.lastSyncAt, sql`now() - interval '1 hour'`),
         ),
-      ),
+      ), [] as { count: number }[]),
   ]);
 
   const connectedDevices = Number(totalConnections[0]?.count ?? 0);

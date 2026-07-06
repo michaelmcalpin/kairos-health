@@ -18,16 +18,23 @@ function signOAuthState(payload: string): string {
 
 const providerEnum = z.enum(["oura", "apple_health", "dexcom", "garmin", "whoop", "withings", "fitbit"]);
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientDevicesRouter = router({
   /**
    * List all device connections for the current user
    * Returns: id, provider, status, lastSyncAt, scopes, tokenExpiresAt
    */
   list: clientProcedure.query(async ({ ctx }) => {
-    const connections = await ctx.db.query.deviceConnections.findMany({
-      where: eq(deviceConnections.clientId, ctx.dbUserId),
-      orderBy: desc(deviceConnections.lastSyncAt),
-    });
+    const connections = await safeQ(
+      () => ctx.db.query.deviceConnections.findMany({
+        where: eq(deviceConnections.clientId, ctx.dbUserId),
+        orderBy: desc(deviceConnections.lastSyncAt),
+      }),
+      [],
+    );
 
     return connections.map((conn) => ({
       id: conn.id,
@@ -46,12 +53,15 @@ export const clientDevicesRouter = router({
   getConnection: clientProcedure
     .input(z.object({ provider: providerEnum }))
     .query(async ({ ctx, input }) => {
-      const connection = await ctx.db.query.deviceConnections.findFirst({
-        where: and(
-          eq(deviceConnections.clientId, ctx.dbUserId),
-          eq(deviceConnections.provider, input.provider)
-        ),
-      });
+      const connection = await safeQ(
+        () => ctx.db.query.deviceConnections.findFirst({
+          where: and(
+            eq(deviceConnections.clientId, ctx.dbUserId),
+            eq(deviceConnections.provider, input.provider)
+          ),
+        }),
+        undefined,
+      );
 
       if (!connection) {
         return null;
@@ -217,22 +227,28 @@ export const clientDevicesRouter = router({
   getSyncHistory: clientProcedure
     .input(z.object({ provider: providerEnum }))
     .query(async ({ ctx, input }) => {
-      const connection = await ctx.db.query.deviceConnections.findFirst({
-        where: and(
-          eq(deviceConnections.clientId, ctx.dbUserId),
-          eq(deviceConnections.provider, input.provider)
-        ),
-      });
+      const connection = await safeQ(
+        () => ctx.db.query.deviceConnections.findFirst({
+          where: and(
+            eq(deviceConnections.clientId, ctx.dbUserId),
+            eq(deviceConnections.provider, input.provider)
+          ),
+        }),
+        undefined,
+      );
 
       if (!connection) {
         return [];
       }
 
-      const logs = await ctx.db.query.syncLogs.findMany({
-        where: eq(syncLogs.deviceConnectionId, connection.id),
-        orderBy: desc(syncLogs.startedAt),
-        limit: 10,
-      });
+      const logs = await safeQ(
+        () => ctx.db.query.syncLogs.findMany({
+          where: eq(syncLogs.deviceConnectionId, connection.id),
+          orderBy: desc(syncLogs.startedAt),
+          limit: 10,
+        }),
+        [],
+      );
 
       return logs.map((log) => ({
         id: log.id,

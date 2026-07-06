@@ -4,14 +4,21 @@ import { router, clientProcedure } from "@/server/trpc";
 import { clinicalDocuments } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientClinicalDocsRouter = router({
   // List ALL clinical documents for the user (document repository)
   listAll: clientProcedure
     .query(async ({ ctx }) => {
-      return ctx.db.query.clinicalDocuments.findMany({
-        where: eq(clinicalDocuments.clientId, ctx.dbUserId),
-        orderBy: desc(clinicalDocuments.createdAt),
-      });
+      return safeQ(
+        () => ctx.db.query.clinicalDocuments.findMany({
+          where: eq(clinicalDocuments.clientId, ctx.dbUserId),
+          orderBy: desc(clinicalDocuments.createdAt),
+        }),
+        [],
+      );
     }),
 
   // List all clinical documents of a given type
@@ -22,25 +29,31 @@ export const clientClinicalDocsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      return ctx.db.query.clinicalDocuments.findMany({
-        where: and(
-          eq(clinicalDocuments.clientId, ctx.dbUserId),
-          eq(clinicalDocuments.docType, input.docType)
-        ),
-        orderBy: desc(clinicalDocuments.createdAt),
-      });
+      return safeQ(
+        () => ctx.db.query.clinicalDocuments.findMany({
+          where: and(
+            eq(clinicalDocuments.clientId, ctx.dbUserId),
+            eq(clinicalDocuments.docType, input.docType)
+          ),
+          orderBy: desc(clinicalDocuments.createdAt),
+        }),
+        [],
+      );
     }),
 
   // Get a single clinical document
   getById: clientProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const doc = await ctx.db.query.clinicalDocuments.findFirst({
-        where: and(
-          eq(clinicalDocuments.id, input.id),
-          eq(clinicalDocuments.clientId, ctx.dbUserId)
-        ),
-      });
+      const doc = await safeQ(
+        () => ctx.db.query.clinicalDocuments.findFirst({
+          where: and(
+            eq(clinicalDocuments.id, input.id),
+            eq(clinicalDocuments.clientId, ctx.dbUserId)
+          ),
+        }),
+        undefined,
+      );
       if (!doc) throw new TRPCError({ code: "NOT_FOUND" });
       return doc;
     }),

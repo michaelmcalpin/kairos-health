@@ -4,20 +4,24 @@ import { glucoseReadings } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 export const clientGlucoseRouter = router({
   // List glucose readings within a date range
   // Note: For manual entries, trendDirection contains the timing context (fasting, pre_meal, post_meal, etc.)
   list: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const results = await ctx.db.query.glucoseReadings.findMany({
+      const results = await safeQ(() => ctx.db.query.glucoseReadings.findMany({
         where: and(
           eq(glucoseReadings.clientId, ctx.dbUserId),
           gte(glucoseReadings.timestamp, new Date(input.startDate)),
           lte(glucoseReadings.timestamp, new Date(input.endDate + "T23:59:59"))
         ),
         orderBy: desc(glucoseReadings.timestamp),
-      });
+      }), []);
 
       return results.map((r) => ({
         id: r.id,
@@ -32,7 +36,7 @@ export const clientGlucoseRouter = router({
   stats: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const result = await ctx.db
+      const result = await safeQ(() => ctx.db
         .select({
           count: sql<number>`count(*)`,
           avg: sql<number>`avg(${glucoseReadings.valueMgdl})`,
@@ -52,7 +56,7 @@ export const clientGlucoseRouter = router({
             gte(glucoseReadings.timestamp, new Date(input.startDate)),
             lte(glucoseReadings.timestamp, new Date(input.endDate + "T23:59:59"))
           )
-        );
+        ), []);
 
       const row = result[0];
       return {
@@ -68,7 +72,7 @@ export const clientGlucoseRouter = router({
   dailyAverages: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const results = await ctx.db
+      const results = await safeQ(() => ctx.db
         .select({
           date: sql<string>`date_trunc('day', ${glucoseReadings.timestamp})::date`,
           avg: sql<number>`avg(${glucoseReadings.valueMgdl})`,
@@ -85,7 +89,7 @@ export const clientGlucoseRouter = router({
           )
         )
         .groupBy(sql`date_trunc('day', ${glucoseReadings.timestamp})::date`)
-        .orderBy(sql`date_trunc('day', ${glucoseReadings.timestamp})::date`);
+        .orderBy(sql`date_trunc('day', ${glucoseReadings.timestamp})::date`), []);
 
       return results.map((r) => ({
         date: r.date,

@@ -10,6 +10,10 @@ import {
   labResults,
 } from "@/server/db/schema";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 // In-memory import history (production would use DB)
 const importRecords = new Map<string, {
   id: string;

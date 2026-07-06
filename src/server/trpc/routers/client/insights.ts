@@ -11,6 +11,10 @@ import { router, clientProcedure } from "@/server/trpc";
 import { clientProfiles, sleepSessions, glucoseReadings, supplementProtocols } from "@/server/db/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 
+async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+  try { return await fn(); } catch { return fallback; }
+}
+
 interface HealthInsight {
   id: string;
   category: string;
@@ -58,7 +62,7 @@ export const clientInsightsRouter = router({
       const insights: HealthInsight[] = [];
 
       // Query real glucose data if available
-      const glucoseData = await ctx.db
+      const glucoseData = await safeQ(() => ctx.db
         .select({
           avg: sql<number>`avg(${glucoseReadings.valueMgdl})`,
           min: sql<number>`min(${glucoseReadings.valueMgdl})`,
@@ -70,7 +74,7 @@ export const clientInsightsRouter = router({
           eq(glucoseReadings.clientId, ctx.dbUserId),
           gte(glucoseReadings.timestamp, new Date(input.startDate)),
           lte(glucoseReadings.timestamp, new Date(input.endDate + "T23:59:59")),
-        ));
+        )), []);
 
       const gd = glucoseData[0];
       if (gd && Number(gd.count) > 0) {
@@ -91,7 +95,7 @@ export const clientInsightsRouter = router({
       }
 
       // Query real sleep data if available
-      const sleepData = await ctx.db
+      const sleepData = await safeQ(() => ctx.db
         .select({
           avgScore: sql<number>`avg(${sleepSessions.score})`,
           avgDuration: sql<number>`avg(${sleepSessions.totalMinutes})`,
@@ -102,7 +106,7 @@ export const clientInsightsRouter = router({
           eq(sleepSessions.clientId, ctx.dbUserId),
           gte(sleepSessions.date, input.startDate),
           lte(sleepSessions.date, input.endDate),
-        ));
+        )), []);
 
       const sd = sleepData[0];
       if (sd && Number(sd.count) > 0) {
@@ -168,7 +172,7 @@ export const clientInsightsRouter = router({
 
       switch (input.category) {
         case "glucose": {
-          const data = await ctx.db
+          const data = await safeQ(() => ctx.db
             .select({
               avg: sql<number>`avg(${glucoseReadings.valueMgdl})`,
               min: sql<number>`min(${glucoseReadings.valueMgdl})`,
@@ -180,7 +184,7 @@ export const clientInsightsRouter = router({
               eq(glucoseReadings.clientId, ctx.dbUserId),
               gte(glucoseReadings.timestamp, new Date(input.startDate)),
               lte(glucoseReadings.timestamp, new Date(input.endDate + "T23:59:59")),
-            ));
+            )), []);
           const d = data[0];
           if (d && Number(d.count) > 0) {
             const avg = Number(d.avg);
@@ -192,7 +196,7 @@ export const clientInsightsRouter = router({
           break;
         }
         case "sleep": {
-          const data = await ctx.db
+          const data = await safeQ(() => ctx.db
             .select({
               avgScore: sql<number>`avg(${sleepSessions.score})`,
               avgDuration: sql<number>`avg(${sleepSessions.totalMinutes})`,
@@ -203,7 +207,7 @@ export const clientInsightsRouter = router({
               eq(sleepSessions.clientId, ctx.dbUserId),
               gte(sleepSessions.date, input.startDate),
               lte(sleepSessions.date, input.endDate),
-            ));
+            )), []);
           const d = data[0];
           if (d && Number(d.count) > 0) {
             insights.push(makeInsight("sleep", Number(d.avgScore) >= 75 ? "positive" : "info",
@@ -230,7 +234,7 @@ export const clientInsightsRouter = router({
     .input(z.object({ weekStart: z.string(), weekEnd: z.string() }))
     .query(async ({ ctx, input }) => {
       // Pull real data for the week
-      const glucoseData = await ctx.db
+      const glucoseData = await safeQ(() => ctx.db
         .select({
           avg: sql<number>`avg(${glucoseReadings.valueMgdl})`,
           count: sql<number>`count(*)`,
@@ -240,9 +244,9 @@ export const clientInsightsRouter = router({
           eq(glucoseReadings.clientId, ctx.dbUserId),
           gte(glucoseReadings.timestamp, new Date(input.weekStart)),
           lte(glucoseReadings.timestamp, new Date(input.weekEnd + "T23:59:59")),
-        ));
+        )), []);
 
-      const sleepData = await ctx.db
+      const sleepData = await safeQ(() => ctx.db
         .select({
           avgScore: sql<number>`avg(${sleepSessions.score})`,
           avgDuration: sql<number>`avg(${sleepSessions.totalMinutes})`,
@@ -253,7 +257,7 @@ export const clientInsightsRouter = router({
           eq(sleepSessions.clientId, ctx.dbUserId),
           gte(sleepSessions.date, input.weekStart),
           lte(sleepSessions.date, input.weekEnd),
-        ));
+        )), []);
 
       const gd = glucoseData[0];
       const sd = sleepData[0];
