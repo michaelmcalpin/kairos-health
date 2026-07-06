@@ -7,8 +7,9 @@
  *
  * Uses tRPC hooks from @/hooks/useHealthData for live data with
  * automatic fallback to sample data when the API is unreachable.
- * Schedule and protocol data still use static sample data until
- * those endpoints are available.
+ * Schedule shows an empty state (no tRPC endpoint yet).
+ * Protocol data still uses static sample data until
+ * that endpoint is available.
  */
 
 import React, { useState, useCallback } from "react";
@@ -51,10 +52,9 @@ import {
 } from "@/hooks/useHealthData";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Static data — schedule & protocols (no tRPC hooks yet)
+// Static data — protocols (no tRPC hooks yet)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const SCHEDULE_DATA = SAMPLE_DATA.scheduleData;
 const PROTOCOL_DATA = SAMPLE_DATA.dashboardProtocols;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -239,16 +239,15 @@ export default function HomeScreen() {
 
         {/* ─── 3. Today's Schedule ─────────────────────────── */}
         <SectionHeader title="Today's Schedule" actionLabel="View all" onAction={() => router.push("/appointments")} />
-        {SCHEDULE_DATA.map((item) => (
-          <ScheduleItem
-            key={item.id}
-            time={item.time}
-            title={item.title}
-            type={item.type}
-            coachName={item.coachName}
-            duration={item.duration}
-          />
-        ))}
+        <Card style={styles.emptyScheduleCard}>
+          <Text style={styles.emptyScheduleText}>No appointments scheduled today</Text>
+          <Text
+            style={styles.emptyScheduleLink}
+            onPress={() => router.push("/appointments")}
+          >
+            Book an appointment
+          </Text>
+        </Card>
 
         {/* ─── 4. Biometrics Overview ─────────────────────── */}
         <SectionHeader title="Biometrics" actionLabel="View all" onAction={() => router.push("/(tabs)/health")} />
@@ -540,6 +539,23 @@ const styles = StyleSheet.create({
   alertsBadgeText: {
     color: Colors.gold,
     fontSize: 11,
+    fontWeight: "600",
+  },
+
+  // Empty schedule state
+  emptyScheduleCard: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  emptyScheduleText: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
+    marginBottom: Spacing.sm,
+  },
+  emptyScheduleLink: {
+    color: Colors.gold,
+    fontSize: FontSizes.xs,
     fontWeight: "600",
   },
 

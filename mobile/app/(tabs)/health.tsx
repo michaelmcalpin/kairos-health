@@ -2,11 +2,14 @@
  * Health / Biometrics tab.
  *
  * Full-featured health screen displaying a date range selector, health score
- * summary, biometric categories grid, recent readings timeline, and an
+ * summary, biometric categories grid, recent readings section, and an
  * AI-generated insight card.
  *
- * Uses tRPC hooks (useBiometricCategories, useHealthScore) for live data with
- * automatic sample-data fallback when the API is unreachable.
+ * Uses tRPC hooks (useBiometricCategories, useHealthScore, useHealthAnalysis)
+ * for live data with automatic fallback when the API is unreachable.
+ * Recent readings show an empty state until a dedicated endpoint is available.
+ * AI insights are powered by the insights.getAnalysis endpoint with a
+ * placeholder fallback.
  */
 
 import React, { useState, useCallback } from "react";
@@ -38,11 +41,11 @@ import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import {
   DateRangeSelector,
   HealthScoreSummary,
-  RecentReadingItem,
   InsightsCard,
 } from "@/components/health";
 import type { DateRange } from "@/components/health";
 import { useBiometricCategories, useHealthScore } from "@/hooks/useHealthData";
+import { useHealthAnalysis } from "@/hooks/useInsights";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Icon map — categories from the hook carry no JSX; we resolve
@@ -60,103 +63,11 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   temperature: <Thermometer size={14} color="#FB923C" />,
 };
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Recent readings — still inline (no dedicated tRPC endpoint yet)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// No hardcoded readings — the section shows an empty state until
+// a dedicated recent-readings tRPC endpoint is available.
 
-interface RecentReading {
-  id: string;
-  time: string;
-  type: string;
-  value: string;
-  source: string;
-  icon: React.ReactNode;
-  iconBgColor: string;
-}
-
-interface RecentGroup {
-  date: string;
-  readings: RecentReading[];
-}
-
-const RECENT_READINGS: RecentGroup[] = [
-  {
-    date: "Today",
-    readings: [
-      {
-        id: "r1",
-        time: "8:42 AM",
-        type: "Heart Rate",
-        value: "62 bpm (resting)",
-        source: "Apple Watch Ultra",
-        icon: <Heart size={12} color={Colors.danger} />,
-        iconBgColor: "rgba(198, 93, 93, 0.12)",
-      },
-      {
-        id: "r2",
-        time: "7:15 AM",
-        type: "Blood Pressure",
-        value: "118/76 mmHg",
-        source: "Withings BPM Connect",
-        icon: <Activity size={12} color={Colors.danger} />,
-        iconBgColor: "rgba(198, 93, 93, 0.12)",
-      },
-      {
-        id: "r3",
-        time: "6:50 AM",
-        type: "Sleep",
-        value: "7.4 hrs -- 88% quality",
-        source: "Oura Ring Gen 3",
-        icon: <Moon size={12} color="#60A5FA" />,
-        iconBgColor: "rgba(96, 165, 250, 0.12)",
-      },
-      {
-        id: "r4",
-        time: "6:50 AM",
-        type: "HRV",
-        value: "48 ms",
-        source: "Oura Ring Gen 3",
-        icon: <Brain size={12} color="#A78BFA" />,
-        iconBgColor: "rgba(167, 139, 250, 0.12)",
-      },
-    ],
-  },
-  {
-    date: "Yesterday",
-    readings: [
-      {
-        id: "r5",
-        time: "9:30 PM",
-        type: "Blood Glucose",
-        value: "105 mg/dL (post-meal)",
-        source: "Dexcom G7",
-        icon: <Droplets size={12} color="#F59E0B" />,
-        iconBgColor: "rgba(245, 158, 11, 0.12)",
-      },
-      {
-        id: "r6",
-        time: "6:00 PM",
-        type: "Body Weight",
-        value: "178.8 lbs",
-        source: "Withings Body+",
-        icon: <Scale size={12} color={Colors.gold} />,
-        iconBgColor: "rgba(74, 144, 217, 0.12)",
-      },
-      {
-        id: "r7",
-        time: "11:59 PM",
-        type: "Steps",
-        value: "11,302 steps",
-        source: "Apple Watch Ultra",
-        icon: <Footprints size={12} color={Colors.success} />,
-        iconBgColor: "rgba(74, 157, 91, 0.12)",
-      },
-    ],
-  },
-];
-
-const AI_INSIGHT =
-  "Your sleep quality has improved 12% this week. HRV readings suggest good recovery. Consider maintaining your current sleep schedule and evening magnesium supplementation for continued improvement.";
+// AI insight — powered by the insights.getAnalysis hook when connected,
+// otherwise shows a placeholder.
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Health Screen
@@ -179,15 +90,23 @@ export default function HealthScreen() {
     refetch: refetchScore,
   } = useHealthScore();
 
+  const {
+    analysis: overallAnalysis,
+    isLoading: insightLoading,
+    refetch: refetchInsight,
+  } = useHealthAnalysis("overall", "7d");
+
+  const aiInsightText = overallAnalysis?.summary ?? null;
+
   const isLoading = categoriesLoading || scoreLoading;
 
   // ── Pull-to-refresh ─────────────────────────────────────────
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchCategories(), refetchScore()]);
+    await Promise.all([refetchCategories(), refetchScore(), refetchInsight()]);
     setRefreshing(false);
-  }, [refetchCategories, refetchScore]);
+  }, [refetchCategories, refetchScore, refetchInsight]);
 
   const biometricRoutes: Record<string, string> = {
     sleep: "/health/sleep",
@@ -283,32 +202,18 @@ export default function HealthScreen() {
           actionLabel="View all"
           onAction={() => router.push("/health/goals")}
         />
-        {RECENT_READINGS.map((group) => (
-          <View key={group.date} style={styles.readingGroup}>
-            <Text style={styles.dateLabel}>{group.date}</Text>
-            <Card style={styles.readingsCard}>
-              {group.readings.map((reading, idx) => (
-                <React.Fragment key={reading.id}>
-                  <RecentReadingItem
-                    time={reading.time}
-                    type={reading.type}
-                    value={reading.value}
-                    source={reading.source}
-                    icon={reading.icon}
-                    iconBgColor={reading.iconBgColor}
-                  />
-                  {idx < group.readings.length - 1 && (
-                    <View style={styles.readingSeparator} />
-                  )}
-                </React.Fragment>
-              ))}
-            </Card>
-          </View>
-        ))}
+        <Card style={styles.emptyReadingsCard}>
+          <Text style={styles.emptyReadingsText}>
+            Connect a device or log data to see your readings here
+          </Text>
+        </Card>
 
         {/* ─── 5. AI Insight ───────────────────────────────── */}
         <SectionHeader title="Insights" />
-        <InsightsCard insight={AI_INSIGHT} onAction={() => router.push("/insights")} />
+        <InsightsCard
+          insight={aiInsightText ?? "Log more health data to unlock AI insights"}
+          onAction={() => router.push("/insights")}
+        />
 
         {/* Bottom spacer for tab bar */}
         <View style={styles.bottomSpacer} />
@@ -398,7 +303,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // Recent Readings
+  // Recent Readings (kept for future use with real data)
   readingGroup: {
     marginBottom: Spacing.sm,
   },
@@ -418,6 +323,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
     marginLeft: 44,
     marginBottom: Spacing.sm,
+  },
+
+  // Empty readings state
+  emptyReadingsCard: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  emptyReadingsText: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
+    textAlign: "center",
+    paddingHorizontal: Spacing.md,
   },
 
   // Loading state
