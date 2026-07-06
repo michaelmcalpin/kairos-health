@@ -23,7 +23,7 @@ const DEFAULT_BRAND: EmailBrandConfig = {
   logoUrl: null,
   fromName: "MyHealth",
   footer: "Everist.ai Health Management",
-  website: "https://kairos.health",
+  website: "https://everist.ai",
 };
 
 const FONTS = {

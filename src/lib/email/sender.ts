@@ -6,7 +6,7 @@
  *
  * Environment variables:
  *   RESEND_API_KEY  — Resend API key (required for sending)
- *   EMAIL_FROM      — Default from address (optional, defaults to noreply@kairos.health)
+ *   EMAIL_FROM      — Default from address (optional, defaults to noreply@everist.ai)
  *   APP_URL         — Base URL for links in emails (optional, defaults to http://localhost:3000)
  */
 
