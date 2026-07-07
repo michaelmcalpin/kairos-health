@@ -42,6 +42,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/fix-fmt-consteval",
       "expo-router",
       "expo-secure-store",
       [
