@@ -19,7 +19,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Everist.ai uses the camera to scan health documents and capture progress photos.",
         "NSPhotoLibraryUsageDescription": "Everist.ai accesses your photo library to upload health documents and progress photos.",
-        "NSFaceIDUsageDescription": "Everist.ai uses Face ID for secure authentication."
+        "NSFaceIDUsageDescription": "Everist.ai uses Face ID for secure authentication.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
