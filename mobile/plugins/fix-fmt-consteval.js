@@ -1,24 +1,28 @@
 /**
- * Expo config plugin: fix fmt consteval error on Xcode 26.4+
+ * Expo config plugin: Xcode 26 compatibility fixes for Expo SDK 53
  *
- * The `fmt` CocoaPod (used by Hermes) uses C++20 `consteval` in a way
- * that Xcode 26.4+'s stricter Clang rejects. We fix this two ways:
+ * Fixes TWO Xcode 26 build failures:
  *
- *   1. GCC_PREPROCESSOR_DEFINITIONS += FMT_USE_CONSTEVAL=0
- *      → tells fmt to fall back to constexpr (most targeted fix)
- *   2. CLANG_CXX_LANGUAGE_STANDARD = c++17  (for the fmt target only)
- *      → C++17 has no consteval keyword, so fmt's #ifdef skips it
+ * 1. fmt consteval error — The `fmt` CocoaPod (Hermes dependency) uses
+ *    C++20 `consteval` which Xcode 26's stricter Clang rejects.
+ *    Fix: set FMT_USE_CONSTEVAL=0 and downgrade fmt to C++17.
  *
- * CRITICAL: The fix is injected AFTER react_native_post_install() so
- * that RN's own build-setting sweep doesn't overwrite our changes.
+ * 2. RCTReactNativeFactoryDelegate not found — Xcode 26 enables Swift
+ *    Explicit Precompiled Modules by default. The Expo pod's module map
+ *    doesn't declare a dependency on React-RCTAppDelegate, so the
+ *    compiler can't find the RCTReactNativeFactoryDelegate protocol.
+ *    Fix: disable SWIFT_ENABLE_EXPLICIT_MODULES for all pods.
  *
- * Safe to remove once on Expo SDK 56+ / React Native >= 0.83.9 (ships fmt 12.1.0).
+ * Both fixes are injected AFTER react_native_post_install() so that
+ * RN's own build-setting sweep doesn't overwrite our changes.
+ *
+ * Safe to remove once upgraded to Expo SDK 54+ (designed for Xcode 26).
  */
 const { withDangerousMod } = require("@expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
-const FMT_FIX_MARKER = "# [fix-fmt-consteval]";
+const FIX_MARKER = "# [xcode26-compat]";
 
 function fixFmtConsteval(config) {
   return withDangerousMod(config, [
@@ -31,22 +35,28 @@ function fixFmtConsteval(config) {
 
       let podfile = fs.readFileSync(podfilePath, "utf8");
 
-      console.log("[fix-fmt-consteval] Reading Podfile from:", podfilePath);
-      console.log("[fix-fmt-consteval] Podfile length:", podfile.length, "chars");
+      console.log("[xcode26-compat] Reading Podfile from:", podfilePath);
+      console.log("[xcode26-compat] Podfile length:", podfile.length, "chars");
 
       // Don't double-inject if the plugin runs twice
-      if (podfile.includes(FMT_FIX_MARKER)) {
-        console.log("[fix-fmt-consteval] Fix already present — skipping.");
+      if (podfile.includes(FIX_MARKER)) {
+        console.log("[xcode26-compat] Fixes already present — skipping.");
         return config;
       }
 
       // The code to inject inside the post_install block, AFTER react_native_post_install()
-      const fmtFixLines = [
+      const xcode26FixLines = [
         "",
-        `    ${FMT_FIX_MARKER} Fix fmt consteval for Xcode 26.4+`,
+        `    ${FIX_MARKER} Xcode 26 compatibility fixes for Expo SDK 53`,
         "    installer.pods_project.targets.each do |target|",
-        "      if target.name == 'fmt'",
-        "        target.build_configurations.each do |bc|",
+        "      target.build_configurations.each do |bc|",
+        "        # Fix 1: Disable Swift Explicit Modules (Xcode 26 default)",
+        "        # The Expo pod's module map doesn't declare all its dependencies,",
+        "        # so explicit module compilation fails to find RCTReactNativeFactoryDelegate.",
+        "        bc.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'",
+        "",
+        "        # Fix 2: fmt consteval — only for the fmt pod",
+        "        if target.name == 'fmt'",
         "          bc.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']",
         "          bc.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_USE_CONSTEVAL=0'",
         "          bc.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'",
@@ -77,11 +87,11 @@ function fixFmtConsteval(config) {
 
         if (endIndices.length >= 2) {
           const postInstallEndLine = endIndices[1]; // closes post_install
-          lines.splice(postInstallEndLine, 0, fmtFixLines);
+          lines.splice(postInstallEndLine, 0, xcode26FixLines);
           podfile = lines.join("\n");
           injected = true;
           console.log(
-            `[fix-fmt-consteval] Injected fmt fix AFTER react_native_post_install (before line ${postInstallEndLine + 1})`
+            `[xcode26-compat] Injected Xcode 26 fixes AFTER react_native_post_install (before line ${postInstallEndLine + 1})`
           );
         }
       }
@@ -89,15 +99,16 @@ function fixFmtConsteval(config) {
       if (!injected) {
         // Fallback: no post_install block found (unusual). Append a standalone one.
         console.log(
-          "[fix-fmt-consteval] No post_install block detected — appending standalone block."
+          "[xcode26-compat] No post_install block detected — appending standalone block."
         );
         podfile += [
           "",
-          `${FMT_FIX_MARKER} Standalone post_install for fmt consteval fix`,
+          `${FIX_MARKER} Standalone post_install for Xcode 26 compat`,
           "post_install do |installer|",
           "  installer.pods_project.targets.each do |target|",
-          "    if target.name == 'fmt'",
-          "      target.build_configurations.each do |bc|",
+          "    target.build_configurations.each do |bc|",
+          "      bc.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'",
+          "      if target.name == 'fmt'",
           "        bc.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']",
           "        bc.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_USE_CONSTEVAL=0'",
           "        bc.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'",
@@ -113,12 +124,12 @@ function fixFmtConsteval(config) {
 
       // Log the tail of the Podfile so EAS Build logs show it worked
       const finalLines = podfile.split("\n");
-      const tail = finalLines.slice(-25);
-      console.log("[fix-fmt-consteval] === Podfile tail (last 25 lines) ===");
+      const tail = finalLines.slice(-30);
+      console.log("[xcode26-compat] === Podfile tail (last 30 lines) ===");
       tail.forEach((line, i) => {
-        console.log(`  ${finalLines.length - 25 + i + 1}: ${line}`);
+        console.log(`  ${finalLines.length - 30 + i + 1}: ${line}`);
       });
-      console.log("[fix-fmt-consteval] === Done ===");
+      console.log("[xcode26-compat] === Done ===");
 
       return config;
     },
