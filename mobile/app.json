@@ -63,7 +63,8 @@
           "faceIDPermission": "Allow Everist.ai to use Face ID for secure authentication."
         }
       ],
-      "expo-image-picker"
+      "expo-image-picker",
+      "./plugins/fix-fmt-consteval"
     ],
     "experiments": {
       "typedRoutes": true
