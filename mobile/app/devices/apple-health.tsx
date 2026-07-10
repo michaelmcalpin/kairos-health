@@ -4,6 +4,10 @@
  * Allows the user to manage their Apple Health connection, toggle
  * individual data categories for read/write sync, set sync frequency,
  * and view connection status.
+ *
+ * Uses the HealthKit service layer (`lib/healthkit.ts`) for native
+ * permission requests and data reads, and the `useHealthSync` hook
+ * for pushing data to the Everist backend.
  */
 
 import React, { useState } from "react";
@@ -15,6 +19,8 @@ import {
   Switch,
   Pressable,
   Alert,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -34,12 +40,15 @@ import {
   CheckCircle,
   Clock,
   ChevronDown,
+  AlertCircle,
+  Link,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { useHealthKitStatus, useHealthSync } from "@/hooks/useHealthSync";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -68,6 +77,10 @@ const SYNC_OPTIONS: { value: SyncFrequency; label: string }[] = [
 export default function AppleHealthScreen() {
   const router = useRouter();
 
+  /* -- HealthKit hooks -- */
+  const { status: hkStatus, isChecking, checkAndRequest } = useHealthKitStatus();
+  const { syncFromHealthKit, isSyncing, lastSyncTime: hkLastSync } = useHealthSync();
+
   /* -- tRPC queries & mutations -- */
   const connectionQuery = trpc.clientPortal.devices.getConnection.useQuery(
     { provider: "apple_health" },
@@ -78,8 +91,15 @@ export default function AppleHealthScreen() {
 
   /* -- Connection state -- */
   const connectionData = connectionQuery.data as any;
-  const isConnected = connectionData ? (connectionData.connected ?? connectionData.status === "connected") : true;
-  const lastSyncTime = connectionData?.lastSync ?? connectionData?.lastSyncTime ?? "2 minutes ago";
+  const backendConnected = connectionData
+    ? (connectionData.connected ?? connectionData.status === "connected")
+    : false;
+  // The device is truly connected when both HealthKit is authorized AND the backend knows about it
+  const isConnected = hkStatus.isAuthorized || backendConnected;
+  const lastSyncTime =
+    hkLastSync
+      ? new Date(hkLastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : connectionData?.lastSync ?? connectionData?.lastSyncTime ?? "Never";
 
   /* -- Sync frequency -- */
   const [syncFrequency, setSyncFrequency] = useState<SyncFrequency>("realtime");
@@ -104,19 +124,47 @@ export default function AppleHealthScreen() {
   const [writeBloodGlucose, setWriteBloodGlucose] = useState(false);
 
   /* -- Handlers -- */
-  const handleSyncNow = () => {
-    syncMutation.mutate(
-      { provider: "apple_health" },
-      {
-        onSuccess: () => {
-          Alert.alert("Sync Complete", "Apple Health data has been synced.", [{ text: "OK" }]);
-          connectionQuery.refetch();
+  const handleConnect = async () => {
+    if (Platform.OS !== "ios") {
+      Alert.alert("iOS Only", "Apple Health is only available on iOS devices.");
+      return;
+    }
+    const result = await checkAndRequest();
+    if (result.isAuthorized) {
+      Alert.alert(
+        "Connected",
+        "Apple Health permissions granted. Your data will begin syncing.",
+        [{ text: "OK" }],
+      );
+    } else if (result.error) {
+      Alert.alert(
+        "Permission Required",
+        "Please grant Apple Health permissions in Settings > Privacy & Security > Health > Everist.",
+        [{ text: "OK" }],
+      );
+    }
+  };
+
+  const handleSyncNow = async () => {
+    if (hkStatus.isAvailable && hkStatus.isAuthorized) {
+      // Use real HealthKit sync
+      await syncFromHealthKit();
+      connectionQuery.refetch();
+    } else {
+      // Fall back to backend-only sync
+      syncMutation.mutate(
+        { provider: "apple_health" },
+        {
+          onSuccess: () => {
+            Alert.alert("Sync Complete", "Apple Health data has been synced.", [{ text: "OK" }]);
+            connectionQuery.refetch();
+          },
+          onError: () => {
+            Alert.alert("Sync Failed", "Could not sync Apple Health data. Please try again.", [{ text: "OK" }]);
+          },
         },
-        onError: () => {
-          Alert.alert("Sync Failed", "Could not sync Apple Health data. Please try again.", [{ text: "OK" }]);
-        },
-      }
-    );
+      );
+    }
   };
 
   const handleDisconnect = () => {
@@ -140,11 +188,11 @@ export default function AppleHealthScreen() {
                 onError: () => {
                   Alert.alert("Error", "Could not disconnect Apple Health. Please try again.", [{ text: "OK" }]);
                 },
-              }
+              },
             );
           },
         },
-      ]
+      ],
     );
   };
 
@@ -175,29 +223,91 @@ export default function AppleHealthScreen() {
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* CONNECTION STATUS                                          */}
         {/* ═══════════════════════════════════════════════════════════ */}
-        <Card style={styles.statusCard}>
+        <Card
+          style={[
+            styles.statusCard,
+            !isConnected && styles.statusCardDisconnected,
+          ]}
+        >
           <View style={styles.statusRow}>
             <View style={styles.statusLeft}>
-              <View style={styles.statusDot} />
+              <View
+                style={[
+                  styles.statusDot,
+                  !isConnected && styles.statusDotDisconnected,
+                ]}
+              />
               <View>
                 <Text style={styles.statusLabel}>Connection Status</Text>
-                <Text style={styles.statusValue}>Connected</Text>
+                <Text
+                  style={[
+                    styles.statusValue,
+                    !isConnected && styles.statusValueDisconnected,
+                  ]}
+                >
+                  {isConnected ? "Connected" : "Not Connected"}
+                </Text>
               </View>
             </View>
-            <View style={styles.syncTimeCol}>
-              <Text style={styles.syncTimeLabel}>Last sync</Text>
-              <Text style={styles.syncTimeValue}>{lastSyncTime}</Text>
-            </View>
+            {isConnected && (
+              <View style={styles.syncTimeCol}>
+                <Text style={styles.syncTimeLabel}>Last sync</Text>
+                <Text style={styles.syncTimeValue}>{lastSyncTime}</Text>
+              </View>
+            )}
           </View>
 
-          <Button
-            title="Sync Now"
-            variant="secondary"
-            size="sm"
-            icon={<RefreshCw size={14} color={Colors.gold} />}
-            onPress={handleSyncNow}
-            style={styles.syncBtn}
-          />
+          {/* HealthKit availability notice */}
+          {!hkStatus.isAvailable && Platform.OS === "ios" && (
+            <View style={styles.hkNotice}>
+              <AlertCircle size={14} color={Colors.warning} />
+              <Text style={styles.hkNoticeText}>
+                HealthKit module not installed. Rebuild with EAS Build to enable native sync.
+              </Text>
+            </View>
+          )}
+          {Platform.OS !== "ios" && (
+            <View style={styles.hkNotice}>
+              <AlertCircle size={14} color={Colors.warning} />
+              <Text style={styles.hkNoticeText}>
+                Apple Health is only available on iOS devices.
+              </Text>
+            </View>
+          )}
+
+          {!isConnected ? (
+            <Button
+              title={isChecking ? "Connecting..." : "Connect Apple Health"}
+              variant="primary"
+              size="sm"
+              icon={
+                isChecking ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Link size={14} color={Colors.white} />
+                )
+              }
+              onPress={handleConnect}
+              disabled={isChecking || Platform.OS !== "ios"}
+              style={styles.syncBtn}
+            />
+          ) : (
+            <Button
+              title={isSyncing ? "Syncing..." : "Sync Now"}
+              variant="secondary"
+              size="sm"
+              icon={
+                isSyncing ? (
+                  <ActivityIndicator size="small" color={Colors.gold} />
+                ) : (
+                  <RefreshCw size={14} color={Colors.gold} />
+                )
+              }
+              onPress={handleSyncNow}
+              disabled={isSyncing}
+              style={styles.syncBtn}
+            />
+          )}
         </Card>
 
         {/* ═══════════════════════════════════════════════════════════ */}
@@ -495,6 +605,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(74, 157, 91, 0.06)",
     borderColor: "rgba(74, 157, 91, 0.2)",
   },
+  statusCardDisconnected: {
+    backgroundColor: "rgba(212, 168, 67, 0.06)",
+    borderColor: "rgba(212, 168, 67, 0.2)",
+  },
   statusRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -512,6 +626,9 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: Colors.success,
   },
+  statusDotDisconnected: {
+    backgroundColor: Colors.warning,
+  },
   statusLabel: {
     color: Colors.silver,
     fontSize: FontSizes.xs,
@@ -520,6 +637,9 @@ const styles = StyleSheet.create({
     color: Colors.success,
     fontSize: FontSizes.md,
     fontWeight: "700",
+  },
+  statusValueDisconnected: {
+    color: Colors.warning,
   },
   syncTimeCol: {
     alignItems: "flex-end",
@@ -535,6 +655,24 @@ const styles = StyleSheet.create({
   },
   syncBtn: {
     alignSelf: "stretch",
+  },
+
+  /* -- HealthKit availability notice -- */
+  hkNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: "rgba(212, 168, 67, 0.08)",
+    borderRadius: Radii.sm,
+  },
+  hkNoticeText: {
+    flex: 1,
+    color: Colors.warning,
+    fontSize: FontSizes.xs,
+    lineHeight: 16,
   },
 
   /* -- Data category cards -- */

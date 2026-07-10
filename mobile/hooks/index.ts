@@ -51,6 +51,10 @@ export {
   useDisconnectDevice,
 } from "./useDevices";
 
+// Device Connection (OAuth lifecycle)
+export { useDeviceConnection } from "./useDeviceConnection";
+export type { DeviceProvider } from "./useDeviceConnection";
+
 // Manual Data Entry
 export {
   useRecentEntries,
@@ -88,3 +92,9 @@ export {
   useAnalysisHistory,
   useAskQuestion,
 } from "./useInsights";
+
+// HealthKit / Health Sync
+export {
+  useHealthKitStatus,
+  useHealthSync,
+} from "./useHealthSync";

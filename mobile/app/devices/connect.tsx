@@ -2,8 +2,9 @@
  * Connect Account screen.
  *
  * Shows available health data integrations the user can connect.
- * Matches Bevel's "Connect Account" pattern: clean list of providers
- * with icons, each tapping through to the provider-specific auth flow.
+ * Uses the `DEVICE_PROVIDERS` registry from `lib/device-integrations`
+ * and `initiateOAuthConnection` for OAuth-based providers.
+ * Apple Health uses native HealthKit permissions via `useHealthKitStatus`.
  */
 
 import React, { useState } from "react";
@@ -28,91 +29,67 @@ import {
   ChevronRight,
   CheckCircle,
   Shield,
+  Droplets,
+  Brain,
 } from "lucide-react-native";
 
-import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { Colors, Spacing, FontSizes, Radii, API_URL } from "@/lib/constants";
 import { trpc } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
+import {
+  DEVICE_PROVIDERS,
+  initiateOAuthConnection,
+  type DeviceProvider,
+} from "@/lib/device-integrations";
 
 /* ------------------------------------------------------------------ */
-/* Provider definitions                                                */
+/* Icon mapping for device providers                                   */
 /* ------------------------------------------------------------------ */
 
-interface Provider {
-  id: string;
-  name: string;
-  subtitle: string;
-  icon: React.ReactNode;
-  iconBg: string;
-  connectionType: "oauth" | "native";
-}
-
-const PROVIDERS: Provider[] = [
-  {
-    id: "apple_health",
-    name: "Apple Health",
-    subtitle: "Sync via HealthKit on this device",
+/** Map provider icon identifiers to lucide-react-native components. */
+const PROVIDER_ICON_MAP: Record<string, { icon: React.ReactNode; bg: string }> = {
+  apple_health: {
     icon: <Heart size={22} color="#FF375F" fill="#FF375F" />,
-    iconBg: "rgba(255, 55, 95, 0.12)",
-    connectionType: "native",
+    bg: "rgba(255, 55, 95, 0.12)",
   },
-  {
-    id: "oura",
-    name: "Oura",
-    subtitle: "Sleep, HRV, readiness, temperature",
+  oura: {
     icon: <Moon size={22} color="#A78BFA" />,
-    iconBg: "rgba(167, 139, 250, 0.12)",
-    connectionType: "oauth",
+    bg: "rgba(167, 139, 250, 0.12)",
   },
-  {
-    id: "garmin",
-    name: "Garmin Connect",
-    subtitle: "Activity, heart rate, sleep, stress",
+  garmin: {
     icon: <Activity size={22} color="#4A90D9" />,
-    iconBg: "rgba(74, 144, 217, 0.12)",
-    connectionType: "oauth",
+    bg: "rgba(74, 144, 217, 0.12)",
   },
-  {
-    id: "whoop",
-    name: "WHOOP",
-    subtitle: "Strain, recovery, sleep cycles",
+  whoop: {
     icon: <Zap size={22} color="#F97316" />,
-    iconBg: "rgba(249, 115, 22, 0.12)",
-    connectionType: "oauth",
+    bg: "rgba(249, 115, 22, 0.12)",
   },
-  {
-    id: "dexcom",
-    name: "Dexcom",
-    subtitle: "Continuous glucose monitoring",
-    icon: <Activity size={22} color="#4A9D5B" />,
-    iconBg: "rgba(74, 157, 91, 0.12)",
-    connectionType: "oauth",
+  dexcom: {
+    icon: <Droplets size={22} color="#4A9D5B" />,
+    bg: "rgba(74, 157, 91, 0.12)",
   },
-  {
-    id: "fitbit",
-    name: "Fitbit",
-    subtitle: "Activity, sleep, heart rate",
+  fitbit: {
     icon: <Watch size={22} color="#06B6D4" />,
-    iconBg: "rgba(6, 182, 212, 0.12)",
-    connectionType: "oauth",
+    bg: "rgba(6, 182, 212, 0.12)",
   },
-  {
-    id: "withings",
-    name: "Withings",
-    subtitle: "Weight, body composition, BP",
+  withings: {
     icon: <Smartphone size={22} color="#D4A843" />,
-    iconBg: "rgba(212, 168, 67, 0.12)",
-    connectionType: "oauth",
+    bg: "rgba(212, 168, 67, 0.12)",
   },
-  {
-    id: "strava",
-    name: "Strava",
-    subtitle: "Workouts, running, cycling",
+  strava: {
     icon: <Activity size={22} color="#FC4C02" />,
-    iconBg: "rgba(252, 76, 2, 0.12)",
-    connectionType: "oauth",
+    bg: "rgba(252, 76, 2, 0.12)",
   },
-];
+  hume: {
+    icon: <Brain size={22} color="#8B5CF6" />,
+    bg: "rgba(139, 92, 246, 0.12)",
+  },
+};
+
+const DEFAULT_ICON = {
+  icon: <Activity size={22} color={Colors.silver} />,
+  bg: "rgba(192, 197, 206, 0.12)",
+};
 
 /* ------------------------------------------------------------------ */
 /* Screen                                                              */
@@ -124,44 +101,61 @@ export default function ConnectAccountScreen() {
   const [connected, setConnected] = useState<Set<string>>(new Set());
   const connectMutation = trpc.clientPortal.devices.initiateConnect.useMutation();
 
-  const handleConnect = (provider: Provider) => {
-    if (connected.has(provider.id)) {
-      // Already connected — go to management
-      if (provider.id === "apple_health") {
+  // Filter to only supported providers
+  const providers = DEVICE_PROVIDERS.filter((p) => p.supported);
+
+  const handleConnect = async (providerId: DeviceProvider, providerName: string, connectionType: string) => {
+    if (connected.has(providerId)) {
+      // Already connected — go to management screen if applicable
+      if (providerId === "apple_health") {
         router.push("/devices/apple-health");
       }
       return;
     }
 
-    if (provider.connectionType === "native") {
-      // Apple Health — go to native setup screen
+    if (connectionType === "native") {
+      // Apple Health — go to native HealthKit setup screen
       router.push("/devices/apple-health");
       return;
     }
 
-    // OAuth providers — initiate real connection
-    setConnecting(provider.id);
-    connectMutation.mutate(
-      { provider: provider.id as any },
-      {
-        onSuccess: () => {
-          setConnected((prev) => new Set(prev).add(provider.id));
-          setConnecting(null);
-          Alert.alert(
-            "Connected!",
-            `${provider.name} has been connected successfully. Your data will begin syncing shortly.`,
-            [{ text: "OK" }],
-          );
-        },
-        onError: () => {
-          setConnecting(null);
-          Alert.alert(
-            "Connection Failed",
-            `Could not connect to ${provider.name}. Please try again.`,
-            [{ text: "OK" }],
-          );
-        },
+    if (connectionType === "oauth") {
+      // OAuth providers — open browser-based authorization
+      setConnecting(providerId);
+      try {
+        // Notify backend that we're initiating a connection
+        connectMutation.mutate(
+          { provider: providerId as any },
+          {
+            onSuccess: () => {
+              // Open OAuth URL in browser
+              initiateOAuthConnection(providerId, API_URL);
+              setConnected((prev) => new Set(prev).add(providerId));
+              setConnecting(null);
+            },
+            onError: () => {
+              // Fall back to direct OAuth URL if backend notification fails
+              initiateOAuthConnection(providerId, API_URL);
+              setConnecting(null);
+            },
+          },
+        );
+      } catch {
+        setConnecting(null);
+        Alert.alert(
+          "Connection Failed",
+          `Could not connect to ${providerName}. Please try again.`,
+          [{ text: "OK" }],
+        );
       }
+      return;
+    }
+
+    // API key providers (e.g., Hume AI)
+    Alert.alert(
+      "API Key Required",
+      `${providerName} requires an API key. You can configure this in your Everist dashboard under Settings > Data Sources.`,
+      [{ text: "OK" }],
     );
   };
 
@@ -178,11 +172,12 @@ export default function ConnectAccountScreen() {
           Everist.ai.
         </Text>
 
-        {/* Provider list */}
+        {/* Provider list — driven by DEVICE_PROVIDERS registry */}
         <View style={styles.providerList}>
-          {PROVIDERS.map((provider) => {
+          {providers.map((provider) => {
             const isConnected = connected.has(provider.id);
             const isConnecting = connecting === provider.id;
+            const iconInfo = PROVIDER_ICON_MAP[provider.id] ?? DEFAULT_ICON;
 
             return (
               <Pressable
@@ -192,21 +187,23 @@ export default function ConnectAccountScreen() {
                   isConnected && styles.providerRowConnected,
                   pressed && styles.providerRowPressed,
                 ]}
-                onPress={() => handleConnect(provider)}
+                onPress={() =>
+                  handleConnect(provider.id, provider.name, provider.connectionType)
+                }
                 disabled={isConnecting}
               >
                 <View
                   style={[
                     styles.providerIcon,
-                    { backgroundColor: provider.iconBg },
+                    { backgroundColor: iconInfo.bg },
                   ]}
                 >
-                  {provider.icon}
+                  {iconInfo.icon}
                 </View>
 
                 <View style={styles.providerText}>
                   <Text style={styles.providerName}>{provider.name}</Text>
-                  <Text style={styles.providerSub}>{provider.subtitle}</Text>
+                  <Text style={styles.providerSub}>{provider.description}</Text>
                 </View>
 
                 {isConnecting ? (

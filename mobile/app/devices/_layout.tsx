@@ -41,6 +41,14 @@ export default function DevicesLayout() {
         options={{ title: "Apple Health" }}
       />
       <Stack.Screen
+        name="oura"
+        options={{ title: "Oura Ring" }}
+      />
+      <Stack.Screen
+        name="hume"
+        options={{ title: "Hume AI" }}
+      />
+      <Stack.Screen
         name="connect"
         options={{ title: "Connect Account" }}
       />

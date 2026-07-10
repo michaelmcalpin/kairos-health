@@ -93,6 +93,8 @@ const CONNECTED_DEVICES: ConnectedDevice[] = [
 
 const SUPPORTED_DEVICES: SupportedDevice[] = [
   { id: "apple-health", name: "Apple Health", iconType: "health", iconColor: "#C65D5D" },
+  { id: "oura", name: "Oura Ring", iconType: "ring", iconColor: "#A78BFA" },
+  { id: "hume", name: "Hume AI", iconType: "brain", iconColor: "#E879A8" },
   { id: "google-fit", name: "Google Fit", iconType: "fitness", iconColor: "#4A9D5B" },
   { id: "garmin", name: "Garmin", iconType: "garmin", iconColor: "#4A90D9" },
   { id: "fitbit", name: "Fitbit", iconType: "fitbit", iconColor: "#06B6D4" },
@@ -166,6 +168,10 @@ export default function DevicesScreen() {
   const handleConnect = (device: SupportedDevice) => {
     if (device.id === "apple-health") {
       router.push("/devices/apple-health");
+    } else if (device.id === "oura") {
+      router.push("/devices/oura" as any);
+    } else if (device.id === "hume") {
+      router.push("/devices/hume" as any);
     } else {
       router.push("/devices/add");
     }

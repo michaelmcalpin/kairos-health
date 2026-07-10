@@ -12,6 +12,8 @@ import {
   Heart,
   Moon,
   Bluetooth,
+  Circle,
+  Brain,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
@@ -19,7 +21,7 @@ import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 export interface SupportedDevice {
   id: string;
   name: string;
-  iconType: "health" | "fitness" | "garmin" | "fitbit" | "whoop" | "sleep";
+  iconType: "health" | "fitness" | "garmin" | "fitbit" | "whoop" | "sleep" | "ring" | "brain";
   iconColor: string;
 }
 
@@ -28,13 +30,15 @@ interface AddDeviceCardProps {
   onConnect?: () => void;
 }
 
-const iconMap = {
+const iconMap: Record<string, any> = {
   health: Heart,
   fitness: Activity,
   garmin: Watch,
   fitbit: Smartphone,
   whoop: Activity,
   sleep: Moon,
+  ring: Circle,
+  brain: Brain,
 };
 
 export function AddDeviceCard({ device, onConnect }: AddDeviceCardProps) {

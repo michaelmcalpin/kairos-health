@@ -16,10 +16,18 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "ai.everist.app",
+      "entitlements": {
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.healthkit.access": [
+          "health-records"
+        ]
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "Everist.ai uses the camera to scan health documents and capture progress photos.",
         "NSPhotoLibraryUsageDescription": "Everist.ai accesses your photo library to upload health documents and progress photos.",
         "NSFaceIDUsageDescription": "Everist.ai uses Face ID for secure authentication.",
+        "NSHealthShareUsageDescription": "Everist.ai reads your health data (steps, heart rate, sleep, weight, blood glucose, and more) to provide personalized longevity insights and track your wellness journey.",
+        "NSHealthUpdateUsageDescription": "Everist.ai can write workout and body measurement data back to Apple Health.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
