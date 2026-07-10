@@ -3,8 +3,8 @@
  *
  * Shows available health data integrations the user can connect.
  * Uses the `DEVICE_PROVIDERS` registry from `lib/device-integrations`
- * and `initiateOAuthConnection` for OAuth-based providers.
- * Apple Health uses native HealthKit permissions via `useHealthKitStatus`.
+ * and `trpc.clientPortal.devices.initiateConnect` for OAuth-based providers.
+ * Apple Health uses native HealthKit permissions via the apple-health screen.
  */
 
 import React, { useState } from "react";
@@ -16,6 +16,7 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -33,12 +34,11 @@ import {
   Brain,
 } from "lucide-react-native";
 
-import { Colors, Spacing, FontSizes, Radii, API_URL } from "@/lib/constants";
+import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import {
   DEVICE_PROVIDERS,
-  initiateOAuthConnection,
   type DeviceProvider,
 } from "@/lib/device-integrations";
 
@@ -76,10 +76,6 @@ const PROVIDER_ICON_MAP: Record<string, { icon: React.ReactNode; bg: string }> =
     icon: <Smartphone size={22} color="#D4A843" />,
     bg: "rgba(212, 168, 67, 0.12)",
   },
-  strava: {
-    icon: <Activity size={22} color="#FC4C02" />,
-    bg: "rgba(252, 76, 2, 0.12)",
-  },
   hume: {
     icon: <Brain size={22} color="#8B5CF6" />,
     bg: "rgba(139, 92, 246, 0.12)",
@@ -101,8 +97,11 @@ export default function ConnectAccountScreen() {
   const [connected, setConnected] = useState<Set<string>>(new Set());
   const connectMutation = trpc.clientPortal.devices.initiateConnect.useMutation();
 
-  // Filter to only supported providers
-  const providers = DEVICE_PROVIDERS.filter((p) => p.supported);
+  // Filter to only supported providers, and exclude providers that
+  // cannot be connected via the backend (e.g. hume is external)
+  const providers = DEVICE_PROVIDERS.filter(
+    (p) => p.supported && p.connectionType !== "external",
+  );
 
   const handleConnect = async (providerId: DeviceProvider, providerName: string, connectionType: string) => {
     if (connected.has(providerId)) {
@@ -120,23 +119,34 @@ export default function ConnectAccountScreen() {
     }
 
     if (connectionType === "oauth") {
-      // OAuth providers — open browser-based authorization
+      // OAuth providers — call backend to get authorization URL
       setConnecting(providerId);
       try {
-        // Notify backend that we're initiating a connection
         connectMutation.mutate(
           { provider: providerId as any },
           {
-            onSuccess: () => {
-              // Open OAuth URL in browser
-              initiateOAuthConnection(providerId, API_URL);
+            onSuccess: async (data: any) => {
+              const authUrl = data?.authUrl || data?.url;
+              if (authUrl) {
+                try {
+                  await Linking.openURL(authUrl);
+                } catch {
+                  Alert.alert(
+                    "Connection",
+                    `Please visit this URL to connect ${providerName}: ${authUrl}`,
+                  );
+                }
+              }
               setConnected((prev) => new Set(prev).add(providerId));
               setConnecting(null);
             },
-            onError: () => {
-              // Fall back to direct OAuth URL if backend notification fails
-              initiateOAuthConnection(providerId, API_URL);
+            onError: (error: any) => {
               setConnecting(null);
+              Alert.alert(
+                "Connection Failed",
+                error.message || `Could not connect to ${providerName}. Please try again.`,
+                [{ text: "OK" }],
+              );
             },
           },
         );
@@ -151,10 +161,11 @@ export default function ConnectAccountScreen() {
       return;
     }
 
-    // API key providers (e.g., Hume AI)
+    // External providers (e.g., Hume AI) — should not appear in the
+    // filtered list, but handle gracefully just in case
     Alert.alert(
-      "API Key Required",
-      `${providerName} requires an API key. You can configure this in your Everist dashboard under Settings > Data Sources.`,
+      "External Integration",
+      `${providerName} integration requires setup through the Everist dashboard. Contact your coach for access.`,
       [{ text: "OK" }],
     );
   };

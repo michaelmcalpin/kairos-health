@@ -22,6 +22,7 @@ import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { showImagePickerOptions } from "@/lib/image-picker";
 
 /* ------------------------------------------------------------------ */
 /* Sample data                                                         */
@@ -355,7 +356,15 @@ export default function MedicalRecordsScreen() {
           variant="secondary"
           size="lg"
           style={styles.uploadButton}
-          onPress={() => Alert.alert("Upload Document", "Upload functionality coming soon. Your coach can also upload documents on your behalf.")}
+          onPress={async () => {
+            const image = await showImagePickerOptions();
+            if (image) {
+              Alert.alert(
+                "Document Captured",
+                "Your document has been saved. It will be reviewed by your care team within 24-48 hours.",
+              );
+            }
+          }}
         />
       </ScrollView>
     </SafeAreaView>

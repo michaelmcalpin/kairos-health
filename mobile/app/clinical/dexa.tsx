@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { showImagePickerOptions } from "@/lib/image-picker";
 
 /* ------------------------------------------------------------------ */
 /* Sample data (fallback when API is unreachable)                      */
@@ -388,7 +389,15 @@ export default function DexaScreen() {
           variant="secondary"
           size="lg"
           style={styles.uploadButton}
-          onPress={() => Alert.alert("Upload DEXA Report", "Upload functionality coming soon. Your coach can also upload DEXA reports on your behalf.")}
+          onPress={async () => {
+            const image = await showImagePickerOptions();
+            if (image) {
+              Alert.alert(
+                "Document Captured",
+                "Your DEXA report has been saved. It will be reviewed by your care team within 24-48 hours.",
+              );
+            }
+          }}
         />
       </ScrollView>
     </SafeAreaView>

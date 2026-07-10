@@ -16,6 +16,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera } from "lucide-react-native";
@@ -24,6 +25,7 @@ import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/api";
+import { showImagePickerOptions } from "@/lib/image-picker";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -106,12 +108,18 @@ export default function EditProfileScreen() {
     }
   };
 
-  const handleChangePhoto = () => {
-    Alert.alert("Change Photo", "Choose a source", [
-      { text: "Camera", onPress: () => Alert.alert("Camera", "Camera access will be available in a future update.") },
-      { text: "Photo Library", onPress: () => Alert.alert("Photo Library", "Photo library access will be available in a future update.") },
-      { text: "Cancel", style: "cancel" },
-    ]);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  const handleChangePhoto = async () => {
+    const image = await showImagePickerOptions();
+    if (image) {
+      // Show the picked image locally (optimistic UI)
+      setPhotoUri(image.uri);
+      Alert.alert(
+        "Photo Selected",
+        "Your profile photo has been updated locally. It will sync to the cloud when the file upload endpoint is available.",
+      );
+    }
   };
 
   return (
@@ -130,7 +138,14 @@ export default function EditProfileScreen() {
           <View style={styles.photoSection}>
             <Pressable onPress={handleChangePhoto} style={styles.avatarWrap}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>MM</Text>
+                {photoUri ? (
+                  <Image
+                    source={{ uri: photoUri }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <Text style={styles.avatarText}>MM</Text>
+                )}
               </View>
               <View style={styles.cameraOverlay}>
                 <Camera size={16} color={Colors.white} />
@@ -443,6 +458,11 @@ const styles = StyleSheet.create({
     color: Colors.gold,
     fontSize: FontSizes.xxl,
     fontWeight: "700",
+  },
+  avatarImage: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
   },
   cameraOverlay: {
     position: "absolute",

@@ -71,7 +71,8 @@
           "faceIDPermission": "Allow Everist.ai to use Face ID for secure authentication."
         }
       ],
-      "expo-image-picker"
+      "expo-image-picker",
+      "react-native-health"
     ],
     "experiments": {
       "typedRoutes": true

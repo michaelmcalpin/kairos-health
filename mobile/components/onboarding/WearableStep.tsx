@@ -7,7 +7,7 @@
  */
 
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
 import {
   Watch,
   Activity,
@@ -116,6 +116,54 @@ export function WearableStep({ selected, onSelect, onContinue, onBack }: Props) 
 
   const canContinue = selected.length > 0;
 
+  const handleContinue = () => {
+    // Show device-specific setup guidance based on selection
+    const selectedIds = selected.map((s) => s.id);
+
+    if (selectedIds.includes("none")) {
+      onContinue();
+      return;
+    }
+
+    const setupMessages: string[] = [];
+
+    if (selectedIds.includes("apple_watch") || selectedIds.includes("apple_health")) {
+      setupMessages.push(
+        "Apple Health: After onboarding, go to Connected Devices to enable Apple Health syncing.",
+      );
+    }
+    if (selectedIds.includes("oura")) {
+      setupMessages.push(
+        "Oura Ring: You will be guided to connect your Oura account after setup.",
+      );
+    }
+    if (selectedIds.includes("garmin")) {
+      setupMessages.push(
+        "Garmin: Connect your Garmin account via Connected Devices after setup.",
+      );
+    }
+    if (selectedIds.includes("whoop")) {
+      setupMessages.push(
+        "WHOOP: Connect your WHOOP account via Connected Devices after setup.",
+      );
+    }
+    if (selectedIds.includes("dexcom")) {
+      setupMessages.push(
+        "Dexcom CGM: Connect your Dexcom account via Connected Devices after setup.",
+      );
+    }
+
+    if (setupMessages.length > 0) {
+      Alert.alert(
+        "Device Setup",
+        `Your selections have been saved.\n\n${setupMessages.join("\n\n")}`,
+        [{ text: "Continue", onPress: onContinue }],
+      );
+    } else {
+      onContinue();
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -170,7 +218,7 @@ export function WearableStep({ selected, onSelect, onContinue, onBack }: Props) 
         <Button
           title={canContinue ? "Continue" : "Skip for Now"}
           variant="primary"
-          onPress={onContinue}
+          onPress={handleContinue}
           style={styles.continueBtn}
         />
       </View>

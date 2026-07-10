@@ -4,8 +4,8 @@
  * Wraps tRPC mutations for connecting, disconnecting, and syncing
  * OAuth-based device providers (Oura, Dexcom, Garmin, etc.).
  *
- * For OAuth providers the backend returns an authorization URL that
- * the mobile app opens in the system browser. The OAuth callback is
+ * For OAuth providers the backend returns an authorization URL (`authUrl`)
+ * that the mobile app opens in the system browser. The OAuth callback is
  * handled server-side, so the mobile app only needs to poll for
  * connection status after launching the URL.
  */
@@ -13,11 +13,9 @@
 import { useState, useCallback } from "react";
 import { Alert, Linking } from "react-native";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
-import { API_URL } from "@/lib/constants";
 import {
   type DeviceProvider,
   getProviderInfo,
-  initiateOAuthConnection,
 } from "@/lib/device-integrations";
 
 export type { DeviceProvider } from "@/lib/device-integrations";
@@ -40,8 +38,8 @@ export function useDeviceConnection(provider: DeviceProvider) {
   /* -- Mutation: initiate OAuth connect -- */
   const connectMutation = trpc.clientPortal.devices.initiateConnect.useMutation({
     onSuccess: async (data: any) => {
-      // Backend may return an OAuth URL for the provider
-      const oauthUrl = data?.url || data?.authorizationUrl;
+      // Backend returns an authUrl for the provider's OAuth flow
+      const oauthUrl = data?.authUrl || data?.url;
       if (oauthUrl) {
         try {
           await Linking.openURL(oauthUrl);
@@ -52,26 +50,21 @@ export function useDeviceConnection(provider: DeviceProvider) {
           );
         }
       } else {
-        // Fall back to our device-integrations service for OAuth URL construction
-        await initiateOAuthConnection(provider, API_URL);
+        Alert.alert(
+          "Connection",
+          `Could not retrieve authorization URL for ${info?.name ?? provider}. Please try again or connect via the web dashboard.`,
+        );
       }
       setIsConnecting(false);
       // Refetch connection status after a delay to allow OAuth callback
       setTimeout(() => connectionQuery.refetch(), 3000);
     },
     onError: async (error: any) => {
-      // If backend is unreachable, still try to open OAuth URL directly
-      if (info?.connectionType === "oauth") {
-        await initiateOAuthConnection(provider, API_URL);
-        setIsConnecting(false);
-        setTimeout(() => connectionQuery.refetch(), 3000);
-      } else {
-        setIsConnecting(false);
-        Alert.alert(
-          "Connection Error",
-          error.message || `Failed to connect ${provider}`,
-        );
-      }
+      setIsConnecting(false);
+      Alert.alert(
+        "Connection Error",
+        error.message || `Failed to connect ${info?.name ?? provider}. Please try again or connect via the web dashboard.`,
+      );
     },
   });
 
@@ -79,14 +72,14 @@ export function useDeviceConnection(provider: DeviceProvider) {
   const disconnectMutation = trpc.clientPortal.devices.disconnect.useMutation({
     onSuccess: () => {
       connectionQuery.refetch();
-      Alert.alert("Disconnected", `${provider} has been disconnected.`);
+      Alert.alert("Disconnected", `${info?.name ?? provider} has been disconnected.`);
     },
   });
 
   /* -- Mutation: sync now -- */
   const syncMutation = trpc.clientPortal.devices.syncNow.useMutation({
     onSuccess: () => {
-      Alert.alert("Sync Complete", `${provider} data synced successfully.`);
+      Alert.alert("Sync Complete", `${info?.name ?? provider} data synced successfully.`);
     },
     onError: (error: any) => {
       Alert.alert(
@@ -105,7 +98,7 @@ export function useDeviceConnection(provider: DeviceProvider) {
   const disconnect = useCallback(() => {
     Alert.alert(
       "Disconnect Device",
-      `Are you sure you want to disconnect ${provider}?`,
+      `Are you sure you want to disconnect ${info?.name ?? provider}?`,
       [
         { text: "Cancel", style: "cancel" },
         {

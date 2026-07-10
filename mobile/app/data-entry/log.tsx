@@ -355,14 +355,67 @@ export default function LogEntryScreen() {
             <View style={styles.dateTimeRow}>
               <Pressable
                 style={styles.dateTimeBtn}
-                onPress={() => Alert.alert("Date Picker", "Date picker coming soon.")}
+                onPress={() => {
+                  const today = new Date();
+                  const yesterday = new Date(today);
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  const twoDaysAgo = new Date(today);
+                  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+                  const fmt = (d: Date) =>
+                    d.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    });
+                  Alert.alert("Select Date", "Choose a date for this entry", [
+                    {
+                      text: `Today (${fmt(today)})`,
+                      onPress: () => setDate(fmt(today)),
+                    },
+                    {
+                      text: `Yesterday (${fmt(yesterday)})`,
+                      onPress: () => setDate(fmt(yesterday)),
+                    },
+                    {
+                      text: `${fmt(twoDaysAgo)}`,
+                      onPress: () => setDate(fmt(twoDaysAgo)),
+                    },
+                    { text: "Cancel", style: "cancel" },
+                  ]);
+                }}
               >
                 <Calendar size={16} color={Colors.gold} />
                 <Text style={styles.dateTimeText}>{date}</Text>
               </Pressable>
               <Pressable
                 style={styles.dateTimeBtn}
-                onPress={() => Alert.alert("Time Picker", "Time picker coming soon.")}
+                onPress={() => {
+                  const now = new Date();
+                  const fmt = (d: Date) =>
+                    d.toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    });
+                  const oneHourAgo = new Date(now);
+                  oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+                  const twoHoursAgo = new Date(now);
+                  twoHoursAgo.setHours(twoHoursAgo.getHours() - 2);
+                  Alert.alert("Select Time", "Choose a time for this entry", [
+                    {
+                      text: `Now (${fmt(now)})`,
+                      onPress: () => setTime(fmt(now)),
+                    },
+                    {
+                      text: `1 hour ago (${fmt(oneHourAgo)})`,
+                      onPress: () => setTime(fmt(oneHourAgo)),
+                    },
+                    {
+                      text: `2 hours ago (${fmt(twoHoursAgo)})`,
+                      onPress: () => setTime(fmt(twoHoursAgo)),
+                    },
+                    { text: "Cancel", style: "cancel" },
+                  ]);
+                }}
               >
                 <Clock size={16} color={Colors.gold} />
                 <Text style={styles.dateTimeText}>{time}</Text>

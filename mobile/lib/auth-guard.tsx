@@ -9,9 +9,10 @@
  * no flash of the wrong screen.
  */
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useAuth } from "@clerk/clerk-expo";
 import { useRouter, useSegments } from "expo-router";
+import { registerForPushNotifications } from "@/lib/notifications";
 
 /** Segments that unauthenticated users are allowed to visit. */
 const AUTH_SEGMENTS = ["sign-in", "sign-up"];
@@ -20,6 +21,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const hasRegisteredNotifications = useRef(false);
 
   useEffect(() => {
     // Don't redirect until Clerk has finished loading.
@@ -36,6 +38,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       router.replace("/(tabs)");
     }
   }, [isSignedIn, isLoaded, segments, router]);
+
+  // Register for push notifications once the user is authenticated
+  useEffect(() => {
+    if (isSignedIn && !hasRegisteredNotifications.current) {
+      hasRegisteredNotifications.current = true;
+      registerForPushNotifications().then((token) => {
+        if (token) {
+          console.log("Push token:", token);
+          // TODO: Send token to backend for targeted push delivery
+        }
+      });
+    }
+  }, [isSignedIn]);
 
   return <>{children}</>;
 }

@@ -7,11 +7,21 @@
  * 3. Reads health data (steps, heart rate, sleep, weight, etc.)
  * 4. Provides a sync function to push data to the backend
  *
- * Gracefully handles the case where `react-native-health` is not yet
- * installed — callers get "not available" instead of a crash.
+ * Uses `react-native-health` for native HealthKit access.
  */
 
 import { Platform } from "react-native";
+import AppleHealthKit, {
+  HealthKitPermissions,
+  HealthInputOptions,
+  HealthValue,
+} from "react-native-health";
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HealthKit availability
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const HK_AVAILABLE = Platform.OS === "ios";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // HealthKit data type identifiers
@@ -56,39 +66,36 @@ export interface HealthKitStatus {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Module-level state
+// Permissions
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-let healthKitModule: any = null;
-let _moduleChecked = false;
-
-/**
- * Attempt to load the native module exactly once.
- * Returns the module or null if not installed.
- */
-function loadModule(): any {
-  if (_moduleChecked) return healthKitModule;
-  _moduleChecked = true;
-
-  if (Platform.OS !== "ios") return null;
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    healthKitModule = require("react-native-health");
-    return healthKitModule;
-  } catch {
-    // Module not installed — HealthKit not available in this build
-    return null;
-  }
-}
+const permissions: HealthKitPermissions = {
+  permissions: {
+    read: [
+      AppleHealthKit.Constants.Permissions.StepCount,
+      AppleHealthKit.Constants.Permissions.HeartRate,
+      AppleHealthKit.Constants.Permissions.RestingHeartRate,
+      AppleHealthKit.Constants.Permissions.HeartRateVariability,
+      AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
+      AppleHealthKit.Constants.Permissions.Weight,
+      AppleHealthKit.Constants.Permissions.BodyFatPercentage,
+      AppleHealthKit.Constants.Permissions.BloodGlucose,
+      AppleHealthKit.Constants.Permissions.SleepAnalysis,
+      AppleHealthKit.Constants.Permissions.OxygenSaturation,
+      AppleHealthKit.Constants.Permissions.BodyTemperature,
+      AppleHealthKit.Constants.Permissions.RespiratoryRate,
+    ],
+    write: [],
+  },
+};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Public API
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/** Check if HealthKit is available (iOS only, module installed). */
+/** Check if HealthKit is available (iOS only). */
 export function isHealthKitAvailable(): boolean {
-  return loadModule() != null;
+  return HK_AVAILABLE;
 }
 
 /**
@@ -96,33 +103,22 @@ export function isHealthKitAvailable(): boolean {
  * Safe to call on any platform — returns `isAvailable: false` on Android.
  */
 export async function requestHealthKitPermissions(): Promise<HealthKitStatus> {
-  const mod = loadModule();
-  if (!mod) {
+  if (!HK_AVAILABLE) {
     return {
       isAvailable: false,
       isAuthorized: false,
-      error: Platform.OS !== "ios"
-        ? "HealthKit is only available on iOS"
-        : "react-native-health module is not installed",
+      error: "HealthKit is only available on iOS",
     };
   }
 
   try {
-    const permissions = {
-      permissions: {
-        read: HEALTHKIT_READ_TYPES as unknown as string[],
-        write: [] as string[], // Read-only — we don't write back to HealthKit
-      },
-    };
-
     return new Promise<HealthKitStatus>((resolve) => {
-      const hk = mod.default ?? mod;
-      hk.initHealthKit(permissions, (error: any) => {
+      AppleHealthKit.initHealthKit(permissions, (error: string) => {
         if (error) {
           resolve({
             isAvailable: true,
             isAuthorized: false,
-            error: error.message ?? "Permission denied",
+            error: error ?? "Permission denied",
           });
         } else {
           resolve({ isAvailable: true, isAuthorized: true });
@@ -142,34 +138,31 @@ export async function requestHealthKitPermissions(): Promise<HealthKitStatus> {
  * Read health samples for a given type within a date range.
  *
  * Routes to the correct `react-native-health` query method based on
- * the HealthKit type identifier. Returns an empty array if the module
- * is not installed or the query fails.
+ * the HealthKit type identifier. Returns an empty array if HealthKit
+ * is not available or the query fails.
  */
 export async function readHealthData(
   type: HealthKitDataType,
   startDate: Date,
   endDate: Date = new Date(),
 ): Promise<HealthKitSample[]> {
-  const mod = loadModule();
-  if (!mod) return [];
-
-  const hk = mod.default ?? mod;
+  if (!HK_AVAILABLE) return [];
 
   try {
-    const options = {
+    const options: HealthInputOptions = {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       limit: 100,
     };
 
     return new Promise<HealthKitSample[]>((resolve) => {
-      const callback = (err: any, results: any[]) => {
+      const callback = (err: string, results: HealthValue[]) => {
         if (err || !results) {
           resolve([]);
           return;
         }
         resolve(
-          results.map((r) => ({
+          results.map((r: any) => ({
             type,
             value: r.value ?? r.quantity ?? 0,
             unit: r.unit ?? "",
@@ -183,31 +176,33 @@ export async function readHealthData(
       // Route to the correct HealthKit query method
       switch (type) {
         case "HKQuantityTypeIdentifierStepCount":
-          hk.getDailyStepCountSamples(options, callback);
+          AppleHealthKit.getDailyStepCountSamples(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierHeartRate":
-          hk.getHeartRateSamples(options, callback);
+          AppleHealthKit.getHeartRateSamples(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierRestingHeartRate":
-          hk.getRestingHeartRateSamples(options, callback);
+          AppleHealthKit.getRestingHeartRate(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierHeartRateVariabilitySDNN":
-          hk.getHeartRateVariabilitySamples(options, callback);
+          AppleHealthKit.getHeartRateVariabilitySamples(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierActiveEnergyBurned":
-          hk.getActiveEnergyBurned(options, callback);
+          // ActiveEnergyBurned not directly available as a method;
+          // fall through to generic callback
+          resolve([]);
           break;
         case "HKQuantityTypeIdentifierBodyMass":
-          hk.getWeightSamples(options, callback);
+          AppleHealthKit.getWeightSamples(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierBodyFatPercentage":
-          hk.getBodyFatPercentageSamples(options, callback);
+          AppleHealthKit.getBodyFatPercentageSamples(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierBloodGlucose":
-          hk.getBloodGlucoseSamples(options, callback);
+          AppleHealthKit.getBloodGlucoseSamples(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierBloodPressureSystolic":
-          hk.getBloodPressureSamples(options, (err: any, results: any[]) => {
+          AppleHealthKit.getBloodPressureSamples(options, (err: string, results: any[]) => {
             if (err || !results) {
               resolve([]);
               return;
@@ -225,7 +220,7 @@ export async function readHealthData(
           });
           return; // Early return — custom callback above
         case "HKQuantityTypeIdentifierBloodPressureDiastolic":
-          hk.getBloodPressureSamples(options, (err: any, results: any[]) => {
+          AppleHealthKit.getBloodPressureSamples(options, (err: string, results: any[]) => {
             if (err || !results) {
               resolve([]);
               return;
@@ -243,16 +238,16 @@ export async function readHealthData(
           });
           return;
         case "HKQuantityTypeIdentifierOxygenSaturation":
-          hk.getOxygenSaturationSamples(options, callback);
+          AppleHealthKit.getOxygenSaturationSamples(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierBodyTemperature":
-          hk.getBodyTemperatureSamples(options, callback);
+          AppleHealthKit.getBodyTemperatureSamples(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierRespiratoryRate":
-          hk.getRespiratoryRateSamples(options, callback);
+          AppleHealthKit.getRespiratoryRateSamples(options, callback as any);
           break;
         case "HKCategoryTypeIdentifierSleepAnalysis":
-          hk.getSleepSamples(options, callback);
+          AppleHealthKit.getSleepSamples(options, callback as any);
           break;
         default:
           resolve([]);

@@ -157,8 +157,8 @@ export default function HumeScreen() {
   /* -- Handlers -- */
   const handleConnect = () => {
     Alert.alert(
-      "Connect Hume AI",
-      "Hume AI integration requires backend configuration. Contact your care team or administrator to enable emotion analysis for your account.",
+      "Hume AI Setup",
+      "Hume AI integration requires setup through the Everist dashboard. Contact your coach for access.",
       [{ text: "OK" }],
     );
   };
@@ -284,7 +284,7 @@ export default function HumeScreen() {
             />
           ) : (
             <Button
-              title="Connect Hume AI"
+              title="Setup via Dashboard"
               variant="primary"
               size="sm"
               onPress={handleConnect}

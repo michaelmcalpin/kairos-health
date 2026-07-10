@@ -29,6 +29,7 @@ import {
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
+import { showImagePickerOptions, PickedImage } from "@/lib/image-picker";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Types
@@ -71,6 +72,7 @@ export default function ProgressPhotosScreen() {
   const router = useRouter();
   const [selectedAngle, setSelectedAngle] = useState<PhotoAngle | "all">("all");
   const [refreshing, setRefreshing] = useState(false);
+  const [previewImage, setPreviewImage] = useState<PickedImage | null>(null);
 
   // ── tRPC: fetch recent progress photos ──
   const photosQuery = trpc.clientPortal.progressPhotos.getRecent.useQuery(
@@ -101,10 +103,15 @@ export default function ProgressPhotosScreen() {
   }, [photosQuery]);
 
   // ── Add Photo ──
-  const handleAddPhoto = () => {
+  const handleAddPhoto = async () => {
+    const image = await showImagePickerOptions();
+    if (!image) return;
+
+    // Show preview of the captured photo
+    setPreviewImage(image);
     Alert.alert(
-      "Add Progress Photo",
-      "Camera access requires native permissions. This feature will launch the device camera in a future update.\n\nFor now, photos can be uploaded from the web app.",
+      "Photo Captured",
+      "Your progress photo has been saved locally. Cloud upload will be available in a future update when the file upload endpoint is ready.",
       [{ text: "OK" }],
     );
   };
@@ -263,6 +270,21 @@ export default function ProgressPhotosScreen() {
               </Card>
             ))}
           </View>
+        )}
+
+        {/* ─── Photo Preview (if just captured) ──────────────── */}
+        {previewImage && (
+          <Card style={styles.previewCard}>
+            <Text style={styles.previewTitle}>Captured Photo</Text>
+            <Image
+              source={{ uri: previewImage.uri }}
+              style={styles.previewImage}
+              resizeMode="cover"
+            />
+            <Text style={styles.previewNote}>
+              Pending cloud upload. The photo is saved on your device.
+            </Text>
+          </Card>
         )}
 
         {/* ─── Add Photo Button ────────────────────────────── */}
@@ -477,6 +499,32 @@ const styles = StyleSheet.create({
     color: Colors.dark,
     fontSize: FontSizes.md,
     fontWeight: "700",
+  },
+
+  // Preview card
+  previewCard: {
+    marginBottom: Spacing.md,
+    alignItems: "center",
+  },
+  previewTitle: {
+    color: Colors.gold,
+    fontSize: FontSizes.sm,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: Spacing.sm,
+  },
+  previewImage: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: Radii.md,
+    marginBottom: Spacing.sm,
+  },
+  previewNote: {
+    color: Colors.silver,
+    fontSize: FontSizes.xs,
+    textAlign: "center",
+    fontStyle: "italic",
   },
 
   // Bottom spacer

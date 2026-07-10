@@ -4,14 +4,15 @@
  * Manages connections to health device platforms:
  *   - Apple Health: native HealthKit integration (iOS only)
  *   - Oura, Garmin, WHOOP, Dexcom, etc.: OAuth-based cloud integrations
- *   - Hume AI: API-key based emotional wellbeing integration
+ *   - Hume AI: managed externally through the Everist dashboard
  *
- * Each provider has its own connection flow. OAuth providers open a
- * browser-based authorization flow. Native integrations (Apple Health)
- * use the HealthKit permission dialog directly.
+ * Each provider has its own connection flow. OAuth providers use the
+ * backend's `devices.initiateConnect` tRPC procedure which returns an
+ * authorization URL. Native integrations (Apple Health) use the
+ * HealthKit permission dialog directly.
  */
 
-import { Linking, Alert, Platform } from "react-native";
+import { Platform } from "react-native";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Types
@@ -25,10 +26,9 @@ export type DeviceProvider =
   | "dexcom"
   | "withings"
   | "fitbit"
-  | "hume"
-  | "strava";
+  | "hume";
 
-export type ConnectionType = "native" | "oauth" | "api_key";
+export type ConnectionType = "native" | "oauth" | "external";
 
 export interface DeviceProviderInfo {
   id: DeviceProvider;
@@ -131,21 +131,12 @@ export const DEVICE_PROVIDERS: DeviceProviderInfo[] = [
     dataTypes: ["steps", "heart_rate", "sleep", "activity", "workouts"],
   },
   {
-    id: "strava",
-    name: "Strava",
-    description: "Workouts, running, cycling, and activity data from Strava.",
-    icon: "activity",
-    connectionType: "oauth",
-    supported: true,
-    dataTypes: ["workouts", "activity"],
-  },
-  {
     id: "hume",
     name: "Hume AI",
     description:
-      "Emotional wellbeing tracking powered by Hume AI's expression analysis.",
+      "Emotional wellbeing tracking powered by Hume AI's expression analysis. Managed separately through the Everist dashboard.",
     icon: "brain",
-    connectionType: "api_key",
+    connectionType: "external",
     supported: true,
     dataTypes: ["emotion", "wellbeing", "stress"],
   },
@@ -160,64 +151,4 @@ export function getProviderInfo(
   provider: DeviceProvider,
 ): DeviceProviderInfo | undefined {
   return DEVICE_PROVIDERS.find((p) => p.id === provider);
-}
-
-/** Get the backend OAuth connect URL for a provider. */
-export function getOAuthConnectUrl(
-  provider: DeviceProvider,
-  apiUrl: string,
-): string {
-  return `${apiUrl}/api/integrations/${provider}/connect`;
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Connection flow
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-/**
- * Initiate an OAuth connection for a provider.
- *
- * Opens the user's browser to the backend authorization endpoint,
- * which handles the full OAuth dance and redirects back to the app
- * via the `everist://` deep link scheme.
- *
- * For native providers (Apple Health), this is a no-op — use the
- * HealthKit permission flow from `lib/healthkit.ts` instead.
- */
-export async function initiateOAuthConnection(
-  provider: DeviceProvider,
-  apiUrl: string,
-): Promise<void> {
-  const info = getProviderInfo(provider);
-  if (!info) {
-    Alert.alert("Error", "Unknown device provider.");
-    return;
-  }
-
-  if (info.connectionType === "native") {
-    Alert.alert(
-      "Native Connection",
-      "This device uses native iOS integration. Use the Apple Health settings screen to connect.",
-    );
-    return;
-  }
-
-  const connectUrl = getOAuthConnectUrl(provider, apiUrl);
-
-  try {
-    const canOpen = await Linking.canOpenURL(connectUrl);
-    if (canOpen) {
-      await Linking.openURL(connectUrl);
-    } else {
-      Alert.alert(
-        "Connection",
-        `To connect ${info.name}, please visit your Everist dashboard on the web and go to Settings > Data Sources > ${info.name}.`,
-      );
-    }
-  } catch {
-    Alert.alert(
-      "Connection Error",
-      `Could not open the ${info.name} authorization page. Please try again or connect via the web dashboard.`,
-    );
-  }
 }
