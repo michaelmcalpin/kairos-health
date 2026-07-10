@@ -118,7 +118,7 @@ export function useDeviceConnection(provider: DeviceProvider) {
   const isConnected =
     !!(connectionQuery.data as any)?.connected ||
     (connectionQuery.data as any)?.status === "connected";
-  const lastSync = (connectionQuery.data as any)?.lastSync || null;
+  const lastSync = (connectionQuery.data as any)?.lastSyncAt || null;
 
   return {
     isConnected,

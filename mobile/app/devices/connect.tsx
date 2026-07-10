@@ -125,6 +125,12 @@ export default function ConnectAccountScreen() {
           { provider: providerId as any },
           {
             onSuccess: async (data: any) => {
+              if (data?.nativeAuth) {
+                // Apple Health and other native auth providers don't need a URL
+                Alert.alert("Connected", `${providerName} connected successfully.`);
+                setConnecting(null);
+                return;
+              }
               const authUrl = data?.authUrl || data?.url;
               if (authUrl) {
                 try {

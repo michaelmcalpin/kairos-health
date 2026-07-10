@@ -29,11 +29,19 @@ import { API_URL } from "./constants";
  */
 export function isDevFallbackMode(): boolean {
   if (!API_URL) return true;
-  return (
-    API_URL.includes("localhost") ||
-    API_URL.includes("127.0.0.1") ||
-    API_URL.includes("0.0.0.0")
-  );
+  // Only fall back if the URL is explicitly a local development address
+  const url = API_URL.toLowerCase().trim();
+  if (url.startsWith("http://localhost")) return true;
+  if (url.startsWith("http://127.0.0.1")) return true;
+  if (url.startsWith("http://0.0.0.0")) return true;
+  // Any https:// URL or other URL should be treated as reachable
+  return false;
+}
+
+// Log API configuration at startup for debugging
+if (__DEV__) {
+  console.log("[Everist] API_URL:", API_URL);
+  console.log("[Everist] isDevFallbackMode:", isDevFallbackMode());
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

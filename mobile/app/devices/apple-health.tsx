@@ -88,6 +88,7 @@ export default function AppleHealthScreen() {
   );
   const syncMutation = trpc.clientPortal.devices.syncNow.useMutation();
   const disconnectMutation = trpc.clientPortal.devices.disconnect.useMutation();
+  const connectMutation = trpc.clientPortal.devices.initiateConnect.useMutation();
 
   /* -- Connection state -- */
   const connectionData = connectionQuery.data as any;
@@ -99,7 +100,7 @@ export default function AppleHealthScreen() {
   const lastSyncTime =
     hkLastSync
       ? new Date(hkLastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-      : connectionData?.lastSync ?? connectionData?.lastSyncTime ?? "Never";
+      : connectionData?.lastSyncAt ?? "Never";
 
   /* -- Sync frequency -- */
   const [syncFrequency, setSyncFrequency] = useState<SyncFrequency>("realtime");
@@ -131,10 +132,27 @@ export default function AppleHealthScreen() {
     }
     const result = await checkAndRequest();
     if (result.isAuthorized) {
-      Alert.alert(
-        "Connected",
-        "Apple Health permissions granted. Your data will begin syncing.",
-        [{ text: "OK" }],
+      // Also create backend connection record
+      connectMutation.mutate(
+        { provider: "apple_health" },
+        {
+          onSuccess: () => {
+            Alert.alert(
+              "Connected",
+              "Apple Health permissions granted. Your data will begin syncing.",
+              [{ text: "OK" }],
+            );
+            connectionQuery.refetch();
+          },
+          onError: () => {
+            // HealthKit permissions granted but backend record failed — still show success
+            Alert.alert(
+              "Connected",
+              "Apple Health permissions granted. Your data will begin syncing.",
+              [{ text: "OK" }],
+            );
+          },
+        },
       );
     } else if (result.error) {
       Alert.alert(

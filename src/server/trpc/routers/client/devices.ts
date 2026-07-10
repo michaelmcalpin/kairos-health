@@ -85,26 +85,52 @@ export const clientDevicesRouter = router({
   initiateConnect: clientProcedure
     .input(z.object({ provider: providerEnum }))
     .mutation(async ({ ctx, input }) => {
+      // Special case: Apple Health uses native HealthKit permissions on device,
+      // not OAuth. We just create/update the backend connection record.
+      if (input.provider === "apple_health") {
+        const existing = await ctx.db.query.deviceConnections.findFirst({
+          where: and(
+            eq(deviceConnections.clientId, ctx.dbUserId),
+            eq(deviceConnections.provider, "apple_health")
+          ),
+        });
+
+        if (existing) {
+          await ctx.db
+            .update(deviceConnections)
+            .set({ status: "connected" })
+            .where(eq(deviceConnections.id, existing.id));
+        } else {
+          await ctx.db.insert(deviceConnections).values({
+            clientId: ctx.dbUserId,
+            provider: "apple_health",
+            status: "connected",
+            scopes: ["read"],
+          });
+        }
+
+        return { authUrl: null, provider: "apple_health", nativeAuth: true };
+      }
+
       const providerConfig = PROVIDERS[input.provider];
       if (!providerConfig) {
         throw new TRPCError({ code: "NOT_FOUND", message: `Provider ${input.provider} not found` });
       }
 
       // Get OAuth credentials from typed env
-      const providerClientIds: Record<typeof input.provider, string> = {
+      const providerClientIds: Record<string, string> = {
         oura: env.OURA_CLIENT_ID,
         dexcom: env.DEXCOM_CLIENT_ID,
         whoop: env.WHOOP_CLIENT_ID,
         fitbit: env.FITBIT_CLIENT_ID,
         withings: env.WITHINGS_CLIENT_ID,
         garmin: "",
-        apple_health: "",
         hume: env.HUME_CLIENT_ID,
       };
-      const clientId = providerClientIds[input.provider];
+      const clientId = providerClientIds[input.provider] ?? "";
 
       if (!clientId) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Missing OAuth configuration for ${input.provider}` });
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Missing OAuth configuration for ${input.provider}. Please set ${input.provider.toUpperCase()}_CLIENT_ID in your environment variables.` });
       }
 
       // Build redirect URI

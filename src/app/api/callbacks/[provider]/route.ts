@@ -163,7 +163,7 @@ export async function GET(
       : null;
 
     // Cast to the proper enum type for Drizzle
-    type DeviceProvider = "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit";
+    type DeviceProvider = "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit" | "hume";
     const typedProvider = providerId as DeviceProvider;
     const typedScopes = (scopes ?? []) as string[];
 
@@ -209,9 +209,28 @@ export async function GET(
       logger.info("oauth", "Created device connection", { provider: providerId, userId });
     }
 
-    // Redirect to settings with success
-    return NextResponse.redirect(
-      new URL(`/settings?connected=${providerId}`, req.url)
+    // Try to redirect to the mobile app first via deep link, with web fallback
+    const webUrl = new URL(`/settings?connected=${providerId}`, req.url);
+    const mobileDeepLink = `everist://devices/callback?provider=${providerId}&status=connected`;
+
+    // Return an HTML page that tries the deep link first, falls back to web
+    return new Response(
+      `<!DOCTYPE html>
+<html>
+<head><title>Connecting...</title></head>
+<body>
+<script>
+  window.location.href = "${mobileDeepLink}";
+  setTimeout(function() { window.location.href = "${webUrl.toString()}"; }, 2000);
+</script>
+<p>Redirecting back to Everist...</p>
+<p>If nothing happens, <a href="${webUrl.toString()}">click here</a>.</p>
+</body>
+</html>`,
+      {
+        status: 200,
+        headers: { "Content-Type": "text/html" },
+      },
     );
   } catch (err) {
     logger.error("oauth", "Callback handler error", { error: err instanceof Error ? err.message : "Unknown" });

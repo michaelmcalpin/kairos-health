@@ -187,8 +187,13 @@ export function IntegrationDashboard() {
   // Mutations for device actions
   const initiateConnectMutation = trpc.clientPortal.devices.initiateConnect.useMutation({
     onSuccess: (data) => {
-      // Redirect to auth URL
-      window.location.href = data.authUrl;
+      // Redirect to auth URL (null for native-auth providers like Apple Health)
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        // Native auth (e.g. Apple Health) — just refresh the list
+        utils.clientPortal.devices.list.invalidate();
+      }
     },
   });
 
