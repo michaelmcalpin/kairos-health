@@ -166,7 +166,12 @@ export default function ExportScreen() {
   const handleGenerate = () => {
     setGenerating(true);
     setGenerated(false);
-    // Simulate generation
+    // TODO: Replace with real API call to generate report
+    Alert.alert(
+      "Generating Report",
+      `Generating ${currentType.title} for ${currentRange.label} with ${enabledSections.length} sections...`,
+    );
+    // Simulate generation delay while API integration is pending
     setTimeout(() => {
       setGenerating(false);
       setGenerated(true);
@@ -182,9 +187,10 @@ export default function ExportScreen() {
 
   /* Save to device */
   const handleSave = () => {
+    // TODO: Replace with real file system save when PDF generation API is ready
     Alert.alert(
-      "Report Saved",
-      `${currentType.title} has been saved to your device.`,
+      "Save Report",
+      `${currentType.title} will be saved to your device. PDF export is coming in a future update.`,
       [{ text: "OK" }]
     );
   };

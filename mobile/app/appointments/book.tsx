@@ -36,6 +36,7 @@ import {
 
 import { Button } from "@/components/ui/Button";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc } from "@/lib/api";
 
 import { StepIndicator } from "@/components/appointments/StepIndicator";
 import {
@@ -177,6 +178,20 @@ export default function BookAppointmentScreen() {
   // Step 3 — Notes
   const [notes, setNotes] = useState("");
 
+  // Booking mutation
+  const bookMutation = trpc.clientPortal.scheduling.bookAppointment.useMutation({
+    onSuccess: () => {
+      Alert.alert(
+        "Booking Confirmed",
+        "Your appointment has been booked successfully. You will receive a confirmation shortly.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+    },
+    onError: (error: any) => {
+      Alert.alert("Booking Failed", error?.message ?? "Something went wrong. Please try again.");
+    },
+  });
+
   // Animation
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
@@ -227,11 +242,15 @@ export default function BookAppointmentScreen() {
   };
 
   const handleConfirm = () => {
-    Alert.alert(
-      "Booking Confirmed",
-      "Your appointment has been booked successfully. You will receive a confirmation shortly.",
-      [{ text: "OK", onPress: () => router.back() }]
-    );
+    bookMutation.mutate({
+      coachId: selectedProvider ?? "",
+      coachName: provider?.name ?? "",
+      sessionType: sessionType?.name ?? "",
+      meetingType: method,
+      date: selectedDate.toISOString().split("T")[0],
+      startTime: selectedTime ?? "",
+      notes: notes || undefined,
+    });
   };
 
   // Helpers

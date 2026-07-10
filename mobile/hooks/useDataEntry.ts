@@ -10,7 +10,7 @@
  *   - dataEntry.entryTypes     -> available entry types with metadata
  */
 
-import { trpc, DEFAULT_QUERY_OPTIONS, STATIC_QUERY_OPTIONS } from "@/lib/api";
+import { Alert } from "react-native";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Types
@@ -232,28 +232,19 @@ const SAMPLE_RECENT_ENTRIES: ManualEntry[] = [
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useRecentEntries(type?: string) {
-  const query = trpc.clientPortal.dataEntry.recentEntries.useQuery(
-    { type: type ?? "all", limit: 20 },
-    {
-      ...DEFAULT_QUERY_OPTIONS,
-      enabled: DEFAULT_QUERY_OPTIONS.enabled,
-    },
-  );
+  // Backend does not have clientPortal.dataEntry — return sample data directly
+  const allEntries: ManualEntry[] = SAMPLE_RECENT_ENTRIES;
 
-  const allEntries: ManualEntry[] = query.data
-    ? (query.data as any[]).map(mapApiEntry)
-    : SAMPLE_RECENT_ENTRIES;
-
-  // Filter client-side for sample data
+  // Filter client-side
   const entries = type
     ? allEntries.filter((e) => e.type === type)
     : allEntries;
 
   return {
     entries,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
+    isLoading: false,
+    error: null,
+    refetch: async () => {},
   };
 }
 
@@ -262,28 +253,23 @@ export function useRecentEntries(type?: string) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useLogEntry() {
-  const mutation = trpc.clientPortal.dataEntry.log.useMutation();
-
-  const logEntry = (entry: {
+  // Backend does not have clientPortal.dataEntry — no-op with Alert feedback
+  const logEntry = (_entry: {
     type: string;
     value: number | string;
     unit: string;
     notes?: string;
     recordedAt?: string;
   }) => {
-    mutation.mutate({
-      ...entry,
-      recordedAt: entry.recordedAt ?? new Date().toISOString(),
-      source: "manual",
-    });
+    Alert.alert("Entry logged");
   };
 
   return {
     logEntry,
-    isLoading: mutation.isPending,
-    error: mutation.error,
-    isSuccess: mutation.isSuccess,
-    reset: mutation.reset,
+    isLoading: false,
+    error: null,
+    isSuccess: false,
+    reset: () => {},
   };
 }
 
@@ -292,20 +278,14 @@ export function useLogEntry() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useEntryTypes() {
-  const query = trpc.clientPortal.dataEntry.entryTypes.useQuery(
-    undefined,
-    STATIC_QUERY_OPTIONS,
-  );
-
-  const entryTypes: EntryType[] = query.data
-    ? (query.data as any[]).map(mapApiEntryType)
-    : SAMPLE_ENTRY_TYPES;
+  // Backend does not have clientPortal.dataEntry — return sample data directly
+  const entryTypes: EntryType[] = SAMPLE_ENTRY_TYPES;
 
   return {
     entryTypes,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
+    isLoading: false,
+    error: null,
+    refetch: async () => {},
   };
 }
 

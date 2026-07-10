@@ -9,7 +9,7 @@
  *   - search.recentSearches -> stored recent searches
  */
 
-import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+// tRPC search router does not exist on backend — using client-side sample data
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Types
@@ -208,21 +208,10 @@ export function useGlobalSearch(
   const trimmedQuery = query.trim().toLowerCase();
   const isEnabled = trimmedQuery.length >= 2;
 
-  const trpcQuery = trpc.clientPortal.search.global.useQuery(
-    { query: trimmedQuery, filters },
-    {
-      ...DEFAULT_QUERY_OPTIONS,
-      enabled: DEFAULT_QUERY_OPTIONS.enabled && isEnabled,
-    },
-  );
-
-  // Use sample data in dev fallback mode
+  // Backend does not have clientPortal.search — use client-side sample data
   let results: SearchResult[] = [];
 
-  if (trpcQuery.data) {
-    results = (trpcQuery.data as any[]).map(mapApiSearchResult);
-  } else if (isEnabled) {
-    // Search sample data by matching query against known keys
+  if (isEnabled) {
     results = getSampleResults(trimmedQuery);
   }
 
@@ -240,10 +229,10 @@ export function useGlobalSearch(
   return {
     results: filteredResults,
     grouped,
-    isLoading: trpcQuery.isLoading && isEnabled,
+    isLoading: false,
     isSearching: isEnabled,
-    error: trpcQuery.error,
-    refetch: trpcQuery.refetch,
+    error: null,
+    refetch: async () => {},
   };
 }
 
@@ -252,20 +241,12 @@ export function useGlobalSearch(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useRecentSearches() {
-  const query = trpc.clientPortal.search.recentSearches.useQuery(
-    undefined,
-    DEFAULT_QUERY_OPTIONS,
-  );
-
-  const searches: string[] = query.data
-    ? (query.data as string[])
-    : [];
-
+  // Backend does not have clientPortal.search — return empty array
   return {
-    searches,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
+    searches: [] as string[],
+    isLoading: false,
+    error: null,
+    refetch: async () => {},
   };
 }
 

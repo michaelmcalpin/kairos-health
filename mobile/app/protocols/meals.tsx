@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  Alert,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import Svg, { Circle } from "react-native-svg";
@@ -189,8 +190,8 @@ export default function MealsScreen() {
 
         {/* Action Buttons */}
         <View style={styles.buttonRow}>
-          <Button title="Log Meal" variant="primary" style={styles.flex1} />
-          <Button title="Scan Barcode" variant="secondary" style={styles.flex1} />
+          <Button title="Log Meal" variant="primary" style={styles.flex1} onPress={() => Alert.alert("Log Meal", "Meal logging will be available in a future update.")} />
+          <Button title="Scan Barcode" variant="secondary" style={styles.flex1} onPress={() => Alert.alert("Scan Barcode", "Barcode scanning will be available in a future update.")} />
         </View>
 
         {/* Shopping List Navigation */}

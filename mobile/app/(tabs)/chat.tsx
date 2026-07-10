@@ -72,13 +72,13 @@ function mapApiMessages(raw: any[]): ChatMessage[] {
 
 function AIAssistantTab() {
   // ---- tRPC: fetch chat history ----
-  const historyQuery = trpc.clientPortal.chat.getHistory.useQuery(
-    { channel: "ai" },
+  const historyQuery = trpc.clientPortal.messaging.listConversations.useQuery(
+    { filter: "ai_coach" },
     REALTIME_QUERY_OPTIONS,
   );
 
   // ---- tRPC: send message mutation ----
-  const sendMutation = trpc.clientPortal.chat.sendMessage.useMutation({
+  const sendMutation = trpc.clientPortal.messaging.sendMessage.useMutation({
     onSuccess: () => {
       historyQuery.refetch();
     },
@@ -288,13 +288,13 @@ function CoachChatTab() {
   const router = useRouter();
 
   // ---- tRPC: fetch coach chat history ----
-  const historyQuery = trpc.clientPortal.chat.getHistory.useQuery(
-    { channel: "coach" },
+  const historyQuery = trpc.clientPortal.messaging.listConversations.useQuery(
+    { filter: "human_coach" },
     REALTIME_QUERY_OPTIONS,
   );
 
   // ---- tRPC: send message mutation ----
-  const sendMutation = trpc.clientPortal.chat.sendMessage.useMutation({
+  const sendMutation = trpc.clientPortal.messaging.sendMessage.useMutation({
     onSuccess: () => {
       historyQuery.refetch();
     },

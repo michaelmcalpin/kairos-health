@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  Alert,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -214,6 +215,7 @@ export default function SupplementsScreen() {
           variant="secondary"
           size="lg"
           style={styles.addButton}
+          onPress={() => Alert.alert("Add Supplement", "Your coach manages your supplement protocol. Contact them to make changes.")}
         />
       </ScrollView>
     </SafeAreaView>

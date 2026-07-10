@@ -26,7 +26,7 @@ import {
 
 export function useNotifications(filter: FilterTab = "all") {
   const query = trpc.clientPortal.notifications.list.useQuery(
-    { filter },
+    {},
     DEFAULT_QUERY_OPTIONS,
   );
 
@@ -75,7 +75,7 @@ export function useUnreadCount() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useMarkAsRead() {
-  const mutation = trpc.clientPortal.notifications.markAsRead.useMutation();
+  const mutation = trpc.clientPortal.notifications.markRead.useMutation();
 
   const markAsRead = (notificationId: string) => {
     mutation.mutate({ notificationId });
@@ -113,7 +113,7 @@ export function useMarkAllRead() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useDismissNotification() {
-  const mutation = trpc.clientPortal.notifications.dismiss.useMutation();
+  const mutation = trpc.clientPortal.notifications.archive.useMutation();
 
   const dismiss = (notificationId: string) => {
     mutation.mutate({ notificationId });

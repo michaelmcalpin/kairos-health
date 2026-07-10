@@ -13,6 +13,7 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -292,7 +293,7 @@ export default function MedicalRecordsScreen() {
               const fileInfo = FILE_TYPE_LABELS[record.fileType];
 
               return (
-                <Pressable key={record.id}>
+                <Pressable key={record.id} onPress={() => Alert.alert(record.title, `${record.date}\n${record.provider}\n\nDocument viewing coming soon.`)}>
                   <View
                     style={[
                       styles.recordRow,
@@ -354,6 +355,7 @@ export default function MedicalRecordsScreen() {
           variant="secondary"
           size="lg"
           style={styles.uploadButton}
+          onPress={() => Alert.alert("Upload Document", "Upload functionality coming soon. Your coach can also upload documents on your behalf.")}
         />
       </ScrollView>
     </SafeAreaView>

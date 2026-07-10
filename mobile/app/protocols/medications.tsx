@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  Alert,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -198,6 +199,7 @@ export default function MedicationsScreen() {
           variant="primary"
           size="lg"
           style={styles.ctaButton}
+          onPress={() => Alert.alert("Contact Doctor", "Please reach out to your primary care provider directly.")}
         />
       </ScrollView>
     </SafeAreaView>

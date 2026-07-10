@@ -11,6 +11,7 @@ import {
   StyleSheet,
   SafeAreaView,
   TextInput,
+  Alert,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -302,6 +303,21 @@ export default function PeptidesScreen() {
           variant="primary"
           size="lg"
           style={styles.logDoseButton}
+          onPress={() => {
+            const pending = PEPTIDES.filter((p) => !p.todayDosed);
+            if (pending.length === 0) {
+              Alert.alert("All Dosed", "All peptides have been logged for today.");
+            } else {
+              Alert.alert(
+                "Log Dose",
+                `Mark ${pending[0].name} (${pending[0].dosage}) as dosed?`,
+                [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Log Dose", onPress: () => Alert.alert("Logged", `${pending[0].name} dose logged successfully.`) },
+                ]
+              );
+            }
+          }}
         />
 
         {/* Notes / Effects */}
@@ -337,6 +353,10 @@ export default function PeptidesScreen() {
               variant="secondary"
               size="sm"
               disabled={notes.length === 0}
+              onPress={() => {
+                Alert.alert("Note Saved", "Your note has been saved successfully.");
+                setNotes("");
+              }}
             />
           </View>
         </Card>

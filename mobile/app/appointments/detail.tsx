@@ -12,8 +12,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Alert,
+  Linking,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Video,
@@ -32,7 +34,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
-import { useAppointmentDetail } from "@/hooks";
+import { useAppointmentDetail, useCancelAppointment } from "@/hooks";
 
 /* ------------------------------------------------------------------ */
 /* Sample data                                                        */
@@ -69,7 +71,9 @@ const SAMPLE_APPOINTMENT = {
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const { appointment: apiAppointment, isLoading, refetch } = useAppointmentDetail(id ?? null);
+  const { cancel: cancelAppointment } = useCancelAppointment();
 
   const APPOINTMENT = apiAppointment
     ? {
@@ -184,7 +188,14 @@ export default function AppointmentDetailScreen() {
               <Button
                 title="Join Video Call"
                 variant="primary"
-                onPress={() => {}}
+                onPress={() => {
+                  const url = (apiAppointment as any)?.meetingUrl || (apiAppointment as any)?.videoUrl;
+                  if (url) {
+                    Linking.openURL(url);
+                  } else {
+                    Alert.alert("Video Call", "The video call link will be available when your appointment begins.");
+                  }
+                }}
                 icon={<ExternalLink size={16} color={Colors.dark} />}
                 style={styles.joinBtn}
               />
@@ -246,13 +257,25 @@ export default function AppointmentDetailScreen() {
           <Button
             title="Reschedule"
             variant="secondary"
-            onPress={() => {}}
+            onPress={() => Alert.alert("Reschedule", "Please contact your coach to reschedule this appointment.")}
             style={styles.actionBtn}
           />
           <Button
             title="Cancel"
             variant="danger"
-            onPress={() => {}}
+            onPress={() => {
+              Alert.alert(
+                "Cancel Appointment",
+                "Are you sure you want to cancel this appointment?",
+                [
+                  { text: "Keep", style: "cancel" },
+                  { text: "Cancel Appointment", style: "destructive", onPress: () => {
+                    cancelAppointment(id ?? "");
+                    router.back();
+                  }},
+                ]
+              );
+            }}
             style={styles.actionBtn}
           />
         </View>

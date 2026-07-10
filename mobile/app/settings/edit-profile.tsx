@@ -23,6 +23,7 @@ import { Camera } from "lucide-react-native";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { trpc } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -71,19 +72,44 @@ export default function EditProfileScreen() {
 
   const [saving, setSaving] = useState(false);
 
+  // Profile mutations
+  const updateProfileMutation = trpc.clientPortal.settings.updateProfile.useMutation();
+  const updateClientProfileMutation = trpc.clientPortal.settings.updateClientProfile.useMutation();
+
   /* -- handlers -- */
   const handleSave = async () => {
     setSaving(true);
-    // Simulate network call
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    setSaving(false);
-    Alert.alert("Saved", "Your profile has been updated.");
+    try {
+      await Promise.all([
+        updateProfileMutation.mutateAsync({
+          firstName,
+          lastName,
+          email,
+          phone,
+          dateOfBirth: dob,
+        }),
+        updateClientProfileMutation.mutateAsync({
+          heightFt: heightUnit === "ft-in" ? Number(heightFt) : undefined,
+          heightIn: heightUnit === "ft-in" ? Number(heightIn) : undefined,
+          heightCm: heightUnit === "cm" ? Number(heightCm) : undefined,
+          weightLbs: weightUnit === "lbs" ? Number(weightLbs) : undefined,
+          weightKg: weightUnit === "kg" ? Number(weightKg) : undefined,
+          gender,
+          healthGoals,
+        }),
+      ]);
+      Alert.alert("Saved", "Your profile has been updated.");
+    } catch (error: any) {
+      Alert.alert("Error", error?.message ?? "Failed to save profile. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleChangePhoto = () => {
     Alert.alert("Change Photo", "Choose a source", [
-      { text: "Camera", onPress: () => {} },
-      { text: "Photo Library", onPress: () => {} },
+      { text: "Camera", onPress: () => Alert.alert("Camera", "Camera access will be available in a future update.") },
+      { text: "Photo Library", onPress: () => Alert.alert("Photo Library", "Photo library access will be available in a future update.") },
       { text: "Cancel", style: "cancel" },
     ]);
   };

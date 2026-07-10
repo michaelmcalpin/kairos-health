@@ -11,8 +11,7 @@
  *   - devices.disconnect      -> disconnect a device
  */
 
-import { trpc, DEFAULT_QUERY_OPTIONS, STATIC_QUERY_OPTIONS } from "@/lib/api";
-import { isDevFallbackMode } from "@/lib/api";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Types
@@ -147,7 +146,7 @@ const SAMPLE_AVAILABLE_DEVICES: AvailableDevice[] = [
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useConnectedDevices() {
-  const query = trpc.clientPortal.devices.listConnected.useQuery(
+  const query = trpc.clientPortal.devices.list.useQuery(
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
@@ -169,20 +168,14 @@ export function useConnectedDevices() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useAvailableDevices() {
-  const query = trpc.clientPortal.devices.listAvailable.useQuery(
-    undefined,
-    STATIC_QUERY_OPTIONS,
-  );
-
-  const devices: AvailableDevice[] = query.data
-    ? (query.data as any[]).map(mapApiAvailableDevice)
-    : SAMPLE_AVAILABLE_DEVICES;
+  // Backend does not have a listAvailable endpoint — return sample data directly
+  const devices: AvailableDevice[] = SAMPLE_AVAILABLE_DEVICES;
 
   return {
     devices,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
+    isLoading: false,
+    error: null,
+    refetch: async () => {},
   };
 }
 
@@ -191,10 +184,10 @@ export function useAvailableDevices() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useSyncDevice() {
-  const mutation = trpc.clientPortal.devices.sync.useMutation();
+  const mutation = trpc.clientPortal.devices.syncNow.useMutation();
 
-  const sync = (deviceId: string) => {
-    mutation.mutate({ deviceId });
+  const sync = (provider: string) => {
+    mutation.mutate({ provider });
   };
 
   return {
@@ -212,8 +205,8 @@ export function useSyncDevice() {
 export function useDisconnectDevice() {
   const mutation = trpc.clientPortal.devices.disconnect.useMutation();
 
-  const disconnect = (deviceId: string) => {
-    mutation.mutate({ deviceId });
+  const disconnect = (provider: string) => {
+    mutation.mutate({ provider });
   };
 
   return {

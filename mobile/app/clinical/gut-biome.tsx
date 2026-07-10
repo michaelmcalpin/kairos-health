@@ -14,6 +14,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -411,6 +412,7 @@ export default function GutBiomeScreen() {
           variant="secondary"
           size="lg"
           style={styles.uploadButton}
+          onPress={() => Alert.alert("Upload Viome Report", "Upload functionality coming soon. Your coach can also upload gut biome reports on your behalf.")}
         />
       </ScrollView>
     </SafeAreaView>

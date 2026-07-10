@@ -11,6 +11,7 @@ import {
   Text,
   ScrollView,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -215,14 +216,14 @@ export default function ReportScreen() {
           <Button
             title="Share Report"
             variant="secondary"
-            onPress={() => {}}
+            onPress={() => Alert.alert("Share", "Report sharing will be available in a future update.")}
             icon={<Share2 size={16} color={Colors.gold} />}
             style={styles.actionBtn}
           />
           <Button
             title="Download PDF"
             variant="primary"
-            onPress={() => {}}
+            onPress={() => Alert.alert("Download", "PDF download will be available in a future update.")}
             icon={<Download size={16} color={Colors.dark} />}
             style={styles.actionBtn}
           />

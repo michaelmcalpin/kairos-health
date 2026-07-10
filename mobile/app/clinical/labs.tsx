@@ -14,6 +14,7 @@ import {
   SafeAreaView,
   Pressable,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -345,6 +346,7 @@ export default function LabsScreen() {
           variant="secondary"
           size="lg"
           style={styles.uploadButton}
+          onPress={() => Alert.alert("Upload Lab Results", "Upload functionality coming soon. Your coach can also upload lab results on your behalf.")}
         />
       </ScrollView>
     </SafeAreaView>

@@ -10,7 +10,7 @@
  *   - insights.askQuestion    -> AI Q&A mutation
  */
 
-import { trpc, DEFAULT_QUERY_OPTIONS, STATIC_QUERY_OPTIONS } from "@/lib/api";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Types
@@ -273,12 +273,27 @@ const SAMPLE_ANALYSIS_HISTORY: AnalysisHistoryItem[] = [
 // useHealthAnalysis — AI analysis for a specific type and range
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+function rangeToDays(range: AnalysisRange): number {
+  switch (range) {
+    case "7d": return 7;
+    case "30d": return 30;
+    case "90d": return 90;
+    case "6m": return 180;
+    case "1y": return 365;
+    default: return 30;
+  }
+}
+
 export function useHealthAnalysis(
   type: AnalysisType = "overall",
   range: AnalysisRange = "30d",
 ) {
-  const query = trpc.clientPortal.insights.getAnalysis.useQuery(
-    { type, range },
+  const days = rangeToDays(range);
+  const endDate = new Date().toISOString();
+  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  const query = trpc.clientPortal.insights.getAll.useQuery(
+    { startDate, endDate },
     DEFAULT_QUERY_OPTIONS,
   );
 
@@ -299,20 +314,14 @@ export function useHealthAnalysis(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useAnalysisHistory() {
-  const query = trpc.clientPortal.insights.listHistory.useQuery(
-    undefined,
-    STATIC_QUERY_OPTIONS,
-  );
-
-  const history: AnalysisHistoryItem[] = query.data
-    ? (query.data as any[]).map(mapApiHistoryItem)
-    : SAMPLE_ANALYSIS_HISTORY;
+  // Backend does not have insights.listHistory — return sample data directly
+  const history: AnalysisHistoryItem[] = SAMPLE_ANALYSIS_HISTORY;
 
   return {
     history,
-    isLoading: query.isLoading,
-    error: query.error,
-    refetch: query.refetch,
+    isLoading: false,
+    error: null,
+    refetch: async () => {},
   };
 }
 
@@ -321,28 +330,18 @@ export function useAnalysisHistory() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useAskQuestion() {
-  const mutation = trpc.clientPortal.insights.askQuestion.useMutation();
-
-  const ask = (question: string) => {
-    mutation.mutate({ question });
+  // Backend does not have insights.askQuestion — return a no-op
+  const ask = (_question: string) => {
+    // No-op: endpoint does not exist on backend
   };
-
-  // Shape the response
-  const response: AskQuestionResponse | null = mutation.data
-    ? {
-        answer: (mutation.data as any).answer ?? "",
-        sources: (mutation.data as any).sources ?? [],
-        followUpQuestions: (mutation.data as any).followUpQuestions ?? [],
-      }
-    : null;
 
   return {
     ask,
-    response,
-    isLoading: mutation.isPending,
-    error: mutation.error,
-    isSuccess: mutation.isSuccess,
-    reset: mutation.reset,
+    response: null as AskQuestionResponse | null,
+    isLoading: false,
+    error: null,
+    isSuccess: false,
+    reset: () => {},
   };
 }
 

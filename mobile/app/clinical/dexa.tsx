@@ -14,6 +14,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -387,6 +388,7 @@ export default function DexaScreen() {
           variant="secondary"
           size="lg"
           style={styles.uploadButton}
+          onPress={() => Alert.alert("Upload DEXA Report", "Upload functionality coming soon. Your coach can also upload DEXA reports on your behalf.")}
         />
       </ScrollView>
     </SafeAreaView>

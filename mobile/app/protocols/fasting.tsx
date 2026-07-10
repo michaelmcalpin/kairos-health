@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  Alert,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -351,7 +352,27 @@ export default function FastingScreen() {
             title={isFasting ? "End Fast" : "Start Fast"}
             variant={isFasting ? "danger" : "primary"}
             size="lg"
-            onPress={() => setIsFasting(!isFasting)}
+            onPress={() => {
+              if (isFasting) {
+                Alert.alert(
+                  "End Fast",
+                  `End your fast at ${CURRENT_FAST.elapsed.hours}h ${CURRENT_FAST.elapsed.minutes}m?`,
+                  [
+                    { text: "Continue Fasting", style: "cancel" },
+                    { text: "End Fast", style: "destructive", onPress: () => setIsFasting(false) },
+                  ]
+                );
+              } else {
+                Alert.alert(
+                  "Start Fast",
+                  "Begin a new fasting window now?",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Start Fast", onPress: () => setIsFasting(true) },
+                  ]
+                );
+              }
+            }}
             style={styles.toggleButton}
           />
         </Card>

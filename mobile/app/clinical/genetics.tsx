@@ -13,6 +13,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Stack } from "expo-router";
 
@@ -255,6 +256,7 @@ export default function GeneticsScreen() {
           variant="secondary"
           size="lg"
           style={styles.uploadButton}
+          onPress={() => Alert.alert("Upload Genetic Report", "Upload functionality coming soon. Your coach can also upload genetic reports on your behalf.")}
         />
       </ScrollView>
     </SafeAreaView>

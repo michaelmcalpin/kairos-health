@@ -53,7 +53,7 @@ import {
 
 import { Colors, Spacing, FontSizes, Radii, APP_VERSION } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS, SAMPLE_DATA } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -80,10 +80,11 @@ const FALLBACK_DEVICES = [
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user: authUser } = useAuth();
+  const { signOut } = useAuth();
+  const { user: authUser } = useUser();
 
   /* -- tRPC query for profile data -- */
-  const profileQuery = trpc.clientPortal.profile.get.useQuery(
+  const profileQuery = trpc.clientPortal.settings.getSettings.useQuery(
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
@@ -469,7 +470,13 @@ export default function ProfileScreen() {
           onPress={() =>
             Alert.alert("Sign Out", "Are you sure you want to sign out?", [
               { text: "Cancel", style: "cancel" },
-              { text: "Sign Out", style: "destructive" },
+              { text: "Sign Out", style: "destructive", onPress: async () => {
+                try {
+                  await signOut();
+                } catch (e) {
+                  console.error("Sign out error:", e);
+                }
+              }},
             ])
           }
         >
