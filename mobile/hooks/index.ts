@@ -64,6 +64,24 @@ export {
   useRecentSearches,
 } from "./useSearch";
 
+// Goals
+export {
+  useGoals,
+  useGoalDetail,
+  useCreateGoal,
+  useAddCheckpoint,
+  useUpdateGoalStatus,
+  useDeleteGoal,
+} from "./useGoals";
+
+// Check-in / Daily Log
+export {
+  useTodayCheckin,
+  useSubmitCheckin,
+  useUpdateCheckin,
+  useCheckinHistory,
+} from "./useCheckin";
+
 // AI Insights
 export {
   useHealthAnalysis,

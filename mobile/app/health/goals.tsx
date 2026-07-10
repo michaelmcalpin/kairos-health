@@ -6,13 +6,15 @@
  * Includes a completed goals section at the bottom.
  */
 
-import React from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   Pressable,
+  RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -33,12 +35,14 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/health";
+import { useGoals } from "@/hooks";
+import type { GoalSummary } from "@/hooks/useGoals";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample Data
+// Display helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-interface Goal {
+interface GoalDisplay {
   id: string;
   title: string;
   target: string;
@@ -51,7 +55,7 @@ interface Goal {
   status: "on_track" | "at_risk" | "ahead";
 }
 
-interface CompletedGoal {
+interface CompletedGoalDisplay {
   id: string;
   title: string;
   completedDate: string;
@@ -59,75 +63,93 @@ interface CompletedGoal {
   iconBgColor: string;
 }
 
-const GOALS: Goal[] = [
-  {
-    id: "1",
-    title: "Reach 175 lbs",
-    target: "175 lbs",
-    current: "183 lbs",
-    progress: 60,
-    deadline: "Aug 15, 2026",
+const CATEGORY_STYLES: Record<string, { icon: React.ReactNode; iconBgColor: string; color: string }> = {
+  weight: {
     icon: <Scale size={18} color={Colors.gold} />,
     iconBgColor: "rgba(74, 144, 217, 0.12)",
     color: Colors.gold,
-    status: "on_track",
   },
-  {
-    id: "2",
-    title: "Sleep 8+ hrs",
-    target: "8.0 hrs",
-    current: "7.4 hrs avg",
-    progress: 85,
-    deadline: "Ongoing",
+  sleep: {
     icon: <Moon size={18} color="#60A5FA" />,
     iconBgColor: "rgba(96, 165, 250, 0.12)",
     color: "#60A5FA",
-    status: "ahead",
   },
-  {
-    id: "3",
-    title: "Steps 10K daily",
-    target: "10,000 steps",
-    current: "8,742 avg",
-    progress: 87,
-    deadline: "Ongoing",
+  fitness: {
     icon: <Footprints size={18} color={Colors.success} />,
     iconBgColor: "rgba(74, 157, 91, 0.12)",
     color: Colors.success,
-    status: "on_track",
   },
-  {
-    id: "4",
-    title: "Reduce A1C to 5.2",
-    target: "5.2%",
-    current: "5.4%",
-    progress: 72,
-    deadline: "Sep 30, 2026",
+  clinical: {
     icon: <Droplets size={18} color="#F59E0B" />,
     iconBgColor: "rgba(245, 158, 11, 0.12)",
     color: "#F59E0B",
-    status: "at_risk",
   },
-];
+  nutrition: {
+    icon: <Droplets size={18} color="#EC4899" />,
+    iconBgColor: "rgba(236, 72, 153, 0.12)",
+    color: "#EC4899",
+  },
+  mental: {
+    icon: <Moon size={18} color="#A78BFA" />,
+    iconBgColor: "rgba(167, 139, 250, 0.12)",
+    color: "#A78BFA",
+  },
+  other: {
+    icon: <Target size={18} color={Colors.gold} />,
+    iconBgColor: "rgba(74, 144, 217, 0.12)",
+    color: Colors.gold,
+  },
+};
 
-const COMPLETED_GOALS: CompletedGoal[] = [
-  {
-    id: "c1",
-    title: "Run 5K without stopping",
-    completedDate: "Feb 28, 2026",
+function mapGoalToDisplay(goal: GoalSummary): GoalDisplay {
+  const catStyle = CATEGORY_STYLES[goal.category ?? "other"] ?? CATEGORY_STYLES.other;
+  const targetStr = goal.targetValue != null && goal.targetUnit
+    ? `${goal.targetValue} ${goal.targetUnit}`
+    : goal.title;
+  const currentStr = goal.currentValue != null && goal.targetUnit
+    ? `${goal.currentValue} ${goal.targetUnit}`
+    : "---";
+  const deadlineStr = goal.targetDate
+    ? formatDeadline(goal.targetDate)
+    : "Ongoing";
+  const progress = goal.progress ?? 0;
+  const statusKey: GoalDisplay["status"] =
+    progress >= 80 ? "ahead" : progress < 50 ? "at_risk" : "on_track";
+
+  return {
+    id: goal.id,
+    title: goal.title,
+    target: targetStr,
+    current: currentStr,
+    progress,
+    deadline: deadlineStr,
+    icon: catStyle.icon,
+    iconBgColor: catStyle.iconBgColor,
+    color: catStyle.color,
+    status: statusKey,
+  };
+}
+
+function mapCompletedGoalToDisplay(goal: GoalSummary): CompletedGoalDisplay {
+  return {
+    id: goal.id,
+    title: goal.title,
+    completedDate: goal.targetDate ? formatDeadline(goal.targetDate) : "",
     icon: <Dumbbell size={18} color={Colors.success} />,
     iconBgColor: "rgba(74, 157, 91, 0.12)",
-  },
-  {
-    id: "c2",
-    title: "Reduce LDL below 100",
-    completedDate: "Jan 15, 2026",
-    icon: <Droplets size={18} color={Colors.success} />,
-    iconBgColor: "rgba(74, 157, 91, 0.12)",
-  },
-];
+  };
+}
 
-const STATUS_LABELS: Record<Goal["status"], { label: string; variant: "success" | "warning" | "info" }> = {
+function formatDeadline(dateStr: string): string {
+  try {
+    const d = new Date(dateStr + "T12:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+const STATUS_LABELS: Record<GoalDisplay["status"], { label: string; variant: "success" | "warning" | "info" }> = {
   on_track: { label: "On Track", variant: "success" },
   at_risk: { label: "At Risk", variant: "warning" },
   ahead: { label: "Ahead", variant: "info" },
@@ -140,11 +162,41 @@ const STATUS_LABELS: Record<Goal["status"], { label: string; variant: "success" 
 export default function GoalsScreen() {
   const router = useRouter();
 
+  // ── API data ──────────────────────────────────────────────
+  const { goals: activeGoalsRaw, isLoading: loadingActive, refetch: refetchActive } = useGoals("active");
+  const { goals: completedGoalsRaw, isLoading: loadingCompleted, refetch: refetchCompleted } = useGoals("completed");
+
+  // Map API data to display format
+  const goals = useMemo(() => activeGoalsRaw.map(mapGoalToDisplay), [activeGoalsRaw]);
+  const completedGoals = useMemo(() => completedGoalsRaw.map(mapCompletedGoalToDisplay), [completedGoalsRaw]);
+
+  const avgProgress = goals.length > 0
+    ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length)
+    : 0;
+
+  // Pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refetchActive(), refetchCompleted()]);
+    setRefreshing(false);
+  }, [refetchActive, refetchCompleted]);
+
+  const isLoading = loadingActive || loadingCompleted;
+
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
+          />
+        }
       >
         {/* ─── Summary ──────────────────────────────────────── */}
         <Card style={styles.summaryCard}>
@@ -152,9 +204,9 @@ export default function GoalsScreen() {
             <Target size={24} color={Colors.gold} />
           </View>
           <Text style={styles.summaryTitle}>Active Goals</Text>
-          <Text style={styles.summaryCount}>{GOALS.length}</Text>
+          <Text style={styles.summaryCount}>{goals.length}</Text>
           <Text style={styles.summarySubtitle}>
-            Average progress: {Math.round(GOALS.reduce((s, g) => s + g.progress, 0) / GOALS.length)}%
+            Average progress: {avgProgress}%
           </Text>
         </Card>
 
@@ -169,7 +221,13 @@ export default function GoalsScreen() {
           </Pressable>
         </View>
 
-        {GOALS.map((goal) => {
+        {isLoading && goals.length === 0 && (
+          <View style={{ paddingVertical: Spacing.xxl, alignItems: "center" }}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+          </View>
+        )}
+
+        {goals.map((goal) => {
           const statusInfo = STATUS_LABELS[goal.status];
           return (
             <Pressable
@@ -254,10 +312,10 @@ export default function GoalsScreen() {
         />
 
         {/* ─── Completed Goals ──────────────────────────────── */}
-        {COMPLETED_GOALS.length > 0 && (
+        {completedGoals.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Completed</Text>
-            {COMPLETED_GOALS.map((goal) => (
+            {completedGoals.map((goal) => (
               <Card key={goal.id} style={styles.completedCard}>
                 <View style={styles.completedRow}>
                   <View

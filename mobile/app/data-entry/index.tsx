@@ -6,12 +6,14 @@
  * name, icon, and last entry timestamp.
  */
 
-import React from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
+  RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -22,11 +24,15 @@ import {
   Moon,
   Thermometer,
   FileText,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 import { EntryTypeCard, EntryType } from "@/components/data-entry/EntryTypeCard";
+import { useTodayCheckin } from "@/hooks";
 
 /* ------------------------------------------------------------------ */
 /* Entry types                                                         */
@@ -84,6 +90,30 @@ const ENTRY_TYPES: EntryType[] = [
 export default function DataEntryScreen() {
   const router = useRouter();
 
+  // ── Check-in data ─────────────────────────────────────────
+  const { checkin: todayCheckin, isLoading: loadingCheckin, refetch: refetchCheckin } = useTodayCheckin();
+
+  const hasCheckedInToday = !!todayCheckin;
+
+  // Build a summary of today's check-in fields
+  const checkinSummary: string[] = [];
+  if (todayCheckin) {
+    if (todayCheckin.weight) checkinSummary.push(`Weight: ${todayCheckin.weight} lbs`);
+    if (todayCheckin.sleepHours) checkinSummary.push(`Sleep: ${todayCheckin.sleepHours} hrs`);
+    if (todayCheckin.mood) checkinSummary.push(`Mood: ${todayCheckin.mood}/10`);
+    if (todayCheckin.energy) checkinSummary.push(`Energy: ${todayCheckin.energy}/10`);
+    if (todayCheckin.exerciseMinutes) checkinSummary.push(`Exercise: ${todayCheckin.exerciseMinutes} min`);
+    if (todayCheckin.waterOz) checkinSummary.push(`Water: ${todayCheckin.waterOz} oz`);
+  }
+
+  // Pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetchCheckin();
+    setRefreshing(false);
+  }, [refetchCheckin]);
+
   const handlePress = (entry: EntryType) => {
     router.push({
       pathname: "/data-entry/log",
@@ -96,6 +126,14 @@ export default function DataEntryScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
+          />
+        }
       >
         {/* Header */}
         <Text style={styles.headerTitle}>Log Health Data</Text>
@@ -103,6 +141,36 @@ export default function DataEntryScreen() {
           Manually record measurements that aren't captured by your connected
           devices.
         </Text>
+
+        {/* ─── Today's Check-in Status ──────────────────────── */}
+        <Card style={styles.checkinCard}>
+          <View style={styles.checkinHeader}>
+            {hasCheckedInToday ? (
+              <CheckCircle2 size={20} color={Colors.success} />
+            ) : (
+              <AlertCircle size={20} color={Colors.warning} />
+            )}
+            <Text style={styles.checkinTitle}>
+              {hasCheckedInToday ? "Daily Check-in Complete" : "Daily Check-in Pending"}
+            </Text>
+            <Badge
+              label={hasCheckedInToday ? "Done" : "Pending"}
+              variant={hasCheckedInToday ? "success" : "warning"}
+            />
+          </View>
+          {hasCheckedInToday && checkinSummary.length > 0 ? (
+            <Text style={styles.checkinSummary}>
+              {checkinSummary.join("  |  ")}
+            </Text>
+          ) : !hasCheckedInToday ? (
+            <Text style={styles.checkinSummary}>
+              Tap any entry type below to start logging today's data.
+            </Text>
+          ) : null}
+          {loadingCheckin && (
+            <ActivityIndicator size="small" color={Colors.gold} style={{ marginTop: Spacing.xs }} />
+          )}
+        </Card>
 
         {/* Entry type cards */}
         {ENTRY_TYPES.map((entry) => (
@@ -151,6 +219,29 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     lineHeight: 20,
     marginBottom: Spacing.lg,
+  },
+  checkinCard: {
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  checkinHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  checkinTitle: {
+    color: Colors.white,
+    fontSize: FontSizes.sm,
+    fontWeight: "600",
+    flex: 1,
+  },
+  checkinSummary: {
+    color: Colors.silver,
+    fontSize: FontSizes.xs,
+    lineHeight: 18,
+    marginTop: 4,
   },
   tipCard: {
     backgroundColor: "rgba(74, 144, 217, 0.08)",

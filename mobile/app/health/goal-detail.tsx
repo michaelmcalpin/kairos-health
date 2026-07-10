@@ -6,13 +6,16 @@
  * Route param: id (goal identifier).
  */
 
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   Alert,
+  TextInput,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -30,6 +33,9 @@ import {
   BarChart3,
   Flag,
   Info,
+  CheckCircle2,
+  Archive,
+  PlusCircle,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
@@ -43,12 +49,19 @@ import {
   BarChart,
 } from "@/components/health";
 import type { MilestoneStatus, ActivityTrend } from "@/components/health";
+import {
+  useGoalDetail,
+  useAddCheckpoint,
+  useUpdateGoalStatus,
+  useDeleteGoal,
+} from "@/hooks";
+import type { GoalSummary } from "@/hooks/useGoals";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Types
+// Types & Display Helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-interface GoalDetail {
+interface GoalDetailDisplay {
   id: string;
   title: string;
   category: string;
@@ -79,11 +92,111 @@ interface GoalDetail {
   }[];
 }
 
+const CATEGORY_MAP: Record<string, {
+  label: string;
+  variant: "success" | "warning" | "info" | "danger" | "default";
+  color: string;
+  icon: React.ReactNode;
+}> = {
+  weight: { label: "Weight", variant: "warning", color: Colors.gold, icon: <Scale size={22} color={Colors.gold} /> },
+  sleep: { label: "Sleep", variant: "info", color: "#60A5FA", icon: <Moon size={22} color="#60A5FA" /> },
+  fitness: { label: "Activity", variant: "success", color: Colors.success, icon: <Footprints size={22} color={Colors.success} /> },
+  clinical: { label: "Blood Work", variant: "warning", color: "#F59E0B", icon: <Droplets size={22} color="#F59E0B" /> },
+  nutrition: { label: "Nutrition", variant: "info", color: "#EC4899", icon: <Droplets size={22} color="#EC4899" /> },
+  mental: { label: "Mental", variant: "info", color: "#A78BFA", icon: <Moon size={22} color="#A78BFA" /> },
+  other: { label: "Other", variant: "default", color: Colors.gold, icon: <Scale size={22} color={Colors.gold} /> },
+};
+
+function mapApiGoalToDetail(raw: GoalSummary): GoalDetailDisplay {
+  const catInfo = CATEGORY_MAP[raw.category ?? "other"] ?? CATEGORY_MAP.other;
+  const progress = raw.progress ?? 0;
+  const statusKey: GoalDetailDisplay["status"] =
+    progress >= 80 ? "ahead" : progress < 50 ? "at_risk" : "on_track";
+
+  // Build weekly data from checkpoints
+  const weeklyData = (raw.checkpoints ?? [])
+    .slice()
+    .reverse()
+    .map((cp, idx) => ({
+      label: `W${idx + 1}`,
+      value: cp.value,
+    }));
+
+  // Build milestones
+  const milestones: GoalDetailDisplay["milestones"] = (raw.milestones ?? []).map((m) => ({
+    label: m.title,
+    status: (m.completed ? "completed" : "upcoming") as MilestoneStatus,
+    date: m.targetDate ? formatDate(m.targetDate) : undefined,
+  }));
+
+  // Build activity log from checkpoints
+  const activityLog: GoalDetailDisplay["activityLog"] = (raw.checkpoints ?? []).map((cp, idx, arr) => {
+    const prevValue = arr[idx + 1]?.value;
+    let trend: ActivityTrend | undefined;
+    if (prevValue != null) {
+      if (cp.value < prevValue) trend = "down";
+      else if (cp.value > prevValue) trend = "up";
+      else trend = "flat";
+    }
+    return {
+      label: raw.category ?? "Value",
+      value: `${cp.value} ${raw.targetUnit ?? ""}`.trim(),
+      date: formatShortDate(cp.createdAt),
+      trend,
+    };
+  });
+
+  const targetDateStr = raw.targetDate ? formatDate(raw.targetDate) : "Ongoing";
+  const daysRemaining = raw.targetDate
+    ? Math.max(0, Math.ceil((new Date(raw.targetDate).getTime() - Date.now()) / 86400000))
+    : -1;
+
+  return {
+    id: raw.id,
+    title: raw.title,
+    category: catInfo.label,
+    categoryVariant: catInfo.variant,
+    startValue: raw.targetValue ?? 0,
+    currentValue: raw.currentValue ?? 0,
+    targetValue: raw.targetValue ?? 0,
+    unit: raw.targetUnit ?? "",
+    progress,
+    status: statusKey,
+    startDate: raw.createdAt ? formatDate(raw.createdAt) : "",
+    targetDate: targetDateStr,
+    daysRemaining,
+    rateOfProgress: "",
+    color: catInfo.color,
+    icon: catInfo.icon,
+    weeklyData,
+    milestones,
+    activityLog,
+  };
+}
+
+function formatDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr.includes("T") ? dateStr : dateStr + "T12:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatShortDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr.includes("T") ? dateStr : dateStr + "T12:00:00");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample Data
+// Sample Data (fallback)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const GOALS_DATA: Record<string, GoalDetail> = {
+const SAMPLE_GOALS_DISPLAY: Record<string, GoalDetailDisplay> = {
   "1": {
     id: "1",
     title: "Reach 175 lbs",
@@ -245,7 +358,7 @@ const GOALS_DATA: Record<string, GoalDetail> = {
 };
 
 const STATUS_LABELS: Record<
-  GoalDetail["status"],
+  GoalDetailDisplay["status"],
   { label: string; variant: "success" | "warning" | "info" }
 > = {
   on_track: { label: "On Track", variant: "success" },
@@ -260,7 +373,136 @@ const STATUS_LABELS: Record<
 export default function GoalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const goal = GOALS_DATA[id ?? "1"];
+
+  // ── API hooks ─────────────────────────────────────────────
+  const { goal: apiGoal, isLoading, refetch } = useGoalDetail(id);
+  const { addCheckpoint, isLoading: isAddingCheckpoint } = useAddCheckpoint();
+  const { updateStatus, isLoading: isUpdatingStatus } = useUpdateGoalStatus();
+  const { deleteGoal, isLoading: isDeleting } = useDeleteGoal();
+
+  // Map to display format -- use API data if available, fall back to sample
+  const goal: GoalDetailDisplay | null = apiGoal
+    ? mapApiGoalToDetail(apiGoal)
+    : SAMPLE_GOALS_DISPLAY[id ?? "1"] ?? null;
+
+  // Pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
+  // Log progress handler
+  const handleLogProgress = useCallback(() => {
+    Alert.prompt?.(
+      "Log Progress",
+      `Enter your current ${goal?.unit ?? "value"}:`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Save",
+          onPress: async (value?: string) => {
+            const numValue = parseFloat(value ?? "");
+            if (isNaN(numValue)) {
+              Alert.alert("Invalid Value", "Please enter a valid number.");
+              return;
+            }
+            try {
+              await addCheckpoint(id ?? "", numValue);
+              Alert.alert("Progress Logged", "Your progress has been recorded.");
+              refetch();
+            } catch {
+              Alert.alert("Error", "Failed to log progress. Please try again.");
+            }
+          },
+        },
+      ],
+      "plain-text",
+    ) ?? Alert.alert(
+      "Log Progress",
+      "Progress logging is available on iOS. Use the data entry screen to log values.",
+      [{ text: "OK" }],
+    );
+  }, [id, goal?.unit, addCheckpoint, refetch]);
+
+  // Mark as completed
+  const handleComplete = useCallback(() => {
+    Alert.alert(
+      "Complete Goal",
+      `Mark "${goal?.title}" as completed?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Complete",
+          onPress: async () => {
+            try {
+              await updateStatus(id ?? "", "completed");
+              Alert.alert("Goal Completed!", "Congratulations on reaching your goal.");
+              router.back();
+            } catch {
+              Alert.alert("Error", "Failed to update goal status.");
+            }
+          },
+        },
+      ],
+    );
+  }, [id, goal?.title, updateStatus, router]);
+
+  // Archive goal
+  const handleArchive = useCallback(() => {
+    Alert.alert(
+      "Archive Goal",
+      `Archive "${goal?.title}"? You can reactivate it later.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Archive",
+          onPress: async () => {
+            try {
+              await updateStatus(id ?? "", "archived");
+              router.back();
+            } catch {
+              Alert.alert("Error", "Failed to archive goal.");
+            }
+          },
+        },
+      ],
+    );
+  }, [id, goal?.title, updateStatus, router]);
+
+  // Delete goal
+  const handleDelete = useCallback(() => {
+    Alert.alert(
+      "Delete Goal",
+      `Are you sure you want to delete "${goal?.title}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteGoal(id ?? "");
+              router.back();
+            } catch {
+              Alert.alert("Error", "Failed to delete goal.");
+            }
+          },
+        },
+      ],
+    );
+  }, [id, goal?.title, deleteGoal, router]);
+
+  if (isLoading && !goal) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.notFound}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!goal) {
     return (
@@ -285,6 +527,14 @@ export default function GoalDetailScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
+          />
+        }
       >
         {/* ─── Hero Card ─────────────────────────────────────── */}
         <Card style={styles.heroCard}>
@@ -338,53 +588,75 @@ export default function GoalDetailScreen() {
           </View>
         </Card>
 
+        {/* ─── Log Progress Button ───────────────────────────── */}
+        <Button
+          title={isAddingCheckpoint ? "Logging..." : "Log Progress"}
+          variant="primary"
+          size="lg"
+          icon={<PlusCircle size={16} color={Colors.dark} />}
+          onPress={handleLogProgress}
+          style={{ marginBottom: Spacing.sm }}
+        />
+
         {/* ─── Weekly Progress Chart ─────────────────────────── */}
-        <Text style={styles.sectionTitle}>
-          <BarChart3 size={16} color={Colors.gold} /> Weekly Progress
-        </Text>
-        <Card style={styles.chartCard}>
-          <BarChart
-            data={goal.weeklyData}
-            color={goal.color}
-            height={140}
-            showValues
-            unit={goal.unit === "lbs" || goal.unit === "%" ? "" : ""}
-            decimals={goal.unit === "%" ? 2 : goal.unit === "hrs" ? 1 : 0}
-          />
-        </Card>
+        {goal.weeklyData.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>
+              <BarChart3 size={16} color={Colors.gold} /> Weekly Progress
+            </Text>
+            <Card style={styles.chartCard}>
+              <BarChart
+                data={goal.weeklyData}
+                color={goal.color}
+                height={140}
+                showValues
+                unit={goal.unit === "lbs" || goal.unit === "%" ? "" : ""}
+                decimals={goal.unit === "%" ? 2 : goal.unit === "hrs" ? 1 : 0}
+              />
+            </Card>
+          </>
+        )}
 
         {/* ─── Milestones ────────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>
-          <Flag size={16} color={Colors.gold} /> Milestones
-        </Text>
-        <Card>
-          {goal.milestones.map((milestone, idx) => (
-            <MilestoneItem
-              key={idx}
-              label={milestone.label}
-              status={milestone.status}
-              date={milestone.date}
-              showConnector={idx < goal.milestones.length - 1}
-            />
-          ))}
-        </Card>
+        {goal.milestones.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>
+              <Flag size={16} color={Colors.gold} /> Milestones
+            </Text>
+            <Card>
+              {goal.milestones.map((milestone, idx) => (
+                <MilestoneItem
+                  key={idx}
+                  label={milestone.label}
+                  status={milestone.status}
+                  date={milestone.date}
+                  showConnector={idx < goal.milestones.length - 1}
+                />
+              ))}
+            </Card>
+          </>
+        )}
 
         {/* ─── Activity Log ──────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>
-          <Activity size={16} color={Colors.gold} /> Recent Activity
-        </Text>
-        <Card>
-          {goal.activityLog.map((entry, idx) => (
-            <GoalActivityItem
-              key={idx}
-              label={entry.label}
-              value={entry.value}
-              date={entry.date}
-              trend={entry.trend}
-              downIsGood={isWeightGoal || goal.category === "Blood Work"}
-            />
-          ))}
-        </Card>
+        {goal.activityLog.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>
+              <Activity size={16} color={Colors.gold} /> Recent Activity
+            </Text>
+            <Card>
+              {goal.activityLog.map((entry, idx) => (
+                <GoalActivityItem
+                  key={idx}
+                  label={entry.label}
+                  value={entry.value}
+                  date={entry.date}
+                  trend={entry.trend}
+                  downIsGood={isWeightGoal || goal.category === "Blood Work"}
+                />
+              ))}
+            </Card>
+          </>
+        )}
 
         {/* ─── Stats Card ────────────────────────────────────── */}
         <Text style={styles.sectionTitle}>
@@ -420,13 +692,21 @@ export default function GoalDetailScreen() {
                 <TrendingDown size={16} color={Colors.gold} />
               </View>
               <Text style={styles.statLabel}>Rate of Progress</Text>
-              <Text style={styles.statValue}>{goal.rateOfProgress}</Text>
+              <Text style={styles.statValue}>{goal.rateOfProgress || "---"}</Text>
             </View>
           </View>
         </Card>
 
         {/* ─── Action Buttons ────────────────────────────────── */}
         <View style={styles.actions}>
+          <Button
+            title={isUpdatingStatus ? "Updating..." : "Mark Complete"}
+            variant="secondary"
+            size="lg"
+            icon={<CheckCircle2 size={16} color={Colors.success} />}
+            onPress={handleComplete}
+            style={styles.actionButton}
+          />
           <Button
             title="Edit Goal"
             variant="secondary"
@@ -441,24 +721,19 @@ export default function GoalDetailScreen() {
             style={styles.actionButton}
           />
           <Button
-            title="Delete Goal"
+            title="Archive"
+            variant="secondary"
+            size="lg"
+            icon={<Archive size={16} color={Colors.silver} />}
+            onPress={handleArchive}
+            style={styles.actionButton}
+          />
+          <Button
+            title={isDeleting ? "Deleting..." : "Delete Goal"}
             variant="danger"
             size="lg"
             icon={<Trash2 size={16} color={Colors.danger} />}
-            onPress={() =>
-              Alert.alert(
-                "Delete Goal",
-                `Are you sure you want to delete "${goal.title}"? This cannot be undone.`,
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: () => router.back(),
-                  },
-                ]
-              )
-            }
+            onPress={handleDelete}
             style={styles.actionButton}
           />
         </View>

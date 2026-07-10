@@ -36,74 +36,8 @@ import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { useAppointments } from "@/hooks";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                        */
+/* Sample data is provided by the useAppointments hook as fallback     */
 /* ------------------------------------------------------------------ */
-
-const SAMPLE_UPCOMING = [
-  {
-    id: "apt-1",
-    title: "Nutrition Consultation",
-    type: "Nutrition",
-    provider: "Dr. Rachel Kim",
-    date: "June 15, 2026",
-    time: "10:00 AM",
-    method: "Video Call",
-    status: "confirmed",
-    badgeVariant: "warning",
-    icon: Utensils,
-  },
-  {
-    id: "apt-2",
-    title: "Lab Review",
-    type: "Lab Review",
-    provider: "Dr. Sarah Chen",
-    date: "June 18, 2026",
-    time: "2:30 PM",
-    method: "In-Person",
-    status: "confirmed",
-    badgeVariant: "success",
-    icon: FlaskConical,
-  },
-  {
-    id: "apt-3",
-    title: "Workout Assessment",
-    type: "Fitness",
-    provider: "Coach Walid",
-    date: "June 20, 2026",
-    time: "9:00 AM",
-    method: "Video Call",
-    status: "pending",
-    badgeVariant: "info",
-    icon: Dumbbell,
-  },
-];
-
-const SAMPLE_PAST = [
-  {
-    id: "apt-4",
-    title: "Annual Physical",
-    type: "General",
-    provider: "Dr. Sarah Chen",
-    date: "May 20, 2026",
-    time: "11:00 AM",
-    method: "In-Person",
-    status: "completed",
-    badgeVariant: "default",
-    icon: Stethoscope,
-  },
-  {
-    id: "apt-5",
-    title: "Sleep Consultation",
-    type: "Sleep",
-    provider: "Dr. James Park",
-    date: "May 12, 2026",
-    time: "3:00 PM",
-    method: "Video Call",
-    status: "completed",
-    badgeVariant: "default",
-    icon: Clock,
-  },
-];
 
 /* ------------------------------------------------------------------ */
 /* Component                                                          */

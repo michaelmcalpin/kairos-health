@@ -111,6 +111,12 @@ export default function RootLayout() {
               {/* Connected Devices */}
               <Stack.Screen name="devices" options={{ headerShown: false }} />
 
+              {/* Progress Photos */}
+              <Stack.Screen name="progress-photos" options={{ headerShown: false }} />
+
+              {/* Billing & Payments */}
+              <Stack.Screen name="payments" options={{ headerShown: false }} />
+
               {/* Manual Data Entry */}
               <Stack.Screen name="data-entry" options={{ headerShown: false }} />
 

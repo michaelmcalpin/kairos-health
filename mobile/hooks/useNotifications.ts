@@ -53,14 +53,16 @@ export function useNotifications(filter: FilterTab = "all") {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useUnreadCount() {
-  const query = trpc.clientPortal.notifications.unreadCount.useQuery(
-    undefined,
+  const query = trpc.clientPortal.notifications.list.useQuery(
+    {},
     REALTIME_QUERY_OPTIONS,
   );
 
-  const count = query.data
-    ? (query.data as number)
-    : SAMPLE_NOTIFICATIONS.filter((n) => !n.read).length;
+  const allNotifications: Notification[] = query.data
+    ? (query.data as any[]).map(mapApiNotification)
+    : SAMPLE_NOTIFICATIONS;
+
+  const count = allNotifications.filter((n) => !n.read).length;
 
   return {
     count,
@@ -75,10 +77,15 @@ export function useUnreadCount() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useMarkAsRead() {
-  const mutation = trpc.clientPortal.notifications.markRead.useMutation();
+  const utils = trpc.useUtils();
+  const mutation = trpc.clientPortal.notifications.markRead.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.notifications.list.invalidate();
+    },
+  });
 
   const markAsRead = (notificationId: string) => {
-    mutation.mutate({ notificationId });
+    mutation.mutate({ id: notificationId });
   };
 
   return {
@@ -94,7 +101,12 @@ export function useMarkAsRead() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useMarkAllRead() {
-  const mutation = trpc.clientPortal.notifications.markAllRead.useMutation();
+  const utils = trpc.useUtils();
+  const mutation = trpc.clientPortal.notifications.markAllRead.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.notifications.list.invalidate();
+    },
+  });
 
   const markAllRead = () => {
     mutation.mutate({});
@@ -113,10 +125,15 @@ export function useMarkAllRead() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useDismissNotification() {
-  const mutation = trpc.clientPortal.notifications.archive.useMutation();
+  const utils = trpc.useUtils();
+  const mutation = trpc.clientPortal.notifications.archive.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.notifications.list.invalidate();
+    },
+  });
 
   const dismiss = (notificationId: string) => {
-    mutation.mutate({ notificationId });
+    mutation.mutate({ id: notificationId });
   };
 
   return {

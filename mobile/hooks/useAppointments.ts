@@ -108,10 +108,15 @@ export function useSessionTypes() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useCancelAppointment() {
-  const mutation = trpc.clientPortal.scheduling.cancelAppointment.useMutation();
+  const utils = trpc.useUtils();
+  const mutation = trpc.clientPortal.scheduling.cancelAppointment.useMutation({
+    onSuccess: () => {
+      utils.clientPortal.scheduling.listAppointments.invalidate();
+    },
+  });
 
   const cancel = (appointmentId: string, reason?: string) => {
-    mutation.mutate({ appointmentId, reason });
+    mutation.mutate({ id: appointmentId, reason });
   };
 
   return {

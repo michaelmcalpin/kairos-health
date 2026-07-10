@@ -9,7 +9,7 @@
  * - Empty state for filtered views with no results
  */
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
   StyleSheet,
   StatusBar,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -119,6 +120,14 @@ export default function NotificationCenterScreen() {
     router.back();
   }, [router]);
 
+  // Pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
   // ── Render ─────────────────────────────────────────────────────────
   const renderItem = useCallback(
     ({ item }: { item: Notification }) => (
@@ -184,6 +193,14 @@ export default function NotificationCenterScreen() {
           ]}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={<EmptyState filterLabel={activeFilterLabel} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.gold}
+              colors={[Colors.gold]}
+            />
+          }
         />
       )}
     </View>

@@ -49,6 +49,8 @@ import {
   Dumbbell,
   Database,
   Cloud,
+  Camera,
+  CreditCard,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii, APP_VERSION } from "@/lib/constants";
@@ -326,6 +328,12 @@ export default function ProfileScreen() {
             onPress={() => router.push("/devices/apple-health")}
           />
           <SettingsRow
+            icon={<Camera size={18} color={Colors.silver} />}
+            label="Progress Photos"
+            subtitle="Track your transformation"
+            onPress={() => router.push("/progress-photos" as any)}
+          />
+          <SettingsRow
             icon={<Plus size={18} color={Colors.gold} />}
             label="Connect New Account"
             onPress={() => router.push("/devices/connect" as any)}
@@ -418,6 +426,22 @@ export default function ProfileScreen() {
                 "This will permanently delete your account and all associated data. This action cannot be undone."
               )
             }
+            last
+          />
+        </SettingsSection>
+
+        {/* ═══════════════════════════════════════════════════════════ */}
+        {/* 3d-ii. BILLING & SUBSCRIPTION                             */}
+        {/* ═══════════════════════════════════════════════════════════ */}
+        <SettingsSection
+          title="Billing"
+          icon={<CreditCard size={16} color={Colors.gold} />}
+        >
+          <SettingsRow
+            icon={<CreditCard size={18} color={Colors.silver} />}
+            label="Billing & Subscription"
+            subtitle="Plan details, payment history"
+            onPress={() => router.push("/payments" as any)}
             last
           />
         </SettingsSection>
