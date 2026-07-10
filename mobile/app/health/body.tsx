@@ -6,20 +6,22 @@
  */
 
 import React from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Scale, Target, TrendingDown, Watch } from "lucide-react-native";
+import { useRouter } from "expo-router";
+import { Scale, Target, TrendingDown, TrendingUp, Watch, Plus } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { BarChart, ProgressBar, StackedBar } from "@/components/health";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample Data
+// Sample / Fallback Data
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const CURRENT_STATS = [
+const SAMPLE_CURRENT_STATS = [
   { label: "Weight", value: "178.4", unit: "lbs", color: Colors.gold },
   { label: "BMI", value: "24.2", unit: "", color: Colors.info },
   { label: "Body Fat", value: "16.8", unit: "%", color: "#F97316" },
@@ -27,7 +29,7 @@ const CURRENT_STATS = [
 ];
 
 /** 30-day weight trend — show last 10 data points for readability */
-const WEIGHT_TREND = [
+const SAMPLE_WEIGHT_TREND = [
   { label: "W1", value: 181.2 },
   { label: "", value: 180.8 },
   { label: "W2", value: 180.5 },
@@ -39,13 +41,13 @@ const WEIGHT_TREND = [
   { label: "Now", value: 178.4 },
 ];
 
-const BODY_COMPOSITION = [
+const SAMPLE_BODY_COMPOSITION = [
   { label: "Muscle", value: 142, color: Colors.success },
   { label: "Fat", value: 30, color: "#F97316" },
   { label: "Bone", value: 6.4, color: Colors.silver },
 ];
 
-const GOAL = {
+const SAMPLE_GOAL = {
   target: 175,
   current: 178.4,
   start: 185,
@@ -54,13 +56,115 @@ const GOAL = {
   deadline: "Aug 15, 2026",
 };
 
-const SOURCE = "Withings Body+";
+const SAMPLE_SOURCE = "Withings Body+";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Screen
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function BodyScreen() {
+  const router = useRouter();
+
+  // ── tRPC: fetch latest measurement and history ──
+  const latestQuery = trpc.clientPortal.measurements.latest.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const historyQuery = trpc.clientPortal.measurements.list.useQuery(
+    { limit: 30 },
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  // ── Map API data with sample fallbacks ──
+  const latestRaw = latestQuery.data as any;
+  const historyRaw = historyQuery.data as any[] | undefined;
+
+  // Current stats cards
+  const currentStats = latestRaw
+    ? [
+        {
+          label: "Weight",
+          value: latestRaw.weightLbs != null ? String(latestRaw.weightLbs) : SAMPLE_CURRENT_STATS[0].value,
+          unit: "lbs",
+          color: Colors.gold,
+        },
+        {
+          label: "BMI",
+          value: latestRaw.bmi != null ? String(latestRaw.bmi) : SAMPLE_CURRENT_STATS[1].value,
+          unit: "",
+          color: Colors.info,
+        },
+        {
+          label: "Body Fat",
+          value: latestRaw.bodyFatPct != null ? String(latestRaw.bodyFatPct) : SAMPLE_CURRENT_STATS[2].value,
+          unit: "%",
+          color: "#F97316",
+        },
+        {
+          label: "Muscle Mass",
+          value: latestRaw.muscleMassLbs != null ? String(Math.round(latestRaw.muscleMassLbs)) : SAMPLE_CURRENT_STATS[3].value,
+          unit: "lbs",
+          color: Colors.success,
+        },
+      ]
+    : SAMPLE_CURRENT_STATS;
+
+  // Weight trend (up to 10 points from history for chart readability)
+  const weightTrend =
+    historyRaw && historyRaw.length > 0
+      ? historyRaw
+          .filter((m: any) => m.weightLbs != null)
+          .slice(0, 10)
+          .reverse()
+          .map((m: any, idx: number, arr: any[]) => ({
+            label: idx === arr.length - 1 ? "Now" : idx % 2 === 0 ? `W${Math.floor(idx / 2) + 1}` : "",
+            value: m.weightLbs,
+          }))
+      : SAMPLE_WEIGHT_TREND;
+
+  // Compute weight change for trend header
+  const weightChange =
+    weightTrend.length >= 2
+      ? +(weightTrend[weightTrend.length - 1].value - weightTrend[0].value).toFixed(1)
+      : -2.8; // sample fallback
+  const isWeightDown = weightChange <= 0;
+
+  // Body composition from latest measurement
+  const bodyComposition = latestRaw
+    ? [
+        { label: "Muscle", value: latestRaw.muscleMassLbs ?? SAMPLE_BODY_COMPOSITION[0].value, color: Colors.success },
+        {
+          label: "Fat",
+          value:
+            latestRaw.bodyFatPct != null && latestRaw.weightLbs != null
+              ? +((latestRaw.bodyFatPct / 100) * latestRaw.weightLbs).toFixed(1)
+              : SAMPLE_BODY_COMPOSITION[1].value,
+          color: "#F97316",
+        },
+        { label: "Bone", value: SAMPLE_BODY_COMPOSITION[2].value, color: Colors.silver },
+      ]
+    : SAMPLE_BODY_COMPOSITION;
+
+  // Goal — keep sample for now (goals come from a separate API in Sprint 4)
+  const goal = latestRaw
+    ? {
+        ...SAMPLE_GOAL,
+        current: latestRaw.weightLbs ?? SAMPLE_GOAL.current,
+        remaining: +((latestRaw.weightLbs ?? SAMPLE_GOAL.current) - SAMPLE_GOAL.target).toFixed(1),
+        progress: Math.min(
+          100,
+          Math.round(
+            ((SAMPLE_GOAL.start - (latestRaw.weightLbs ?? SAMPLE_GOAL.current)) /
+              (SAMPLE_GOAL.start - SAMPLE_GOAL.target)) *
+              100,
+          ),
+        ),
+      }
+    : SAMPLE_GOAL;
+
+  // Source
+  const source = SAMPLE_SOURCE;
+
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <ScrollView
@@ -69,7 +173,7 @@ export default function BodyScreen() {
       >
         {/* ─── Current Stats ────────────────────────────────── */}
         <View style={styles.statsGrid}>
-          {CURRENT_STATS.map((stat) => (
+          {currentStats.map((stat) => (
             <Card key={stat.label} style={styles.statCard}>
               <Text style={styles.statLabel}>{stat.label}</Text>
               <View style={styles.statValueRow}>
@@ -89,13 +193,27 @@ export default function BodyScreen() {
         <Card>
           <View style={styles.trendHeader}>
             <View style={styles.trendChange}>
-              <TrendingDown size={16} color={Colors.success} />
-              <Text style={styles.trendChangeText}>-2.8 lbs</Text>
+              {isWeightDown ? (
+                <TrendingDown size={16} color={Colors.success} />
+              ) : (
+                <TrendingUp size={16} color={Colors.warning} />
+              )}
+              <Text
+                style={[
+                  styles.trendChangeText,
+                  { color: isWeightDown ? Colors.success : Colors.warning },
+                ]}
+              >
+                {weightChange > 0 ? "+" : ""}{weightChange} lbs
+              </Text>
             </View>
-            <Badge label="On Track" variant="success" />
+            <Badge
+              label={isWeightDown ? "On Track" : "Above Target"}
+              variant={isWeightDown ? "success" : "warning"}
+            />
           </View>
           <BarChart
-            data={WEIGHT_TREND}
+            data={weightTrend}
             color={Colors.gold}
             height={130}
             unit=""
@@ -107,15 +225,15 @@ export default function BodyScreen() {
         <Text style={styles.sectionTitle}>Body Composition</Text>
         <Card>
           <StackedBar
-            segments={BODY_COMPOSITION}
+            segments={bodyComposition}
             height={28}
             unit=" lbs"
           />
           <View style={styles.compositionDetails}>
-            {BODY_COMPOSITION.map((comp) => {
+            {bodyComposition.map((comp) => {
               const pct =
                 (comp.value /
-                  BODY_COMPOSITION.reduce((s, c) => s + c.value, 0)) *
+                  bodyComposition.reduce((s, c) => s + c.value, 0)) *
                 100;
               return (
                 <View key={comp.label} style={styles.compositionRow}>
@@ -148,14 +266,14 @@ export default function BodyScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.goalTitle}>Target Weight</Text>
               <Text style={styles.goalDeadline}>
-                Deadline: {GOAL.deadline}
+                Deadline: {goal.deadline}
               </Text>
             </View>
-            <Text style={styles.goalPct}>{GOAL.progress}%</Text>
+            <Text style={styles.goalPct}>{goal.progress}%</Text>
           </View>
 
           <ProgressBar
-            progress={GOAL.progress}
+            progress={goal.progress}
             color={Colors.gold}
             height={10}
             style={styles.goalBar}
@@ -164,12 +282,12 @@ export default function BodyScreen() {
           <View style={styles.goalDetails}>
             <View style={styles.goalDetailItem}>
               <Text style={styles.goalDetailLabel}>Start</Text>
-              <Text style={styles.goalDetailValue}>{GOAL.start} lbs</Text>
+              <Text style={styles.goalDetailValue}>{goal.start} lbs</Text>
             </View>
             <View style={styles.goalDetailItem}>
               <Text style={styles.goalDetailLabel}>Current</Text>
               <Text style={[styles.goalDetailValue, { color: Colors.gold }]}>
-                {GOAL.current} lbs
+                {goal.current} lbs
               </Text>
             </View>
             <View style={styles.goalDetailItem}>
@@ -177,7 +295,7 @@ export default function BodyScreen() {
               <Text
                 style={[styles.goalDetailValue, { color: Colors.success }]}
               >
-                {GOAL.target} lbs
+                {goal.target} lbs
               </Text>
             </View>
           </View>
@@ -185,15 +303,25 @@ export default function BodyScreen() {
           <View style={styles.goalRemaining}>
             <Scale size={14} color={Colors.silver} />
             <Text style={styles.goalRemainingText}>
-              {GOAL.remaining} lbs to go
+              {goal.remaining} lbs to go
             </Text>
           </View>
         </Card>
 
+        {/* ─── Log Measurement ──────────────────────────────── */}
+        <TouchableOpacity
+          style={styles.logButton}
+          onPress={() => router.push("/data-entry/log" as any)}
+          activeOpacity={0.7}
+        >
+          <Plus size={18} color={Colors.dark} />
+          <Text style={styles.logButtonText}>Log Measurement</Text>
+        </TouchableOpacity>
+
         {/* ─── Source ───────────────────────────────────────── */}
         <View style={styles.sourceRow}>
           <Watch size={14} color={Colors.silver} />
-          <Text style={styles.sourceText}>Source: {SOURCE}</Text>
+          <Text style={styles.sourceText}>Source: {source}</Text>
         </View>
 
         <View style={styles.bottomSpacer} />
@@ -376,6 +504,23 @@ const styles = StyleSheet.create({
     color: Colors.silver,
     fontSize: FontSizes.sm,
     fontWeight: "500",
+  },
+
+  // Log button
+  logButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.gold,
+    paddingVertical: Spacing.md,
+    borderRadius: Radii.lg,
+    marginTop: Spacing.lg,
+  },
+  logButtonText: {
+    color: Colors.dark,
+    fontSize: FontSizes.md,
+    fontWeight: "700",
   },
 
   // Source

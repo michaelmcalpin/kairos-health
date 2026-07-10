@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Activity, Heart, Watch } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { TrendLine } from "@/components/health";
@@ -19,7 +20,7 @@ import { TrendLine } from "@/components/health";
 // Sample Data
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const LATEST = {
+const SAMPLE_LATEST = {
   systolic: 118,
   diastolic: 76,
   pulse: 62,
@@ -34,7 +35,7 @@ const CLASSIFICATIONS = [
   { label: "Stage 2", range: "160+/100+", color: Colors.danger },
 ];
 
-const RECENT_READINGS = [
+const SAMPLE_HISTORY = [
   { id: "1", date: "Today", time: "7:15 AM", sys: 118, dia: 76, pulse: 62 },
   { id: "2", date: "Today", time: "9:30 PM", sys: 122, dia: 78, pulse: 68 },
   { id: "3", date: "Yesterday", time: "7:00 AM", sys: 120, dia: 77, pulse: 64 },
@@ -51,7 +52,7 @@ const RECENT_READINGS = [
   { id: "14", date: "6 days ago", time: "9:10 PM", sys: 120, dia: 76, pulse: 65 },
 ];
 
-const SYSTOLIC_TREND = [
+const SAMPLE_SYSTOLIC_TREND = [
   { label: "Mon", value: 122 },
   { label: "Tue", value: 120 },
   { label: "Wed", value: 119 },
@@ -61,7 +62,7 @@ const SYSTOLIC_TREND = [
   { label: "Sun", value: 118 },
 ];
 
-const DIASTOLIC_TREND = [
+const SAMPLE_DIASTOLIC_TREND = [
   { label: "Mon", value: 80 },
   { label: "Tue", value: 78 },
   { label: "Wed", value: 76 },
@@ -71,7 +72,7 @@ const DIASTOLIC_TREND = [
   { label: "Sun", value: 76 },
 ];
 
-const SOURCE = "Withings BPM Connect";
+const SAMPLE_SOURCE = "Withings BPM Connect";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Helpers
@@ -85,12 +86,76 @@ function getClassification(sys: number): { label: string; color: string } {
   return { label: "Stage 2", color: Colors.danger };
 }
 
+/** Derive a 7-point weekly trend from the history readings by day. */
+function deriveWeeklyTrend(
+  readings: { date: string; sys: number; dia: number }[],
+  key: "sys" | "dia",
+): { label: string; value: number }[] {
+  const dayMap = new Map<string, number[]>();
+  for (const r of readings) {
+    const existing = dayMap.get(r.date) ?? [];
+    existing.push(r[key]);
+    dayMap.set(r.date, existing);
+  }
+  const entries = Array.from(dayMap.entries()).slice(0, 7);
+  return entries.map(([date, values]) => ({
+    label: date.length > 5 ? date.slice(0, 5) : date,
+    value: Math.round(values.reduce((a, b) => a + b, 0) / values.length),
+  }));
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Screen
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function BloodPressureScreen() {
-  const latestClass = getClassification(LATEST.systolic);
+  // ─── tRPC Queries ───────────────────────────────────────
+  const historyQuery = trpc.clientPortal.bloodPressure.getHistory.useQuery(
+    { limit: 30 },
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const latestQuery = trpc.clientPortal.bloodPressure.getLatest.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  // ─── Map API data with sample fallback ──────────────────
+  const latestReading = latestQuery.data
+    ? {
+        systolic: (latestQuery.data as any).systolic,
+        diastolic: (latestQuery.data as any).diastolic,
+        pulse: (latestQuery.data as any).pulse ?? SAMPLE_LATEST.pulse,
+        timestamp: new Date(
+          (latestQuery.data as any).date || (latestQuery.data as any).createdAt,
+        ).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+      }
+    : SAMPLE_LATEST;
+
+  const history = historyQuery.data
+    ? (historyQuery.data as any[]).map((r, idx) => ({
+        id: r.id || String(idx + 1),
+        date: new Date(r.date || r.createdAt).toLocaleDateString(),
+        time: new Date(r.date || r.createdAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        sys: r.systolic,
+        dia: r.diastolic,
+        pulse: r.pulse ?? 0,
+      }))
+    : SAMPLE_HISTORY;
+
+  // Derive 7-day trend from history data
+  const systolicTrend = historyQuery.data
+    ? deriveWeeklyTrend(history, "sys")
+    : SAMPLE_SYSTOLIC_TREND;
+  const diastolicTrend = historyQuery.data
+    ? deriveWeeklyTrend(history, "dia")
+    : SAMPLE_DIASTOLIC_TREND;
+
+  const source = (latestQuery.data as any)?.source ?? SAMPLE_SOURCE;
+
+  const latestClass = getClassification(latestReading.systolic);
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -106,14 +171,14 @@ export default function BloodPressureScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.latestLabel}>Latest Reading</Text>
-              <Text style={styles.latestTimestamp}>{LATEST.timestamp}</Text>
+              <Text style={styles.latestTimestamp}>{latestReading.timestamp}</Text>
             </View>
             <Badge label={latestClass.label} variant="success" />
           </View>
 
           <View style={styles.latestValueRow}>
             <Text style={styles.latestValue}>
-              {LATEST.systolic}/{LATEST.diastolic}
+              {latestReading.systolic}/{latestReading.diastolic}
             </Text>
             <Text style={styles.latestUnit}>mmHg</Text>
           </View>
@@ -121,7 +186,7 @@ export default function BloodPressureScreen() {
           <View style={styles.pulseRow}>
             <Heart size={14} color={Colors.danger} />
             <Text style={styles.pulseLabel}>Pulse</Text>
-            <Text style={styles.pulseValue}>{LATEST.pulse} bpm</Text>
+            <Text style={styles.pulseValue}>{latestReading.pulse} bpm</Text>
           </View>
         </Card>
 
@@ -161,7 +226,7 @@ export default function BloodPressureScreen() {
             <Text style={styles.tableHeaderCell}>Sys/Dia</Text>
             <Text style={styles.tableHeaderCell}>Pulse</Text>
           </View>
-          {RECENT_READINGS.map((reading, idx) => {
+          {history.map((reading, idx) => {
             const cls = getClassification(reading.sys);
             return (
               <React.Fragment key={reading.id}>
@@ -183,7 +248,7 @@ export default function BloodPressureScreen() {
                   </View>
                   <Text style={styles.tablePulse}>{reading.pulse}</Text>
                 </View>
-                {idx < RECENT_READINGS.length - 1 && (
+                {idx < history.length - 1 && (
                   <View style={styles.classSeparator} />
                 )}
               </React.Fragment>
@@ -215,9 +280,9 @@ export default function BloodPressureScreen() {
             </View>
           </View>
           <TrendLine
-            data={SYSTOLIC_TREND}
+            data={systolicTrend}
             color="#C65D5D"
-            secondaryData={DIASTOLIC_TREND}
+            secondaryData={diastolicTrend}
             secondaryColor={Colors.info}
             height={120}
           />
@@ -226,7 +291,7 @@ export default function BloodPressureScreen() {
         {/* ─── Source ───────────────────────────────────────── */}
         <View style={styles.sourceRow}>
           <Watch size={14} color={Colors.silver} />
-          <Text style={styles.sourceText}>Source: {SOURCE}</Text>
+          <Text style={styles.sourceText}>Source: {source}</Text>
         </View>
 
         <View style={styles.bottomSpacer} />
