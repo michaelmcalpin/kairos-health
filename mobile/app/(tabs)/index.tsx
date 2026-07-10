@@ -13,7 +13,7 @@
  */
 
 import React, { useState, useCallback } from "react";
-import { View, Text, ScrollView, StyleSheet, Platform, RefreshControl, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Platform, RefreshControl, ActivityIndicator, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
@@ -157,26 +157,28 @@ export default function HomeScreen() {
         </View>
 
         {/* ─── 1. Health Score Hero ────────────────────────── */}
-        <Card style={styles.heroCard}>
-          <HealthScoreRing score={HEALTH_SCORE} size={160} strokeWidth={12} />
-          <Text style={styles.heroLabel}>Overall Health Score</Text>
-          <View style={styles.heroStatsRow}>
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[0]?.value ?? KPI_DATA.sleep.quality}</Text>
-              <Text style={styles.heroStatLabel}>Sleep</Text>
+        <Pressable onPress={() => router.push("/insights")}>
+          <Card style={styles.heroCard}>
+            <HealthScoreRing score={HEALTH_SCORE} size={160} strokeWidth={12} />
+            <Text style={styles.heroLabel}>Overall Health Score</Text>
+            <View style={styles.heroStatsRow}>
+              <View style={styles.heroStat}>
+                <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[0]?.value ?? KPI_DATA.sleep.quality}</Text>
+                <Text style={styles.heroStatLabel}>Sleep</Text>
+              </View>
+              <View style={styles.heroDivider} />
+              <View style={styles.heroStat}>
+                <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[1]?.value ?? BIOMETRICS_DATA.glucose.value}</Text>
+                <Text style={styles.heroStatLabel}>Glucose</Text>
+              </View>
+              <View style={styles.heroDivider} />
+              <View style={styles.heroStat}>
+                <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[2]?.value ?? BIOMETRICS_DATA.hrv.value}</Text>
+                <Text style={styles.heroStatLabel}>HRV</Text>
+              </View>
             </View>
-            <View style={styles.heroDivider} />
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[1]?.value ?? BIOMETRICS_DATA.glucose.value}</Text>
-              <Text style={styles.heroStatLabel}>Glucose</Text>
-            </View>
-            <View style={styles.heroDivider} />
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[2]?.value ?? BIOMETRICS_DATA.hrv.value}</Text>
-              <Text style={styles.heroStatLabel}>HRV</Text>
-            </View>
-          </View>
-        </Card>
+          </Card>
+        </Pressable>
 
         {/* ─── 2. KPI Cards Row ───────────────────────────── */}
         <SectionHeader title="Key Metrics" />
@@ -221,7 +223,7 @@ export default function HomeScreen() {
             iconBgColor="rgba(74, 157, 91, 0.12)"
             sparkData={KPI_DATA.steps.sparkData}
             sparkColor={Colors.success}
-            onPress={() => router.push("/health/goals")}
+            onPress={() => router.push("/protocols/workouts")}
           />
           <KPICard
             icon={<Scale size={16} color={Colors.gold} />}
@@ -324,7 +326,7 @@ export default function HomeScreen() {
               sparkData={BIOMETRICS_DATA.dailySteps.sparkData}
               sparkColor={BIOMETRICS_DATA.dailySteps.sparkColor}
               iconBgColor={BIOMETRICS_DATA.dailySteps.iconBg}
-              onPress={() => router.push("/health/goals")}
+              onPress={() => router.push("/protocols/workouts")}
             />
           </View>
         </View>

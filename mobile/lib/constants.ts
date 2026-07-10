@@ -3,7 +3,7 @@
  * Summit Glyph dark theme color palette and configuration.
  */
 
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.1.0";
 
 /** API URL — set via EXPO_PUBLIC_API_URL env var or falls back to localhost */
 export const API_URL =

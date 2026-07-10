@@ -102,7 +102,7 @@ export function HealthGoalsStep({
                   },
                 ]}
               >
-                {React.cloneElement(goal.icon as React.ReactElement, {
+                {React.cloneElement(goal.icon as React.ReactElement<any>, {
                   color: active ? goal.color : Colors.silver,
                 })}
               </View>

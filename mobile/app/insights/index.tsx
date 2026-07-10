@@ -12,6 +12,7 @@ import {
   ScrollView,
   Pressable,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -159,7 +160,19 @@ export default function InsightsScreen() {
 
           <Button
             title="Generate Report"
-            onPress={() => {}}
+            onPress={() => {
+              Alert.alert(
+                "Generate Report",
+                `Generating a "${selectedOption.label}" report. This will analyze your health data and create a detailed assessment.`,
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Generate",
+                    onPress: () => router.push("/insights/analyze"),
+                  },
+                ],
+              );
+            }}
             icon={<Sparkles size={16} color={Colors.dark} />}
             style={styles.generateBtn}
           />

@@ -425,6 +425,12 @@ export default function ShoppingListScreen() {
           <Text style={styles.subtitle}>
             Based on This Week's Meals
           </Text>
+          <View style={styles.protocolNote}>
+            <Text style={styles.protocolNoteText}>
+              This list is derived from your active supplement protocol and weekly meal plan.
+              Items update automatically when your protocol changes.
+            </Text>
+          </View>
         </View>
 
         {/* Category Sections */}
@@ -601,6 +607,19 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: FontSizes.sm,
     color: Colors.silver,
+  },
+  protocolNote: {
+    backgroundColor: "rgba(74, 144, 217, 0.1)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(74, 144, 217, 0.25)",
+    borderRadius: Radii.md,
+    padding: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  protocolNoteText: {
+    fontSize: FontSizes.xs,
+    color: Colors.goldLight,
+    lineHeight: 18,
   },
 
   /* Category */

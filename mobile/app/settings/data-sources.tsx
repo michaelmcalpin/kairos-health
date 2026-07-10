@@ -253,7 +253,7 @@ export default function DataSourcesScreen() {
                   },
                 ]}
               >
-                {React.cloneElement(cat.icon as React.ReactElement, {
+                {React.cloneElement(cat.icon as React.ReactElement<any>, {
                   color: cat.iconColor,
                 })}
               </View>

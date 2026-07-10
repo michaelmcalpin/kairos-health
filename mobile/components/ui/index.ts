@@ -9,5 +9,7 @@ export { Button } from "./Button";
 export { Card } from "./Card";
 export { EmptyState } from "./EmptyState";
 export { ErrorBoundary } from "./ErrorBoundary";
+export { ErrorView } from "./ErrorView";
+export { LoadingScreen } from "./LoadingScreen";
 export { LoadingSpinner } from "./LoadingSpinner";
 export { SkeletonLoader, SkeletonCard } from "./SkeletonLoader";
