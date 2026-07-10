@@ -23,6 +23,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { DeviceCard, ConnectedDevice } from "@/components/devices/DeviceCard";
@@ -106,18 +107,31 @@ const SUPPORTED_DEVICES: SupportedDevice[] = [
 export default function DevicesScreen() {
   const router = useRouter();
 
+  /* -- tRPC queries & mutations -- */
+  const devicesQuery = trpc.clientPortal.devices.list.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+  const devices = (devicesQuery.data as ConnectedDevice[] | undefined) ?? CONNECTED_DEVICES;
+  const syncMutation = trpc.clientPortal.devices.syncNow.useMutation();
+  const disconnectMutation = trpc.clientPortal.devices.disconnect.useMutation();
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await devicesQuery.refetch();
     setRefreshing(false);
-  }, []);
+  }, [devicesQuery]);
 
   const handleSync = (device: ConnectedDevice) => {
-    Alert.alert(
-      "Sync Started",
-      `Syncing data from ${device.name}...`,
-      [{ text: "OK" }]
+    syncMutation.mutate(
+      { provider: (device as any).provider ?? device.id },
+      {
+        onSuccess: () => {
+          Alert.alert("Sync Started", `Syncing data from ${device.name}...`, [{ text: "OK" }]);
+          devicesQuery.refetch();
+        },
+        onError: () => {
+          Alert.alert("Sync Failed", `Could not sync ${device.name}. Please try again.`, [{ text: "OK" }]);
+        },
+      }
     );
   };
 
@@ -127,7 +141,24 @@ export default function DevicesScreen() {
       `Are you sure you want to disconnect ${device.name}? You can reconnect it later.`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Disconnect", style: "destructive" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: () => {
+            disconnectMutation.mutate(
+              { provider: (device as any).provider ?? device.id },
+              {
+                onSuccess: () => {
+                  Alert.alert("Disconnected", `${device.name} has been disconnected.`, [{ text: "OK" }]);
+                  devicesQuery.refetch();
+                },
+                onError: () => {
+                  Alert.alert("Error", `Could not disconnect ${device.name}. Please try again.`, [{ text: "OK" }]);
+                },
+              }
+            );
+          },
+        },
       ]
     );
   };
@@ -160,11 +191,11 @@ export default function DevicesScreen() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Your Devices</Text>
           <Text style={styles.sectionCount}>
-            {CONNECTED_DEVICES.length} connected
+            {devices.length} connected
           </Text>
         </View>
 
-        {CONNECTED_DEVICES.map((device) => (
+        {devices.map((device) => (
           <DeviceCard
             key={device.id}
             device={device}

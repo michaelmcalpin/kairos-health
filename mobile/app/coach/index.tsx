@@ -12,7 +12,6 @@ import {
   ScrollView,
   StyleSheet,
   Pressable,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -28,6 +27,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -35,7 +35,7 @@ import { Button } from "@/components/ui/Button";
 /* Data                                                                */
 /* ------------------------------------------------------------------ */
 
-const COACH = {
+const FALLBACK_COACH = {
   initials: "WK",
   name: "Coach Walid Kherat",
   title: "Certified Strength & Conditioning Specialist",
@@ -103,16 +103,37 @@ const REVIEWS = [
 export default function CoachProfileScreen() {
   const router = useRouter();
 
+  /* -- tRPC queries -- */
+  const coachQuery = trpc.clientPortal.settings.getMyCoach.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+  const appointmentsQuery = trpc.clientPortal.scheduling.listAppointments.useQuery(
+    { filter: "upcoming" },
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  /* -- Map API response to display variables, fall back to hardcoded data -- */
+  const coachData = coachQuery.data;
+  const COACH = coachData
+    ? {
+        initials: `${(coachData.firstName ?? "")[0] ?? ""}${(coachData.lastName ?? "")[0] ?? ""}`.toUpperCase() || FALLBACK_COACH.initials,
+        name: coachData.displayName ?? (`Coach ${coachData.firstName ?? ""} ${coachData.lastName ?? ""}`.trim() || FALLBACK_COACH.name),
+        title: coachData.title ?? FALLBACK_COACH.title,
+        rating: coachData.rating ?? FALLBACK_COACH.rating,
+        reviewCount: coachData.reviewCount ?? FALLBACK_COACH.reviewCount,
+        bio: coachData.bio ?? FALLBACK_COACH.bio,
+      }
+    : FALLBACK_COACH;
+
+  const upcomingAppointments = appointmentsQuery.data ?? [];
+  const nextAppointment = Array.isArray(upcomingAppointments) && upcomingAppointments.length > 0
+    ? upcomingAppointments[0]
+    : null;
+
   const handleMessage = () => {
     router.push("/(tabs)/chat");
   };
 
   const handleBookSession = () => {
-    Alert.alert(
-      "Book Session",
-      "Session booking will be available soon. Contact your coach via chat to schedule.",
-      [{ text: "OK" }]
-    );
+    router.push("/appointments/book");
   };
 
   return (

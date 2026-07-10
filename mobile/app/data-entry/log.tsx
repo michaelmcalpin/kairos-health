@@ -30,6 +30,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/data-entry/FormField";
@@ -88,6 +89,12 @@ export default function LogEntryScreen() {
   }>();
   const router = useRouter();
 
+  /* -- tRPC mutations -- */
+  const glucoseMutation = trpc.clientPortal.glucose.create.useMutation();
+  const bpMutation = trpc.clientPortal.bloodPressure.add.useMutation();
+  const weightMutation = trpc.clientPortal.measurements.create.useMutation();
+  const checkinMutation = trpc.clientPortal.checkin.submit.useMutation();
+
   /* -- Blood Pressure state -- */
   const [systolic, setSystolic] = useState("");
   const [diastolic, setDiastolic] = useState("");
@@ -128,12 +135,51 @@ export default function LogEntryScreen() {
 
   const recentEntries = RECENT_ENTRIES[type] ?? [];
 
-  const handleSave = () => {
-    Alert.alert(
-      "Entry Saved",
-      "Your health data has been logged successfully.",
-      [{ text: "OK", onPress: () => router.back() }]
-    );
+  const handleSave = async () => {
+    try {
+      if (type === "glucose") {
+        await glucoseMutation.mutateAsync({
+          valueMgdl: Number(glucoseValue),
+          timingContext: mealContext,
+          notes: glucoseNotes || undefined,
+          source: "manual",
+        });
+      } else if (type === "blood-pressure") {
+        await bpMutation.mutateAsync({
+          systolic: Number(systolic),
+          diastolic: Number(diastolic),
+          pulse: pulse ? Number(pulse) : undefined,
+          position: position.toLowerCase(),
+          arm: arm.toLowerCase(),
+          source: "manual",
+        });
+      } else if (type === "weight") {
+        await weightMutation.mutateAsync({
+          weightLbs: weightUnit === "lbs" ? Number(weight) : Number(weight) * 2.20462,
+          notes: weightNotes || undefined,
+          source: "manual",
+        });
+      } else {
+        // catch-all: sleep, temperature, symptoms, etc.
+        await checkinMutation.mutateAsync({
+          weight: type === "weight" ? Number(weight) : undefined,
+          sleepHours: type === "sleep" && bedtime && wakeTime ? undefined : undefined,
+          notes: type === "symptoms" ? symptoms : type === "temperature" ? `Temperature: ${temperature}°${tempUnit}` : undefined,
+        });
+      }
+
+      Alert.alert(
+        "Entry Saved",
+        "Your health data has been logged successfully.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        "Failed to save entry. Please try again.",
+        [{ text: "OK" }]
+      );
+    }
   };
 
   return (
@@ -307,11 +353,17 @@ export default function LogEntryScreen() {
             {/* Date & Time pickers                                */}
             {/* ═══════════════════════════════════════════════════ */}
             <View style={styles.dateTimeRow}>
-              <Pressable style={styles.dateTimeBtn}>
+              <Pressable
+                style={styles.dateTimeBtn}
+                onPress={() => Alert.alert("Date Picker", "Date picker coming soon.")}
+              >
                 <Calendar size={16} color={Colors.gold} />
                 <Text style={styles.dateTimeText}>{date}</Text>
               </Pressable>
-              <Pressable style={styles.dateTimeBtn}>
+              <Pressable
+                style={styles.dateTimeBtn}
+                onPress={() => Alert.alert("Time Picker", "Time picker coming soon.")}
+              >
                 <Clock size={16} color={Colors.gold} />
                 <Text style={styles.dateTimeText}>{time}</Text>
               </Pressable>

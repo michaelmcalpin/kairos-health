@@ -34,6 +34,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { useConnectedDevices, useSyncDevice } from "@/hooks";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -50,7 +51,7 @@ interface Integration {
   iconBg: string;
 }
 
-const INTEGRATIONS: Integration[] = [
+const FALLBACK_INTEGRATIONS: Integration[] = [
   {
     id: "apple_health",
     name: "Apple Health",
@@ -103,8 +104,26 @@ export default function DataSourcesScreen() {
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
 
+  /* -- Device data from API with fallback -- */
+  const { devices: connectedDevices } = useConnectedDevices();
+  const { sync: syncDevice, isLoading: isSyncing } = useSyncDevice();
+
+  /* -- Map connected devices to Integration format, fall back to hardcoded -- */
+  const INTEGRATIONS: Integration[] = connectedDevices.length > 0
+    ? connectedDevices.map((device) => ({
+        id: device.id,
+        name: device.name,
+        status: device.syncStatus === "pending" ? "not_synced" as const : device.syncStatus,
+        lastSync: device.lastSyncedAt
+          ? formatTimeSince(device.lastSyncedAt)
+          : undefined,
+        icon: getDeviceIcon(device.manufacturer),
+        iconBg: getDeviceIconBg(device.manufacturer),
+      }))
+    : FALLBACK_INTEGRATIONS;
+
   const handleManage = (integration: Integration) => {
-    if (integration.id === "apple_health") {
+    if (integration.id === "apple_health" || integration.name === "Apple Health") {
       router.push("/devices/apple-health");
     } else {
       // Show sync historical data option
@@ -114,6 +133,9 @@ export default function DataSourcesScreen() {
   };
 
   const handleSyncHistorical = () => {
+    if (syncingProvider) {
+      syncDevice(syncingProvider);
+    }
     setShowSyncModal(false);
     Alert.alert(
       "Sync Started",
@@ -292,6 +314,53 @@ export default function DataSourcesScreen() {
       </Modal>
     </SafeAreaView>
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+function formatTimeSince(dateString: string): string {
+  const now = Date.now();
+  const then = new Date(dateString).getTime();
+  const diffMs = now - then;
+  const diffMins = Math.floor(diffMs / 60_000);
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins} min ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
+function getDeviceIcon(manufacturer: string): React.ReactNode {
+  switch (manufacturer.toLowerCase()) {
+    case "apple":
+      return <Heart size={20} color="#FF375F" fill="#FF375F" />;
+    case "oura":
+      return <Moon size={20} color="#A78BFA" />;
+    case "dexcom":
+      return <Droplets size={20} color="#06B6D4" />;
+    case "withings":
+      return <Scale size={20} color="#D4A843" />;
+    default:
+      return <Activity size={20} color="#4A90D9" />;
+  }
+}
+
+function getDeviceIconBg(manufacturer: string): string {
+  switch (manufacturer.toLowerCase()) {
+    case "apple":
+      return "rgba(255, 55, 95, 0.12)";
+    case "oura":
+      return "rgba(167, 139, 250, 0.12)";
+    case "dexcom":
+      return "rgba(6, 182, 212, 0.12)";
+    case "withings":
+      return "rgba(212, 168, 67, 0.12)";
+    default:
+      return "rgba(74, 144, 217, 0.12)";
+  }
 }
 
 /* ------------------------------------------------------------------ */

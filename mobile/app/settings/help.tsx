@@ -16,6 +16,7 @@ import {
   Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import {
   Search,
   ChevronDown,
@@ -26,7 +27,7 @@ import {
   HelpCircle,
 } from "lucide-react-native";
 
-import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { Colors, Spacing, FontSizes, Radii, APP_VERSION } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -82,6 +83,7 @@ const FAQ_ITEMS: FAQItem[] = [
 /* ------------------------------------------------------------------ */
 
 export default function HelpScreen() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
@@ -105,7 +107,7 @@ export default function HelpScreen() {
         text: "Email",
         onPress: () => Linking.openURL("mailto:feedback@everist.ai"),
       },
-      { text: "In-App", onPress: () => Alert.alert("Thank you!", "Your feedback form has been opened.") },
+      { text: "In-App", onPress: () => Alert.alert("Send Feedback", "Send us feedback at support@everist.ai") },
       { text: "Cancel", style: "cancel" },
     ]);
   };
@@ -208,9 +210,7 @@ export default function HelpScreen() {
 
             <Pressable
               style={styles.contactOption}
-              onPress={() =>
-                Alert.alert("Live Chat", "Starting live chat session...")
-              }
+              onPress={() => router.push("/(tabs)/chat")}
             >
               <View style={styles.contactIconWrap}>
                 <MessageCircle size={20} color={Colors.gold} />
@@ -237,7 +237,7 @@ export default function HelpScreen() {
 
         {/* ── App Version ─────────────────────────────────────────── */}
         <View style={styles.versionSection}>
-          <Text style={styles.versionText}>Everist.ai v1.0.0</Text>
+          <Text style={styles.versionText}>Everist.ai v{APP_VERSION}</Text>
           <Text style={styles.buildText}>Build 1</Text>
         </View>
       </ScrollView>

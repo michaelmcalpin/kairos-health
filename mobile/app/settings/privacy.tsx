@@ -31,7 +31,9 @@ import {
   ExternalLink,
 } from "lucide-react-native";
 
+import { useAuth } from "@clerk/clerk-expo";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { SettingsRow } from "@/components/settings/SettingsRow";
@@ -42,6 +44,8 @@ import { SettingsSection } from "@/components/settings/SettingsSection";
 /* ------------------------------------------------------------------ */
 
 export default function PrivacyScreen() {
+  const { signOut } = useAuth();
+
   /* -- authentication toggles -- */
   const [biometricLock, setBiometricLock] = useState(true);
   const [twoFactor, setTwoFactor] = useState(false);
@@ -54,18 +58,31 @@ export default function PrivacyScreen() {
   /* -- export format -- */
   const [showFormatPicker, setShowFormatPicker] = useState(false);
 
+  /* -- tRPC mutation for feature toggles -- */
+  const toggleMutation = trpc.clientPortal.settings.updateFeatureToggle.useMutation();
+
+  const handleBiometricToggle = (value: boolean) => {
+    setBiometricLock(value);
+    toggleMutation.mutate({ key: "biometric_login", value });
+  };
+
+  const handleTwoFactorToggle = (value: boolean) => {
+    setTwoFactor(value);
+    toggleMutation.mutate({ key: "two_factor_auth", value });
+  };
+
   const handleExport = (format: "JSON" | "CSV") => {
     setShowFormatPicker(false);
     Alert.alert(
       "Export Requested",
-      `We'll prepare a ${format} download of all your health data. You'll receive an email when it's ready.`
+      `We'll prepare a ${format} export of all your health data. You'll receive an email at your registered address when the download is ready (typically within 24 hours).`
     );
   };
 
   const handleDeleteRequest = () => {
     Alert.alert(
-      "Request Data Deletion",
-      "This will submit a request to permanently delete all your health data. This process takes up to 30 days and cannot be undone.",
+      "Delete Account & Data",
+      "This will submit a request to permanently delete your account and all associated health data. Our support team will process this within 30 days per our data retention policy. This action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -74,7 +91,7 @@ export default function PrivacyScreen() {
           onPress: () =>
             Alert.alert(
               "Request Submitted",
-              "Your data deletion request has been submitted. You will receive a confirmation email."
+              "Your deletion request has been sent to our support team at support@everist.ai. You will receive a confirmation email with next steps."
             ),
         },
       ]
@@ -84,14 +101,20 @@ export default function PrivacyScreen() {
   const handleSignOutAll = () => {
     Alert.alert(
       "Sign Out All Devices",
-      "This will sign you out of all devices except this one. You'll need to sign in again on each device.",
+      "This will sign you out of all devices. You'll need to sign in again on each device.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Sign Out All",
           style: "destructive",
-          onPress: () =>
-            Alert.alert("Done", "All other sessions have been terminated."),
+          onPress: async () => {
+            try {
+              await signOut();
+            } catch (e) {
+              console.error("Sign out error:", e);
+              Alert.alert("Error", "Failed to sign out. Please try again.");
+            }
+          },
         },
       ]
     );
@@ -114,7 +137,7 @@ export default function PrivacyScreen() {
             label="Biometric Lock"
             subtitle="Face ID / Touch ID"
             value={biometricLock}
-            onValueChange={setBiometricLock}
+            onValueChange={handleBiometricToggle}
           />
           <SettingsRow
             type="toggle"
@@ -122,7 +145,7 @@ export default function PrivacyScreen() {
             label="Two-Factor Authentication"
             subtitle={twoFactor ? "Enabled" : "Disabled"}
             value={twoFactor}
-            onValueChange={setTwoFactor}
+            onValueChange={handleTwoFactorToggle}
             last
           />
         </SettingsSection>

@@ -31,6 +31,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 
 /* ------------------------------------------------------------------ */
@@ -121,6 +122,7 @@ export default function ConnectAccountScreen() {
   const router = useRouter();
   const [connecting, setConnecting] = useState<string | null>(null);
   const [connected, setConnected] = useState<Set<string>>(new Set());
+  const connectMutation = trpc.clientPortal.devices.initiateConnect.useMutation();
 
   const handleConnect = (provider: Provider) => {
     if (connected.has(provider.id)) {
@@ -137,18 +139,30 @@ export default function ConnectAccountScreen() {
       return;
     }
 
-    // OAuth providers — simulate connection flow
-    // TODO: Replace with real tRPC initiateConnect call
+    // OAuth providers — initiate real connection
     setConnecting(provider.id);
-    setTimeout(() => {
-      setConnected((prev) => new Set(prev).add(provider.id));
-      setConnecting(null);
-      Alert.alert(
-        "Connected!",
-        `${provider.name} has been connected successfully. Your data will begin syncing shortly.`,
-        [{ text: "OK" }],
-      );
-    }, 1500);
+    connectMutation.mutate(
+      { provider: provider.id as any },
+      {
+        onSuccess: () => {
+          setConnected((prev) => new Set(prev).add(provider.id));
+          setConnecting(null);
+          Alert.alert(
+            "Connected!",
+            `${provider.name} has been connected successfully. Your data will begin syncing shortly.`,
+            [{ text: "OK" }],
+          );
+        },
+        onError: () => {
+          setConnecting(null);
+          Alert.alert(
+            "Connection Failed",
+            `Could not connect to ${provider.name}. Please try again.`,
+            [{ text: "OK" }],
+          );
+        },
+      }
+    );
   };
 
   return (

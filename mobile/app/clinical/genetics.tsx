@@ -126,8 +126,12 @@ const SAMPLE_RISK_FACTORS: RiskFactor[] = [
 /* ------------------------------------------------------------------ */
 
 export default function GeneticsScreen() {
-  // ── tRPC query ──────────────────────────────────────────────────
+  // ── tRPC queries ─────────────────────────────────────────────────
   const query = trpc.clientPortal.genetics.getProfile.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const markersQuery = trpc.clientPortal.genetics.getMarkers.useQuery(
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
@@ -135,6 +139,11 @@ export default function GeneticsScreen() {
   // Map API response → local shapes, falling back to sample data.
   // Backend returns: { id, uploadType, status, createdAt, markers: [...] } | null
   const apiData = query.data as any;
+
+  // Use markers from the dedicated markers query, then fall back to profile markers, then sample data
+  const markersData = (markersQuery.data ?? []) as any[];
+  const allMarkers = markersData.length > 0 ? markersData : (apiData?.markers ?? []);
+
   const PROFILE = apiData
     ? {
         provider: apiData.uploadType ?? SAMPLE_PROFILE.provider,
@@ -142,13 +151,13 @@ export default function GeneticsScreen() {
         date: apiData.createdAt
           ? new Date(apiData.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
           : SAMPLE_PROFILE.date,
-        variants: apiData.markers?.length ?? SAMPLE_PROFILE.variants,
-        actionable: apiData.markers?.filter((m: any) => m.clinicalPriority === "high").length ?? SAMPLE_PROFILE.actionable,
+        variants: allMarkers.length || SAMPLE_PROFILE.variants,
+        actionable: allMarkers.filter((m: any) => m.clinicalPriority === "high").length || SAMPLE_PROFILE.actionable,
       }
     : SAMPLE_PROFILE;
 
-  const KEY_FINDINGS: GeneticFinding[] = apiData?.markers?.length
-    ? (apiData.markers as any[]).slice(0, 6).map((m: any) => ({
+  const KEY_FINDINGS: GeneticFinding[] = allMarkers.length > 0
+    ? (allMarkers as any[]).slice(0, 6).map((m: any) => ({
         gene: m.gene ?? "",
         variant: m.mutation ?? m.rsId ?? "",
         interpretation: m.function ?? "",

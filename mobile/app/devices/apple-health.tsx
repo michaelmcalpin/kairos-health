@@ -37,6 +37,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -67,9 +68,18 @@ const SYNC_OPTIONS: { value: SyncFrequency; label: string }[] = [
 export default function AppleHealthScreen() {
   const router = useRouter();
 
+  /* -- tRPC queries & mutations -- */
+  const connectionQuery = trpc.clientPortal.devices.getConnection.useQuery(
+    { provider: "apple_health" },
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const syncMutation = trpc.clientPortal.devices.syncNow.useMutation();
+  const disconnectMutation = trpc.clientPortal.devices.disconnect.useMutation();
+
   /* -- Connection state -- */
-  const isConnected = true;
-  const lastSyncTime = "2 minutes ago";
+  const connectionData = connectionQuery.data as any;
+  const isConnected = connectionData ? (connectionData.connected ?? connectionData.status === "connected") : true;
+  const lastSyncTime = connectionData?.lastSync ?? connectionData?.lastSyncTime ?? "2 minutes ago";
 
   /* -- Sync frequency -- */
   const [syncFrequency, setSyncFrequency] = useState<SyncFrequency>("realtime");
@@ -95,9 +105,18 @@ export default function AppleHealthScreen() {
 
   /* -- Handlers -- */
   const handleSyncNow = () => {
-    Alert.alert("Syncing", "Syncing data with Apple Health...", [
-      { text: "OK" },
-    ]);
+    syncMutation.mutate(
+      { provider: "apple_health" },
+      {
+        onSuccess: () => {
+          Alert.alert("Sync Complete", "Apple Health data has been synced.", [{ text: "OK" }]);
+          connectionQuery.refetch();
+        },
+        onError: () => {
+          Alert.alert("Sync Failed", "Could not sync Apple Health data. Please try again.", [{ text: "OK" }]);
+        },
+      }
+    );
   };
 
   const handleDisconnect = () => {
@@ -109,6 +128,21 @@ export default function AppleHealthScreen() {
         {
           text: "Disconnect",
           style: "destructive",
+          onPress: () => {
+            disconnectMutation.mutate(
+              { provider: "apple_health" },
+              {
+                onSuccess: () => {
+                  Alert.alert("Disconnected", "Apple Health has been disconnected.", [
+                    { text: "OK", onPress: () => router.back() },
+                  ]);
+                },
+                onError: () => {
+                  Alert.alert("Error", "Could not disconnect Apple Health. Please try again.", [{ text: "OK" }]);
+                },
+              }
+            );
+          },
         },
       ]
     );

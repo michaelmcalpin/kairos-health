@@ -210,8 +210,16 @@ const trendStyles = StyleSheet.create({
 export default function LabsScreen() {
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
 
-  // ── tRPC query ──────────────────────────────────────────────────
+  // ── tRPC queries ─────────────────────────────────────────────────
   const query = trpc.clientPortal.labs.listBiomarkers.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const labsQuery = trpc.clientPortal.labs.listOrders.useQuery(
+    { limit: 10 },
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const summaryQuery = trpc.clientPortal.labs.summary.useQuery(
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
@@ -219,7 +227,10 @@ export default function LabsScreen() {
   // Backend returns: Array<{ code, name, category, value, unit, refLow, refHigh, status, lastMeasured }>
   const biomarkers = (query.data ?? []) as any[];
 
-  // Build panel info from the most recent measurement date
+  // Build panel info from lab orders or most recent measurement date
+  const labOrders = (labsQuery.data ?? []) as any[];
+  const latestOrder = labOrders[0];
+
   const latestDate = biomarkers.length > 0
     ? biomarkers.reduce((latest: any, b: any) => {
         const d = b.lastMeasured ? new Date(b.lastMeasured) : null;
@@ -227,14 +238,23 @@ export default function LabsScreen() {
       }, null as Date | null)
     : null;
 
-  const PANEL = latestDate
+  const PANEL = latestOrder
     ? {
-        name: SAMPLE_PANEL.name,
-        date: latestDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        lab: SAMPLE_PANEL.lab,
-        orderedBy: SAMPLE_PANEL.orderedBy,
+        name: latestOrder.panelName ?? latestOrder.name ?? SAMPLE_PANEL.name,
+        date: latestOrder.date
+          ? new Date(latestOrder.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          : SAMPLE_PANEL.date,
+        lab: latestOrder.lab ?? SAMPLE_PANEL.lab,
+        orderedBy: latestOrder.orderedBy ?? SAMPLE_PANEL.orderedBy,
       }
-    : SAMPLE_PANEL;
+    : latestDate
+      ? {
+          name: SAMPLE_PANEL.name,
+          date: latestDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          lab: SAMPLE_PANEL.lab,
+          orderedBy: SAMPLE_PANEL.orderedBy,
+        }
+      : SAMPLE_PANEL;
 
   const mapStatus = (s?: string): LabMarker["status"] => {
     if (s === "optimal" || s === "normal" || s === "borderline" || s === "critical") return s;

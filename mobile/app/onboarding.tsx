@@ -18,6 +18,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Colors, Spacing } from "@/lib/constants";
+import { trpc } from "@/lib/api";
 import {
   WelcomeStep,
   ProfileStep,
@@ -90,15 +91,45 @@ export default function OnboardingScreen() {
     [],
   );
 
+  /* -- tRPC mutations for saving step data -- */
+  const saveProfileMutation = trpc.clientPortal.onboarding.saveProfile.useMutation();
+  const saveGoalsMutation = trpc.clientPortal.onboarding.saveGoals.useMutation();
+  const saveHealthHistoryMutation = trpc.clientPortal.onboarding.saveHealthHistory.useMutation();
+  const completeMutation = trpc.clientPortal.onboarding.complete.useMutation({
+    onSuccess: () => router.replace("/(tabs)"),
+    onError: () => {
+      // Still navigate even if the API call fails
+      router.replace("/(tabs)");
+    },
+  });
+
   /* -- Navigation helpers -- */
   const currentIndex = STEP_ORDER.indexOf(currentStep);
 
   const goNext = useCallback(() => {
     const nextIndex = currentIndex + 1;
     if (nextIndex < STEP_ORDER.length) {
+      const leavingStep = STEP_ORDER[currentIndex];
+
+      // Save step data to backend when leaving a step
+      if (leavingStep === "profile") {
+        const heightInches =
+          (parseInt(profile.heightFeet || "0", 10) * 12) +
+          parseInt(profile.heightInches || "0", 10);
+        saveProfileMutation.mutate({
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          dateOfBirth: profile.dateOfBirth || undefined,
+          gender: profile.gender || undefined,
+          heightInches: heightInches || undefined,
+        });
+      } else if (leavingStep === "goals") {
+        saveGoalsMutation.mutate({ goals: selectedGoals });
+      }
+
       setCurrentStep(STEP_ORDER[nextIndex]);
     }
-  }, [currentIndex]);
+  }, [currentIndex, profile, selectedGoals, saveProfileMutation, saveGoalsMutation]);
 
   const goBack = useCallback(() => {
     const prevIndex = currentIndex - 1;
@@ -108,9 +139,8 @@ export default function OnboardingScreen() {
   }, [currentIndex]);
 
   const handleFinish = useCallback(() => {
-    // TODO: Call tRPC onboarding.complete() when wired up
-    router.replace("/(tabs)");
-  }, [router]);
+    completeMutation.mutate({});
+  }, [completeMutation]);
 
   /* -- Render current step -- */
   const renderStep = () => {
