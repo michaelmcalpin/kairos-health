@@ -3,7 +3,7 @@
  * weekly log, and history stats.
  */
 
-import React, { useState } from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
 import { Stack } from "expo-router";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -23,7 +24,7 @@ import { Button } from "@/components/ui/Button";
 /* Sample data                                                         */
 /* ------------------------------------------------------------------ */
 
-const CURRENT_FAST = {
+const SAMPLE_CURRENT_FAST = {
   protocol: "Intermittent Fast 16:8",
   active: true,
   startTime: "8:00 PM",
@@ -66,7 +67,7 @@ interface WeeklyLogEntry {
   completed: boolean;
 }
 
-const WEEKLY_LOG: WeeklyLogEntry[] = [
+const SAMPLE_WEEKLY_LOG: WeeklyLogEntry[] = [
   { day: "Mon", date: "Jun 7", duration: "16h 12m", goal: 16, actual: 16.2, completed: true },
   { day: "Tue", date: "Jun 8", duration: "16h 45m", goal: 16, actual: 16.75, completed: true },
   { day: "Wed", date: "Jun 9", duration: "18h 03m", goal: 16, actual: 18.05, completed: true },
@@ -76,7 +77,7 @@ const WEEKLY_LOG: WeeklyLogEntry[] = [
   { day: "Sun", date: "Jun 13", duration: "In progress", goal: 16, actual: 14.53, completed: false },
 ];
 
-const FAST_STATS = {
+const SAMPLE_FAST_STATS = {
   avgDuration: "15.8h",
   longest: "22h",
   streak: 12,
@@ -312,9 +313,95 @@ const zoneStyles = StyleSheet.create({
 /* ------------------------------------------------------------------ */
 
 export default function FastingScreen() {
-  const [isFasting, setIsFasting] = useState(CURRENT_FAST.active);
+  /* ---- tRPC queries & mutations ---- */
+  const protocolQuery = trpc.clientPortal.fasting.getProtocol.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+  const activeFastQuery = trpc.clientPortal.fasting.getActiveFast.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+  const logsQuery = trpc.clientPortal.fasting.listLogs.useQuery({ limit: 10 }, DEFAULT_QUERY_OPTIONS);
+  const statsQuery = trpc.clientPortal.fasting.stats.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+
+  const startFastMutation = trpc.clientPortal.fasting.startFast.useMutation({
+    onSuccess: () => { activeFastQuery.refetch(); },
+  });
+  const endFastMutation = trpc.clientPortal.fasting.endFast.useMutation({
+    onSuccess: () => { activeFastQuery.refetch(); logsQuery.refetch(); statsQuery.refetch(); },
+  });
+
+  /* ---- Map API data with sample fallback ---- */
+  const protocol = protocolQuery.data
+    ? (protocolQuery.data as any).name ?? (protocolQuery.data as any).protocol ?? SAMPLE_CURRENT_FAST.protocol
+    : SAMPLE_CURRENT_FAST.protocol;
+
+  const activeFast = activeFastQuery.data as any | null;
+
+  const isFasting = activeFast
+    ? true
+    : activeFastQuery.isSuccess
+      ? false
+      : SAMPLE_CURRENT_FAST.active;
+
+  const currentFast = useMemo(() => {
+    if (activeFast) {
+      const start = new Date(activeFast.startTime ?? activeFast.startedAt ?? activeFast.createdAt);
+      const now = new Date();
+      const diffMs = now.getTime() - start.getTime();
+      const totalElapsedMin = Math.max(0, Math.floor(diffMs / 60000));
+      const elapsedH = Math.floor(totalElapsedMin / 60);
+      const elapsedM = totalElapsedMin % 60;
+      const goalHours = activeFast.goalHours ?? activeFast.targetHours ?? (protocolQuery.data as any)?.targetHours ?? 16;
+      const totalGoalMin = goalHours * 60;
+      const remainingMin = Math.max(0, totalGoalMin - totalElapsedMin);
+      const remH = Math.floor(remainingMin / 60);
+      const remM = remainingMin % 60;
+      return {
+        protocol,
+        startTime: start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        elapsed: { hours: elapsedH, minutes: elapsedM },
+        goal: goalHours,
+        remaining: { hours: remH, minutes: remM },
+      };
+    }
+    return { ...SAMPLE_CURRENT_FAST, protocol };
+  }, [activeFast, protocol, protocolQuery.data]);
+
+  const weeklyLog: WeeklyLogEntry[] = useMemo(() => {
+    if (logsQuery.data && Array.isArray(logsQuery.data) && logsQuery.data.length > 0) {
+      return (logsQuery.data as any[]).slice(0, 7).map((log: any) => {
+        const start = new Date(log.startTime ?? log.startedAt);
+        const end = log.endTime ?? log.endedAt ? new Date(log.endTime ?? log.endedAt) : null;
+        const durationMs = end ? end.getTime() - start.getTime() : 0;
+        const durationH = durationMs / 3600000;
+        const h = Math.floor(durationH);
+        const m = Math.round((durationH - h) * 60);
+        const goalH = log.goalHours ?? log.targetHours ?? 16;
+        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return {
+          day: dayNames[start.getDay()],
+          date: `${monthNames[start.getMonth()]} ${start.getDate()}`,
+          duration: end ? `${h}h ${String(m).padStart(2, "0")}m` : "In progress",
+          goal: goalH,
+          actual: durationH,
+          completed: durationH >= goalH,
+        };
+      });
+    }
+    return SAMPLE_WEEKLY_LOG;
+  }, [logsQuery.data]);
+
+  const fastStats = useMemo(() => {
+    if (statsQuery.data) {
+      const s = statsQuery.data as any;
+      return {
+        avgDuration: s.avgDuration ?? s.averageDurationHours ? `${Number(s.avgDuration ?? s.averageDurationHours).toFixed(1)}h` : SAMPLE_FAST_STATS.avgDuration,
+        longest: s.longestFast ?? s.longestDurationHours ? `${Math.round(Number(s.longestFast ?? s.longestDurationHours))}h` : SAMPLE_FAST_STATS.longest,
+        streak: s.streak ?? s.currentStreak ?? SAMPLE_FAST_STATS.streak,
+      };
+    }
+    return SAMPLE_FAST_STATS;
+  }, [statsQuery.data]);
+
   const elapsedHours =
-    CURRENT_FAST.elapsed.hours + CURRENT_FAST.elapsed.minutes / 60;
+    currentFast.elapsed.hours + currentFast.elapsed.minutes / 60;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -335,16 +422,16 @@ export default function FastingScreen() {
             />
           </View>
 
-          <Text style={styles.protocolName}>{CURRENT_FAST.protocol}</Text>
+          <Text style={styles.protocolName}>{currentFast.protocol}</Text>
           <Text style={styles.startTime}>
-            Started at {CURRENT_FAST.startTime}
+            Started at {currentFast.startTime}
           </Text>
 
           {/* Circular Timer */}
           <CircularTimer
-            elapsed={CURRENT_FAST.elapsed}
-            goal={CURRENT_FAST.goal}
-            remaining={CURRENT_FAST.remaining}
+            elapsed={currentFast.elapsed}
+            goal={currentFast.goal}
+            remaining={currentFast.remaining}
           />
 
           {/* Start/End Toggle */}
@@ -356,10 +443,14 @@ export default function FastingScreen() {
               if (isFasting) {
                 Alert.alert(
                   "End Fast",
-                  `End your fast at ${CURRENT_FAST.elapsed.hours}h ${CURRENT_FAST.elapsed.minutes}m?`,
+                  `End your fast at ${currentFast.elapsed.hours}h ${currentFast.elapsed.minutes}m?`,
                   [
                     { text: "Continue Fasting", style: "cancel" },
-                    { text: "End Fast", style: "destructive", onPress: () => setIsFasting(false) },
+                    {
+                      text: "End Fast",
+                      style: "destructive",
+                      onPress: () => endFastMutation.mutate({}),
+                    },
                   ]
                 );
               } else {
@@ -368,7 +459,10 @@ export default function FastingScreen() {
                   "Begin a new fasting window now?",
                   [
                     { text: "Cancel", style: "cancel" },
-                    { text: "Start Fast", onPress: () => setIsFasting(true) },
+                    {
+                      text: "Start Fast",
+                      onPress: () => startFastMutation.mutate({}),
+                    },
                   ]
                 );
               }
@@ -387,12 +481,12 @@ export default function FastingScreen() {
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Weekly Log</Text>
 
-          {WEEKLY_LOG.map((entry, idx) => (
+          {weeklyLog.map((entry, idx) => (
             <View
               key={entry.day}
               style={[
                 styles.logRow,
-                idx < WEEKLY_LOG.length - 1 && styles.logBorder,
+                idx < weeklyLog.length - 1 && styles.logBorder,
               ]}
             >
               <View style={styles.logDay}>
@@ -423,16 +517,16 @@ export default function FastingScreen() {
 
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{FAST_STATS.avgDuration}</Text>
+              <Text style={styles.statValue}>{fastStats.avgDuration}</Text>
               <Text style={styles.statLabel}>Avg Duration</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{FAST_STATS.longest}</Text>
+              <Text style={styles.statValue}>{fastStats.longest}</Text>
               <Text style={styles.statLabel}>Longest Fast</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>
-                {FAST_STATS.streak}{" "}
+                {fastStats.streak}{" "}
                 <Text style={styles.statUnit}>days</Text>
               </Text>
               <Text style={styles.statLabel}>Current Streak</Text>

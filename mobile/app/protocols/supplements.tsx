@@ -1,8 +1,13 @@
 /**
  * Supplements screen — current stack grouped by timing, with adherence tracking.
+ *
+ * Wired to tRPC API:
+ *   - clientPortal.supplements.getActiveProtocol  (current supplement protocol)
+ *   - clientPortal.supplements.adherenceStats     (weekly adherence %)
+ *   - clientPortal.supplements.logAdherence       (mark a supplement taken/skipped)
  */
 
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,19 +15,23 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
+  RefreshControl,
+  Pressable,
 } from "react-native";
 import { Stack } from "expo-router";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Types                                                               */
 /* ------------------------------------------------------------------ */
 
 interface Supplement {
+  id?: string;
   name: string;
   dosage: string;
   brand: string;
@@ -36,7 +45,11 @@ interface TimingGroup {
   supplements: Supplement[];
 }
 
-const TIMING_GROUPS: TimingGroup[] = [
+/* ------------------------------------------------------------------ */
+/* Sample data — used as fallback when backend is unreachable          */
+/* ------------------------------------------------------------------ */
+
+const SAMPLE_TIMING_GROUPS: TimingGroup[] = [
   {
     label: "Morning",
     time: "7:00 AM",
@@ -119,18 +132,119 @@ const TIMING_GROUPS: TimingGroup[] = [
   },
 ];
 
-const ADHERENCE = { rate: 94, period: "this week" };
+const SAMPLE_ADHERENCE = { rate: 94, period: "this week" };
+
+/* ------------------------------------------------------------------ */
+/* API → UI mappers                                                    */
+/* ------------------------------------------------------------------ */
+
+/** Map a protocol item from the API to our display Supplement type. */
+function mapApiSupplement(raw: any, adherenceMap?: Record<string, boolean>): Supplement {
+  return {
+    id: raw.id ?? raw._id ?? undefined,
+    name: raw.name ?? raw.supplementName ?? "Supplement",
+    dosage: raw.dose ?? raw.dosage ?? "",
+    brand: raw.brand ?? "",
+    purpose: raw.purpose ?? raw.notes ?? "",
+    taken: adherenceMap?.[raw.id] ?? raw.taken ?? false,
+  };
+}
+
+/**
+ * Group flat API items into TimingGroups based on each item's `timing`
+ * field (e.g. "morning", "evening", "bedtime", "with meals").
+ */
+function groupByTiming(items: any[], adherenceMap?: Record<string, boolean>): TimingGroup[] {
+  const buckets: Record<string, { label: string; time: string; supplements: Supplement[] }> = {};
+
+  const timingMeta: Record<string, { label: string; time: string }> = {
+    morning: { label: "Morning", time: "7:00 AM" },
+    afternoon: { label: "Afternoon", time: "1:00 PM" },
+    evening: { label: "Evening", time: "6:00 PM" },
+    bedtime: { label: "Bedtime", time: "10:00 PM" },
+    "with meals": { label: "With Meals", time: "Meals" },
+  };
+
+  for (const item of items) {
+    const key = (item.timing ?? item.timeOfDay ?? "morning").toLowerCase();
+    if (!buckets[key]) {
+      const meta = timingMeta[key] ?? { label: key.charAt(0).toUpperCase() + key.slice(1), time: "" };
+      buckets[key] = { ...meta, supplements: [] };
+    }
+    buckets[key].supplements.push(mapApiSupplement(item, adherenceMap));
+  }
+
+  // Return in a predictable order
+  const order = ["morning", "afternoon", "evening", "bedtime"];
+  const sorted = order.filter((k) => buckets[k]).map((k) => buckets[k]);
+  // Append any buckets not in the predefined order
+  for (const key of Object.keys(buckets)) {
+    if (!order.includes(key)) sorted.push(buckets[key]);
+  }
+  return sorted;
+}
 
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
 export default function SupplementsScreen() {
-  const totalSupps = TIMING_GROUPS.reduce((s, g) => s + g.supplements.length, 0);
-  const takenCount = TIMING_GROUPS.reduce(
+  /* ---- tRPC queries ---- */
+  const protocolQuery = trpc.clientPortal.supplements.getActiveProtocol.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const adherenceQuery = trpc.clientPortal.supplements.adherenceStats.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const logAdherenceMutation = trpc.clientPortal.supplements.logAdherence.useMutation({
+    onSuccess: () => {
+      protocolQuery.refetch();
+      adherenceQuery.refetch();
+    },
+    onError: (err: any) => {
+      Alert.alert("Error", err.message ?? "Could not log adherence.");
+    },
+  });
+
+  /* ---- Derive display data (API with sample fallback) ---- */
+  const timingGroups: TimingGroup[] = protocolQuery.data
+    ? groupByTiming(
+        (protocolQuery.data as any).items ?? (protocolQuery.data as any).supplements ?? [protocolQuery.data].flat(),
+      )
+    : SAMPLE_TIMING_GROUPS;
+
+  const adherenceRate: number = adherenceQuery.data
+    ? ((adherenceQuery.data as any).rate ?? (adherenceQuery.data as any).adherenceRate ?? SAMPLE_ADHERENCE.rate)
+    : SAMPLE_ADHERENCE.rate;
+
+  const totalSupps = timingGroups.reduce((s, g) => s + g.supplements.length, 0);
+  const takenCount = timingGroups.reduce(
     (s, g) => s + g.supplements.filter((sup) => sup.taken).length,
     0,
   );
+
+  /* ---- Pull-to-refresh ---- */
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([protocolQuery.refetch(), adherenceQuery.refetch()]);
+    setRefreshing(false);
+  }, [protocolQuery, adherenceQuery]);
+
+  /* ---- Toggle adherence handler ---- */
+  const handleToggleTaken = (sup: Supplement) => {
+    if (sup.id) {
+      logAdherenceMutation.mutate({
+        supplementId: sup.id,
+        taken: !sup.taken,
+        date: new Date().toISOString().split("T")[0],
+      });
+    } else {
+      Alert.alert("Logged", `${sup.name} marked as ${sup.taken ? "not taken" : "taken"}.`);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -140,21 +254,24 @@ export default function SupplementsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.gold} />
+        }
       >
         {/* Adherence Card */}
         <Card style={styles.adherenceCard}>
           <View style={styles.rowBetween}>
             <View>
               <Text style={styles.adherenceLabel}>Weekly Adherence</Text>
-              <Text style={styles.adherenceRate}>{ADHERENCE.rate}%</Text>
+              <Text style={styles.adherenceRate}>{adherenceRate}%</Text>
             </View>
-            <Badge label="On Track" variant="success" />
+            <Badge label={adherenceRate >= 80 ? "On Track" : "Needs Attention"} variant={adherenceRate >= 80 ? "success" : "warning"} />
           </View>
 
           {/* Progress bar */}
           <View style={styles.progressTrack}>
             <View
-              style={[styles.progressFill, { width: `${ADHERENCE.rate}%` }]}
+              style={[styles.progressFill, { width: `${adherenceRate}%` }]}
             />
           </View>
           <Text style={styles.dailyCount}>
@@ -163,7 +280,7 @@ export default function SupplementsScreen() {
         </Card>
 
         {/* Timing Groups */}
-        {TIMING_GROUPS.map((group) => (
+        {timingGroups.map((group) => (
           <Card key={group.label} style={styles.groupCard}>
             <View style={styles.groupHeader}>
               <Text style={styles.groupLabel}>{group.label}</Text>
@@ -172,13 +289,17 @@ export default function SupplementsScreen() {
 
             {group.supplements.map((sup, idx) => (
               <View
-                key={idx}
+                key={sup.id ?? idx}
                 style={[
                   styles.suppRow,
                   idx < group.supplements.length - 1 && styles.suppBorder,
                 ]}
               >
-                <View style={styles.checkCol}>
+                <Pressable
+                  style={styles.checkCol}
+                  onPress={() => handleToggleTaken(sup)}
+                  hitSlop={8}
+                >
                   <View
                     style={[
                       styles.checkbox,
@@ -187,7 +308,7 @@ export default function SupplementsScreen() {
                   >
                     {sup.taken && <Text style={styles.checkmark}>{"✓"}</Text>}
                   </View>
-                </View>
+                </Pressable>
 
                 <View style={styles.suppInfo}>
                   <View style={styles.rowBetween}>

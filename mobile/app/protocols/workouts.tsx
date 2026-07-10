@@ -2,7 +2,7 @@
  * Workouts screen — active program, today's workout, and recent history.
  */
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -10,11 +10,13 @@ import {
   StyleSheet,
   SafeAreaView,
   Pressable,
+  Alert,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { History } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -23,7 +25,7 @@ import { Button } from "@/components/ui/Button";
 /* Sample data                                                         */
 /* ------------------------------------------------------------------ */
 
-const ACTIVE_PROGRAM = {
+const SAMPLE_ACTIVE_PROGRAM = {
   name: "Hypertrophy Phase 2",
   week: 3,
   totalWeeks: 8,
@@ -31,7 +33,7 @@ const ACTIVE_PROGRAM = {
   totalWorkouts: 32,
 };
 
-const TODAY_WORKOUT = {
+const SAMPLE_TODAY_WORKOUT = {
   name: "Upper Body Push",
   estimatedDuration: "55 min",
   exercises: [
@@ -43,7 +45,7 @@ const TODAY_WORKOUT = {
   ],
 };
 
-const RECENT_HISTORY = [
+const SAMPLE_RECENT_HISTORY = [
   { date: "Jun 12", name: "Lower Body", duration: "62 min" },
   { date: "Jun 10", name: "Upper Body Pull", duration: "48 min" },
   { date: "Jun 8", name: "Upper Body Push", duration: "54 min" },
@@ -55,7 +57,71 @@ const RECENT_HISTORY = [
 
 export default function WorkoutsScreen() {
   const router = useRouter();
-  const progress = ACTIVE_PROGRAM.completedWorkouts / ACTIVE_PROGRAM.totalWorkouts;
+
+  /* ---- tRPC queries & mutations ---- */
+  const programQuery = trpc.clientPortal.workouts.getActiveProgram.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+  const workoutsQuery = trpc.clientPortal.workouts.list.useQuery({ limit: 20 }, DEFAULT_QUERY_OPTIONS);
+  const statsQuery = trpc.clientPortal.workouts.stats.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+  const quickLogMutation = trpc.clientPortal.workouts.quickLog.useMutation({
+    onSuccess: () => { workoutsQuery.refetch(); statsQuery.refetch(); },
+  });
+
+  /* ---- Map API data with sample fallback ---- */
+  const activeProgram = useMemo(() => {
+    if (programQuery.data) {
+      const p = programQuery.data as any;
+      return {
+        name: p.name ?? p.programName ?? SAMPLE_ACTIVE_PROGRAM.name,
+        week: p.currentWeek ?? p.week ?? SAMPLE_ACTIVE_PROGRAM.week,
+        totalWeeks: p.totalWeeks ?? p.durationWeeks ?? SAMPLE_ACTIVE_PROGRAM.totalWeeks,
+        completedWorkouts: p.completedWorkouts ?? p.workoutsCompleted ?? SAMPLE_ACTIVE_PROGRAM.completedWorkouts,
+        totalWorkouts: p.totalWorkouts ?? SAMPLE_ACTIVE_PROGRAM.totalWorkouts,
+      };
+    }
+    return SAMPLE_ACTIVE_PROGRAM;
+  }, [programQuery.data]);
+
+  const todayWorkout = useMemo(() => {
+    if (programQuery.data) {
+      const p = programQuery.data as any;
+      const todayW = p.todayWorkout ?? p.nextWorkout;
+      if (todayW) {
+        return {
+          name: todayW.name ?? todayW.title ?? SAMPLE_TODAY_WORKOUT.name,
+          estimatedDuration: todayW.estimatedDuration
+            ? `${todayW.estimatedDuration} min`
+            : todayW.durationMinutes
+              ? `${todayW.durationMinutes} min`
+              : SAMPLE_TODAY_WORKOUT.estimatedDuration,
+          exercises: (todayW.exercises ?? []).map((ex: any) => ({
+            name: ex.name,
+            sets: ex.sets ?? 3,
+            reps: ex.reps ?? 10,
+            weight: ex.weightLbs ? `${ex.weightLbs} lbs` : null,
+            rest: ex.restSeconds ? `${ex.restSeconds}s` : "60s",
+          })),
+        };
+      }
+    }
+    return SAMPLE_TODAY_WORKOUT;
+  }, [programQuery.data]);
+
+  const recentHistory = useMemo(() => {
+    if (workoutsQuery.data && Array.isArray(workoutsQuery.data) && workoutsQuery.data.length > 0) {
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return (workoutsQuery.data as any[]).slice(0, 3).map((w: any) => {
+        const d = new Date(w.date ?? w.createdAt);
+        return {
+          date: `${monthNames[d.getMonth()]} ${d.getDate()}`,
+          name: w.type ?? w.name ?? w.title ?? "Workout",
+          duration: `${w.durationMinutes ?? 0} min`,
+        };
+      });
+    }
+    return SAMPLE_RECENT_HISTORY;
+  }, [workoutsQuery.data]);
+
+  const progress = activeProgram.completedWorkouts / activeProgram.totalWorkouts;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -82,12 +148,12 @@ export default function WorkoutsScreen() {
         <Card style={styles.section}>
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>Active Program</Text>
-            <Badge label="Active" variant="success" />
+            <Badge label={programQuery.data ? "Active" : "Sample"} variant="success" />
           </View>
 
-          <Text style={styles.programName}>{ACTIVE_PROGRAM.name}</Text>
+          <Text style={styles.programName}>{activeProgram.name}</Text>
           <Text style={styles.programWeek}>
-            Week {ACTIVE_PROGRAM.week} of {ACTIVE_PROGRAM.totalWeeks}
+            Week {activeProgram.week} of {activeProgram.totalWeeks}
           </Text>
 
           {/* Progress bar */}
@@ -95,7 +161,7 @@ export default function WorkoutsScreen() {
             <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
           </View>
           <Text style={styles.progressLabel}>
-            {ACTIVE_PROGRAM.completedWorkouts}/{ACTIVE_PROGRAM.totalWorkouts} workouts
+            {activeProgram.completedWorkouts}/{activeProgram.totalWorkouts} workouts
             completed
           </Text>
         </Card>
@@ -104,19 +170,19 @@ export default function WorkoutsScreen() {
         <Card style={styles.section}>
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>Today's Workout</Text>
-            <Text style={styles.duration}>{TODAY_WORKOUT.estimatedDuration}</Text>
+            <Text style={styles.duration}>{todayWorkout.estimatedDuration}</Text>
           </View>
 
-          <Text style={styles.workoutName}>{TODAY_WORKOUT.name}</Text>
+          <Text style={styles.workoutName}>{todayWorkout.name}</Text>
 
           {/* Exercise list */}
           <View style={styles.exerciseList}>
-            {TODAY_WORKOUT.exercises.map((ex, idx) => (
+            {todayWorkout.exercises.map((ex: any, idx: number) => (
               <View
                 key={idx}
                 style={[
                   styles.exerciseRow,
-                  idx < TODAY_WORKOUT.exercises.length - 1 && styles.exerciseBorder,
+                  idx < todayWorkout.exercises.length - 1 && styles.exerciseBorder,
                 ]}
               >
                 <View style={styles.exerciseInfo}>
@@ -142,16 +208,50 @@ export default function WorkoutsScreen() {
           />
         </Card>
 
+        {/* Quick Log */}
+        <Button
+          title="Quick Log Workout"
+          variant="secondary"
+          size="md"
+          onPress={() => {
+            Alert.alert(
+              "Quick Log",
+              "Log a quick workout session?",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Log 30 min",
+                  onPress: () =>
+                    quickLogMutation.mutate({
+                      type: todayWorkout.name,
+                      durationMinutes: 30,
+                      notes: "Quick logged from mobile",
+                    }),
+                },
+                {
+                  text: "Log 60 min",
+                  onPress: () =>
+                    quickLogMutation.mutate({
+                      type: todayWorkout.name,
+                      durationMinutes: 60,
+                      notes: "Quick logged from mobile",
+                    }),
+                },
+              ]
+            );
+          }}
+        />
+
         {/* Recent History */}
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Workouts</Text>
 
-          {RECENT_HISTORY.map((session, idx) => (
+          {recentHistory.map((session: any, idx: number) => (
             <View
               key={idx}
               style={[
                 styles.historyRow,
-                idx < RECENT_HISTORY.length - 1 && styles.historyBorder,
+                idx < recentHistory.length - 1 && styles.historyBorder,
               ]}
             >
               <View>

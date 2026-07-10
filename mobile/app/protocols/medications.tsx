@@ -1,5 +1,9 @@
 /**
  * Medications screen — active prescriptions, refill dates, and interaction warnings.
+ *
+ * NOTE: Backend does not have a clientPortal.medications router — medications
+ * are managed through the supplement protocol or clinical docs. This screen
+ * uses sample data only and directs users to contact their coach for changes.
  */
 
 import React from "react";
@@ -19,7 +23,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Sample data (no backend medications router — see note above)        */
 /* ------------------------------------------------------------------ */
 
 interface Medication {
@@ -32,7 +36,7 @@ interface Medication {
   purpose: string;
 }
 
-const MEDICATIONS: Medication[] = [
+const SAMPLE_MEDICATIONS: Medication[] = [
   {
     name: "Metformin",
     dosage: "500 mg",
@@ -77,7 +81,7 @@ interface Interaction {
   description: string;
 }
 
-const INTERACTIONS: Interaction[] = [
+const SAMPLE_INTERACTIONS: Interaction[] = [
   {
     meds: "Metformin + Alcohol",
     severity: "warning",
@@ -96,6 +100,11 @@ const INTERACTIONS: Interaction[] = [
 /* ------------------------------------------------------------------ */
 
 export default function MedicationsScreen() {
+  // NOTE: No backend medications router. All data below is sample/static.
+  // Medications are managed through supplements or clinical docs on the backend.
+  const medications = SAMPLE_MEDICATIONS;
+  const interactions = SAMPLE_INTERACTIONS;
+
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ title: "Medications" }} />
@@ -109,11 +118,11 @@ export default function MedicationsScreen() {
         <Card style={styles.section}>
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>Active Medications</Text>
-            <Badge label={`${MEDICATIONS.length} Active`} variant="info" />
+            <Badge label={`${medications.length} Active`} variant="info" />
           </View>
         </Card>
 
-        {MEDICATIONS.map((med, idx) => {
+        {medications.map((med, idx) => {
           const refillSoon = med.daysUntilRefill <= 7;
 
           return (
@@ -148,6 +157,21 @@ export default function MedicationsScreen() {
                   </View>
                 </View>
               </View>
+
+              {/* Refill request — informational only */}
+              {refillSoon && (
+                <Button
+                  title="Request Refill"
+                  variant="secondary"
+                  size="sm"
+                  onPress={() =>
+                    Alert.alert(
+                      "Refill Request",
+                      `Contact your prescriber (${med.prescriber}) to request a refill for ${med.name}.`,
+                    )
+                  }
+                />
+              )}
             </Card>
           );
         })}
@@ -156,7 +180,7 @@ export default function MedicationsScreen() {
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Interaction Warnings</Text>
 
-          {INTERACTIONS.map((interaction, idx) => (
+          {interactions.map((interaction, idx) => (
             <View
               key={idx}
               style={[
@@ -192,6 +216,20 @@ export default function MedicationsScreen() {
             </View>
           ))}
         </Card>
+
+        {/* Add Medication — directs to coach */}
+        <Button
+          title="Add Medication"
+          variant="secondary"
+          size="lg"
+          style={styles.ctaButton}
+          onPress={() =>
+            Alert.alert(
+              "Add Medication",
+              "Contact your coach to update medications. Medication changes require clinical review.",
+            )
+          }
+        />
 
         {/* Talk to Doctor */}
         <Button

@@ -17,6 +17,7 @@ import * as Haptics from "expo-haptics";
 import { Pause, Play, SkipForward, Flag } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import {
@@ -56,7 +57,7 @@ interface Exercise {
 /* Sample Push Day workout                                             */
 /* ------------------------------------------------------------------ */
 
-const PUSH_DAY_EXERCISES: Exercise[] = [
+const SAMPLE_PUSH_DAY_EXERCISES: Exercise[] = [
   {
     id: "bench",
     name: "Bench Press",
@@ -126,9 +127,12 @@ const PUSH_DAY_EXERCISES: Exercise[] = [
 export default function WorkoutSessionScreen() {
   const router = useRouter();
 
+  /* ---- tRPC mutation ---- */
+  const logWorkoutMutation = trpc.clientPortal.workouts.logWorkout.useMutation();
+
   /* -- Workout state -- */
   const [exercises, setExercises] = useState<Exercise[]>(
-    PUSH_DAY_EXERCISES.map((e) => ({ ...e, loggedSets: [] }))
+    SAMPLE_PUSH_DAY_EXERCISES.map((e) => ({ ...e, loggedSets: [] }))
   );
   const [currentExerciseIdx, setCurrentExerciseIdx] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
@@ -302,6 +306,30 @@ export default function WorkoutSessionScreen() {
   /* ---------------------------------------------------------------- */
   /* Finished state                                                    */
   /* ---------------------------------------------------------------- */
+  /* -- Submit workout to API on finish -- */
+  useEffect(() => {
+    if (isFinished) {
+      const summary = computeSummary();
+      const exerciseData = exercises
+        .filter((ex) => ex.loggedSets.length > 0)
+        .map((ex) => ({
+          name: ex.name,
+          sets: ex.loggedSets.length,
+          reps: ex.loggedSets.reduce((sum, s) => sum + s.reps, 0),
+          weightLbs: ex.loggedSets[0]?.weight ?? undefined,
+          notes: ex.muscleGroup,
+        }));
+
+      logWorkoutMutation.mutate({
+        type: "Push Day",
+        durationMinutes: Math.round(elapsedSeconds / 60),
+        caloriesBurned: undefined,
+        notes: `${summary.exercisesCompleted} exercises, ${summary.totalSets} sets, ${summary.totalVolume} lbs total volume`,
+        exercises: exerciseData,
+      });
+    }
+  }, [isFinished]);
+
   if (isFinished) {
     const summary = computeSummary();
     return (

@@ -295,8 +295,8 @@ function formatMonthYear(year: number, month: number) {
 /* ------------------------------------------------------------------ */
 
 export default function WorkoutHistoryScreen() {
-  const query = trpc.clientPortal.fitness.listWorkouts.useQuery(
-    undefined,
+  const query = trpc.clientPortal.workouts.list.useQuery(
+    { limit: 50 },
     DEFAULT_QUERY_OPTIONS,
   );
 

@@ -1,8 +1,13 @@
 /**
  * Meals & Nutrition screen — daily macros, meal log, and water tracker.
+ *
+ * Wired to tRPC API:
+ *   - clientPortal.meals.getByDate  (fetch meals for a given date)
+ *   - clientPortal.meals.add        (log a new meal)
+ *   - clientPortal.meals.delete     (remove a meal)
  */
 
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,26 +15,52 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import Svg, { Circle } from "react-native-svg";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Types                                                               */
 /* ------------------------------------------------------------------ */
 
-const MACROS = [
+interface MealDisplay {
+  id?: string;
+  name: string;
+  time: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  items: string;
+  mealType: "breakfast" | "lunch" | "dinner" | "snack";
+}
+
+interface MacroSummary {
+  label: string;
+  current: number;
+  target: number;
+  unit: string;
+  color: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Sample data — used as fallback when backend is unreachable          */
+/* ------------------------------------------------------------------ */
+
+const SAMPLE_MACROS: MacroSummary[] = [
   { label: "Calories", current: 2150, target: 2400, unit: "kcal", color: Colors.gold },
   { label: "Protein", current: 165, target: 180, unit: "g", color: Colors.info },
   { label: "Carbs", current: 220, target: 240, unit: "g", color: Colors.success },
   { label: "Fat", current: 72, target: 80, unit: "g", color: Colors.warning },
 ];
 
-const MEALS = [
+const SAMPLE_MEALS: MealDisplay[] = [
   {
     name: "Breakfast",
     time: "7:30 AM",
@@ -38,6 +69,7 @@ const MEALS = [
     carbs: 58,
     fat: 24,
     items: "Eggs, oats, blueberries, almond butter",
+    mealType: "breakfast",
   },
   {
     name: "Lunch",
@@ -47,6 +79,7 @@ const MEALS = [
     carbs: 82,
     fat: 26,
     items: "Grilled chicken, brown rice, broccoli, olive oil",
+    mealType: "lunch",
   },
   {
     name: "Snack",
@@ -56,10 +89,60 @@ const MEALS = [
     carbs: 38,
     fat: 10,
     items: "Greek yogurt, granola, honey",
+    mealType: "snack",
   },
 ];
 
-const WATER = { current: 6, target: 8 };
+const SAMPLE_WATER = { current: 6, target: 8 };
+
+/* Macro targets (used when calculating from raw API meals) */
+const MACRO_TARGETS = { calories: 2400, protein: 180, carbs: 240, fat: 80 };
+
+/* ------------------------------------------------------------------ */
+/* API → UI mappers                                                    */
+/* ------------------------------------------------------------------ */
+
+const MEAL_TYPE_LABELS: Record<string, string> = {
+  breakfast: "Breakfast",
+  lunch: "Lunch",
+  dinner: "Dinner",
+  snack: "Snack",
+};
+
+function mapApiMeal(raw: any): MealDisplay {
+  const mealType = (raw.mealType ?? "snack").toLowerCase();
+  return {
+    id: raw.id ?? raw._id ?? undefined,
+    name: MEAL_TYPE_LABELS[mealType] ?? mealType.charAt(0).toUpperCase() + mealType.slice(1),
+    time: raw.time ?? raw.loggedAt ?? "",
+    calories: raw.calories ?? 0,
+    protein: raw.proteinG ?? raw.protein ?? 0,
+    carbs: raw.carbsG ?? raw.carbs ?? 0,
+    fat: raw.fatG ?? raw.fat ?? 0,
+    items: raw.description ?? raw.items ?? "",
+    mealType: mealType as MealDisplay["mealType"],
+  };
+}
+
+/** Aggregate meals into macro summary rings. */
+function buildMacros(meals: MealDisplay[]): MacroSummary[] {
+  const totals = meals.reduce(
+    (acc, m) => ({
+      calories: acc.calories + m.calories,
+      protein: acc.protein + m.protein,
+      carbs: acc.carbs + m.carbs,
+      fat: acc.fat + m.fat,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 },
+  );
+
+  return [
+    { label: "Calories", current: totals.calories, target: MACRO_TARGETS.calories, unit: "kcal", color: Colors.gold },
+    { label: "Protein", current: totals.protein, target: MACRO_TARGETS.protein, unit: "g", color: Colors.info },
+    { label: "Carbs", current: totals.carbs, target: MACRO_TARGETS.carbs, unit: "g", color: Colors.success },
+    { label: "Fat", current: totals.fat, target: MACRO_TARGETS.fat, unit: "g", color: Colors.warning },
+  ];
+}
 
 /* ------------------------------------------------------------------ */
 /* Progress Ring                                                       */
@@ -116,6 +199,92 @@ function ProgressRing({
 export default function MealsScreen() {
   const router = useRouter();
 
+  /* ---- tRPC queries ---- */
+  const today = new Date().toISOString().split("T")[0];
+  const mealsQuery = trpc.clientPortal.meals.getByDate.useQuery(
+    { date: today },
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const addMealMutation = trpc.clientPortal.meals.add.useMutation({
+    onSuccess: () => {
+      mealsQuery.refetch();
+    },
+    onError: (err: any) => {
+      Alert.alert("Error", err.message ?? "Could not add meal.");
+    },
+  });
+  const deleteMealMutation = trpc.clientPortal.meals.delete.useMutation({
+    onSuccess: () => {
+      mealsQuery.refetch();
+    },
+    onError: (err: any) => {
+      Alert.alert("Error", err.message ?? "Could not delete meal.");
+    },
+  });
+
+  /* ---- Derive display data (API with sample fallback) ---- */
+  const meals: MealDisplay[] = mealsQuery.data
+    ? ((mealsQuery.data as any).meals ?? [mealsQuery.data].flat()).map(mapApiMeal)
+    : SAMPLE_MEALS;
+
+  const macros: MacroSummary[] = mealsQuery.data
+    ? buildMacros(meals)
+    : SAMPLE_MACROS;
+
+  /* ---- Pull-to-refresh ---- */
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await mealsQuery.refetch();
+    setRefreshing(false);
+  }, [mealsQuery]);
+
+  /* ---- Handlers ---- */
+  const handleLogMeal = () => {
+    Alert.alert("Log Meal", "Choose a meal type:", [
+      ...( ["breakfast", "lunch", "dinner", "snack"] as const ).map((mealType) => ({
+        text: MEAL_TYPE_LABELS[mealType],
+        onPress: () => {
+          Alert.prompt
+            ? Alert.prompt(
+                `Log ${MEAL_TYPE_LABELS[mealType]}`,
+                "Describe what you ate:",
+                (description: string) => {
+                  if (description) {
+                    addMealMutation.mutate({
+                      date: today,
+                      mealType,
+                      description,
+                    });
+                  }
+                },
+              )
+            : addMealMutation.mutate({
+                date: today,
+                mealType,
+                description: `${MEAL_TYPE_LABELS[mealType]} logged`,
+              });
+        },
+      })),
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const handleDeleteMeal = (meal: MealDisplay) => {
+    if (!meal.id) {
+      Alert.alert("Info", "Sample meals cannot be deleted.");
+      return;
+    }
+    Alert.alert("Delete Meal", `Remove ${meal.name}?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteMealMutation.mutate({ id: meal.id! }),
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ title: "Meals & Nutrition" }} />
@@ -124,14 +293,17 @@ export default function MealsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.gold} />
+        }
       >
         {/* Daily Macro Summary */}
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Daily Macros</Text>
 
           <View style={styles.macroGrid}>
-            {MACROS.map((macro) => {
-              const progress = macro.current / macro.target;
+            {macros.map((macro) => {
+              const progress = macro.target > 0 ? macro.current / macro.target : 0;
               return (
                 <View key={macro.label} style={styles.macroItem}>
                   <View style={styles.ringWrapper}>
@@ -162,12 +334,16 @@ export default function MealsScreen() {
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Meals Logged Today</Text>
 
-          {MEALS.map((meal, idx) => (
+          {meals.length === 0 && (
+            <Text style={styles.emptyText}>No meals logged yet today.</Text>
+          )}
+
+          {meals.map((meal, idx) => (
             <View
-              key={idx}
+              key={meal.id ?? idx}
               style={[
                 styles.mealRow,
-                idx < MEALS.length - 1 && styles.mealBorder,
+                idx < meals.length - 1 && styles.mealBorder,
               ]}
             >
               <View style={styles.mealHeader}>
@@ -184,13 +360,27 @@ export default function MealsScreen() {
                 <View style={styles.macroDot} />
                 <Text style={styles.mealMacroText}>F {meal.fat}g</Text>
               </View>
+              {meal.id && (
+                <Button
+                  title="Delete"
+                  variant="danger"
+                  size="sm"
+                  onPress={() => handleDeleteMeal(meal)}
+                />
+              )}
             </View>
           ))}
         </Card>
 
         {/* Action Buttons */}
         <View style={styles.buttonRow}>
-          <Button title="Log Meal" variant="primary" style={styles.flex1} onPress={() => Alert.alert("Log Meal", "Meal logging will be available in a future update.")} />
+          <Button
+            title="Log Meal"
+            variant="primary"
+            style={styles.flex1}
+            loading={addMealMutation.isPending}
+            onPress={handleLogMeal}
+          />
           <Button title="Scan Barcode" variant="secondary" style={styles.flex1} onPress={() => Alert.alert("Scan Barcode", "Barcode scanning will be available in a future update.")} />
         </View>
 
@@ -206,23 +396,23 @@ export default function MealsScreen() {
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>Water Intake</Text>
             <Text style={styles.waterCount}>
-              {WATER.current}/{WATER.target} glasses
+              {SAMPLE_WATER.current}/{SAMPLE_WATER.target} glasses
             </Text>
           </View>
 
           <View style={styles.waterRow}>
-            {Array.from({ length: WATER.target }).map((_, idx) => (
+            {Array.from({ length: SAMPLE_WATER.target }).map((_, idx) => (
               <View
                 key={idx}
                 style={[
                   styles.waterGlass,
-                  idx < WATER.current
+                  idx < SAMPLE_WATER.current
                     ? styles.waterFilled
                     : styles.waterEmpty,
                 ]}
               >
                 <Text style={styles.waterIcon}>
-                  {idx < WATER.current ? "⬤" : "○"}
+                  {idx < SAMPLE_WATER.current ? "⬤" : "○"}
                 </Text>
               </View>
             ))}
@@ -303,6 +493,13 @@ const styles = StyleSheet.create({
   },
 
   /* Meals */
+  emptyText: {
+    fontSize: FontSizes.sm,
+    color: Colors.silver,
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: Spacing.md,
+  },
   mealRow: {
     paddingVertical: Spacing.sm,
     gap: 4,

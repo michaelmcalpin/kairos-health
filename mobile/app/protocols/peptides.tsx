@@ -3,7 +3,7 @@
  * cycle calendar, dose logging, and effects notes.
  */
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
 import { Stack } from "expo-router";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -24,7 +25,7 @@ import { Button } from "@/components/ui/Button";
 /* Sample data                                                         */
 /* ------------------------------------------------------------------ */
 
-const ACTIVE_CYCLE = {
+const SAMPLE_ACTIVE_CYCLE = {
   name: "Healing & Recovery Stack",
   startDate: "May 26, 2026",
   endDate: "Jun 24, 2026",
@@ -46,7 +47,7 @@ interface Peptide {
   todayDosed: boolean;
 }
 
-const PEPTIDES: Peptide[] = [
+const SAMPLE_PEPTIDES: Peptide[] = [
   {
     name: "BPC-157",
     dosage: "250mcg",
@@ -111,12 +112,11 @@ function generateCalendarDays(currentDay: number): CalendarDay[] {
   return days;
 }
 
-const CALENDAR_DAYS = generateCalendarDays(ACTIVE_CYCLE.currentDay);
-
-const NOTES = [
+const SAMPLE_NOTES = [
   { date: "Jun 12", text: "Noticed improved tendon flexibility in right shoulder after 2 weeks of BPC-157." },
   { date: "Jun 10", text: "Mild redness at TA-1 injection site, resolved within 30 min." },
   { date: "Jun 8", text: "Skin texture around application area visibly smoother with GHK-Cu." },
+
 ];
 
 /* ------------------------------------------------------------------ */
@@ -125,7 +125,85 @@ const NOTES = [
 
 export default function PeptidesScreen() {
   const [notes, setNotes] = useState("");
-  const cycleProgress = ACTIVE_CYCLE.currentDay / ACTIVE_CYCLE.totalDays;
+
+  /* ---- tRPC queries & mutations ---- */
+  const cyclesQuery = trpc.clientPortal.peptides.getCycles.useQuery(
+    { status: "active" },
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const logDoseMutation = trpc.clientPortal.peptides.logDose.useMutation({
+    onSuccess: () => { cyclesQuery.refetch(); },
+  });
+  const updateCycleStatusMutation = trpc.clientPortal.peptides.updateCycleStatus.useMutation({
+    onSuccess: () => { cyclesQuery.refetch(); },
+  });
+
+  /* ---- Map API data with sample fallback ---- */
+  const PEPTIDE_COLORS = [Colors.success, Colors.info, Colors.gold, Colors.warning, Colors.danger];
+
+  const { activeCycle, peptides, calendarDays } = useMemo(() => {
+    if (cyclesQuery.data && Array.isArray(cyclesQuery.data) && cyclesQuery.data.length > 0) {
+      const firstCycle = cyclesQuery.data[0] as any;
+      const startDate = firstCycle.startDate ? new Date(firstCycle.startDate) : new Date();
+      const endDate = firstCycle.endDate ? new Date(firstCycle.endDate) : null;
+      const now = new Date();
+      const diffMs = now.getTime() - startDate.getTime();
+      const currentDay = Math.max(1, Math.ceil(diffMs / 86400000));
+      const totalDays = endDate
+        ? Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000)
+        : 30;
+
+      const cycle = {
+        id: firstCycle.id,
+        name: firstCycle.peptideName ?? firstCycle.name ?? SAMPLE_ACTIVE_CYCLE.name,
+        startDate: startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        endDate: endDate
+          ? endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          : "Ongoing",
+        currentDay: Math.min(currentDay, totalDays),
+        totalDays,
+        status: firstCycle.status ?? "active",
+      };
+
+      const mappedPeptides: Peptide[] = (cyclesQuery.data as any[]).map((c: any, idx: number) => {
+        const cStart = c.startDate ? new Date(c.startDate) : new Date();
+        const cEnd = c.endDate ? new Date(c.endDate) : null;
+        const cDiffMs = now.getTime() - cStart.getTime();
+        const cDay = Math.max(1, Math.ceil(cDiffMs / 86400000));
+        const cTotal = cEnd ? Math.ceil((cEnd.getTime() - cStart.getTime()) / 86400000) : 30;
+        const freqText = c.frequencyPerWeek
+          ? c.frequencyPerWeek === 7
+            ? "Daily"
+            : `${c.frequencyPerWeek}x/week`
+          : "Daily";
+        return {
+          id: c.id,
+          name: c.peptideName ?? c.name ?? `Peptide ${idx + 1}`,
+          dosage: c.doseMcg ? `${c.doseMcg}mcg` : "—",
+          route: c.route ?? "—",
+          frequency: freqText,
+          timing: c.timing ?? "—",
+          cycleDay: Math.min(cDay, cTotal),
+          cycleDays: cTotal,
+          purpose: c.notes ?? c.purpose ?? "",
+          color: PEPTIDE_COLORS[idx % PEPTIDE_COLORS.length],
+          todayDosed: c.todayDosed ?? false,
+        } as Peptide & { id: string };
+      });
+
+      const calDays = generateCalendarDays(cycle.currentDay);
+
+      return { activeCycle: cycle, peptides: mappedPeptides, calendarDays: calDays };
+    }
+
+    return {
+      activeCycle: SAMPLE_ACTIVE_CYCLE,
+      peptides: SAMPLE_PEPTIDES,
+      calendarDays: generateCalendarDays(SAMPLE_ACTIVE_CYCLE.currentDay),
+    };
+  }, [cyclesQuery.data]);
+
+  const cycleProgress = activeCycle.currentDay / activeCycle.totalDays;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -140,12 +218,15 @@ export default function PeptidesScreen() {
         <Card style={styles.section}>
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>Active Cycle</Text>
-            <Badge label="Active" variant="success" />
+            <Badge
+              label={activeCycle.status === "active" ? "Active" : activeCycle.status === "paused" ? "Paused" : "Completed"}
+              variant={activeCycle.status === "active" ? "success" : activeCycle.status === "paused" ? "warning" : "default"}
+            />
           </View>
 
-          <Text style={styles.cycleName}>{ACTIVE_CYCLE.name}</Text>
+          <Text style={styles.cycleName}>{activeCycle.name}</Text>
           <Text style={styles.cycleDates}>
-            {ACTIVE_CYCLE.startDate} - {ACTIVE_CYCLE.endDate}
+            {activeCycle.startDate} - {activeCycle.endDate}
           </Text>
 
           {/* Progress bar */}
@@ -158,20 +239,47 @@ export default function PeptidesScreen() {
             />
           </View>
           <Text style={styles.progressLabel}>
-            Day {ACTIVE_CYCLE.currentDay} of {ACTIVE_CYCLE.totalDays}
+            Day {activeCycle.currentDay} of {activeCycle.totalDays}
           </Text>
+
+          {/* Pause/Resume button */}
+          {(activeCycle as any).id && (
+            <Button
+              title={activeCycle.status === "paused" ? "Resume Cycle" : "Pause Cycle"}
+              variant="tertiary"
+              size="sm"
+              onPress={() => {
+                const newStatus = activeCycle.status === "paused" ? "active" : "paused";
+                Alert.alert(
+                  newStatus === "paused" ? "Pause Cycle" : "Resume Cycle",
+                  `${newStatus === "paused" ? "Pause" : "Resume"} this peptide cycle?`,
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: newStatus === "paused" ? "Pause" : "Resume",
+                      onPress: () =>
+                        updateCycleStatusMutation.mutate({
+                          id: (activeCycle as any).id,
+                          status: newStatus as "active" | "paused",
+                        }),
+                    },
+                  ]
+                );
+              }}
+            />
+          )}
         </Card>
 
         {/* Peptides List */}
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Peptides</Text>
 
-          {PEPTIDES.map((peptide, idx) => (
+          {peptides.map((peptide, idx) => (
             <View
               key={peptide.name}
               style={[
                 styles.peptideRow,
-                idx < PEPTIDES.length - 1 && styles.peptideBorder,
+                idx < peptides.length - 1 && styles.peptideBorder,
               ]}
             >
               <View style={styles.peptideHeader}>
@@ -216,7 +324,9 @@ export default function PeptidesScreen() {
                 </View>
               </View>
 
-              <Text style={styles.peptidePurpose}>{peptide.purpose}</Text>
+              {peptide.purpose ? (
+                <Text style={styles.peptidePurpose}>{peptide.purpose}</Text>
+              ) : null}
             </View>
           ))}
         </Card>
@@ -227,29 +337,19 @@ export default function PeptidesScreen() {
 
           {/* Legend */}
           <View style={styles.calLegend}>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: Colors.success }]}
-              />
-              <Text style={styles.legendText}>BPC-157</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: Colors.info }]}
-              />
-              <Text style={styles.legendText}>TA-1</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[styles.legendDot, { backgroundColor: Colors.gold }]}
-              />
-              <Text style={styles.legendText}>GHK-Cu</Text>
-            </View>
+            {peptides.slice(0, 3).map((p) => (
+              <View key={p.name} style={styles.legendItem}>
+                <View
+                  style={[styles.legendDot, { backgroundColor: p.color }]}
+                />
+                <Text style={styles.legendText}>{p.name}</Text>
+              </View>
+            ))}
           </View>
 
           {/* Calendar grid */}
           <View style={styles.calGrid}>
-            {CALENDAR_DAYS.map((day) => (
+            {calendarDays.map((day) => (
               <View
                 key={day.day}
                 style={[
@@ -271,7 +371,7 @@ export default function PeptidesScreen() {
                     <View
                       style={[
                         styles.calDot,
-                        { backgroundColor: Colors.success },
+                        { backgroundColor: peptides[0]?.color ?? Colors.success },
                       ]}
                     />
                   )}
@@ -279,7 +379,7 @@ export default function PeptidesScreen() {
                     <View
                       style={[
                         styles.calDot,
-                        { backgroundColor: Colors.info },
+                        { backgroundColor: peptides[1]?.color ?? Colors.info },
                       ]}
                     />
                   )}
@@ -287,7 +387,7 @@ export default function PeptidesScreen() {
                     <View
                       style={[
                         styles.calDot,
-                        { backgroundColor: Colors.gold },
+                        { backgroundColor: peptides[2]?.color ?? Colors.gold },
                       ]}
                     />
                   )}
@@ -304,16 +404,30 @@ export default function PeptidesScreen() {
           size="lg"
           style={styles.logDoseButton}
           onPress={() => {
-            const pending = PEPTIDES.filter((p) => !p.todayDosed);
+            const pending = peptides.filter((p) => !p.todayDosed);
             if (pending.length === 0) {
               Alert.alert("All Dosed", "All peptides have been logged for today.");
             } else {
+              const target = pending[0] as any;
+              const cycleId = target.id ?? (activeCycle as any).id;
               Alert.alert(
                 "Log Dose",
-                `Mark ${pending[0].name} (${pending[0].dosage}) as dosed?`,
+                `Mark ${target.name} (${target.dosage}) as dosed?`,
                 [
                   { text: "Cancel", style: "cancel" },
-                  { text: "Log Dose", onPress: () => Alert.alert("Logged", `${pending[0].name} dose logged successfully.`) },
+                  {
+                    text: "Log Dose",
+                    onPress: () => {
+                      if (cycleId) {
+                        logDoseMutation.mutate({
+                          cycleId,
+                          date: new Date().toISOString(),
+                        });
+                      } else {
+                        Alert.alert("Logged", `${target.name} dose logged successfully.`);
+                      }
+                    },
+                  },
                 ]
               );
             }
@@ -325,12 +439,12 @@ export default function PeptidesScreen() {
           <Text style={styles.sectionTitle}>Notes & Effects</Text>
 
           {/* Existing notes */}
-          {NOTES.map((note, idx) => (
+          {SAMPLE_NOTES.map((note, idx) => (
             <View
               key={idx}
               style={[
                 styles.noteRow,
-                idx < NOTES.length - 1 && styles.noteBorder,
+                idx < SAMPLE_NOTES.length - 1 && styles.noteBorder,
               ]}
             >
               <Text style={styles.noteDate}>{note.date}</Text>
