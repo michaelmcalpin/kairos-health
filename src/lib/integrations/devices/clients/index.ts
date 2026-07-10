@@ -9,3 +9,4 @@ export * from "./oura";
 export * from "./whoop";
 export * from "./garmin";
 export * from "./fitbit";
+export * from "./hume";

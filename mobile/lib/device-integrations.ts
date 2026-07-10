@@ -3,8 +3,7 @@
  *
  * Manages connections to health device platforms:
  *   - Apple Health: native HealthKit integration (iOS only)
- *   - Oura, Garmin, WHOOP, Dexcom, etc.: OAuth-based cloud integrations
- *   - Hume AI: managed externally through the Everist dashboard
+ *   - Oura, Garmin, WHOOP, Dexcom, Hume AI, etc.: OAuth-based cloud integrations
  *
  * Each provider has its own connection flow. OAuth providers use the
  * backend's `devices.initiateConnect` tRPC procedure which returns an
@@ -134,11 +133,11 @@ export const DEVICE_PROVIDERS: DeviceProviderInfo[] = [
     id: "hume",
     name: "Hume AI",
     description:
-      "Emotional wellbeing tracking powered by Hume AI's expression analysis. Managed separately through the Everist dashboard.",
+      "Emotional wellbeing tracking powered by Hume AI's expression and voice analysis.",
     icon: "brain",
-    connectionType: "external",
+    connectionType: "oauth",
     supported: true,
-    dataTypes: ["emotion", "wellbeing", "stress"],
+    dataTypes: ["emotion", "wellbeing", "voice_analysis", "expression_metrics"],
   },
 ];
 

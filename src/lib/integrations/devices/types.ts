@@ -7,7 +7,7 @@
 
 // ─── Provider Registry ──────────────────────────────────────────────────────
 
-export type DeviceProvider = "oura" | "whoop" | "dexcom" | "apple_health" | "garmin" | "fitbit" | "withings";
+export type DeviceProvider = "oura" | "whoop" | "dexcom" | "apple_health" | "garmin" | "fitbit" | "withings" | "hume";
 
 export interface ProviderConfig {
   id: DeviceProvider;
@@ -36,7 +36,11 @@ export type DataType =
   | "weight"
   | "body_composition"
   | "blood_pressure"
-  | "lab_results";
+  | "lab_results"
+  | "emotional_state"
+  | "voice_analysis"
+  | "expression_metrics"
+  | "wellbeing_score";
 
 // ─── Sync State ─────────────────────────────────────────────────────────────
 

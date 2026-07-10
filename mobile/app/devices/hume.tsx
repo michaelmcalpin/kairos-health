@@ -1,12 +1,12 @@
 /**
  * Hume AI Integration screen.
  *
- * Hume AI is not a wearable device but an AI-powered emotion and
- * wellbeing analysis platform. It analyzes voice and facial expressions
- * to provide emotional wellness insights.
+ * Manages the Hume AI OAuth connection for emotional wellbeing
+ * tracking. Hume AI analyzes voice and facial expressions to provide
+ * emotional wellness insights.
  *
- * Because Hume is not yet in the backend provider list, this screen
- * uses sample data for display and wraps API calls in try/catch.
+ * Uses the same `useDeviceConnection` hook as other OAuth providers
+ * (Oura, Garmin, etc.) for connect/disconnect/sync lifecycle.
  */
 
 import React, { useState } from "react";
@@ -15,8 +15,8 @@ import {
   Text,
   ScrollView,
   StyleSheet,
+  Switch,
   Pressable,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,20 +26,31 @@ import {
   RefreshCw,
   Brain,
   Smile,
-  Frown,
-  Sun,
-  Zap,
-  Wind,
+  Mic,
   Eye,
+  Heart,
   Clock,
-  TrendingUp,
-  BarChart3,
-  Info,
+  ChevronDown,
+  CheckCircle,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { useDeviceConnection } from "@/hooks/useDeviceConnection";
+
+/* ------------------------------------------------------------------ */
+/* Types                                                               */
+/* ------------------------------------------------------------------ */
+
+type SyncFrequency = "hourly" | "6hours" | "daily" | "manual";
+
+const SYNC_OPTIONS: { value: SyncFrequency; label: string }[] = [
+  { value: "hourly", label: "Every hour" },
+  { value: "6hours", label: "Every 6 hours" },
+  { value: "daily", label: "Once daily" },
+  { value: "manual", label: "Manual only" },
+];
 
 /* ------------------------------------------------------------------ */
 /* Accent color — Hume warm coral/pink                                 */
@@ -50,146 +61,48 @@ const HUME_ACCENT_BG = "rgba(232, 121, 168, 0.12)";
 const HUME_ACCENT_BORDER = "rgba(232, 121, 168, 0.2)";
 
 /* ------------------------------------------------------------------ */
-/* Sample emotion data                                                 */
-/* ------------------------------------------------------------------ */
-
-interface EmotionMetric {
-  id: string;
-  label: string;
-  score: number; // 0-100
-  trend: "up" | "down" | "stable";
-  icon: React.ReactNode;
-  color: string;
-}
-
-const SAMPLE_EMOTIONS: EmotionMetric[] = [
-  {
-    id: "joy",
-    label: "Joy",
-    score: 72,
-    trend: "up",
-    icon: <Smile size={18} color="#F59E0B" />,
-    color: "#F59E0B",
-  },
-  {
-    id: "calm",
-    label: "Calm",
-    score: 65,
-    trend: "stable",
-    icon: <Wind size={18} color="#06B6D4" />,
-    color: "#06B6D4",
-  },
-  {
-    id: "energy",
-    label: "Energy",
-    score: 58,
-    trend: "up",
-    icon: <Zap size={18} color="#4A9D5B" />,
-    color: "#4A9D5B",
-  },
-  {
-    id: "stress",
-    label: "Stress",
-    score: 34,
-    trend: "down",
-    icon: <Frown size={18} color="#C65D5D" />,
-    color: "#C65D5D",
-  },
-  {
-    id: "focus",
-    label: "Focus",
-    score: 81,
-    trend: "up",
-    icon: <Eye size={18} color="#8B5CF6" />,
-    color: "#8B5CF6",
-  },
-  {
-    id: "optimism",
-    label: "Optimism",
-    score: 69,
-    trend: "stable",
-    icon: <Sun size={18} color="#D4A843" />,
-    color: "#D4A843",
-  },
-];
-
-interface AnalysisEntry {
-  id: string;
-  date: string;
-  overallScore: number;
-  summary: string;
-}
-
-const SAMPLE_ANALYSES: AnalysisEntry[] = [
-  {
-    id: "a1",
-    date: "Today, 9:30 AM",
-    overallScore: 78,
-    summary: "Positive emotional state with high focus and low stress levels.",
-  },
-  {
-    id: "a2",
-    date: "Yesterday, 4:15 PM",
-    overallScore: 62,
-    summary: "Moderate energy with slightly elevated stress. Good calm baseline.",
-  },
-  {
-    id: "a3",
-    date: "Jul 8, 10:00 AM",
-    overallScore: 85,
-    summary: "Excellent emotional balance. High joy and optimism scores.",
-  },
-];
-
-/* ------------------------------------------------------------------ */
 /* Screen                                                              */
 /* ------------------------------------------------------------------ */
 
 export default function HumeScreen() {
   const router = useRouter();
 
-  /* -- Connection state (sample for now) -- */
-  const [isConnected, setIsConnected] = useState(true);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [emotions] = useState<EmotionMetric[]>(SAMPLE_EMOTIONS);
-  const [analyses] = useState<AnalysisEntry[]>(SAMPLE_ANALYSES);
+  /* -- Device connection hook -- */
+  const {
+    isConnected,
+    isConnecting,
+    lastSync,
+    isLoading,
+    connect,
+    disconnect,
+    sync,
+    isSyncing,
+  } = useDeviceConnection("hume");
 
-  /* -- Handlers -- */
-  const handleConnect = () => {
-    Alert.alert(
-      "Hume AI Setup",
-      "Hume AI integration requires setup through the Everist dashboard. Contact your coach for access.",
-      [{ text: "OK" }],
+  /* -- Sync frequency -- */
+  const [syncFrequency, setSyncFrequency] = useState<SyncFrequency>("daily");
+  const [showFrequencyPicker, setShowFrequencyPicker] = useState(false);
+
+  /* -- Data toggles -- */
+  const [readEmotionalState, setReadEmotionalState] = useState(true);
+  const [readVoiceAnalysis, setReadVoiceAnalysis] = useState(true);
+  const [readExpressionMetrics, setReadExpressionMetrics] = useState(true);
+  const [readWellbeingScore, setReadWellbeingScore] = useState(true);
+
+  const currentFreqLabel =
+    SYNC_OPTIONS.find((o) => o.value === syncFrequency)?.label ?? "";
+
+  /* -- Loading state -- */
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={HUME_ACCENT} />
+          <Text style={styles.loadingText}>Loading Hume AI connection...</Text>
+        </View>
+      </SafeAreaView>
     );
-  };
-
-  const handleDisconnect = () => {
-    Alert.alert(
-      "Disconnect Hume AI",
-      "Are you sure you want to disconnect Hume AI? Your analysis history will be preserved.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Disconnect",
-          style: "destructive",
-          onPress: () => setIsConnected(false),
-        },
-      ],
-    );
-  };
-
-  const handleRunAnalysis = () => {
-    setIsAnalyzing(true);
-    // Simulate analysis
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      Alert.alert(
-        "Analysis Complete",
-        "Your emotional wellbeing analysis has been updated.",
-        [{ text: "OK" }],
-      );
-    }, 2000);
-  };
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -211,23 +124,6 @@ export default function HumeScreen() {
             </Text>
           </View>
         </View>
-
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {/* WHAT IS HUME                                               */}
-        {/* ═══════════════════════════════════════════════════════════ */}
-        <Card style={styles.explainerCard}>
-          <View style={styles.explainerRow}>
-            <View style={styles.explainerIconCircle}>
-              <Info size={16} color={HUME_ACCENT} />
-            </View>
-            <Text style={styles.explainerText}>
-              Hume AI analyzes voice and facial expressions to provide emotional
-              wellbeing insights. It tracks patterns in joy, stress, calm,
-              energy, and more to help you and your care team understand your
-              emotional health over time.
-            </Text>
-          </View>
-        </Card>
 
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* CONNECTION STATUS                                          */}
@@ -262,122 +158,166 @@ export default function HumeScreen() {
             </View>
             {isConnected && (
               <View style={styles.syncTimeCol}>
-                <Text style={styles.syncTimeLabel}>Last analysis</Text>
-                <Text style={styles.syncTimeValue}>Today, 9:30 AM</Text>
+                <Text style={styles.syncTimeLabel}>Last sync</Text>
+                <Text style={styles.syncTimeValue}>
+                  {lastSync ?? "Never"}
+                </Text>
               </View>
             )}
           </View>
 
           {isConnected ? (
             <Button
-              title={isAnalyzing ? "Analyzing..." : "Run Analysis"}
+              title={isSyncing ? "Syncing..." : "Sync Now"}
               variant="secondary"
               size="sm"
-              icon={
-                isAnalyzing ? undefined : (
-                  <BarChart3 size={14} color={Colors.gold} />
-                )
-              }
-              onPress={handleRunAnalysis}
-              loading={isAnalyzing}
-              style={styles.actionBtn}
+              icon={<RefreshCw size={14} color={Colors.gold} />}
+              onPress={sync}
+              loading={isSyncing}
+              style={styles.syncBtn}
             />
           ) : (
             <Button
-              title="Setup via Dashboard"
+              title={isConnecting ? "Connecting..." : "Connect Hume AI"}
               variant="primary"
               size="sm"
-              onPress={handleConnect}
-              style={styles.actionBtn}
+              onPress={connect}
+              loading={isConnecting}
+              style={styles.syncBtn}
             />
           )}
         </Card>
 
         {/* ═══════════════════════════════════════════════════════════ */}
-        {/* EMOTION METRICS                                            */}
+        {/* OAUTH INFO                                                 */}
+        {/* ═══════════════════════════════════════════════════════════ */}
+        {!isConnected && (
+          <Card style={styles.oauthInfoCard}>
+            <View style={styles.infoRow}>
+              <View style={styles.oauthIconCircle}>
+                <Shield size={16} color={HUME_ACCENT} />
+              </View>
+              <Text style={styles.oauthInfoText}>
+                Connecting opens the Hume AI website where you authorize Everist
+                to access your emotional wellbeing data. Your Hume credentials
+                are never shared with us.
+              </Text>
+            </View>
+          </Card>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════ */}
+        {/* DATA TYPES                                                 */}
         {/* ═══════════════════════════════════════════════════════════ */}
         {isConnected && (
           <>
-            <Card style={styles.metricsCard}>
-              <Text style={styles.categoryTitle}>Emotion Metrics</Text>
+            <Card style={styles.categoryCard}>
+              <Text style={styles.categoryTitle}>Data from Hume AI</Text>
               <Text style={styles.categorySubtitle}>
-                Current emotional state based on recent analysis
+                Choose which Hume AI data to import into Everist
               </Text>
 
-              <View style={styles.metricsGrid}>
-                {emotions.map((emotion) => (
-                  <View key={emotion.id} style={styles.metricItem}>
-                    <View style={styles.metricHeader}>
-                      <View style={styles.metricIconWrap}>{emotion.icon}</View>
-                      <TrendingUp
-                        size={12}
-                        color={
-                          emotion.trend === "up"
-                            ? Colors.success
-                            : emotion.trend === "down"
-                              ? Colors.danger
-                              : Colors.silver
-                        }
-                        style={
-                          emotion.trend === "down"
-                            ? { transform: [{ rotate: "180deg" }] }
-                            : {}
-                        }
-                      />
-                    </View>
-                    <Text style={styles.metricLabel}>{emotion.label}</Text>
-                    {/* Score bar */}
-                    <View style={styles.scoreBarContainer}>
-                      <View
-                        style={[
-                          styles.scoreBarFill,
-                          {
-                            width: `${emotion.score}%`,
-                            backgroundColor: emotion.color,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={[styles.metricScore, { color: emotion.color }]}>
-                      {emotion.score}%
-                    </Text>
-                  </View>
-                ))}
-              </View>
+              <DataRow
+                icon={<Smile size={18} color="#F59E0B" />}
+                label="Emotional State"
+                value={readEmotionalState}
+                onValueChange={setReadEmotionalState}
+              />
+              <DataRow
+                icon={<Mic size={18} color="#8B5CF6" />}
+                label="Voice Analysis"
+                value={readVoiceAnalysis}
+                onValueChange={setReadVoiceAnalysis}
+              />
+              <DataRow
+                icon={<Eye size={18} color="#06B6D4" />}
+                label="Expression Metrics"
+                value={readExpressionMetrics}
+                onValueChange={setReadExpressionMetrics}
+              />
+              <DataRow
+                icon={<Heart size={18} color={HUME_ACCENT} />}
+                label="Wellbeing Score"
+                value={readWellbeingScore}
+                onValueChange={setReadWellbeingScore}
+                last
+              />
             </Card>
 
             {/* ═══════════════════════════════════════════════════════ */}
-            {/* RECENT ANALYSES                                        */}
+            {/* SYNC FREQUENCY                                         */}
             {/* ═══════════════════════════════════════════════════════ */}
             <Card style={styles.categoryCard}>
-              <Text style={styles.categoryTitle}>Recent Analyses</Text>
-              <Text style={styles.categorySubtitle}>
-                History of your emotional wellbeing assessments
-              </Text>
+              <Text style={styles.categoryTitle}>Sync Frequency</Text>
 
-              {analyses.map((analysis, index) => (
-                <View
-                  key={analysis.id}
-                  style={[
-                    styles.analysisRow,
-                    index < analyses.length - 1 && styles.analysisRowBorder,
-                  ]}
-                >
-                  <View style={styles.analysisLeft}>
-                    <View style={styles.analysisScoreCircle}>
-                      <Text style={styles.analysisScoreText}>
-                        {analysis.overallScore}
-                      </Text>
-                    </View>
-                    <View style={styles.analysisContent}>
-                      <Text style={styles.analysisDate}>{analysis.date}</Text>
-                      <Text style={styles.analysisSummary}>
-                        {analysis.summary}
-                      </Text>
-                    </View>
-                  </View>
+              <Pressable
+                style={styles.frequencySelector}
+                onPress={() => setShowFrequencyPicker(!showFrequencyPicker)}
+              >
+                <View style={styles.frequencySelectorLeft}>
+                  <Clock size={18} color={Colors.silver} />
+                  <Text style={styles.frequencySelectorLabel}>
+                    {currentFreqLabel}
+                  </Text>
                 </View>
-              ))}
+                <ChevronDown
+                  size={18}
+                  color={Colors.silver}
+                  style={
+                    showFrequencyPicker
+                      ? { transform: [{ rotate: "180deg" }] }
+                      : {}
+                  }
+                />
+              </Pressable>
+
+              {showFrequencyPicker && (
+                <View style={styles.frequencyOptions}>
+                  {SYNC_OPTIONS.map((option) => (
+                    <Pressable
+                      key={option.value}
+                      style={[
+                        styles.frequencyOption,
+                        syncFrequency === option.value &&
+                          styles.frequencyOptionActive,
+                      ]}
+                      onPress={() => {
+                        setSyncFrequency(option.value);
+                        setShowFrequencyPicker(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.frequencyOptionText,
+                          syncFrequency === option.value &&
+                            styles.frequencyOptionTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                      {syncFrequency === option.value && (
+                        <CheckCircle size={16} color={Colors.gold} />
+                      )}
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* DATA INFO                                              */}
+            {/* ═══════════════════════════════════════════════════════ */}
+            <Card style={styles.dataInfoCard}>
+              <View style={styles.infoRow}>
+                <View style={styles.dataInfoIconCircle}>
+                  <Brain size={16} color={HUME_ACCENT} />
+                </View>
+                <Text style={styles.dataInfoText}>
+                  Hume AI analyzes voice and facial expressions to track
+                  emotional patterns. Data syncs happen server-side through the
+                  Hume API.
+                </Text>
+              </View>
             </Card>
 
             {/* ═══════════════════════════════════════════════════════ */}
@@ -391,7 +331,7 @@ export default function HumeScreen() {
                 <Text style={styles.privacyText}>
                   Emotion analysis data is processed securely and only shared
                   with your authorized care team. Voice and facial data is never
-                  stored permanently.
+                  stored permanently. You can revoke access at any time.
                 </Text>
               </View>
             </Card>
@@ -403,13 +343,47 @@ export default function HumeScreen() {
               title="Disconnect Hume AI"
               variant="danger"
               size="lg"
-              onPress={handleDisconnect}
+              onPress={disconnect}
               style={styles.disconnectBtn}
             />
           </>
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* DataRow component                                                   */
+/* ------------------------------------------------------------------ */
+
+function DataRow({
+  icon,
+  label,
+  value,
+  onValueChange,
+  last = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.dataRow, !last && styles.dataRowBorder]}>
+      <View style={styles.dataRowLeft}>
+        <View style={styles.dataIconWrap}>{icon}</View>
+        <Text style={styles.dataLabel}>{label}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: Colors.navyLight, true: Colors.goldDark }}
+        thumbColor={value ? Colors.gold : Colors.silver}
+        ios_backgroundColor={Colors.navyLight}
+      />
+    </View>
   );
 }
 
@@ -425,6 +399,18 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.md,
     paddingBottom: Spacing.xxl + 32,
+  },
+
+  /* -- Loading -- */
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.md,
+  },
+  loadingText: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
   },
 
   /* -- Header -- */
@@ -455,33 +441,6 @@ const styles = StyleSheet.create({
     color: Colors.silver,
     fontSize: FontSizes.sm,
     marginTop: 2,
-  },
-
-  /* -- Explainer card -- */
-  explainerCard: {
-    marginBottom: Spacing.md,
-    backgroundColor: HUME_ACCENT_BG,
-    borderColor: HUME_ACCENT_BORDER,
-  },
-  explainerRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.sm,
-  },
-  explainerIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(232, 121, 168, 0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
-  },
-  explainerText: {
-    color: Colors.silverLight,
-    fontSize: FontSizes.sm,
-    lineHeight: 20,
-    flex: 1,
   },
 
   /* -- Connection status card -- */
@@ -532,12 +491,34 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: "600",
   },
-  actionBtn: {
+  syncBtn: {
     alignSelf: "stretch",
   },
 
-  /* -- Emotion metrics -- */
-  metricsCard: {
+  /* -- OAuth info card -- */
+  oauthInfoCard: {
+    marginBottom: Spacing.md,
+    backgroundColor: HUME_ACCENT_BG,
+    borderColor: HUME_ACCENT_BORDER,
+  },
+  oauthIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(232, 121, 168, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  oauthInfoText: {
+    color: Colors.silverLight,
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
+    flex: 1,
+  },
+
+  /* -- Data category cards -- */
+  categoryCard: {
     marginBottom: Spacing.md,
   },
   categoryTitle: {
@@ -552,98 +533,110 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     lineHeight: 18,
   },
-  metricsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.sm,
-  },
-  metricItem: {
-    width: "48%",
-    backgroundColor: Colors.navyLight,
-    borderRadius: Radii.md,
-    padding: Spacing.md,
-  },
-  metricHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: Spacing.xs,
-  },
-  metricIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  metricLabel: {
-    color: Colors.silver,
-    fontSize: FontSizes.xs,
-    marginBottom: Spacing.xs,
-  },
-  scoreBarContainer: {
-    height: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderRadius: 2,
-    marginBottom: Spacing.xs,
-    overflow: "hidden",
-  },
-  scoreBarFill: {
-    height: "100%",
-    borderRadius: 2,
-  },
-  metricScore: {
-    fontSize: FontSizes.lg,
-    fontWeight: "700",
-  },
 
-  /* -- Analysis history -- */
-  categoryCard: {
-    marginBottom: Spacing.md,
-  },
-  analysisRow: {
+  /* -- Data row -- */
+  dataRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 12,
   },
-  analysisRowBorder: {
+  dataRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
   },
-  analysisLeft: {
+  dataRowLeft: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: Spacing.sm,
+    flex: 1,
   },
-  analysisScoreCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: HUME_ACCENT_BG,
-    borderWidth: 2,
-    borderColor: HUME_ACCENT,
+  dataIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: Colors.navyLight,
     alignItems: "center",
     justifyContent: "center",
   },
-  analysisScoreText: {
-    color: HUME_ACCENT,
-    fontSize: FontSizes.md,
-    fontWeight: "700",
-  },
-  analysisContent: {
-    flex: 1,
-  },
-  analysisDate: {
-    color: Colors.silver,
-    fontSize: FontSizes.xs,
-    marginBottom: 4,
-  },
-  analysisSummary: {
+  dataLabel: {
     color: Colors.white,
-    fontSize: FontSizes.sm,
-    lineHeight: 20,
+    fontSize: FontSizes.md,
+    fontWeight: "500",
+  },
+
+  /* -- Sync frequency -- */
+  frequencySelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.navyLight,
+    borderRadius: Radii.md,
+    marginTop: Spacing.sm,
+  },
+  frequencySelectorLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  frequencySelectorLabel: {
+    color: Colors.white,
+    fontSize: FontSizes.md,
+    fontWeight: "600",
+  },
+  frequencyOptions: {
+    marginTop: Spacing.sm,
+    borderRadius: Radii.md,
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+  },
+  frequencyOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.navyLight,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  frequencyOptionActive: {
+    backgroundColor: "rgba(232, 121, 168, 0.1)",
+  },
+  frequencyOptionText: {
+    color: Colors.silver,
+    fontSize: FontSizes.md,
+    fontWeight: "500",
+  },
+  frequencyOptionTextActive: {
+    color: Colors.gold,
+    fontWeight: "600",
   },
 
   /* -- Info / privacy cards -- */
+  dataInfoCard: {
+    marginBottom: Spacing.md,
+    backgroundColor: HUME_ACCENT_BG,
+    borderColor: HUME_ACCENT_BORDER,
+  },
+  dataInfoIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(232, 121, 168, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  dataInfoText: {
+    color: Colors.silverLight,
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
+    flex: 1,
+  },
   infoRow: {
     flexDirection: "row",
     alignItems: "flex-start",

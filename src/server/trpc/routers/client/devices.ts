@@ -16,7 +16,7 @@ function signOAuthState(payload: string): string {
   return crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
 }
 
-const providerEnum = z.enum(["oura", "apple_health", "dexcom", "garmin", "whoop", "withings", "fitbit"]);
+const providerEnum = z.enum(["oura", "apple_health", "dexcom", "garmin", "whoop", "withings", "fitbit", "hume"]);
 
 async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
@@ -99,6 +99,7 @@ export const clientDevicesRouter = router({
         withings: env.WITHINGS_CLIENT_ID,
         garmin: "",
         apple_health: "",
+        hume: env.HUME_CLIENT_ID,
       };
       const clientId = providerClientIds[input.provider];
 

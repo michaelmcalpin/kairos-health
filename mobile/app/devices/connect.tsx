@@ -97,8 +97,7 @@ export default function ConnectAccountScreen() {
   const [connected, setConnected] = useState<Set<string>>(new Set());
   const connectMutation = trpc.clientPortal.devices.initiateConnect.useMutation();
 
-  // Filter to only supported providers, and exclude providers that
-  // cannot be connected via the backend (e.g. hume is external)
+  // Filter to only supported providers that can be connected in-app
   const providers = DEVICE_PROVIDERS.filter(
     (p) => p.supported && p.connectionType !== "external",
   );
@@ -161,11 +160,11 @@ export default function ConnectAccountScreen() {
       return;
     }
 
-    // External providers (e.g., Hume AI) — should not appear in the
+    // Unsupported connection type — should not appear in the
     // filtered list, but handle gracefully just in case
     Alert.alert(
-      "External Integration",
-      `${providerName} integration requires setup through the Everist dashboard. Contact your coach for access.`,
+      "Unsupported Integration",
+      `${providerName} cannot be connected from this screen. Please try again later.`,
       [{ text: "OK" }],
     );
   };

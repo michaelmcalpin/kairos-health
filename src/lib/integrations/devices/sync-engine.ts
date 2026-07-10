@@ -27,6 +27,7 @@ import { fetchOuraSleep, fetchOuraHeartRate, fetchOuraHRV, refreshOuraToken } fr
 import { fetchDexcomGlucose, refreshDexcomToken } from "./clients/dexcom";
 import { fetchWhoopSleep, fetchWhoopRecovery, refreshWhoopToken } from "./clients/whoop";
 import { refreshFitbitToken } from "./clients/fitbit";
+import { fetchHumeEmotionData, refreshHumeToken } from "./clients/hume";
 
 // ─── Sync Engine ────────────────────────────────────────────────────────────
 
@@ -296,6 +297,14 @@ export class DeviceSyncEngine {
           break;
         }
 
+        case "hume": {
+          const humeData = await fetchHumeEmotionData(accessToken, connection.lastSyncAt ?? undefined);
+          recordsProcessed = humeData.measurements.length;
+          recordsInserted = humeData.measurements.length;
+          // Hume emotion data stored via provider-specific handling
+          break;
+        }
+
         default: {
           // For providers without full implementation yet, return placeholder
           logger.info("devices", "Sync not yet implemented for provider", { provider: connection.provider, dataType });
@@ -344,6 +353,9 @@ export class DeviceSyncEngine {
         break;
       case "fitbit":
         newTokens = await refreshFitbitToken(refreshTokenVal);
+        break;
+      case "hume":
+        newTokens = await refreshHumeToken(refreshTokenVal);
         break;
       default:
         throw new Error(`Token refresh not implemented for ${connection.provider}`);

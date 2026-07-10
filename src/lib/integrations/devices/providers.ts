@@ -78,6 +78,16 @@ export const PROVIDERS: Record<string, ProviderConfig> = {
     dataTypes: ["weight", "body_composition", "blood_pressure", "sleep"],
     webhookSupported: true,
   },
+  hume: {
+    id: "hume",
+    name: "Hume AI",
+    description: "Emotion and wellbeing analysis from voice and expressions",
+    oauthUrl: "https://platform.hume.ai/oauth2/authorize",
+    tokenUrl: "https://platform.hume.ai/oauth2/token",
+    scopes: ["read:measurements", "read:analysis"],
+    dataTypes: ["emotional_state", "voice_analysis", "expression_metrics", "wellbeing_score"],
+    webhookSupported: false,
+  },
 };
 
 /**
