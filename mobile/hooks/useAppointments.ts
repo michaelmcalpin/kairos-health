@@ -116,7 +116,7 @@ export function useCancelAppointment() {
   });
 
   const cancel = (appointmentId: string, reason?: string) => {
-    mutation.mutate({ id: appointmentId, reason });
+    mutation.mutate({ appointmentId, reason });
   };
 
   return {

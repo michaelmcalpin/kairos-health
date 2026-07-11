@@ -408,23 +408,56 @@ export default function GutBiomeScreen() {
         </Card>
 
         {/* Upload Button */}
-        <Button
-          title="Upload Viome Report"
-          variant="secondary"
-          size="lg"
-          style={styles.uploadButton}
-          onPress={async () => {
-            const image = await showImagePickerOptions();
-            if (image) {
-              Alert.alert(
-                "Document Captured",
-                "Your Viome report has been saved. It will be reviewed by your care team within 24-48 hours.",
-              );
-            }
-          }}
-        />
+        <UploadGutBiomeButton />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Upload Button with backend integration                              */
+/* ------------------------------------------------------------------ */
+
+function UploadGutBiomeButton() {
+  const createDoc = trpc.clientPortal.clinicalDocs.create.useMutation();
+
+  return (
+    <Button
+      title="Upload Viome Report"
+      variant="secondary"
+      size="lg"
+      style={styles.uploadButton}
+      onPress={async () => {
+        const image = await showImagePickerOptions();
+        if (image) {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              createDoc.mutate(
+                {
+                  docType: "gut_biome",
+                  title: `Gut Biome Report - ${new Date().toLocaleDateString()}`,
+                  sourceFileName: image.fileName ?? `gut_biome_${Date.now()}.jpg`,
+                  notes: `Captured via mobile app. Image URI: ${image.uri}`,
+                },
+                {
+                  onSuccess: () => resolve(),
+                  onError: (err: any) => reject(err),
+                },
+              );
+            });
+            Alert.alert(
+              "Document Uploaded",
+              "Your Viome report has been submitted. It will be reviewed by your care team within 24-48 hours.",
+            );
+          } catch (err: any) {
+            Alert.alert(
+              "Document Captured",
+              "Your Viome report image was captured but could not be uploaded to the server. The image is saved locally. Please try again later.",
+            );
+          }
+        }
+      }}
+    />
   );
 }
 

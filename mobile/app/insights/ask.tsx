@@ -74,7 +74,7 @@ const QUESTION_CHIPS = [
 ];
 
 /* ------------------------------------------------------------------ */
-/* Sample conversation                                                 */
+/* Initial messages                                                    */
 /* ------------------------------------------------------------------ */
 
 const INITIAL_MESSAGES: QAMessage[] = [
@@ -82,35 +82,10 @@ const INITIAL_MESSAGES: QAMessage[] = [
     id: "m0",
     role: "assistant",
     content:
-      "Hello! I'm your health analysis assistant. I have access to your biomarker data, wearable metrics, and health records. Ask me anything about your health -- I'll provide data-driven answers with references to your actual readings.",
+      "Hello! I'm your health analysis assistant. AI-powered Q&A is currently available in the Everist web app, where I can analyze your biomarker data and health records in detail.\n\nFor now, you can use the health analysis tools on the Insights tab to review your data, or chat with your coach for personalized guidance.",
     timestamp: new Date().toISOString(),
   },
 ];
-
-const GLUCOSE_RESPONSE: QAMessage = {
-  id: "m2",
-  role: "assistant",
-  content:
-    "Based on your CGM data from the past 30 days, your post-prandial glucose spikes are primarily occurring after lunch and dinner, averaging 162 mg/dL with peaks reaching 185 mg/dL.\n\nHere's what the data shows:\n\n1. Timing pattern: Spikes occur 45-60 minutes after meals, taking ~2.5 hours to return to baseline (optimal is <2 hours).\n\n2. Meal correlation: Your highest spikes (>170 mg/dL) correspond to meals with >60g of carbohydrates, particularly refined carbs. Meals with protein-first eating show 23% lower peaks.\n\n3. Activity impact: On days with post-meal walks (10+ min), your peak glucose was 18% lower on average.\n\nSuggestions:\n- Try eating protein and vegetables before carbohydrates\n- A 10-15 minute walk after meals can significantly blunt spikes\n- Consider discussing berberine supplementation with your doctor\n- Your fasting glucose (92 mg/dL) and A1C (5.4%) are still within normal range, so this is about optimization rather than clinical concern",
-  timestamp: new Date().toISOString(),
-  citations: [
-    { source: "Dexcom G7 CGM", detail: "30-day continuous glucose data" },
-    { source: "Lab Results", detail: "A1C 5.4% (Jun 2, 2026)" },
-    { source: "Food Log", detail: "Meal composition correlation analysis" },
-  ],
-};
-
-const DOCTOR_RESPONSE: QAMessage = {
-  id: "m4",
-  role: "assistant",
-  content:
-    "Good question. Based on your current data, here's my assessment on when to involve your physician:\n\nYour current status is not clinically urgent:\n- Fasting glucose: 92 mg/dL (normal range: 70-100)\n- A1C: 5.4% (normal: <5.7%, pre-diabetic: 5.7-6.4%)\n- These numbers put you well within the normal clinical range\n\nHowever, consider discussing with your doctor if:\n- Post-prandial spikes consistently exceed 180 mg/dL\n- Fasting glucose rises above 100 mg/dL on multiple readings\n- You want to explore glucose-lowering supplements like berberine or metformin for longevity purposes\n\nFor your next appointment, I can generate a summary report of your glucose trends, including CGM data visualizations, to share with your doctor. This would give them actionable data beyond a single A1C reading.\n\nWould you like me to prepare that report?",
-  timestamp: new Date().toISOString(),
-  citations: [
-    { source: "Lab Results", detail: "Fasting glucose 92 mg/dL, A1C 5.4%" },
-    { source: "Clinical Guidelines", detail: "ADA diagnostic thresholds" },
-  ],
-};
 
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
@@ -134,37 +109,6 @@ export default function AskScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const simulateResponse = useCallback(
-    (userMsg: string): QAMessage => {
-      const lower = userMsg.toLowerCase();
-      if (lower.includes("glucose") || lower.includes("spiking")) {
-        return {
-          ...GLUCOSE_RESPONSE,
-          id: `m-${Date.now()}-resp`,
-          timestamp: new Date().toISOString(),
-        };
-      }
-      if (lower.includes("doctor") || lower.includes("physician")) {
-        return {
-          ...DOCTOR_RESPONSE,
-          id: `m-${Date.now()}-resp`,
-          timestamp: new Date().toISOString(),
-        };
-      }
-      // Generic response for other questions
-      return {
-        id: `m-${Date.now()}-resp`,
-        role: "assistant",
-        content: `Based on your health data, I can see several relevant data points related to your question about "${userMsg.slice(0, 60)}..."\n\nLet me analyze your recent biomarker readings, wearable data, and health records to provide a comprehensive answer. Your overall health trajectory shows positive trends, and I'd recommend reviewing this in the context of your full analysis.\n\nWould you like me to go deeper into any specific aspect of this topic?`,
-        timestamp: new Date().toISOString(),
-        citations: [
-          { source: "Health Dashboard", detail: "Aggregated health metrics" },
-        ],
-      };
-    },
-    []
-  );
-
   const handleSendMessage = useCallback(
     (text?: string) => {
       const messageText = text || inputText.trim();
@@ -181,14 +125,24 @@ export default function AskScreen() {
       setInputText("");
       setIsTyping(true);
 
-      // Simulate AI thinking time
+      // No backend AI Q&A endpoint exists yet -- show honest response
       setTimeout(() => {
-        const response = simulateResponse(messageText);
+        const response: QAMessage = {
+          id: `m-${Date.now()}-resp`,
+          role: "assistant",
+          content:
+            "AI-powered health Q&A is not yet available in the mobile app. To get detailed, data-driven answers about your health:\n\n" +
+            "1. Use the Everist web app at app.everist.ai for full AI analysis\n" +
+            "2. Check the Insights tab for automated health analysis\n" +
+            "3. Chat with your coach for personalized guidance\n\n" +
+            "We are working on bringing AI Q&A to mobile soon.",
+          timestamp: new Date().toISOString(),
+        };
         setMessages((prev) => [...prev, response]);
         setIsTyping(false);
-      }, 2000);
+      }, 800);
     },
-    [inputText, simulateResponse]
+    [inputText],
   );
 
   const handleChipPress = useCallback(

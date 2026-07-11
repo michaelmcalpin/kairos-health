@@ -423,12 +423,12 @@ export default function ShoppingListScreen() {
             </View>
           </View>
           <Text style={styles.subtitle}>
-            Based on This Week's Meals
+            Grocery Shopping
           </Text>
           <View style={styles.protocolNote}>
             <Text style={styles.protocolNoteText}>
-              This list is derived from your active supplement protocol and weekly meal plan.
-              Items update automatically when your protocol changes.
+              Shopping list items are stored on this device only.
+              Changes you make here will not sync across devices.
             </Text>
           </View>
         </View>

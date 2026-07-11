@@ -125,11 +125,18 @@ export default function OnboardingScreen() {
         });
       } else if (leavingStep === "goals") {
         saveGoalsMutation.mutate({ goals: selectedGoals });
+      } else if (leavingStep === "wearable") {
+        const wearableIds = selectedWearables
+          .filter((w) => w.id !== "none")
+          .map((w) => w.id);
+        saveHealthHistoryMutation.mutate({
+          wearableDevices: wearableIds,
+        });
       }
 
       setCurrentStep(STEP_ORDER[nextIndex]);
     }
-  }, [currentIndex, profile, selectedGoals, saveProfileMutation, saveGoalsMutation]);
+  }, [currentIndex, profile, selectedGoals, selectedWearables, saveProfileMutation, saveGoalsMutation, saveHealthHistoryMutation]);
 
   const goBack = useCallback(() => {
     const prevIndex = currentIndex - 1;

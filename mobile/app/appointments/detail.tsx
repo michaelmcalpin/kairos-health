@@ -77,17 +77,26 @@ export default function AppointmentDetailScreen() {
 
   const APPOINTMENT = apiAppointment
     ? {
+        // Sample data provides sensible defaults for fields the API may not return
         ...SAMPLE_APPOINTMENT,
-        title: apiAppointment.title,
-        type: apiAppointment.type,
-        status: apiAppointment.status.charAt(0).toUpperCase() + apiAppointment.status.slice(1),
-        date: apiAppointment.date,
-        time: apiAppointment.time,
-        method: apiAppointment.method as "Video Call" | "In-Person",
+        // API data takes priority over sample defaults
+        title: apiAppointment.title ?? SAMPLE_APPOINTMENT.title,
+        type: apiAppointment.type ?? SAMPLE_APPOINTMENT.type,
+        status: apiAppointment.status
+          ? apiAppointment.status.charAt(0).toUpperCase() + apiAppointment.status.slice(1)
+          : SAMPLE_APPOINTMENT.status,
+        date: apiAppointment.date ?? SAMPLE_APPOINTMENT.date,
+        time: apiAppointment.time ?? SAMPLE_APPOINTMENT.time,
+        duration: (apiAppointment as any).duration ?? SAMPLE_APPOINTMENT.duration,
+        method: (apiAppointment.method as "Video Call" | "In-Person") ?? SAMPLE_APPOINTMENT.method,
+        address: (apiAppointment as any).address ?? SAMPLE_APPOINTMENT.address,
         provider: {
           ...SAMPLE_APPOINTMENT.provider,
-          name: apiAppointment.provider,
+          name: apiAppointment.provider ?? SAMPLE_APPOINTMENT.provider.name,
+          specialty: (apiAppointment as any).providerSpecialty ?? SAMPLE_APPOINTMENT.provider.specialty,
         },
+        notes: (apiAppointment as any).notes ?? SAMPLE_APPOINTMENT.notes,
+        checklist: (apiAppointment as any).checklist ?? SAMPLE_APPOINTMENT.checklist,
       }
     : SAMPLE_APPOINTMENT;
 
@@ -98,17 +107,17 @@ export default function AppointmentDetailScreen() {
     setRefreshing(false);
   }, [refetch]);
 
-  const [checklist, setChecklist] = useState(APPOINTMENT.checklist);
+  const [checklist, setChecklist] = useState<Array<{ id: string; text: string; done: boolean }>>(APPOINTMENT.checklist);
 
   const toggleItem = (id: string) => {
-    setChecklist((prev) =>
-      prev.map((item) =>
+    setChecklist((prev: Array<{ id: string; text: string; done: boolean }>) =>
+      prev.map((item: { id: string; text: string; done: boolean }) =>
         item.id === id ? { ...item, done: !item.done } : item,
       ),
     );
   };
 
-  const completedCount = checklist.filter((i) => i.done).length;
+  const completedCount = checklist.filter((i: { id: string; text: string; done: boolean }) => i.done).length;
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
@@ -226,7 +235,7 @@ export default function AppointmentDetailScreen() {
           Pre-Appointment Checklist ({completedCount}/{checklist.length})
         </Text>
         <Card style={styles.checklistCard}>
-          {checklist.map((item, idx) => (
+          {checklist.map((item: { id: string; text: string; done: boolean }, idx: number) => (
             <Pressable
               key={item.id}
               style={[

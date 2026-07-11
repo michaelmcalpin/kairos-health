@@ -32,6 +32,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
 /* Sample data                                                        */
@@ -44,32 +45,7 @@ const REPORT_OPTIONS = [
   { id: "sleep", label: "Sleep & Recovery", icon: Moon },
 ] as const;
 
-const RECENT_REPORTS = [
-  {
-    id: "rpt-1",
-    title: "Comprehensive Health Analysis",
-    date: "June 10, 2026",
-    dataPoints: 47,
-    summary:
-      "Overall health trajectory shows meaningful improvement across cardiovascular and metabolic markers. Key areas of focus remain LDL-P optimization and sleep consistency.",
-  },
-  {
-    id: "rpt-2",
-    title: "Cardiovascular Risk Assessment",
-    date: "June 3, 2026",
-    dataPoints: 32,
-    summary:
-      "Framingham risk score has decreased from 8.2% to 6.7% over the past quarter. Apolipoprotein B levels trending favorably with current statin protocol.",
-  },
-  {
-    id: "rpt-3",
-    title: "Sleep Optimization Report",
-    date: "May 28, 2026",
-    dataPoints: 28,
-    summary:
-      "Average deep sleep duration increased 18% since implementing the magnesium glycinate protocol. REM latency improved but total REM still below optimal threshold.",
-  },
-];
+// Reports are now fetched from the backend via reports.listAll
 
 /* ------------------------------------------------------------------ */
 /* Component                                                          */
@@ -79,6 +55,26 @@ export default function InsightsScreen() {
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<(typeof REPORT_OPTIONS)[number]>(REPORT_OPTIONS[0]);
+
+  // Fetch reports from backend
+  const reportsQuery = trpc.clientPortal.reports.listAll.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  // Backend returns: Array<{ id, clientId, reportType, title, reportData, createdAt, expiresAt }>
+  const reportsData = reportsQuery.data as any[] | undefined;
+  const RECENT_REPORTS = reportsData && reportsData.length > 0
+    ? reportsData.map((r: any) => ({
+        id: r.id,
+        title: r.title ?? r.reportType ?? "Report",
+        date: r.createdAt
+          ? new Date(r.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+          : "",
+        dataPoints: (r.reportData as any)?.dataPoints ?? null,
+        summary: (r.reportData as any)?.summary ?? "",
+      }))
+    : [];
 
   const handleSelectOption = (opt: (typeof REPORT_OPTIONS)[number]) => {
     setSelectedOption(opt);
@@ -192,10 +188,24 @@ export default function InsightsScreen() {
         {/* ---- Recent Reports ---- */}
         <Text style={styles.sectionTitle}>Recent Reports</Text>
 
+        {RECENT_REPORTS.length === 0 && !reportsQuery.isLoading && (
+          <Card style={styles.reportCard}>
+            <View style={{ alignItems: "center", paddingVertical: Spacing.lg }}>
+              <FileText size={32} color={Colors.silver} />
+              <Text style={[styles.reportTitle, { marginTop: Spacing.sm, textAlign: "center" }]}>
+                No Reports Yet
+              </Text>
+              <Text style={[styles.reportDate, { textAlign: "center", marginTop: 4 }]}>
+                Generate your first health analysis report above to get started.
+              </Text>
+            </View>
+          </Card>
+        )}
+
         {RECENT_REPORTS.map((report) => (
           <Pressable
             key={report.id}
-            onPress={() => router.push("/insights/report")}
+            onPress={() => router.push({ pathname: "/insights/report", params: { id: report.id } })}
           >
             <Card style={styles.reportCard}>
               <View style={styles.reportHeader}>
@@ -220,7 +230,7 @@ export default function InsightsScreen() {
                   title="View Report"
                   variant="secondary"
                   size="sm"
-                  onPress={() => router.push("/insights/report")}
+                  onPress={() => router.push({ pathname: "/insights/report", params: { id: report.id } })}
                   icon={<ArrowRight size={14} color={Colors.gold} />}
                 />
               </View>

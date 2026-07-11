@@ -131,7 +131,7 @@ export default function AppointmentsScreen() {
           return (
             <Pressable
               key={apt.id}
-              onPress={() => router.push("/appointments/detail")}
+              onPress={() => router.push({ pathname: "/appointments/detail", params: { id: apt.id } })}
             >
               <Card style={styles.aptCard}>
                 <View style={styles.aptTop}>

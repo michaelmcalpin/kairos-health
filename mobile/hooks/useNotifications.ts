@@ -85,7 +85,7 @@ export function useMarkAsRead() {
   });
 
   const markAsRead = (notificationId: string) => {
-    mutation.mutate({ id: notificationId });
+    mutation.mutate({ notificationId });
   };
 
   return {
@@ -133,7 +133,7 @@ export function useDismissNotification() {
   });
 
   const dismiss = (notificationId: string) => {
-    mutation.mutate({ id: notificationId });
+    mutation.mutate({ notificationId });
   };
 
   return {

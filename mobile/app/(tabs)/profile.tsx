@@ -137,19 +137,31 @@ export default function ProfileScreen() {
     setRefreshing(false);
   }, [profileQuery]);
 
+  /* -- tRPC mutation for persisting toggle changes -- */
+  const toggleMutation = trpc.clientPortal.settings.updateFeatureToggle.useMutation();
+
+  /* -- Derive initial toggle values from profile data -- */
+  const toggles = profileData?.toggles as Record<string, boolean> | undefined;
+
   /* -- notification toggles -- */
-  const [pushNotifs, setPushNotifs] = useState(true);
-  const [emailNotifs, setEmailNotifs] = useState(true);
-  const [appointmentReminders, setAppointmentReminders] = useState(true);
-  const [labAlerts, setLabAlerts] = useState(true);
-  const [protocolReminders, setProtocolReminders] = useState(false);
+  const [pushNotifs, setPushNotifs] = useState(toggles?.push_notifications ?? true);
+  const [emailNotifs, setEmailNotifs] = useState(toggles?.email_notifications ?? true);
+  const [appointmentReminders, setAppointmentReminders] = useState(toggles?.appointment_reminders ?? true);
+  const [labAlerts, setLabAlerts] = useState(toggles?.lab_alerts ?? true);
+  const [protocolReminders, setProtocolReminders] = useState(toggles?.protocol_reminders ?? false);
 
   /* -- health preferences -- */
-  const [useMetric, setUseMetric] = useState(false);
+  const [useMetric, setUseMetric] = useState(toggles?.metric_units ?? false);
 
   /* -- privacy & security -- */
-  const [biometricLogin, setBiometricLogin] = useState(true);
-  const [dataSharing, setDataSharing] = useState(false);
+  const [biometricLogin, setBiometricLogin] = useState(toggles?.biometric_login ?? true);
+  const [dataSharing, setDataSharing] = useState(toggles?.data_sharing ?? false);
+
+  /* -- Wrap toggle setters to also persist via mutation -- */
+  const handleToggle = (key: string, setter: (v: boolean) => void) => (value: boolean) => {
+    setter(value);
+    toggleMutation.mutate({ key, value });
+  };
 
   /* -- helpers -- */
   const noop = () => {};
@@ -235,35 +247,35 @@ export default function ProfileScreen() {
             icon={<Smartphone size={18} color={Colors.silver} />}
             label="Push Notifications"
             value={pushNotifs}
-            onValueChange={setPushNotifs}
+            onValueChange={handleToggle("push_notifications", setPushNotifs)}
           />
           <SettingsRow
             type="toggle"
             icon={<Mail size={18} color={Colors.silver} />}
             label="Email Notifications"
             value={emailNotifs}
-            onValueChange={setEmailNotifs}
+            onValueChange={handleToggle("email_notifications", setEmailNotifs)}
           />
           <SettingsRow
             type="toggle"
             icon={<Activity size={18} color={Colors.silver} />}
             label="Appointment Reminders"
             value={appointmentReminders}
-            onValueChange={setAppointmentReminders}
+            onValueChange={handleToggle("appointment_reminders", setAppointmentReminders)}
           />
           <SettingsRow
             type="toggle"
             icon={<Heart size={18} color={Colors.silver} />}
             label="Lab Results Alerts"
             value={labAlerts}
-            onValueChange={setLabAlerts}
+            onValueChange={handleToggle("lab_alerts", setLabAlerts)}
           />
           <SettingsRow
             type="toggle"
             icon={<FileText size={18} color={Colors.silver} />}
             label="Protocol Reminders"
             value={protocolReminders}
-            onValueChange={setProtocolReminders}
+            onValueChange={handleToggle("protocol_reminders", setProtocolReminders)}
             last
           />
         </SettingsSection>
@@ -354,34 +366,34 @@ export default function ProfileScreen() {
             label="Metric Units"
             subtitle={useMetric ? "kg, cm" : "lbs, ft/in"}
             value={useMetric}
-            onValueChange={setUseMetric}
+            onValueChange={handleToggle("metric_units", setUseMetric)}
           />
           <SettingsRow
             type="value"
             icon={<Globe size={18} color={Colors.silver} />}
             label="Timezone"
-            value="Pacific (PT)"
+            value={(profileData as any)?.timezone ?? "Not set"}
             onPress={noop}
           />
           <SettingsRow
             type="value"
             icon={<Stethoscope size={18} color={Colors.silver} />}
             label="Primary Doctor"
-            value="Dr. Sarah Chen"
+            value={(profileData as any)?.primaryDoctor ?? "Not assigned"}
             onPress={noop}
           />
           <SettingsRow
             type="value"
             icon={<Dumbbell size={18} color={Colors.silver} />}
             label="Your Coach"
-            value="Walid Kherat"
+            value={(profileData as any)?.coachName ?? "Not assigned"}
             onPress={() => router.push("/coach")}
           />
           <SettingsRow
             type="value"
             icon={<Phone size={18} color={Colors.silver} />}
             label="Emergency Contact"
-            value="Jane McAlpin"
+            value={(profileData as any)?.emergencyContact ?? "Not set"}
             onPress={noop}
             last
           />
@@ -400,7 +412,7 @@ export default function ProfileScreen() {
             label="Biometric Login"
             subtitle="Face ID / Touch ID"
             value={biometricLogin}
-            onValueChange={setBiometricLogin}
+            onValueChange={handleToggle("biometric_login", setBiometricLogin)}
           />
           <SettingsRow
             type="toggle"
@@ -408,7 +420,7 @@ export default function ProfileScreen() {
             label="Data Sharing"
             subtitle="Anonymized data for research"
             value={dataSharing}
-            onValueChange={setDataSharing}
+            onValueChange={handleToggle("data_sharing", setDataSharing)}
           />
           <SettingsRow
             icon={<Shield size={18} color={Colors.silver} />}

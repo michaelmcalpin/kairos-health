@@ -12,7 +12,7 @@ import {
   SafeAreaView,
   Alert,
 } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Pause, Play, SkipForward, Flag } from "lucide-react-native";
 
@@ -126,6 +126,12 @@ const SAMPLE_PUSH_DAY_EXERCISES: Exercise[] = [
 
 export default function WorkoutSessionScreen() {
   const router = useRouter();
+  const { workoutName: routeWorkoutName } = useLocalSearchParams<{
+    workoutName?: string;
+  }>();
+
+  // Use workout name from route params if provided, otherwise fall back to default
+  const workoutName = routeWorkoutName || "Push Day";
 
   /* ---- tRPC mutation ---- */
   const logWorkoutMutation = trpc.clientPortal.workouts.logWorkout.useMutation();
@@ -321,7 +327,7 @@ export default function WorkoutSessionScreen() {
         }));
 
       logWorkoutMutation.mutate({
-        type: "Push Day",
+        type: workoutName,
         durationMinutes: Math.round(elapsedSeconds / 60),
         caloriesBurned: undefined,
         notes: `${summary.exercisesCompleted} exercises, ${summary.totalSets} sets, ${summary.totalVolume} lbs total volume`,
@@ -347,7 +353,7 @@ export default function WorkoutSessionScreen() {
           showsVerticalScrollIndicator={false}
         >
           <WorkoutSummary
-            workoutName="Push Day"
+            workoutName={workoutName}
             duration={formatTime(elapsedSeconds)}
             totalVolume={summary.totalVolume}
             totalSets={summary.totalSets}
@@ -385,7 +391,7 @@ export default function WorkoutSessionScreen() {
     <SafeAreaView style={styles.safe}>
       <Stack.Screen
         options={{
-          title: "Push Day",
+          title: workoutName,
           headerRight: () => null,
           gestureEnabled: false,
         }}

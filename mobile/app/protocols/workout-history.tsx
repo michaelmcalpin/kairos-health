@@ -51,7 +51,7 @@ interface WorkoutLog {
 /* ------------------------------------------------------------------ */
 
 function generateSampleWorkouts(): WorkoutLog[] {
-  const today = new Date(2026, 5, 16); // June 16, 2026
+  const today = new Date(); // June 16, 2026
 
   const workoutTemplates = [
     {
@@ -304,8 +304,8 @@ export default function WorkoutHistoryScreen() {
     ? (query.data as any[]).map(mapApiWorkout)
     : SAMPLE_WORKOUTS;
 
-  const [calendarYear, setCalendarYear] = useState(2026);
-  const [calendarMonth, setCalendarMonth] = useState(5); // June (0-indexed)
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
   const [selectedWorkout, setSelectedWorkout] = useState<WorkoutLog | null>(
     null
   );
@@ -325,7 +325,7 @@ export default function WorkoutHistoryScreen() {
   }, [workouts]);
 
   /* Stats */
-  const today = new Date(2026, 5, 16);
+  const today = new Date();
   const oneWeekAgo = new Date(today);
   oneWeekAgo.setDate(today.getDate() - 7);
   const oneMonthAgo = new Date(today);
@@ -478,10 +478,11 @@ export default function WorkoutHistoryScreen() {
                 calendarMonth + 1
               ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
               const hasWorkout = workoutDates.has(dateStr);
+              const now = new Date();
               const isToday =
-                day === 16 &&
-                calendarMonth === 5 &&
-                calendarYear === 2026;
+                day === now.getDate() &&
+                calendarMonth === now.getMonth() &&
+                calendarYear === now.getFullYear();
 
               return (
                 <View key={day} style={styles.calendarCell}>

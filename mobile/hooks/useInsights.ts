@@ -314,14 +314,26 @@ export function useHealthAnalysis(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useAnalysisHistory() {
-  // Backend does not have insights.listHistory — return sample data directly
-  const history: AnalysisHistoryItem[] = SAMPLE_ANALYSIS_HISTORY;
+  // Use insights.getAll with a 90-day window to build history from real insights
+  const endDate = new Date().toISOString();
+  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+  const query = trpc.clientPortal.insights.getAll.useQuery(
+    { startDate, endDate },
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  const history: AnalysisHistoryItem[] = query.data
+    ? (query.data as any).insights
+        ?.map((insight: any) => mapInsightToHistoryItem(insight, insight.category))
+        ?? []
+    : SAMPLE_ANALYSIS_HISTORY;
 
   return {
     history,
-    isLoading: false,
-    error: null,
-    refetch: async () => {},
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
   };
 }
 
@@ -349,42 +361,81 @@ export function useAskQuestion() {
 // Helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/**
+ * Maps the backend `insights.getAll` response to a HealthAnalysis.
+ *
+ * Backend shape: { insights: HealthInsight[], period: { startDate, endDate }, generatedAt }
+ * Each HealthInsight has: id, category, severity, title, description, recommendation?, confidence, dataSource, timestamp
+ */
 function mapApiAnalysis(raw: any): HealthAnalysis {
+  // The backend returns a wrapper: { insights: [...], period, generatedAt }
+  const insightsArray: any[] = raw.insights ?? [];
+
+  // Derive a summary from the insights
+  const summaryParts = insightsArray.map((i: any) => i.title).filter(Boolean);
+  const summary = summaryParts.length > 0
+    ? summaryParts.join(". ") + "."
+    : "No insights available for this period.";
+
+  // Map severity: backend uses "info" | "warning" | "positive" | "critical"
+  // Frontend expects "positive" | "neutral" | "attention" | "warning"
+  const mapSeverity = (s: string): InsightSeverity => {
+    switch (s) {
+      case "positive": return "positive";
+      case "warning": return "attention";
+      case "critical": return "warning";
+      case "info":
+      default: return "neutral";
+    }
+  };
+
   return {
-    id: raw.id,
-    type: raw.type ?? "overall",
-    title: raw.title ?? "",
-    summary: raw.summary ?? "",
-    range: raw.range ?? "30d",
-    generatedAt: raw.generatedAt ?? raw.createdAt ?? "",
-    score: raw.score ?? undefined,
-    scoreChange: raw.scoreChange ?? undefined,
-    insights: (raw.insights ?? []).map((i: any) => ({
-      id: i.id,
+    id: `analysis-${raw.period?.startDate ?? "unknown"}`,
+    type: "overall",
+    title: "Health Analysis",
+    summary,
+    range: "30d",
+    generatedAt: raw.generatedAt ?? "",
+    score: undefined,
+    scoreChange: undefined,
+    insights: insightsArray.map((i: any) => ({
+      id: i.id ?? crypto.randomUUID?.() ?? String(Math.random()),
       title: i.title ?? "",
       description: i.description ?? "",
-      severity: i.severity ?? "neutral",
-      metric: i.metric ?? undefined,
-      value: i.value ?? undefined,
-      trend: i.trend ?? undefined,
+      severity: mapSeverity(i.severity),
+      metric: i.category ?? undefined,
+      value: undefined,
+      trend: undefined,
     })),
-    recommendations: (raw.recommendations ?? []).map((r: any) => ({
-      id: r.id,
-      title: r.title ?? "",
-      description: r.description ?? "",
-      priority: r.priority ?? "medium",
-      actionable: r.actionable ?? false,
-    })),
+    recommendations: insightsArray
+      .filter((i: any) => i.recommendation)
+      .map((i: any) => ({
+        id: `rec-${i.id ?? Math.random()}`,
+        title: i.title ?? "",
+        description: i.recommendation ?? "",
+        priority: i.severity === "critical" ? "high" as const : i.severity === "warning" ? "medium" as const : "low" as const,
+        actionable: true,
+      })),
   };
 }
 
-function mapApiHistoryItem(raw: any): AnalysisHistoryItem {
+/**
+ * Maps a backend HealthInsight (from getAll) to an AnalysisHistoryItem.
+ */
+function mapInsightToHistoryItem(insight: any, category: string): AnalysisHistoryItem {
+  const typeMap: Record<string, AnalysisType> = {
+    glucose: "glucose",
+    sleep: "sleep",
+    composite: "overall",
+    nutrition: "nutrition",
+    activity: "exercise",
+  };
   return {
-    id: raw.id,
-    type: raw.type ?? "overall",
-    title: raw.title ?? "",
-    summary: raw.summary ?? "",
-    generatedAt: raw.generatedAt ?? raw.createdAt ?? "",
-    score: raw.score ?? undefined,
+    id: insight.id ?? String(Math.random()),
+    type: typeMap[category] ?? "overall",
+    title: insight.title ?? "",
+    summary: insight.description ?? "",
+    generatedAt: insight.timestamp ?? "",
+    score: undefined,
   };
 }

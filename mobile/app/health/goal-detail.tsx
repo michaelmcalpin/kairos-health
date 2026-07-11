@@ -460,7 +460,7 @@ export default function GoalDetailScreen() {
           text: "Archive",
           onPress: async () => {
             try {
-              await updateStatus(id ?? "", "archived");
+              await updateStatus(id ?? "", "abandoned");
               router.back();
             } catch {
               Alert.alert("Error", "Failed to archive goal.");

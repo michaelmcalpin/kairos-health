@@ -151,9 +151,10 @@ export function useConnectedDevices() {
     DEFAULT_QUERY_OPTIONS,
   );
 
+  // Show real data only — never show sample devices as "connected"
   const devices: ConnectedDevice[] = query.data
     ? (query.data as any[]).map(mapApiConnectedDevice)
-    : SAMPLE_CONNECTED_DEVICES;
+    : [];
 
   return {
     devices,
@@ -221,18 +222,105 @@ export function useDisconnectDevice() {
 // Helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/**
+ * Provider metadata lookup for building display objects from the backend's
+ * response shape: { id, provider, status, lastSyncAt, scopes, tokenExpiresAt }
+ */
+const PROVIDER_DISPLAY: Record<string, {
+  name: string;
+  type: ConnectedDevice["type"];
+  manufacturer: string;
+  model: string;
+  dataTypes: string[];
+}> = {
+  oura: {
+    name: "Oura Ring",
+    type: "ring",
+    manufacturer: "Oura",
+    model: "Ring Gen 3",
+    dataTypes: ["sleep", "hrv", "body_temperature", "readiness"],
+  },
+  apple_health: {
+    name: "Apple Health",
+    type: "wearable",
+    manufacturer: "Apple",
+    model: "HealthKit",
+    dataTypes: ["heart_rate", "hrv", "sleep", "steps", "weight", "glucose"],
+  },
+  dexcom: {
+    name: "Dexcom CGM",
+    type: "cgm",
+    manufacturer: "Dexcom",
+    model: "G7",
+    dataTypes: ["glucose"],
+  },
+  garmin: {
+    name: "Garmin Watch",
+    type: "wearable",
+    manufacturer: "Garmin",
+    model: "Fenix",
+    dataTypes: ["heart_rate", "steps", "sleep", "activity"],
+  },
+  whoop: {
+    name: "WHOOP Band",
+    type: "wearable",
+    manufacturer: "WHOOP",
+    model: "4.0",
+    dataTypes: ["heart_rate", "hrv", "sleep", "strain"],
+  },
+  withings: {
+    name: "Withings Scale",
+    type: "scale",
+    manufacturer: "Withings",
+    model: "Body+",
+    dataTypes: ["weight", "body_fat", "bmi"],
+  },
+  fitbit: {
+    name: "Fitbit",
+    type: "wearable",
+    manufacturer: "Fitbit",
+    model: "Sense",
+    dataTypes: ["heart_rate", "sleep", "steps", "activity"],
+  },
+  hume: {
+    name: "Hume AI",
+    type: "other",
+    manufacturer: "Hume",
+    model: "Hume AI",
+    dataTypes: ["mood", "voice_analysis"],
+  },
+};
+
+/**
+ * Maps backend device connection to a ConnectedDevice display object.
+ * Backend returns: { id, provider, status, lastSyncAt, scopes, tokenExpiresAt }
+ */
 function mapApiConnectedDevice(raw: any): ConnectedDevice {
+  const providerKey = (raw.provider ?? "").toLowerCase();
+  const display = PROVIDER_DISPLAY[providerKey];
+
+  // Map backend status to DeviceSyncStatus
+  const mapStatus = (s?: string): DeviceSyncStatus => {
+    switch (s) {
+      case "connected": return "synced";
+      case "syncing": return "syncing";
+      case "error": return "error";
+      case "disconnected":
+      default: return "pending";
+    }
+  };
+
   return {
     id: raw.id,
-    name: raw.name ?? raw.model ?? "Unknown Device",
-    type: raw.type ?? "other",
-    manufacturer: raw.manufacturer ?? "",
-    model: raw.model ?? "",
-    syncStatus: raw.syncStatus ?? "pending",
-    lastSyncedAt: raw.lastSyncedAt ?? raw.lastSync ?? "",
-    batteryLevel: raw.batteryLevel ?? undefined,
-    firmwareVersion: raw.firmwareVersion ?? undefined,
-    dataTypes: raw.dataTypes ?? [],
+    name: display?.name ?? raw.provider ?? "Unknown Device",
+    type: display?.type ?? "other",
+    manufacturer: display?.manufacturer ?? "",
+    model: display?.model ?? "",
+    syncStatus: mapStatus(raw.status),
+    lastSyncedAt: raw.lastSyncAt ?? "",
+    batteryLevel: undefined,
+    firmwareVersion: undefined,
+    dataTypes: display?.dataTypes ?? raw.scopes ?? [],
   };
 }
 

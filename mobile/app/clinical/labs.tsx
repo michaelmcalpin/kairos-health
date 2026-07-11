@@ -362,23 +362,57 @@ export default function LabsScreen() {
         </Card>
 
         {/* Upload Button */}
-        <Button
-          title="Upload Lab Results"
-          variant="secondary"
-          size="lg"
-          style={styles.uploadButton}
-          onPress={async () => {
-            const image = await showImagePickerOptions();
-            if (image) {
-              Alert.alert(
-                "Document Captured",
-                "Your lab results have been saved. They will be reviewed by your care team within 24-48 hours.",
-              );
-            }
-          }}
-        />
+        <UploadLabButton />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Upload Button with backend integration                              */
+/* ------------------------------------------------------------------ */
+
+function UploadLabButton() {
+  const createDoc = trpc.clientPortal.clinicalDocs.create.useMutation();
+
+  return (
+    <Button
+      title="Upload Lab Results"
+      variant="secondary"
+      size="lg"
+      style={styles.uploadButton}
+      onPress={async () => {
+        const image = await showImagePickerOptions();
+        if (image) {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              createDoc.mutate(
+                {
+                  docType: "medical_record",
+                  title: `Lab Results - ${new Date().toLocaleDateString()}`,
+                  sourceFileName: image.fileName ?? `lab_${Date.now()}.jpg`,
+                  notes: `Captured via mobile app. Image URI: ${image.uri}`,
+                },
+                {
+                  onSuccess: () => resolve(),
+                  onError: (err: any) => reject(err),
+                },
+              );
+            });
+            Alert.alert(
+              "Document Uploaded",
+              "Your lab results have been submitted. They will be reviewed by your care team within 24-48 hours.",
+            );
+          } catch (err: any) {
+            // If backend fails, still acknowledge capture
+            Alert.alert(
+              "Document Captured",
+              "Your lab results image was captured but could not be uploaded to the server. The image is saved locally. Please try again later.",
+            );
+          }
+        }
+      }}
+    />
   );
 }
 

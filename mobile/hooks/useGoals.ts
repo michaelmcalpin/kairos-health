@@ -30,7 +30,7 @@ export interface GoalSummary {
   currentValue?: number;
   progress: number;
   targetDate?: string;
-  status: "active" | "completed" | "archived";
+  status: "active" | "paused" | "completed" | "abandoned";
   createdAt?: string;
   milestones?: Array<{
     title: string;
@@ -185,7 +185,7 @@ export const SAMPLE_GOAL_DETAILS: Record<string, GoalSummary> = {
 // useGoals -- list goals by status
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export function useGoals(status: "active" | "completed" | "archived" = "active") {
+export function useGoals(status: "active" | "completed" | "abandoned" = "active") {
   const query = trpc.clientPortal.goals.list.useQuery(
     { status },
     DEFAULT_QUERY_OPTIONS,
@@ -249,12 +249,15 @@ export function useCreateGoal() {
 
   const createGoal = (input: {
     title: string;
-    description?: string;
-    category?: "weight" | "fitness" | "nutrition" | "sleep" | "clinical" | "mental" | "other";
-    targetValue?: number;
-    targetUnit?: string;
-    targetDate?: string;
-    milestones?: Array<{ title: string; targetValue?: number; targetDate?: string }>;
+    description: string;
+    category: "glucose" | "sleep" | "weight" | "body_fat" | "activity" | "nutrition" | "supplements" | "fasting" | "labs" | "custom";
+    targetValue: number;
+    targetUnit: string;
+    targetDirection: "increase" | "decrease" | "maintain" | "reach";
+    startValue: number;
+    timeframe: "weekly" | "monthly" | "quarterly" | "yearly" | "open_ended";
+    targetDate?: string | null;
+    milestones?: Array<{ label: string; targetValue: number }>;
   }) => {
     return mutation.mutateAsync(input);
   };
@@ -281,8 +284,8 @@ export function useAddCheckpoint() {
     },
   });
 
-  const addCheckpoint = (goalId: string, value: number, notes?: string) => {
-    return mutation.mutateAsync({ goalId, value, notes });
+  const addCheckpoint = (goalId: string, value: number, note?: string) => {
+    return mutation.mutateAsync({ goalId, value, note });
   };
 
   return {
@@ -307,8 +310,8 @@ export function useUpdateGoalStatus() {
     },
   });
 
-  const updateStatus = (id: string, status: "active" | "completed" | "archived") => {
-    return mutation.mutateAsync({ id, status });
+  const updateStatus = (id: string, status: "active" | "paused" | "completed" | "abandoned") => {
+    return mutation.mutateAsync({ goalId: id, status });
   };
 
   return {
@@ -332,7 +335,7 @@ export function useDeleteGoal() {
   });
 
   const deleteGoal = (id: string) => {
-    return mutation.mutateAsync({ id });
+    return mutation.mutateAsync({ goalId: id });
   };
 
   return {
@@ -348,19 +351,40 @@ export function useDeleteGoal() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function mapApiGoal(raw: any): GoalSummary {
+  // Compute progress from target / current / startValue
+  let progress = raw.progress ?? 0;
+  if (raw.target && raw.startValue != null && raw.currentValue != null) {
+    const total = Math.abs(raw.target.value - raw.startValue);
+    const done = Math.abs(raw.currentValue - raw.startValue);
+    progress = total > 0 ? Math.round((done / total) * 100) : 0;
+  }
+
   return {
     id: raw.id,
     title: raw.title ?? "",
     description: raw.description ?? undefined,
     category: raw.category ?? "other",
-    targetValue: raw.targetValue ?? undefined,
-    targetUnit: raw.targetUnit ?? undefined,
+    targetValue: raw.target?.value ?? raw.targetValue ?? undefined,
+    targetUnit: raw.target?.unit ?? raw.targetUnit ?? undefined,
     currentValue: raw.currentValue ?? undefined,
-    progress: raw.progress ?? 0,
+    progress,
     targetDate: raw.targetDate ?? undefined,
     status: raw.status ?? "active",
     createdAt: raw.createdAt ?? undefined,
-    milestones: raw.milestones ?? undefined,
-    checkpoints: raw.checkpoints ?? undefined,
+    milestones: raw.milestones
+      ? raw.milestones.map((m: any) => ({
+          title: m.label ?? m.title ?? "",
+          targetValue: m.targetValue,
+          completed: m.reachedAt != null ? true : (m.completed ?? false),
+        }))
+      : undefined,
+    checkpoints: raw.checkpoints
+      ? raw.checkpoints.map((c: any) => ({
+          id: c.id,
+          value: c.value,
+          notes: c.note ?? c.notes ?? undefined,
+          createdAt: c.date ?? c.createdAt ?? "",
+        }))
+      : undefined,
   };
 }

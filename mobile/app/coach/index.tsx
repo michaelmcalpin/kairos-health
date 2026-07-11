@@ -123,10 +123,45 @@ export default function CoachProfileScreen() {
       }
     : FALLBACK_COACH;
 
+  // Use coach-provided specialties / credentials when available
+  const coachSpecialties: string[] = (coachData as any)?.specialties?.length
+    ? (coachData as any).specialties
+    : SPECIALTIES;
+
+  const coachCredentials: { title: string; issuer: string }[] = (coachData as any)?.credentials?.length
+    ? (coachData as any).credentials
+    : CREDENTIALS;
+
+  const coachAvailability: { days: string; hours: string }[] = (coachData as any)?.availability?.length
+    ? (coachData as any).availability
+    : AVAILABILITY;
+
+  const coachReviews: typeof REVIEWS = (coachData as any)?.reviews?.length
+    ? (coachData as any).reviews
+    : REVIEWS;
+
   const upcomingAppointments = appointmentsQuery.data ?? [];
   const nextAppointment = Array.isArray(upcomingAppointments) && upcomingAppointments.length > 0
     ? upcomingAppointments[0]
     : null;
+
+  // Build plan data from API or use fallback with honest placeholders
+  const coachPlan = (coachData as any)?.plan
+    ? {
+        program: (coachData as any).plan.program ?? PLAN.program,
+        totalWeeks: (coachData as any).plan.totalWeeks ?? PLAN.totalWeeks,
+        currentWeek: (coachData as any).plan.currentWeek ?? PLAN.currentWeek,
+        nextSession: nextAppointment
+          ? `${(nextAppointment as any).date} at ${(nextAppointment as any).time}`
+          : PLAN.nextSession,
+        sessionsRemaining: (coachData as any).plan.sessionsRemaining ?? PLAN.sessionsRemaining,
+      }
+    : {
+        ...PLAN,
+        nextSession: nextAppointment
+          ? `${(nextAppointment as any).date} at ${(nextAppointment as any).time}`
+          : "Contact your coach",
+      };
 
   const handleMessage = () => {
     router.push("/(tabs)/chat");
@@ -206,7 +241,7 @@ export default function CoachProfileScreen() {
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Specialties</Text>
           <View style={styles.badgeWrap}>
-            {SPECIALTIES.map((s) => (
+            {coachSpecialties.map((s) => (
               <View key={s} style={styles.specialtyBadge}>
                 <Text style={styles.specialtyText}>{s}</Text>
               </View>
@@ -222,12 +257,12 @@ export default function CoachProfileScreen() {
             <Award size={18} color={Colors.gold} />
             <Text style={styles.sectionTitle}>Credentials</Text>
           </View>
-          {CREDENTIALS.map((c, i) => (
+          {coachCredentials.map((c, i) => (
             <View
               key={c.title}
               style={[
                 styles.credentialRow,
-                i < CREDENTIALS.length - 1 && styles.credentialBorder,
+                i < coachCredentials.length - 1 && styles.credentialBorder,
               ]}
             >
               <View style={styles.credentialDot} />
@@ -252,9 +287,9 @@ export default function CoachProfileScreen() {
 
           {/* Program name + progress */}
           <View style={styles.planProgramRow}>
-            <Text style={styles.planProgramName}>{PLAN.program}</Text>
+            <Text style={styles.planProgramName}>{coachPlan.program}</Text>
             <Text style={styles.planWeekLabel}>
-              Week {PLAN.currentWeek} of {PLAN.totalWeeks}
+              Week {coachPlan.currentWeek} of {coachPlan.totalWeeks}
             </Text>
           </View>
 
@@ -264,7 +299,7 @@ export default function CoachProfileScreen() {
               style={[
                 styles.progressBarFill,
                 {
-                  width: `${(PLAN.currentWeek / PLAN.totalWeeks) * 100}%`,
+                  width: `${(coachPlan.currentWeek / coachPlan.totalWeeks) * 100}%`,
                 },
               ]}
             />
@@ -274,13 +309,13 @@ export default function CoachProfileScreen() {
           <View style={styles.planDetailRow}>
             <Calendar size={14} color={Colors.silver} />
             <Text style={styles.planDetailLabel}>Next session</Text>
-            <Text style={styles.planDetailValue}>{PLAN.nextSession}</Text>
+            <Text style={styles.planDetailValue}>{coachPlan.nextSession}</Text>
           </View>
           <View style={styles.planDetailRow}>
             <Clock size={14} color={Colors.silver} />
             <Text style={styles.planDetailLabel}>Sessions remaining</Text>
             <Text style={styles.planDetailValue}>
-              {PLAN.sessionsRemaining} this month
+              {coachPlan.sessionsRemaining} this month
             </Text>
           </View>
         </Card>
@@ -293,12 +328,12 @@ export default function CoachProfileScreen() {
             <Clock size={18} color={Colors.gold} />
             <Text style={styles.sectionTitle}>Availability</Text>
           </View>
-          {AVAILABILITY.map((slot, i) => (
+          {coachAvailability.map((slot, i) => (
             <View
               key={slot.days}
               style={[
                 styles.availRow,
-                i < AVAILABILITY.length - 1 && styles.availBorder,
+                i < coachAvailability.length - 1 && styles.availBorder,
               ]}
             >
               <Text style={styles.availDays}>{slot.days}</Text>
@@ -316,12 +351,12 @@ export default function CoachProfileScreen() {
             <Text style={styles.sectionTitle}>Reviews</Text>
           </View>
 
-          {REVIEWS.map((review, i) => (
+          {coachReviews.map((review, i) => (
             <View
               key={review.id}
               style={[
                 styles.reviewItem,
-                i < REVIEWS.length - 1 && styles.reviewBorder,
+                i < coachReviews.length - 1 && styles.reviewBorder,
               ]}
             >
               <View style={styles.reviewHeader}>

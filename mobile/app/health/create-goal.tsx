@@ -37,7 +37,7 @@ import {
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { useCreateGoal } from "@/hooks";
+import { useCreateGoal, useGoalDetail } from "@/hooks";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Types & Constants
@@ -116,64 +116,18 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   High: Colors.danger,
 };
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample edit data
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-interface ExistingGoal {
-  category: GoalCategory;
-  targetWeight?: string;
-  weightUnit?: WeightUnit;
-  sleepTarget?: string;
-  activityMetric?: ActivityMetric;
-  activityTarget?: string;
-  bloodMarker?: string;
-  bloodTarget?: string;
-  caloriesTarget?: string;
-  customName?: string;
-  customTarget?: string;
-  targetDate: string;
-  reminder: ReminderFrequency;
-  priority: Priority;
-  notes: string;
-}
-
-const EXISTING_GOALS: Record<string, ExistingGoal> = {
-  "1": {
-    category: "Weight",
-    targetWeight: "175",
-    weightUnit: "lbs",
-    targetDate: "2026-08-15",
-    reminder: "Weekly",
-    priority: "High",
-    notes: "Focus on caloric deficit and strength training.",
-  },
-  "2": {
-    category: "Sleep",
-    sleepTarget: "8",
-    targetDate: "",
-    reminder: "Daily",
-    priority: "Medium",
-    notes: "Improve sleep hygiene. No screens 1hr before bed.",
-  },
-  "3": {
-    category: "Activity",
-    activityMetric: "steps",
-    activityTarget: "10000",
-    targetDate: "",
-    reminder: "Daily",
-    priority: "Medium",
-    notes: "Take walking meetings. Park further away.",
-  },
-  "4": {
-    category: "Blood Work",
-    bloodMarker: "A1C",
-    bloodTarget: "5.2",
-    targetDate: "2026-09-30",
-    reminder: "None",
-    priority: "High",
-    notes: "Reduce refined carbs. Retest in 3 months.",
-  },
+// Category mapping from backend to UI
+const BACKEND_TO_UI_CATEGORY: Record<string, GoalCategory> = {
+  weight: "Weight",
+  sleep: "Sleep",
+  activity: "Activity",
+  body_fat: "Weight",
+  glucose: "Blood Work",
+  labs: "Blood Work",
+  nutrition: "Nutrition",
+  supplements: "Custom",
+  fasting: "Custom",
+  custom: "Custom",
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -355,66 +309,65 @@ export default function CreateGoalScreen() {
   const { goalId } = useLocalSearchParams<{ goalId?: string }>();
   const router = useRouter();
   const isEditMode = !!goalId;
-  const existingGoal = goalId ? EXISTING_GOALS[goalId] : undefined;
+  const { goal: existingGoalData } = useGoalDetail(goalId);
+
+  // Derive UI-friendly category from API data
+  const existingCategory = existingGoalData?.category
+    ? BACKEND_TO_UI_CATEGORY[existingGoalData.category] ?? "Custom"
+    : undefined;
 
   // ─── State ──────────────────────────────────────────────
   const [category, setCategory] = useState<GoalCategory>(
-    existingGoal?.category ?? "Weight"
+    existingCategory ?? "Weight"
   );
 
   // Weight fields
   const [targetWeight, setTargetWeight] = useState(
-    existingGoal?.targetWeight ?? ""
+    existingGoalData?.targetValue?.toString() ?? ""
   );
   const [weightUnit, setWeightUnit] = useState<WeightUnit>(
-    existingGoal?.weightUnit ?? "lbs"
+    (existingGoalData?.targetUnit as WeightUnit) ?? "lbs"
   );
 
   // Sleep
   const [sleepTarget, setSleepTarget] = useState(
-    existingGoal?.sleepTarget ?? ""
+    existingCategory === "Sleep" ? existingGoalData?.targetValue?.toString() ?? "" : ""
   );
 
   // Activity
   const [activityMetric, setActivityMetric] = useState<ActivityMetric>(
-    existingGoal?.activityMetric ?? "steps"
+    existingGoalData?.targetUnit === "workouts" ? "workouts" : "steps"
   );
   const [activityTarget, setActivityTarget] = useState(
-    existingGoal?.activityTarget ?? ""
+    existingCategory === "Activity" ? existingGoalData?.targetValue?.toString() ?? "" : ""
   );
 
   // Blood Work
-  const [bloodMarker, setBloodMarker] = useState(
-    existingGoal?.bloodMarker ?? "A1C"
-  );
+  const [bloodMarker, setBloodMarker] = useState("A1C");
   const [bloodTarget, setBloodTarget] = useState(
-    existingGoal?.bloodTarget ?? ""
+    existingCategory === "Blood Work" ? existingGoalData?.targetValue?.toString() ?? "" : ""
   );
 
   // Nutrition
   const [caloriesTarget, setCaloriesTarget] = useState(
-    existingGoal?.caloriesTarget ?? ""
+    existingCategory === "Nutrition" ? existingGoalData?.targetValue?.toString() ?? "" : ""
   );
 
   // Custom
   const [customName, setCustomName] = useState(
-    existingGoal?.customName ?? ""
+    existingCategory === "Custom" ? existingGoalData?.title ?? "" : ""
   );
   const [customTarget, setCustomTarget] = useState(
-    existingGoal?.customTarget ?? ""
+    existingCategory === "Custom" ? existingGoalData?.targetValue?.toString() ?? "" : ""
   );
 
   // Common fields
   const [targetDate, setTargetDate] = useState(
-    existingGoal?.targetDate ?? ""
+    existingGoalData?.targetDate ?? ""
   );
-  const [reminder, setReminder] = useState<ReminderFrequency>(
-    existingGoal?.reminder ?? "None"
-  );
-  const [priority, setPriority] = useState<Priority>(
-    existingGoal?.priority ?? "Medium"
-  );
-  const [notes, setNotes] = useState(existingGoal?.notes ?? "");
+  const [reminder, setReminder] = useState<ReminderFrequency>("None");
+  const [priority, setPriority] = useState<Priority>("Medium");
+  const [notes, setNotes] = useState(existingGoalData?.description ?? "");
 
   const { createGoal, isLoading: isCreating } = useCreateGoal();
 
@@ -451,31 +404,37 @@ export default function CreateGoalScreen() {
       return;
     }
 
-    // Build the API input
-    const categoryMap: Record<GoalCategory, "weight" | "fitness" | "nutrition" | "sleep" | "clinical" | "mental" | "other"> = {
+    // Build the API input — category enum must match backend exactly
+    const categoryMap: Record<GoalCategory, "weight" | "activity" | "nutrition" | "sleep" | "glucose" | "custom"> = {
       Weight: "weight",
       Sleep: "sleep",
-      Activity: "fitness",
-      "Blood Work": "clinical",
+      Activity: "activity",
+      "Blood Work": "glucose",
       Nutrition: "nutrition",
-      Custom: "other",
+      Custom: "custom",
     };
 
     let title = "";
-    let targetValue: number | undefined;
-    let targetUnit: string | undefined;
-    let description: string | undefined = notes || undefined;
+    let targetValue = 0;
+    let targetUnit = "";
+    let targetDirection: "increase" | "decrease" | "maintain" | "reach" = "reach";
+    let startValue = 0;
+    let description: string = notes || "";
 
     switch (category) {
       case "Weight":
         title = `Reach ${targetWeight} ${weightUnit}`;
         targetValue = parseFloat(targetWeight);
         targetUnit = weightUnit;
+        targetDirection = "decrease";
+        startValue = existingGoalData?.currentValue ?? targetValue + 10;
         break;
       case "Sleep":
         title = `Sleep ${sleepTarget}+ hrs`;
         targetValue = parseFloat(sleepTarget);
         targetUnit = "hrs";
+        targetDirection = "increase";
+        startValue = existingGoalData?.currentValue ?? 0;
         break;
       case "Activity":
         title = activityMetric === "steps"
@@ -483,33 +442,60 @@ export default function CreateGoalScreen() {
           : `${activityTarget} workouts/week`;
         targetValue = parseFloat(activityTarget);
         targetUnit = activityMetric;
+        targetDirection = "increase";
+        startValue = existingGoalData?.currentValue ?? 0;
         break;
       case "Blood Work":
         title = `Reduce ${bloodMarker} to ${bloodTarget}`;
         targetValue = parseFloat(bloodTarget);
         targetUnit = "%";
+        targetDirection = "decrease";
+        startValue = existingGoalData?.currentValue ?? targetValue + 1;
         break;
       case "Nutrition":
         title = `${caloriesTarget} cal/day`;
         targetValue = parseFloat(caloriesTarget);
         targetUnit = "kcal";
+        targetDirection = "reach";
+        startValue = existingGoalData?.currentValue ?? 0;
         break;
       case "Custom":
         title = customName;
-        targetValue = parseFloat(customTarget) || undefined;
-        targetUnit = undefined;
+        targetValue = parseFloat(customTarget) || 0;
+        targetUnit = "units";
+        targetDirection = "reach";
+        startValue = existingGoalData?.currentValue ?? 0;
         break;
     }
 
     try {
-      await createGoal({
-        title,
-        description,
-        category: categoryMap[category],
-        targetValue,
-        targetUnit,
-        targetDate: targetDate || undefined,
-      });
+      if (isEditMode) {
+        // In edit mode, create a new goal since the backend has no general update mutation
+        // A full update would require backend support; for now we create with the corrected values
+        await createGoal({
+          title,
+          description,
+          category: categoryMap[category],
+          targetValue,
+          targetUnit,
+          targetDirection,
+          startValue,
+          timeframe: "open_ended",
+          targetDate: targetDate || null,
+        });
+      } else {
+        await createGoal({
+          title,
+          description,
+          category: categoryMap[category],
+          targetValue,
+          targetUnit,
+          targetDirection,
+          startValue,
+          timeframe: "open_ended",
+          targetDate: targetDate || null,
+        });
+      }
 
       Alert.alert(
         isEditMode ? "Goal Updated" : "Goal Created",
@@ -518,14 +504,11 @@ export default function CreateGoalScreen() {
           : "Your new goal has been created successfully.",
         [{ text: "OK", onPress: () => router.back() }]
       );
-    } catch {
-      // Fallback: show success anyway (offline/demo mode)
+    } catch (err) {
       Alert.alert(
-        isEditMode ? "Goal Updated" : "Goal Created",
-        isEditMode
-          ? "Your goal has been updated successfully."
-          : "Your new goal has been created successfully.",
-        [{ text: "OK", onPress: () => router.back() }]
+        "Error",
+        "Failed to save goal. Please try again.",
+        [{ text: "OK" }]
       );
     }
   }, [

@@ -102,7 +102,7 @@ export default function DataEntryScreen() {
     if (todayCheckin.sleepHours) checkinSummary.push(`Sleep: ${todayCheckin.sleepHours} hrs`);
     if (todayCheckin.mood) checkinSummary.push(`Mood: ${todayCheckin.mood}/10`);
     if (todayCheckin.energy) checkinSummary.push(`Energy: ${todayCheckin.energy}/10`);
-    if (todayCheckin.exerciseMinutes) checkinSummary.push(`Exercise: ${todayCheckin.exerciseMinutes} min`);
+    if (todayCheckin.cardioMinutes) checkinSummary.push(`Exercise: ${todayCheckin.cardioMinutes} min`);
     if (todayCheckin.waterOz) checkinSummary.push(`Water: ${todayCheckin.waterOz} oz`);
   }
 

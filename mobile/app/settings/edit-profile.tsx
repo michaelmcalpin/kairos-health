@@ -5,7 +5,7 @@
  * gender, and health goals. Pre-populated with sample data.
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import { Camera } from "lucide-react-native";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { trpc } from "@/lib/api";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { showImagePickerOptions } from "@/lib/image-picker";
 
 /* ------------------------------------------------------------------ */
@@ -47,32 +47,60 @@ const GENDER_OPTIONS: Gender[] = [
 /* ------------------------------------------------------------------ */
 
 export default function EditProfileScreen() {
-  /* -- form state -- */
-  const [firstName, setFirstName] = useState("Michael");
-  const [lastName, setLastName] = useState("McAlpin");
-  const [email, setEmail] = useState("michael.mcalpin@gmail.com");
-  const [phone, setPhone] = useState("+1 (555) 012-3456");
-  const [dob, setDob] = useState("1988-03-15");
+  /* -- tRPC query for current profile -- */
+  const profileQuery = trpc.clientPortal.settings.getSettings.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  /* -- form state (initialized empty, populated from query via useEffect) -- */
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [dob, setDob] = useState("");
 
   /* -- height / weight -- */
   const [heightUnit, setHeightUnit] = useState<HeightUnit>("ft-in");
-  const [heightFt, setHeightFt] = useState("5");
-  const [heightIn, setHeightIn] = useState("10");
-  const [heightCm, setHeightCm] = useState("178");
+  const [heightFt, setHeightFt] = useState("");
+  const [heightIn, setHeightIn] = useState("");
+  const [heightCm, setHeightCm] = useState("");
 
   const [weightUnit, setWeightUnit] = useState<WeightUnit>("lbs");
-  const [weightLbs, setWeightLbs] = useState("185");
-  const [weightKg, setWeightKg] = useState("84");
+  const [weightLbs, setWeightLbs] = useState("");
+  const [weightKg, setWeightKg] = useState("");
 
   /* -- gender -- */
   const [gender, setGender] = useState<Gender>("Male");
 
   /* -- health goals -- */
-  const [healthGoals, setHealthGoals] = useState(
-    "Optimize cardiovascular health, improve sleep quality, maintain healthy body composition, and increase VO2 max."
-  );
+  const [healthGoals, setHealthGoals] = useState("");
 
   const [saving, setSaving] = useState(false);
+
+  /* -- Populate form state from profile query -- */
+  useEffect(() => {
+    const data = profileQuery.data;
+    if (!data) return;
+    setFirstName(data.firstName ?? "");
+    setLastName(data.lastName ?? "");
+    setEmail(data.email ?? "");
+    setPhone((data as any).phone ?? "");
+    setDob((data as any).dateOfBirth ?? "");
+    if ((data as any).heightFt) setHeightFt(String((data as any).heightFt));
+    if ((data as any).heightIn) setHeightIn(String((data as any).heightIn));
+    if ((data as any).heightCm) {
+      setHeightCm(String((data as any).heightCm));
+      setHeightUnit("cm");
+    }
+    if ((data as any).weightLbs) setWeightLbs(String((data as any).weightLbs));
+    if ((data as any).weightKg) {
+      setWeightKg(String((data as any).weightKg));
+      setWeightUnit("kg");
+    }
+    if ((data as any).gender) setGender((data as any).gender);
+    if ((data as any).healthGoals) setHealthGoals((data as any).healthGoals);
+  }, [profileQuery.data]);
 
   // Profile mutations
   const updateProfileMutation = trpc.clientPortal.settings.updateProfile.useMutation();

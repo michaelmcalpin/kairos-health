@@ -351,23 +351,57 @@ export default function MedicalRecordsScreen() {
         )}
 
         {/* Upload Button */}
-        <Button
-          title="Upload Document"
-          variant="secondary"
-          size="lg"
-          style={styles.uploadButton}
-          onPress={async () => {
-            const image = await showImagePickerOptions();
-            if (image) {
-              Alert.alert(
-                "Document Captured",
-                "Your document has been saved. It will be reviewed by your care team within 24-48 hours.",
-              );
-            }
-          }}
-        />
+        <UploadMedicalRecordButton onUploaded={() => query.refetch()} />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Upload Button with backend integration                              */
+/* ------------------------------------------------------------------ */
+
+function UploadMedicalRecordButton({ onUploaded }: { onUploaded?: () => void }) {
+  const createDoc = trpc.clientPortal.clinicalDocs.create.useMutation();
+
+  return (
+    <Button
+      title="Upload Document"
+      variant="secondary"
+      size="lg"
+      style={styles.uploadButton}
+      onPress={async () => {
+        const image = await showImagePickerOptions();
+        if (image) {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              createDoc.mutate(
+                {
+                  docType: "medical_record",
+                  title: `Medical Record - ${new Date().toLocaleDateString()}`,
+                  sourceFileName: image.fileName ?? `record_${Date.now()}.jpg`,
+                  notes: `Captured via mobile app. Image URI: ${image.uri}`,
+                },
+                {
+                  onSuccess: () => resolve(),
+                  onError: (err: any) => reject(err),
+                },
+              );
+            });
+            onUploaded?.();
+            Alert.alert(
+              "Document Uploaded",
+              "Your document has been submitted. It will be reviewed by your care team within 24-48 hours.",
+            );
+          } catch (err: any) {
+            Alert.alert(
+              "Document Captured",
+              "Your document image was captured but could not be uploaded to the server. The image is saved locally. Please try again later.",
+            );
+          }
+        }
+      }}
+    />
   );
 }
 

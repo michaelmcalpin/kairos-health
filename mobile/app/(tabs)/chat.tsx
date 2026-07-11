@@ -151,17 +151,15 @@ function AIAssistantTab() {
           historyQuery.refetch();
         },
         onError: () => {
-          // Mutation failed — fall back to simulated AI response
-          setTimeout(() => {
-            const aiResponse: ChatMessage = {
-              id: `ai-${Date.now()}`,
-              content: getAIResponse(text),
-              timestamp: new Date().toISOString(),
-              isUser: false,
-            };
-            setIsTyping(false);
-            setLocalMessages((prev) => [...prev, aiResponse]);
-          }, 2000);
+          // Mutation failed — show an error message instead of a fake response
+          setIsTyping(false);
+          const errorMessage: ChatMessage = {
+            id: `error-${Date.now()}`,
+            content: "Sorry, your message could not be sent. Please check your connection and try again.",
+            timestamp: new Date().toISOString(),
+            isUser: false,
+          };
+          setLocalMessages((prev) => [...prev, errorMessage]);
         },
       },
     );
@@ -187,16 +185,14 @@ function AIAssistantTab() {
           historyQuery.refetch();
         },
         onError: () => {
-          setTimeout(() => {
-            const aiResponse: ChatMessage = {
-              id: `ai-${Date.now()}`,
-              content: getAIResponse(message),
-              timestamp: new Date().toISOString(),
-              isUser: false,
-            };
-            setIsTyping(false);
-            setLocalMessages((prev) => [...prev, aiResponse]);
-          }, 2000);
+          setIsTyping(false);
+          const errorMessage: ChatMessage = {
+            id: `error-${Date.now()}`,
+            content: "Sorry, your message could not be sent. Please check your connection and try again.",
+            timestamp: new Date().toISOString(),
+            isUser: false,
+          };
+          setLocalMessages((prev) => [...prev, errorMessage]);
         },
       },
     );

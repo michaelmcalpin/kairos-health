@@ -50,10 +50,17 @@ export default function PrivacyScreen() {
   const [biometricLock, setBiometricLock] = useState(true);
   const [twoFactor, setTwoFactor] = useState(false);
 
+  /* -- tRPC query for initial toggle values -- */
+  const settingsQuery = trpc.clientPortal.settings.getSettings.useQuery(undefined, {
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  const savedToggles = (settingsQuery.data as any)?.toggles as Record<string, boolean> | undefined;
+
   /* -- data sharing toggles -- */
-  const [shareCareTeam, setShareCareTeam] = useState(true);
-  const [shareResearchers, setShareResearchers] = useState(false);
-  const [anonymousAnalytics, setAnonymousAnalytics] = useState(true);
+  const [shareCareTeam, setShareCareTeam] = useState(savedToggles?.share_care_team ?? true);
+  const [shareResearchers, setShareResearchers] = useState(savedToggles?.share_researchers ?? false);
+  const [anonymousAnalytics, setAnonymousAnalytics] = useState(savedToggles?.anonymous_analytics ?? true);
 
   /* -- export format -- */
   const [showFormatPicker, setShowFormatPicker] = useState(false);
@@ -161,7 +168,10 @@ export default function PrivacyScreen() {
             label="Share with Care Team"
             subtitle="Your doctors and care providers"
             value={shareCareTeam}
-            onValueChange={setShareCareTeam}
+            onValueChange={(v: boolean) => {
+              setShareCareTeam(v);
+              toggleMutation.mutate({ key: "share_care_team", value: v });
+            }}
           />
           <SettingsRow
             type="toggle"
@@ -169,7 +179,10 @@ export default function PrivacyScreen() {
             label="Share with Researchers"
             subtitle="De-identified data for medical research"
             value={shareResearchers}
-            onValueChange={setShareResearchers}
+            onValueChange={(v: boolean) => {
+              setShareResearchers(v);
+              toggleMutation.mutate({ key: "share_researchers", value: v });
+            }}
           />
           <SettingsRow
             type="toggle"
@@ -177,7 +190,10 @@ export default function PrivacyScreen() {
             label="Anonymous Analytics"
             subtitle="Help us improve the app"
             value={anonymousAnalytics}
-            onValueChange={setAnonymousAnalytics}
+            onValueChange={(v: boolean) => {
+              setAnonymousAnalytics(v);
+              toggleMutation.mutate({ key: "anonymous_analytics", value: v });
+            }}
             last
           />
         </SettingsSection>

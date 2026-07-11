@@ -27,9 +27,7 @@ export interface DailyCheckin {
   energy?: number;
   stress?: number;
   notes?: string;
-  symptoms?: string[];
-  medications?: string[];
-  exerciseMinutes?: number;
+  cardioMinutes?: number;
   waterOz?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -50,7 +48,7 @@ export const SAMPLE_CHECKIN_HISTORY: DailyCheckin[] = [
     mood: 7,
     energy: 7,
     stress: 4,
-    exerciseMinutes: 45,
+    cardioMinutes: 45,
     waterOz: 64,
     notes: "Good energy this morning",
   },
@@ -62,7 +60,7 @@ export const SAMPLE_CHECKIN_HISTORY: DailyCheckin[] = [
     mood: 6,
     energy: 5,
     stress: 6,
-    exerciseMinutes: 30,
+    cardioMinutes: 30,
     waterOz: 48,
   },
   {
@@ -73,7 +71,7 @@ export const SAMPLE_CHECKIN_HISTORY: DailyCheckin[] = [
     mood: 8,
     energy: 8,
     stress: 3,
-    exerciseMinutes: 60,
+    cardioMinutes: 60,
     waterOz: 80,
     notes: "Slept great, intense workout",
   },
@@ -122,9 +120,7 @@ export function useSubmitCheckin() {
     energy?: number;
     stress?: number;
     notes?: string;
-    symptoms?: string[];
-    medications?: string[];
-    exerciseMinutes?: number;
+    cardioMinutes?: number;
     waterOz?: number;
   }) => {
     return mutation.mutateAsync(input);
@@ -160,9 +156,7 @@ export function useUpdateCheckin() {
     energy?: number;
     stress?: number;
     notes?: string;
-    symptoms?: string[];
-    medications?: string[];
-    exerciseMinutes?: number;
+    cardioMinutes?: number;
     waterOz?: number;
   }) => {
     return mutation.mutateAsync(input);
@@ -184,13 +178,15 @@ export function useUpdateCheckin() {
 export function useCheckinHistory(options?: {
   startDate?: string;
   endDate?: string;
-  limit?: number;
 }) {
+  // Default to last 30 days if no date range provided
+  const today = new Date().toISOString().split("T")[0];
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
   const query = trpc.clientPortal.checkin.getHistory.useQuery(
     {
-      startDate: options?.startDate,
-      endDate: options?.endDate,
-      limit: options?.limit,
+      startDate: options?.startDate ?? thirtyDaysAgo,
+      endDate: options?.endDate ?? today,
     },
     DEFAULT_QUERY_OPTIONS,
   );
@@ -221,9 +217,7 @@ function mapApiCheckin(raw: any): DailyCheckin {
     energy: raw.energy ?? undefined,
     stress: raw.stress ?? undefined,
     notes: raw.notes ?? undefined,
-    symptoms: raw.symptoms ?? undefined,
-    medications: raw.medications ?? undefined,
-    exerciseMinutes: raw.exerciseMinutes ?? undefined,
+    cardioMinutes: raw.cardioMinutes ?? undefined,
     waterOz: raw.waterOz ?? undefined,
     createdAt: raw.createdAt ?? undefined,
     updatedAt: raw.updatedAt ?? undefined,

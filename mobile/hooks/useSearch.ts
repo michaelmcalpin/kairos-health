@@ -9,7 +9,7 @@
  *   - search.recentSearches -> stored recent searches
  */
 
-// tRPC search router does not exist on backend — using client-side sample data
+// No backend search router exists — client-side navigational search across app features
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Types
@@ -48,154 +48,51 @@ export interface SearchResultGroup {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample Data
+// Navigational Catalog — searchable app features and screens
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const SAMPLE_SEARCH_RESULTS: Record<string, SearchResult[]> = {
-  glucose: [
-    {
-      id: "sr-1",
-      title: "Blood Glucose",
-      subtitle: "Current: 92 mg/dL",
-      category: "health_data",
-      categoryLabel: "Health Data",
-      icon: "droplets",
-      route: "/health/glucose",
-    },
-    {
-      id: "sr-2",
-      title: "Metformin 500mg",
-      subtitle: "Morning protocol",
-      category: "protocols",
-      categoryLabel: "Protocol",
-      icon: "pill",
-      route: "/protocols",
-    },
-    {
-      id: "sr-3",
-      title: "HbA1c",
-      subtitle: "5.4% (Nov 2024)",
-      category: "labs",
-      categoryLabel: "Lab Result",
-      icon: "flask-conical",
-      route: "/clinical/labs",
-    },
-    {
-      id: "sr-4",
-      title: "Glucose Variability Report",
-      subtitle: "Generated Dec 2024",
-      category: "insights",
-      categoryLabel: "Insight",
-      icon: "brain",
-      route: "/insights",
-    },
-    {
-      id: "sr-5",
-      title: "Lab Review with Dr. Chen",
-      subtitle: "Jan 15",
-      category: "appointments",
-      categoryLabel: "Appointment",
-      icon: "calendar",
-      route: "/appointments",
-    },
-  ],
-  sleep: [
-    {
-      id: "sr-6",
-      title: "Sleep Score",
-      subtitle: "Current: 72 — Down 12% this week",
-      category: "health_data",
-      categoryLabel: "Health Data",
-      icon: "moon",
-      route: "/health/sleep",
-    },
-    {
-      id: "sr-7",
-      title: "Magnesium Glycinate 400mg",
-      subtitle: "Bedtime protocol",
-      category: "protocols",
-      categoryLabel: "Protocol",
-      icon: "pill",
-      route: "/protocols",
-    },
-    {
-      id: "sr-8",
-      title: "Sleep Architecture Analysis",
-      subtitle: "Generated Jun 2026",
-      category: "insights",
-      categoryLabel: "Insight",
-      icon: "brain",
-      route: "/insights",
-    },
-  ],
-  blood: [
-    {
-      id: "sr-9",
-      title: "Blood Pressure",
-      subtitle: "Current: 118/76 mmHg",
-      category: "health_data",
-      categoryLabel: "Health Data",
-      icon: "heart",
-      route: "/health/blood-pressure",
-    },
-    {
-      id: "sr-10",
-      title: "Blood Glucose",
-      subtitle: "Current: 92 mg/dL",
-      category: "health_data",
-      categoryLabel: "Health Data",
-      icon: "droplets",
-      route: "/health/glucose",
-    },
-    {
-      id: "sr-11",
-      title: "Complete Blood Count",
-      subtitle: "All markers normal (May 2026)",
-      category: "labs",
-      categoryLabel: "Lab Result",
-      icon: "flask-conical",
-      route: "/clinical/labs",
-    },
-    {
-      id: "sr-12",
-      title: "Blood Panel Review",
-      subtitle: "Dr. Chen — Jun 15, 9:00 AM",
-      category: "appointments",
-      categoryLabel: "Appointment",
-      icon: "calendar",
-      route: "/appointments",
-    },
-  ],
-  vitamin: [
-    {
-      id: "sr-13",
-      title: "Vitamin D3 5,000 IU",
-      subtitle: "Morning protocol",
-      category: "protocols",
-      categoryLabel: "Protocol",
-      icon: "pill",
-      route: "/protocols",
-    },
-    {
-      id: "sr-14",
-      title: "Vitamin D Level",
-      subtitle: "22 ng/mL — Below optimal",
-      category: "labs",
-      categoryLabel: "Lab Result",
-      icon: "flask-conical",
-      route: "/clinical/labs",
-    },
-    {
-      id: "sr-15",
-      title: "Vitamin B12",
-      subtitle: "680 pg/mL — Normal range",
-      category: "labs",
-      categoryLabel: "Lab Result",
-      icon: "flask-conical",
-      route: "/clinical/labs",
-    },
-  ],
-};
+const APP_CATALOG: SearchResult[] = [
+  // Health Data
+  { id: "nav-glucose", title: "Blood Glucose", subtitle: "View glucose readings and trends", category: "health_data", categoryLabel: "Health Data", icon: "droplets", route: "/health/glucose" },
+  { id: "nav-bp", title: "Blood Pressure", subtitle: "View blood pressure readings", category: "health_data", categoryLabel: "Health Data", icon: "heart", route: "/health/blood-pressure" },
+  { id: "nav-sleep", title: "Sleep", subtitle: "View sleep scores and patterns", category: "health_data", categoryLabel: "Health Data", icon: "moon", route: "/health/sleep" },
+  { id: "nav-body", title: "Body Composition", subtitle: "Weight, body fat, and measurements", category: "health_data", categoryLabel: "Health Data", icon: "activity", route: "/health/body" },
+  { id: "nav-goals", title: "Health Goals", subtitle: "Track and manage your health goals", category: "health_data", categoryLabel: "Health Data", icon: "activity", route: "/health/goals" },
+
+  // Protocols
+  { id: "nav-supplements", title: "Supplements", subtitle: "View your supplement protocol", category: "protocols", categoryLabel: "Protocol", icon: "pill", route: "/protocols/supplements" },
+  { id: "nav-medications", title: "Medications", subtitle: "View medication information", category: "protocols", categoryLabel: "Protocol", icon: "pill", route: "/protocols/medications" },
+  { id: "nav-workouts", title: "Workouts", subtitle: "View workout program and exercises", category: "protocols", categoryLabel: "Protocol", icon: "dumbbell", route: "/protocols/workouts" },
+  { id: "nav-meals", title: "Meal Plan", subtitle: "View weekly meal plan", category: "protocols", categoryLabel: "Protocol", icon: "activity", route: "/protocols/meals" },
+  { id: "nav-fasting", title: "Fasting", subtitle: "Fasting schedule and tracker", category: "protocols", categoryLabel: "Protocol", icon: "activity", route: "/protocols/fasting" },
+  { id: "nav-peptides", title: "Peptides", subtitle: "View peptide protocol", category: "protocols", categoryLabel: "Protocol", icon: "pill", route: "/protocols/peptides" },
+  { id: "nav-shopping", title: "Shopping List", subtitle: "Grocery list for meal plan", category: "protocols", categoryLabel: "Protocol", icon: "activity", route: "/protocols/shopping-list" },
+
+  // Appointments
+  { id: "nav-appointments", title: "Appointments", subtitle: "View and manage appointments", category: "appointments", categoryLabel: "Appointment", icon: "calendar", route: "/appointments" },
+  { id: "nav-book", title: "Book Appointment", subtitle: "Schedule a new appointment", category: "appointments", categoryLabel: "Appointment", icon: "calendar", route: "/appointments/book" },
+  { id: "nav-coach", title: "Coach", subtitle: "Connect with your health coach", category: "appointments", categoryLabel: "Appointment", icon: "activity", route: "/coach" },
+
+  // Labs & Clinical
+  { id: "nav-labs", title: "Lab Results", subtitle: "View blood work and lab panels", category: "labs", categoryLabel: "Lab Result", icon: "flask-conical", route: "/clinical/labs" },
+  { id: "nav-dexa", title: "DEXA Scan", subtitle: "Body composition scan results", category: "labs", categoryLabel: "Lab Result", icon: "activity", route: "/clinical/dexa" },
+  { id: "nav-genetics", title: "Genetics", subtitle: "Genetic test results and markers", category: "labs", categoryLabel: "Lab Result", icon: "flask-conical", route: "/clinical/genetics" },
+  { id: "nav-gut", title: "Gut Biome", subtitle: "Gut microbiome analysis results", category: "labs", categoryLabel: "Lab Result", icon: "flask-conical", route: "/clinical/gut-biome" },
+  { id: "nav-records", title: "Medical Records", subtitle: "Uploaded medical documents", category: "labs", categoryLabel: "Lab Result", icon: "file-text", route: "/clinical/medical-records" },
+
+  // Insights
+  { id: "nav-insights", title: "Health Insights", subtitle: "AI-generated health analysis", category: "insights", categoryLabel: "Insight", icon: "brain", route: "/insights" },
+  { id: "nav-analyze", title: "Analyze Health Data", subtitle: "Run analysis on your data", category: "insights", categoryLabel: "Insight", icon: "brain", route: "/insights/analyze" },
+  { id: "nav-ask", title: "Ask AI", subtitle: "Ask questions about your health", category: "insights", categoryLabel: "Insight", icon: "brain", route: "/insights/ask" },
+  { id: "nav-report", title: "Health Report", subtitle: "View detailed health reports", category: "insights", categoryLabel: "Insight", icon: "file-text", route: "/insights/report" },
+  { id: "nav-export", title: "Export Health Data", subtitle: "Generate and share reports", category: "insights", categoryLabel: "Insight", icon: "file-text", route: "/insights/export" },
+
+  // Documents / Settings
+  { id: "nav-devices", title: "Connected Devices", subtitle: "Manage wearables and integrations", category: "documents", categoryLabel: "Settings", icon: "activity", route: "/devices" },
+  { id: "nav-profile", title: "Profile & Settings", subtitle: "Account, preferences, and privacy", category: "documents", categoryLabel: "Settings", icon: "activity", route: "/(tabs)/profile" },
+  { id: "nav-notifications", title: "Notifications", subtitle: "View recent notifications", category: "documents", categoryLabel: "Settings", icon: "activity", route: "/notifications" },
+  { id: "nav-data-entry", title: "Log Health Data", subtitle: "Manual data entry and check-ins", category: "documents", categoryLabel: "Settings", icon: "activity", route: "/data-entry" },
+];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // useGlobalSearch — search across all data types
@@ -255,37 +152,13 @@ export function useRecentSearches() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function getSampleResults(query: string): SearchResult[] {
-  const results: SearchResult[] = [];
-  const seen = new Set<string>();
-
-  for (const [key, items] of Object.entries(SAMPLE_SEARCH_RESULTS)) {
-    if (key.includes(query) || query.includes(key)) {
-      for (const item of items) {
-        if (!seen.has(item.id)) {
-          seen.add(item.id);
-          results.push(item);
-        }
-      }
-    }
-  }
-
-  // Also search by title/subtitle across all results
-  if (results.length === 0) {
-    for (const items of Object.values(SAMPLE_SEARCH_RESULTS)) {
-      for (const item of items) {
-        if (
-          !seen.has(item.id) &&
-          (item.title.toLowerCase().includes(query) ||
-            item.subtitle.toLowerCase().includes(query))
-        ) {
-          seen.add(item.id);
-          results.push(item);
-        }
-      }
-    }
-  }
-
-  return results;
+  // Search across the entire app catalog by title, subtitle, and category
+  return APP_CATALOG.filter(
+    (item) =>
+      item.title.toLowerCase().includes(query) ||
+      item.subtitle.toLowerCase().includes(query) ||
+      item.categoryLabel.toLowerCase().includes(query),
+  );
 }
 
 function groupResults(results: SearchResult[]): SearchResultGroup[] {

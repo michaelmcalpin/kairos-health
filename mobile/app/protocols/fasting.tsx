@@ -392,8 +392,8 @@ export default function FastingScreen() {
     if (statsQuery.data) {
       const s = statsQuery.data as any;
       return {
-        avgDuration: s.avgDuration ?? s.averageDurationHours ? `${Number(s.avgDuration ?? s.averageDurationHours).toFixed(1)}h` : SAMPLE_FAST_STATS.avgDuration,
-        longest: s.longestFast ?? s.longestDurationHours ? `${Math.round(Number(s.longestFast ?? s.longestDurationHours))}h` : SAMPLE_FAST_STATS.longest,
+        avgDuration: (s.avgDuration ?? s.averageDurationHours) ? `${Number(s.avgDuration ?? s.averageDurationHours).toFixed(1)}h` : SAMPLE_FAST_STATS.avgDuration,
+        longest: (s.longestFast ?? s.longestDurationHours) ? `${Math.round(Number(s.longestFast ?? s.longestDurationHours))}h` : SAMPLE_FAST_STATS.longest,
         streak: s.streak ?? s.currentStreak ?? SAMPLE_FAST_STATS.streak,
       };
     }

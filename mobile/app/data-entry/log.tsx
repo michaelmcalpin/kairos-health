@@ -136,6 +136,44 @@ export default function LogEntryScreen() {
   const recentEntries = RECENT_ENTRIES[type] ?? [];
 
   const handleSave = async () => {
+    // Parse the display date back to ISO format for the API
+    const parseDateForApi = (): string => {
+      try {
+        const parsed = new Date(date);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toISOString().split("T")[0];
+        }
+      } catch {}
+      return new Date().toISOString().split("T")[0];
+    };
+
+    // Calculate sleep hours from bedtime and wake time strings
+    const calculateSleepHours = (): number | undefined => {
+      if (!bedtime || !wakeTime) return undefined;
+      try {
+        const parseTime = (t: string): number => {
+          const match = t.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+          if (!match) return NaN;
+          let hours = parseInt(match[1], 10);
+          const minutes = parseInt(match[2], 10);
+          const period = match[3]?.toUpperCase();
+          if (period === "PM" && hours !== 12) hours += 12;
+          if (period === "AM" && hours === 12) hours = 0;
+          return hours + minutes / 60;
+        };
+        const bed = parseTime(bedtime);
+        const wake = parseTime(wakeTime);
+        if (isNaN(bed) || isNaN(wake)) return undefined;
+        let diff = wake - bed;
+        if (diff <= 0) diff += 24; // crosses midnight
+        return Math.round(diff * 10) / 10;
+      } catch {
+        return undefined;
+      }
+    };
+
+    const entryDate = parseDateForApi();
+
     try {
       if (type === "glucose") {
         await glucoseMutation.mutateAsync({
@@ -143,6 +181,7 @@ export default function LogEntryScreen() {
           timingContext: mealContext,
           notes: glucoseNotes || undefined,
           source: "manual",
+          date: entryDate,
         });
       } else if (type === "blood-pressure") {
         await bpMutation.mutateAsync({
@@ -152,18 +191,23 @@ export default function LogEntryScreen() {
           position: position.toLowerCase(),
           arm: arm.toLowerCase(),
           source: "manual",
+          date: entryDate,
         });
       } else if (type === "weight") {
         await weightMutation.mutateAsync({
           weightLbs: weightUnit === "lbs" ? Number(weight) : Number(weight) * 2.20462,
           notes: weightNotes || undefined,
           source: "manual",
+          date: entryDate,
         });
       } else {
         // catch-all: sleep, temperature, symptoms, etc.
+        const sleepHours = calculateSleepHours();
+        const sleepQualityMap: Record<string, number> = { Poor: 3, Fair: 5, Good: 7, Excellent: 9 };
         await checkinMutation.mutateAsync({
-          weight: type === "weight" ? Number(weight) : undefined,
-          sleepHours: type === "sleep" && bedtime && wakeTime ? undefined : undefined,
+          date: entryDate,
+          sleepHours: type === "sleep" ? sleepHours : undefined,
+          sleepQuality: type === "sleep" ? sleepQualityMap[sleepQuality] : undefined,
           notes: type === "symptoms" ? symptoms : type === "temperature" ? `Temperature: ${temperature}°${tempUnit}` : undefined,
         });
       }

@@ -228,26 +228,64 @@ export function useBiometricCategories() {
   const overview = useDashboardOverview();
   const sparks = useSparklines();
 
-  // When API data is available, overlay sparklines onto biometric categories
-  const categories = SAMPLE_DATA.biometricCategories.map((cat) => {
-    if (!sparks.sparklines) return cat;
+  // When API data is available, overlay real values and sparklines onto biometric categories
+  const bio = overview.isLoading ? null : overview.biometricsData;
+  const kpi = overview.isLoading ? null : overview.kpiData;
 
-    switch (cat.id) {
-      case "sleep":
-        return sparks.sparklines.sleep.length
-          ? { ...cat, sparkData: sparks.sparklines.sleep }
-          : cat;
-      case "glucose":
-        return sparks.sparklines.glucose.length
-          ? { ...cat, sparkData: sparks.sparklines.glucose }
-          : cat;
-      case "bloodPressure":
-        return sparks.sparklines.bpSystolic.length
-          ? { ...cat, sparkData: sparks.sparklines.bpSystolic }
-          : cat;
-      default:
-        return cat;
+  const categories = SAMPLE_DATA.biometricCategories.map((cat) => {
+    let updated = { ...cat };
+
+    // Overlay real KPI / biometric values when the API returned data
+    if (bio && kpi) {
+      switch (cat.id) {
+        case "sleep":
+          updated = { ...updated, value: String(kpi.sleep.hours), unit: "hrs" };
+          break;
+        case "heartRate":
+          updated = { ...updated, value: String(kpi.heartRate.bpm), unit: "bpm" };
+          break;
+        case "bloodPressure":
+          updated = { ...updated, value: bio.bloodPressure.value };
+          break;
+        case "glucose":
+          updated = { ...updated, value: String(bio.glucose.value) };
+          break;
+        case "hrv":
+          updated = { ...updated, value: String(bio.hrv.value) };
+          break;
+        case "weight":
+          updated = { ...updated, value: String(kpi.weight.lbs) };
+          break;
+        case "steps":
+          updated = {
+            ...updated,
+            value: typeof kpi.steps.count === "number"
+              ? kpi.steps.count.toLocaleString()
+              : String(kpi.steps.count),
+          };
+          break;
+      }
     }
+
+    // Overlay real sparkline data when available
+    if (sparks.sparklines) {
+      switch (cat.id) {
+        case "sleep":
+          if (sparks.sparklines.sleep.length)
+            updated = { ...updated, sparkData: sparks.sparklines.sleep };
+          break;
+        case "glucose":
+          if (sparks.sparklines.glucose.length)
+            updated = { ...updated, sparkData: sparks.sparklines.glucose };
+          break;
+        case "bloodPressure":
+          if (sparks.sparklines.bpSystolic.length)
+            updated = { ...updated, sparkData: sparks.sparklines.bpSystolic };
+          break;
+      }
+    }
+
+    return updated;
   });
 
   return {

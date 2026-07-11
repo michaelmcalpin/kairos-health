@@ -57,24 +57,30 @@ const SAMPLE_SOURCE = "Apple Watch Ultra";
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function SleepScreen() {
-  // ── tRPC: fetch check-in history (includes sleep data from daily check-ins) ──
-  const checkinQuery = trpc.clientPortal.checkin.getHistory.useQuery(
-    { limit: 30 },
+  // ── tRPC: fetch sleep sessions from the dedicated sleep endpoint ──
+  const endDate = new Date().toISOString().split("T")[0];
+  const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  const sleepQuery = trpc.clientPortal.sleep.list.useQuery(
+    { startDate, endDate },
     DEFAULT_QUERY_OPTIONS,
   );
 
-  // Map check-in sleep data to weekly trend format; fall back to sample data.
-  // Granular sleep stages, scores, and last-night detail come from device
-  // integrations (Oura, Apple Health) — Sprint 4. For now, sample data fills
-  // those sections.
-  const sleepData = checkinQuery.data
-    ? (checkinQuery.data as any[])
-        .filter((c: any) => c.sleepHours != null)
-        .map((c: any) => ({
-          date: new Date(c.date || c.createdAt).toLocaleDateString(),
-          hours: c.sleepHours,
-          quality: c.sleepQuality,
-          score: c.sleepScore,
+  // Backend returns: Array<{ id, date, totalMinutes, deepMinutes, remMinutes, lightMinutes, awakeMinutes, score, source }>
+  const sleepSessions = sleepQuery.data as any[] | undefined;
+
+  const sleepData = sleepSessions
+    ? sleepSessions
+        .filter((s: any) => s.totalMinutes != null)
+        .map((s: any) => ({
+          date: s.date,
+          hours: Math.round((s.totalMinutes / 60) * 10) / 10,
+          score: s.score,
+          deepMinutes: s.deepMinutes,
+          remMinutes: s.remMinutes,
+          lightMinutes: s.lightMinutes,
+          awakeMinutes: s.awakeMinutes,
+          source: s.source,
         }))
     : null;
 
@@ -89,27 +95,48 @@ export default function SleepScreen() {
       }))
     : SAMPLE_WEEKLY_TREND;
 
-  // Use the latest check-in's sleep score / quality when available
+  // Use the latest sleep session's score / quality when available
   const latestSleep = hasSleepData ? sleepData[0] : null;
   const sleepScore = latestSleep?.score ?? SAMPLE_SLEEP_SCORE;
   const sleepQuality =
-    latestSleep?.quality ??
-    (sleepScore >= 85 ? "Excellent" : sleepScore >= 70 ? "Good" : sleepScore >= 50 ? "Fair" : "Poor");
+    sleepScore >= 85 ? "Excellent" : sleepScore >= 70 ? "Good" : sleepScore >= 50 ? "Fair" : "Poor";
 
-  // Last night summary — device-level detail not yet available, use sample
-  // Override totalHours from API when available
+  // Last night summary — build from real data when available
   const lastNight = latestSleep
-    ? { ...SAMPLE_LAST_NIGHT, totalHours: latestSleep.hours }
+    ? {
+        bedtime: SAMPLE_LAST_NIGHT.bedtime, // bedtime/wakeTime not stored in sleep sessions table
+        wakeTime: SAMPLE_LAST_NIGHT.wakeTime,
+        totalHours: latestSleep.hours,
+        timeInBed: Math.round((latestSleep.hours + (latestSleep.awakeMinutes ?? 0) / 60) * 10) / 10,
+      }
     : SAMPLE_LAST_NIGHT;
 
-  // Sleep stages — device-level data (Sprint 4), sample for now
-  const sleepStages = SAMPLE_SLEEP_STAGES;
+  // Sleep stages — use real data when available from backend
+  const sleepStages = latestSleep && latestSleep.deepMinutes != null
+    ? [
+        { label: "Deep", value: Math.round((latestSleep.deepMinutes / 60) * 10) / 10, color: "#4A90D9" },
+        { label: "REM", value: Math.round((latestSleep.remMinutes ?? 0) / 60 * 10) / 10, color: "#8B5CF6" },
+        { label: "Light", value: Math.round((latestSleep.lightMinutes ?? 0) / 60 * 10) / 10, color: "#60A5FA" },
+        { label: "Awake", value: Math.round((latestSleep.awakeMinutes ?? 0) / 60 * 10) / 10, color: "#C65D5D" },
+      ]
+    : SAMPLE_SLEEP_STAGES;
 
-  // Insight text
-  const insight = SAMPLE_INSIGHT;
+  // Insight text — generate from data when available
+  const insight = hasSleepData
+    ? latestSleep?.score != null && latestSleep.score >= 80
+      ? `Your sleep score of ${latestSleep.score} indicates good recovery. You averaged ${latestSleep.hours} hours of sleep.`
+      : latestSleep?.score != null
+        ? `Your sleep score of ${latestSleep.score} has room for improvement. You averaged ${latestSleep.hours} hours of sleep. Try maintaining a consistent bedtime.`
+        : `You averaged ${latestSleep?.hours ?? 0} hours of sleep recently.`
+    : SAMPLE_INSIGHT;
 
-  // Source
-  const source = SAMPLE_SOURCE;
+  // Source — use actual source from data
+  const source = latestSleep?.source
+    ? latestSleep.source === "apple_health" ? "Apple Health"
+      : latestSleep.source === "oura" ? "Oura Ring"
+      : latestSleep.source === "manual" ? "Manual Entry"
+      : latestSleep.source
+    : SAMPLE_SOURCE;
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>

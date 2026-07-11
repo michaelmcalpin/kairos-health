@@ -33,7 +33,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
-import { SAMPLE_DATA } from "@/lib/api";
+// SAMPLE_DATA no longer needed here — protocol data comes from useDashboardProtocol hook
 import { Card } from "@/components/ui/Card";
 import {
   HealthScoreRing,
@@ -50,12 +50,9 @@ import {
   useDashboardOverview,
   useAlerts,
 } from "@/hooks/useHealthData";
+import { useDashboardProtocol } from "@/hooks/useProtocols";
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Static data — protocols (no tRPC hooks yet)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-const PROTOCOL_DATA = SAMPLE_DATA.dashboardProtocols;
+// Protocol data is now fetched via the useDashboardProtocol hook below.
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Alert icon helper
@@ -92,6 +89,7 @@ export default function HomeScreen() {
   const healthScore = useHealthScore();
   const overview = useDashboardOverview();
   const alertsHook = useAlerts("active");
+  const protocolHook = useDashboardProtocol();
 
   // Derived data from hooks
   const HEALTH_SCORE = healthScore.healthScore;
@@ -99,8 +97,9 @@ export default function HomeScreen() {
   const KPI_DATA = overview.kpiData;
   const BIOMETRICS_DATA = overview.biometricsData;
   const ALERTS_DATA = alertsHook.alerts;
+  const PROTOCOL_DATA = protocolHook.protocols;
 
-  const isLoading = healthScore.isLoading || overview.isLoading || alertsHook.isLoading;
+  const isLoading = healthScore.isLoading || overview.isLoading || alertsHook.isLoading || protocolHook.isLoading;
 
   // ── Pull-to-refresh ──────────────────────────────────────────
   const [refreshing, setRefreshing] = useState(false);
@@ -110,9 +109,10 @@ export default function HomeScreen() {
       healthScore.refetch(),
       overview.refetch(),
       alertsHook.refetch(),
+      protocolHook.refetch(),
     ]);
     setRefreshing(false);
-  }, [healthScore.refetch, overview.refetch, alertsHook.refetch]);
+  }, [healthScore.refetch, overview.refetch, alertsHook.refetch, protocolHook.refetch]);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",

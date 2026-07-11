@@ -142,21 +142,20 @@ export function IntegrationStatusCard({
 
 /**
  * Static integration configuration data.
- * These configs define the available integrations (name, icon, description, data types).
- * The actual connection status/sync state is populated from device_connections table via tRPC
- * (to be implemented when tRPC endpoint is available).
- * For now, fallback to demo data merged with these configs.
+ * These configs define the available integrations (name, description, data types).
+ * All start as disconnected — actual connection status is populated from the
+ * device_connections table via tRPC and merged on top.
  */
 const INTEGRATION_CONFIGS: IntegrationStatus[] = [
   {
     provider: "oura", name: "Oura Ring", description: "Sleep, HRV, readiness scores",
-    connected: true, lastSyncAt: new Date(Date.now() - 15 * 60000).toISOString(),
-    recordsSynced: 12847, status: "success", dataTypes: ["sleep", "heart_rate", "hrv", "body_temperature"],
+    connected: false, lastSyncAt: null,
+    recordsSynced: 0, status: "idle", dataTypes: ["sleep", "heart_rate", "hrv", "body_temperature"],
   },
   {
     provider: "dexcom", name: "Dexcom G7", description: "Continuous glucose monitoring",
-    connected: true, lastSyncAt: new Date(Date.now() - 5 * 60000).toISOString(),
-    recordsSynced: 48320, status: "success", dataTypes: ["glucose"],
+    connected: false, lastSyncAt: null,
+    recordsSynced: 0, status: "idle", dataTypes: ["glucose"],
   },
   {
     provider: "whoop", name: "WHOOP 4.0", description: "Recovery, strain, and workout data",
@@ -168,13 +167,23 @@ const INTEGRATION_CONFIGS: IntegrationStatus[] = [
   },
   {
     provider: "apple_health", name: "Apple Health", description: "HealthKit data via iOS app",
-    connected: true, lastSyncAt: new Date(Date.now() - 60 * 60000).toISOString(),
-    recordsSynced: 5420, status: "success", dataTypes: ["steps", "heart_rate", "workouts"],
+    connected: false, lastSyncAt: null,
+    recordsSynced: 0, status: "idle", dataTypes: ["steps", "heart_rate", "workouts"],
   },
   {
-    provider: "labcorp", name: "LabCorp", description: "Lab orders and results",
-    connected: true, lastSyncAt: new Date(Date.now() - 7 * 24 * 60 * 60000).toISOString(),
-    recordsSynced: 48, status: "success", dataTypes: ["lab_results"],
+    provider: "withings", name: "Withings", description: "Smart scales and blood pressure monitors",
+    connected: false, lastSyncAt: null,
+    recordsSynced: 0, status: "idle", dataTypes: ["weight", "body_fat", "blood_pressure"],
+  },
+  {
+    provider: "fitbit", name: "Fitbit", description: "Activity, sleep, and heart rate tracking",
+    connected: false, lastSyncAt: null,
+    recordsSynced: 0, status: "idle", dataTypes: ["steps", "heart_rate", "sleep", "activity"],
+  },
+  {
+    provider: "hume", name: "Hume AI", description: "Emotional state and voice analysis",
+    connected: false, lastSyncAt: null,
+    recordsSynced: 0, status: "idle", dataTypes: ["emotional_state", "voice_analysis"],
   },
 ];
 
@@ -246,15 +255,15 @@ export function IntegrationDashboard() {
   });
 
   const handleConnect = (provider: string) => {
-    initiateConnectMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit" });
+    initiateConnectMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit" | "hume" });
   };
 
   const handleSync = (provider: string) => {
-    syncNowMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit" });
+    syncNowMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit" | "hume" });
   };
 
   const handleDisconnect = (provider: string) => {
-    disconnectMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit" });
+    disconnectMutation.mutate({ provider: provider as "oura" | "apple_health" | "dexcom" | "garmin" | "whoop" | "withings" | "fitbit" | "hume" });
   };
 
   const connectedCount = integrations.filter((i) => i.connected).length;

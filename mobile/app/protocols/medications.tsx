@@ -1,9 +1,9 @@
 /**
- * Medications screen — active prescriptions, refill dates, and interaction warnings.
+ * Medications screen — empty state.
  *
- * NOTE: Backend does not have a clientPortal.medications router — medications
- * are managed through the supplement protocol or clinical docs. This screen
- * uses sample data only and directs users to contact their coach for changes.
+ * NOTE: Backend does not have a clientPortal.medications router.
+ * Medications are managed through clinical docs and coach interactions.
+ * This screen shows an honest empty state rather than fake data.
  */
 
 import React from "react";
@@ -15,95 +15,19 @@ import {
   SafeAreaView,
   Alert,
 } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
+import { Pill, MessageCircle } from "lucide-react-native";
 
-import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { Colors, Spacing, FontSizes } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-
-/* ------------------------------------------------------------------ */
-/* Sample data (no backend medications router — see note above)        */
-/* ------------------------------------------------------------------ */
-
-interface Medication {
-  name: string;
-  dosage: string;
-  frequency: string;
-  prescriber: string;
-  nextRefill: string;
-  daysUntilRefill: number;
-  purpose: string;
-}
-
-const SAMPLE_MEDICATIONS: Medication[] = [
-  {
-    name: "Metformin",
-    dosage: "500 mg",
-    frequency: "Twice daily with meals",
-    prescriber: "Dr. Sarah Chen",
-    nextRefill: "Jun 28, 2026",
-    daysUntilRefill: 15,
-    purpose: "Blood glucose management, longevity",
-  },
-  {
-    name: "Rosuvastatin",
-    dosage: "10 mg",
-    frequency: "Once daily, evening",
-    prescriber: "Dr. Sarah Chen",
-    nextRefill: "Jul 5, 2026",
-    daysUntilRefill: 22,
-    purpose: "LDL-P and ApoB reduction",
-  },
-  {
-    name: "Telmisartan",
-    dosage: "40 mg",
-    frequency: "Once daily, morning",
-    prescriber: "Dr. James Park",
-    nextRefill: "Jun 20, 2026",
-    daysUntilRefill: 7,
-    purpose: "Blood pressure management",
-  },
-  {
-    name: "Low-Dose Naltrexone",
-    dosage: "4.5 mg",
-    frequency: "Once daily, bedtime",
-    prescriber: "Dr. Sarah Chen",
-    nextRefill: "Jul 12, 2026",
-    daysUntilRefill: 29,
-    purpose: "Immune modulation, inflammation",
-  },
-];
-
-interface Interaction {
-  meds: string;
-  severity: "warning" | "info";
-  description: string;
-}
-
-const SAMPLE_INTERACTIONS: Interaction[] = [
-  {
-    meds: "Metformin + Alcohol",
-    severity: "warning",
-    description: "Increased risk of lactic acidosis. Limit alcohol intake.",
-  },
-  {
-    meds: "Rosuvastatin + Grapefruit",
-    severity: "info",
-    description:
-      "Grapefruit may increase statin levels. Moderate consumption is generally safe at this dose.",
-  },
-];
 
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
 export default function MedicationsScreen() {
-  // NOTE: No backend medications router. All data below is sample/static.
-  // Medications are managed through supplements or clinical docs on the backend.
-  const medications = SAMPLE_MEDICATIONS;
-  const interactions = SAMPLE_INTERACTIONS;
+  const router = useRouter();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -114,110 +38,29 @@ export default function MedicationsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Active Medications */}
-        <Card style={styles.section}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>Active Medications</Text>
-            <Badge label={`${medications.length} Active`} variant="info" />
+        {/* Empty State */}
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIconWrap}>
+            <Pill size={48} color={Colors.silver} />
           </View>
+          <Text style={styles.emptyTitle}>No medications tracked yet</Text>
+          <Text style={styles.emptyMessage}>
+            Medication tracking is managed through your care team.
+            Contact your coach or doctor to add medications to your profile.
+          </Text>
+        </View>
+
+        {/* Info Card */}
+        <Card style={styles.infoCard}>
+          <Text style={styles.infoTitle}>How medication tracking works</Text>
+          <Text style={styles.infoText}>
+            Your care team manages your medication records as part of your
+            clinical profile. Once medications are added, you will be able to
+            view them here along with dosage information and refill reminders.
+          </Text>
         </Card>
 
-        {medications.map((med, idx) => {
-          const refillSoon = med.daysUntilRefill <= 7;
-
-          return (
-            <Card key={idx} style={styles.medCard}>
-              <View style={styles.rowBetween}>
-                <Text style={styles.medName}>{med.name}</Text>
-                <Text style={styles.medDosage}>{med.dosage}</Text>
-              </View>
-
-              <Text style={styles.medFrequency}>{med.frequency}</Text>
-              <Text style={styles.medPurpose}>{med.purpose}</Text>
-
-              <View style={styles.medMeta}>
-                <View style={styles.metaItem}>
-                  <Text style={styles.metaLabel}>Prescriber</Text>
-                  <Text style={styles.metaValue}>{med.prescriber}</Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <Text style={styles.metaLabel}>Next Refill</Text>
-                  <View style={styles.refillRow}>
-                    <Text
-                      style={[
-                        styles.metaValue,
-                        refillSoon && styles.refillSoon,
-                      ]}
-                    >
-                      {med.nextRefill}
-                    </Text>
-                    {refillSoon && (
-                      <Badge label="Refill Soon" variant="warning" />
-                    )}
-                  </View>
-                </View>
-              </View>
-
-              {/* Refill request — informational only */}
-              {refillSoon && (
-                <Button
-                  title="Request Refill"
-                  variant="secondary"
-                  size="sm"
-                  onPress={() =>
-                    Alert.alert(
-                      "Refill Request",
-                      `Contact your prescriber (${med.prescriber}) to request a refill for ${med.name}.`,
-                    )
-                  }
-                />
-              )}
-            </Card>
-          );
-        })}
-
-        {/* Interaction Warnings */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Interaction Warnings</Text>
-
-          {interactions.map((interaction, idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.interactionRow,
-                {
-                  backgroundColor:
-                    interaction.severity === "warning"
-                      ? Colors.warningMuted
-                      : Colors.infoMuted,
-                  borderLeftColor:
-                    interaction.severity === "warning"
-                      ? Colors.warning
-                      : Colors.info,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.interactionMeds,
-                  {
-                    color:
-                      interaction.severity === "warning"
-                        ? Colors.warning
-                        : Colors.info,
-                  },
-                ]}
-              >
-                {interaction.meds}
-              </Text>
-              <Text style={styles.interactionDesc}>
-                {interaction.description}
-              </Text>
-            </View>
-          ))}
-        </Card>
-
-        {/* Add Medication — directs to coach */}
+        {/* Coming Soon */}
         <Button
           title="Add Medication"
           variant="secondary"
@@ -225,19 +68,20 @@ export default function MedicationsScreen() {
           style={styles.ctaButton}
           onPress={() =>
             Alert.alert(
-              "Add Medication",
-              "Contact your coach to update medications. Medication changes require clinical review.",
+              "Coming Soon",
+              "Self-service medication tracking is coming in a future update. For now, contact your coach to update medications.",
             )
           }
         />
 
-        {/* Talk to Doctor */}
+        {/* Talk to Coach */}
         <Button
-          title="Talk to Doctor"
+          title="Talk to Your Coach"
           variant="primary"
           size="lg"
           style={styles.ctaButton}
-          onPress={() => Alert.alert("Contact Doctor", "Please reach out to your primary care provider directly.")}
+          icon={<MessageCircle size={18} color={Colors.dark} />}
+          onPress={() => router.push("/coach")}
         />
       </ScrollView>
     </SafeAreaView>
@@ -262,90 +106,52 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
 
-  /* Sections */
-  section: {
+  /* Empty State */
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: Spacing.xxl,
+    paddingHorizontal: Spacing.xl,
     gap: Spacing.sm,
   },
-  sectionTitle: {
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.navyLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+  emptyTitle: {
+    color: Colors.white,
+    fontSize: FontSizes.lg,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  emptyMessage: {
+    color: Colors.silver,
+    fontSize: FontSizes.md,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+
+  /* Info Card */
+  infoCard: {
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  infoTitle: {
     fontSize: FontSizes.sm,
     fontWeight: "600",
     color: Colors.gold,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-  rowBetween: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  /* Medication cards */
-  medCard: {
-    gap: Spacing.xs,
-  },
-  medName: {
-    fontSize: FontSizes.lg,
-    fontWeight: "700",
-    color: Colors.white,
-  },
-  medDosage: {
-    fontSize: FontSizes.md,
-    fontWeight: "600",
-    color: Colors.gold,
-  },
-  medFrequency: {
+  infoText: {
     fontSize: FontSizes.sm,
     color: Colors.silverLight,
-  },
-  medPurpose: {
-    fontSize: FontSizes.sm,
-    color: Colors.silver,
-    fontStyle: "italic",
-  },
-
-  /* Metadata */
-  medMeta: {
-    marginTop: Spacing.xs,
-    gap: Spacing.xs,
-  },
-  metaItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  metaLabel: {
-    fontSize: FontSizes.xs,
-    color: Colors.silver,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  metaValue: {
-    fontSize: FontSizes.sm,
-    color: Colors.white,
-  },
-  refillRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  refillSoon: {
-    color: Colors.warning,
-  },
-
-  /* Interactions */
-  interactionRow: {
-    padding: Spacing.sm,
-    borderRadius: Radii.md,
-    borderLeftWidth: 3,
-    gap: 4,
-  },
-  interactionMeds: {
-    fontSize: FontSizes.sm,
-    fontWeight: "600",
-  },
-  interactionDesc: {
-    fontSize: FontSizes.sm,
-    color: Colors.silverLight,
+    lineHeight: 20,
   },
 
   /* CTA */
