@@ -131,7 +131,7 @@ export const clientDevicesRouter = router({
         whoop: env.WHOOP_CLIENT_ID,
         fitbit: env.FITBIT_CLIENT_ID,
         withings: env.WITHINGS_CLIENT_ID,
-        garmin: "",
+        garmin: env.GARMIN_CLIENT_ID,
         hume: env.HUME_CLIENT_ID,
       };
       const clientId = providerClientIds[input.provider] ?? "";

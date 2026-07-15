@@ -95,8 +95,8 @@ export default function AppleHealthScreen() {
   const backendConnected = connectionData
     ? (connectionData.connected ?? connectionData.status === "connected")
     : false;
-  // The device is truly connected when both HealthKit is authorized AND the backend knows about it
-  const isConnected = hkStatus.isAuthorized || backendConnected;
+  // Connection state: backend is the source of truth; HealthKit auth is checked for initial connect
+  const isConnected = backendConnected;
   const lastSyncTime =
     hkLastSync
       ? new Date(hkLastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -199,9 +199,13 @@ export default function AppleHealthScreen() {
               { provider: "apple_health" },
               {
                 onSuccess: () => {
-                  Alert.alert("Disconnected", "Apple Health has been disconnected.", [
-                    { text: "OK", onPress: () => router.back() },
-                  ]);
+                  // Refetch connection state so UI updates immediately
+                  connectionQuery.refetch();
+                  Alert.alert(
+                    "Disconnected",
+                    "Apple Health has been disconnected. To revoke HealthKit permissions, go to Settings > Privacy & Security > Health on your device.",
+                    [{ text: "OK", onPress: () => router.back() }],
+                  );
                 },
                 onError: () => {
                   Alert.alert("Error", "Could not disconnect Apple Health. Please try again.", [{ text: "OK" }]);
@@ -306,7 +310,7 @@ export default function AppleHealthScreen() {
                 )
               }
               onPress={handleConnect}
-              disabled={isChecking || Platform.OS !== "ios"}
+              disabled={isChecking || Platform.OS !== "ios" || !hkStatus.isAvailable}
               style={styles.syncBtn}
             />
           ) : (

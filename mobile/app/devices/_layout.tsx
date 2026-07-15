@@ -52,6 +52,10 @@ export default function DevicesLayout() {
         name="connect"
         options={{ title: "Connect Account" }}
       />
+      <Stack.Screen
+        name="callback"
+        options={{ title: "Connecting...", headerShown: false }}
+      />
     </Stack>
   );
 }

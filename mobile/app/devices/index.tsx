@@ -169,13 +169,15 @@ export default function DevicesScreen() {
     );
   };
 
+  // OAuth providers that should go through the connect flow (not BLE pairing)
+  const OAUTH_PROVIDERS = new Set(["oura", "garmin", "whoop", "dexcom", "fitbit", "withings", "hume"]);
+
   const handleConnect = (device: SupportedDevice) => {
     if (device.id === "apple-health") {
       router.push("/devices/apple-health");
-    } else if (device.id === "oura") {
-      router.push("/devices/oura" as any);
-    } else if (device.id === "hume") {
-      router.push("/devices/hume" as any);
+    } else if (OAUTH_PROVIDERS.has(device.id)) {
+      // Route all OAuth-based providers to the connect screen
+      router.push("/devices/connect");
     } else {
       router.push("/devices/add");
     }
