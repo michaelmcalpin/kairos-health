@@ -13,6 +13,7 @@ import type {
   DataType,
 } from "./types";
 import { logger } from "@/lib/middleware/logger";
+import { encryptToken, decryptToken } from "@/lib/crypto";
 import { PROVIDERS } from "./providers";
 import { db } from "@/server/db";
 import {
@@ -185,7 +186,7 @@ export class DeviceSyncEngine {
     dataType: DataType,
   ): Promise<SyncResult> {
     const startTime = Date.now();
-    const accessToken = connection.accessTokenEnc ?? "";
+    const accessToken = connection.accessTokenEnc ? decryptToken(connection.accessTokenEnc) : "";
     const syncFrom = connection.lastSyncAt
       ? connection.lastSyncAt.toISOString().split("T")[0]
       : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
@@ -334,38 +335,41 @@ export class DeviceSyncEngine {
   async refreshToken(
     connection: typeof deviceConnections.$inferSelect,
   ): Promise<void> {
-    const refreshTokenVal = connection.refreshTokenEnc;
-    if (!refreshTokenVal) {
+    const refreshTokenRaw = connection.refreshTokenEnc;
+    if (!refreshTokenRaw) {
       throw new Error(`No refresh token for ${connection.provider}`);
     }
+
+    // Decrypt the stored refresh token before sending to the provider
+    const refreshTokenPlain = decryptToken(refreshTokenRaw);
 
     let newTokens: { accessToken: string; refreshToken: string; expiresIn: number };
 
     switch (connection.provider) {
       case "oura":
-        newTokens = await refreshOuraToken(refreshTokenVal);
+        newTokens = await refreshOuraToken(refreshTokenPlain);
         break;
       case "dexcom":
-        newTokens = await refreshDexcomToken(refreshTokenVal);
+        newTokens = await refreshDexcomToken(refreshTokenPlain);
         break;
       case "whoop":
-        newTokens = await refreshWhoopToken(refreshTokenVal);
+        newTokens = await refreshWhoopToken(refreshTokenPlain);
         break;
       case "fitbit":
-        newTokens = await refreshFitbitToken(refreshTokenVal);
+        newTokens = await refreshFitbitToken(refreshTokenPlain);
         break;
       case "hume":
-        newTokens = await refreshHumeToken(refreshTokenVal);
+        newTokens = await refreshHumeToken(refreshTokenPlain);
         break;
       default:
         throw new Error(`Token refresh not implemented for ${connection.provider}`);
     }
 
-    // Update tokens in DB
+    // Encrypt new tokens before persisting
     await db.update(deviceConnections)
       .set({
-        accessTokenEnc: newTokens.accessToken,
-        refreshTokenEnc: newTokens.refreshToken,
+        accessTokenEnc: encryptToken(newTokens.accessToken),
+        refreshTokenEnc: encryptToken(newTokens.refreshToken),
         tokenExpiresAt: new Date(Date.now() + newTokens.expiresIn * 1000),
       })
       .where(eq(deviceConnections.id, connection.id));

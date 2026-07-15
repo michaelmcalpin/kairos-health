@@ -6,6 +6,7 @@ import { deviceConnections, syncLogs } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { PROVIDERS } from "@/lib/integrations/devices/providers";
 import { env } from "@/lib/config/env";
+import { syncProviderData } from "@/server/services/device-sync";
 
 /**
  * Sign OAuth state with HMAC to prevent tampering.  Uses CLERK_SECRET_KEY
@@ -198,9 +199,9 @@ export const clientDevicesRouter = router({
 
   /**
    * Trigger a manual sync for a device
-   * Creates a sync log entry and sets status to "syncing"
+   * Fetches data from the provider API and inserts it into the DB
    * Input: { provider: string }
-   * Returns: { syncLogId: string }
+   * Returns: { syncLogId, recordsSynced, success, note?, errors? }
    */
   syncNow: clientProcedure
     .input(z.object({ provider: providerEnum }))
@@ -233,17 +234,107 @@ export const clientDevicesRouter = router({
         })
         .returning();
 
+      const syncLogId = syncLog[0]?.id ?? null;
+
       // Update connection status to syncing
       await ctx.db
         .update(deviceConnections)
-        .set({
-          status: "syncing",
-        })
+        .set({ status: "syncing" })
         .where(eq(deviceConnections.id, connection.id));
 
-      return {
-        syncLogId: syncLog[0]?.id ?? null,
-      };
+      // Perform the actual data sync
+      try {
+        const result = await syncProviderData(
+          ctx.dbUserId,
+          input.provider,
+          connection.accessTokenEnc ?? "",
+          connection.refreshTokenEnc ?? null,
+          connection.id,
+        );
+
+        if (result.success) {
+          // Update sync log as completed
+          if (syncLogId) {
+            await ctx.db
+              .update(syncLogs)
+              .set({
+                status: "completed",
+                completedAt: new Date(),
+                recordsSynced: result.recordsSynced,
+              })
+              .where(eq(syncLogs.id, syncLogId));
+          }
+
+          // Update connection status back to connected and record sync time
+          await ctx.db
+            .update(deviceConnections)
+            .set({
+              status: "connected",
+              lastSyncAt: new Date(),
+            })
+            .where(eq(deviceConnections.id, connection.id));
+
+          return {
+            syncLogId,
+            recordsSynced: result.recordsSynced,
+            success: true,
+            note: result.note ?? null,
+          };
+        } else {
+          // Sync returned errors but didn't throw
+          const errorMsg = result.errors.join("; ") || "Unknown sync error";
+
+          if (syncLogId) {
+            await ctx.db
+              .update(syncLogs)
+              .set({
+                status: "failed",
+                completedAt: new Date(),
+                errorMessage: errorMsg,
+              })
+              .where(eq(syncLogs.id, syncLogId));
+          }
+
+          await ctx.db
+            .update(deviceConnections)
+            .set({ status: "error" })
+            .where(eq(deviceConnections.id, connection.id));
+
+          return {
+            syncLogId,
+            recordsSynced: 0,
+            success: false,
+            errors: result.errors,
+          };
+        }
+      } catch (err) {
+        // Catch-all: sync threw an unexpected error
+        const errorMsg = err instanceof Error ? err.message : String(err);
+
+        if (syncLogId) {
+          await ctx.db
+            .update(syncLogs)
+            .set({
+              status: "failed",
+              completedAt: new Date(),
+              errorMessage: errorMsg,
+            })
+            .where(eq(syncLogs.id, syncLogId));
+        }
+
+        // Revert connection status to connected (not error) so the user can retry
+        await ctx.db
+          .update(deviceConnections)
+          .set({ status: "connected" })
+          .where(eq(deviceConnections.id, connection.id));
+
+        return {
+          syncLogId,
+          recordsSynced: 0,
+          success: false,
+          errors: [errorMsg],
+        };
+      }
     }),
 
   /**

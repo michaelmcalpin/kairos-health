@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { DateRange } from "@/utils/dateRange";
+import { timeInRange as calcTIR, DEFAULT_GLUCOSE_THRESHOLDS } from "@/lib/utils/health";
 
 export interface GlucoseReading {
   id: string;
@@ -37,6 +38,8 @@ export interface GlucoseStats {
   max: number;
   min: number;
   timeInRange: number;
+  timeBelowRange: number;
+  timeAboveRange: number;
 }
 
 export interface UseGlucoseReturn {
@@ -80,8 +83,22 @@ export function useGlucose(dateRange: DateRange): UseGlucoseReturn {
   const dailySummaries = useMemo<DailyGlucoseSummary[]>(() => {
     if (!rawDailyAverages) return [];
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    // Group actual readings by date for real TIR calculation
+    const readingsByDate = new Map<string, number[]>();
+    readings.forEach((r) => {
+      const dateKey = r.timestamp.toISOString().split("T")[0];
+      if (!readingsByDate.has(dateKey)) readingsByDate.set(dateKey, []);
+      readingsByDate.get(dateKey)!.push(r.value);
+    });
+
     return rawDailyAverages.map((d) => {
       const dateObj = new Date(d.date + "T12:00:00");
+      const dayReadings = readingsByDate.get(d.date) ?? [];
+      const tir = dayReadings.length > 0
+        ? Math.round(calcTIR(dayReadings) * 100)
+        : 0;
+
       return {
         date: d.date,
         dateLabel: days[dateObj.getDay()],
@@ -89,10 +106,10 @@ export function useGlucose(dateRange: DateRange): UseGlucoseReturn {
         min: d.min,
         max: d.max,
         count: d.count,
-        timeInRange: d.avg >= 70 && d.avg <= 140 ? Math.round(Math.max(0, 100 - Math.abs(d.avg - 100) * 1.5)) : 0,
+        timeInRange: tir,
       };
     });
-  }, [rawDailyAverages]);
+  }, [rawDailyAverages, readings]);
 
   const weeklySummaries = useMemo<WeeklyGlucoseSummary[]>(() => {
     if (dailySummaries.length === 0) return [];
@@ -126,15 +143,21 @@ export function useGlucose(dateRange: DateRange): UseGlucoseReturn {
 
   const stats = useMemo<GlucoseStats>(() => {
     if (!rawStats || !readings || readings.length === 0) {
-      return { current: 0, avg: 0, max: 0, min: 0, timeInRange: 0 };
+      return { current: 0, avg: 0, max: 0, min: 0, timeInRange: 0, timeBelowRange: 0, timeAboveRange: 0 };
     }
 
+    const values = readings.map((r) => r.value);
+    const belowCount = values.filter((v) => v < DEFAULT_GLUCOSE_THRESHOLDS.targetLow).length;
+    const aboveCount = values.filter((v) => v > DEFAULT_GLUCOSE_THRESHOLDS.targetHigh).length;
+
     return {
-      current: readings.length > 0 ? readings[readings.length - 1].value : 0,
+      current: readings[readings.length - 1].value,
       avg: rawStats.avg ?? 0,
       max: rawStats.max ?? 0,
       min: rawStats.min ?? 0,
       timeInRange: rawStats.timeInRange ?? 0,
+      timeBelowRange: Math.round((belowCount / readings.length) * 1000) / 10,
+      timeAboveRange: Math.round((aboveCount / readings.length) * 1000) / 10,
     };
   }, [rawStats, readings]);
 

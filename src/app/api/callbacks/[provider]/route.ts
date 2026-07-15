@@ -6,6 +6,7 @@ import { PROVIDERS, getProviderEnvKeys } from "@/lib/integrations/devices/provid
 import { eq, and } from "drizzle-orm";
 import { logger } from "@/lib/middleware/logger";
 import { env } from "@/lib/config/env";
+import { encryptToken } from "@/lib/crypto";
 
 const MAX_STATE_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -181,13 +182,17 @@ export async function GET(
       )
       .limit(1);
 
+    // Encrypt tokens before persisting
+    const encryptedAccessToken = encryptToken(accessToken);
+    const encryptedRefreshToken = refreshToken ? encryptToken(refreshToken) : null;
+
     if (existingConnection.length > 0) {
       // Update existing connection
       await db
         .update(deviceConnections)
         .set({
-          accessTokenEnc: accessToken,
-          refreshTokenEnc: refreshToken || null,
+          accessTokenEnc: encryptedAccessToken,
+          refreshTokenEnc: encryptedRefreshToken,
           scopes: typedScopes,
           tokenExpiresAt,
           status: "connected",
@@ -200,8 +205,8 @@ export async function GET(
       await db.insert(deviceConnections).values({
         clientId: userId,
         provider: typedProvider,
-        accessTokenEnc: accessToken,
-        refreshTokenEnc: refreshToken || null,
+        accessTokenEnc: encryptedAccessToken,
+        refreshTokenEnc: encryptedRefreshToken,
         scopes: typedScopes,
         tokenExpiresAt,
         status: "connected",

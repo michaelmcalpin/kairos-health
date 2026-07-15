@@ -105,6 +105,9 @@ export const env = {
   HUME_CLIENT_ID: getEnvVar("HUME_CLIENT_ID", ""),
   HUME_CLIENT_SECRET: getEnvVar("HUME_CLIENT_SECRET", ""),
 
+  // Token Encryption (optional — plaintext fallback with warning when missing)
+  TOKEN_ENCRYPTION_KEY: getEnvVar("TOKEN_ENCRYPTION_KEY", ""),
+
   // AI (Anthropic Claude)
   ANTHROPIC_API_KEY: requireInProd("ANTHROPIC_API_KEY"),
 
