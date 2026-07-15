@@ -96,10 +96,10 @@ export default function CoachMetricsPage() {
     const total = stats.totalClients || 1;
 
     return [
-      { range: "90-100", count: stats.tier1Count, percentage: Math.round((stats.tier1Count / total) * 100) },
-      { range: "75-89", count: stats.tier2Count, percentage: Math.round((stats.tier2Count / total) * 100) },
-      { range: "60-74", count: stats.tier3Count, percentage: Math.round((stats.tier3Count / total) * 100) },
-      { range: "Below 60", count: stats.criticalCount, percentage: Math.round((stats.criticalCount / total) * 100) },
+      { range: "Tier 1", count: stats.tier1Count, percentage: Math.round((stats.tier1Count / total) * 100) },
+      { range: "Tier 2", count: stats.tier2Count, percentage: Math.round((stats.tier2Count / total) * 100) },
+      { range: "Tier 3", count: stats.tier3Count, percentage: Math.round((stats.tier3Count / total) * 100) },
+      { range: "Critical", count: stats.criticalCount, percentage: Math.round((stats.criticalCount / total) * 100) },
     ];
   }, [clientStatsQuery.data]);
 
@@ -114,8 +114,8 @@ export default function CoachMetricsPage() {
         id: client.id,
         name: client.name || "Unknown",
         score: (client.healthScore || 0).toFixed(1),
-        lastUpdate: "today",
-        trend: "up" as "up" | "down" | "stable",
+        lastUpdate: "",
+        trend: "stable" as "up" | "down" | "stable",
       }));
   }, [clientsListQuery.data]);
 
@@ -171,59 +171,11 @@ export default function CoachMetricsPage() {
     };
   }, [clientsListQuery.data]);
 
-  // Monthly trends derived from current revenue (flat projection until historical data is available)
-  const monthlyTrend = useMemo(() => {
-    if (!revenueSummaryQuery.data || !clientsListQuery.data) return [];
+  // Monthly trends — placeholder until historical data tracking is built
+  const monthlyTrend: { month: string; revenue: number; sessions: number }[] = [];
 
-    const now = new Date();
-    const monthlyRevenue = revenueSummaryQuery.data.totalMonthlyRevenue;
-    const clientCount = clientsListQuery.data.length;
-    // Estimated sessions: ~4 per client per month
-    const estimatedSessions = clientCount * 4;
-
-    // Show last 6 months with current data as the baseline
-    const months: { month: string; revenue: number; sessions: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        month: d.toLocaleDateString("en-US", { month: "short" }),
-        revenue: monthlyRevenue,
-        sessions: estimatedSessions,
-      });
-    }
-    return months;
-  }, [revenueSummaryQuery.data, clientsListQuery.data]);
-
-  // Build protocol data (derived from available stats)
-  const protocols = useMemo(() => {
-    if (!clientStatsQuery.data) return [];
-
-    const stats = clientStatsQuery.data;
-
-    return [
-      {
-        name: "Longevity Protocol",
-        clientCount: stats.tier1Count + stats.tier2Count,
-        outcomeScore: 8.5,
-        adherenceRate: 82,
-      },
-      {
-        name: "Health Optimization",
-        clientCount: stats.tier2Count,
-        outcomeScore: 7.8,
-        adherenceRate: 75,
-      },
-      {
-        name: "Recovery Program",
-        clientCount: stats.tier3Count,
-        outcomeScore: 7.2,
-        adherenceRate: 68,
-      },
-    ];
-  }, [clientStatsQuery.data]);
-
-  const maxRevenue = Math.max(...monthlyTrend.map((m) => m.revenue), 1);
-  const maxSessions = Math.max(...monthlyTrend.map((m) => m.sessions), 1);
+  // Protocol performance — requires real protocol tracking (not yet available)
+  const protocols: { name: string; clientCount: number; outcomeScore: number; adherenceRate: number }[] = [];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -538,6 +490,12 @@ export default function CoachMetricsPage() {
               </div>
             ) : (
               <div className="space-y-6">
+                {protocols.length === 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-kairos-silver-dark text-sm">Protocol performance tracking coming soon.</p>
+                    <p className="text-kairos-silver-dark text-xs mt-1">Data will appear once protocol tracking is enabled.</p>
+                  </div>
+                )}
                 {protocols.map((protocol) => (
                   <div key={protocol.name} className="border-b border-kairos-border last:border-b-0 pb-6 last:pb-0">
                     <div className="flex items-start justify-between mb-4">

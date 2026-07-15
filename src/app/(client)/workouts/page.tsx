@@ -294,57 +294,40 @@ export default function WorkoutsPage() {
         </div>
       )}
 
-      {/* Today's Workout */}
-      <div className="bg-gradient-to-r from-kairos-gold/10 to-transparent border border-kairos-gold/30 rounded-kairos-sm p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="font-heading text-2xl font-bold text-white mb-2">Today&apos;s Workout</h2>
-            <p className="text-kairos-silver-dark text-sm">{todaysWorkout.time}</p>
-          </div>
-          <Zap className="w-6 h-6 text-kairos-gold" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div>
-            <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-2">Exercise</p>
-            <p className="text-white font-heading font-semibold">{todaysWorkout.name}</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-2">Target Duration</p>
-            <p className="text-white font-heading font-semibold flex items-center gap-2"><Timer className="w-4 h-4 text-kairos-gold" />{todaysWorkout.duration} minutes</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-2">Target Heart Rate Zone</p>
-            <p className="text-white font-heading font-semibold flex items-center gap-2"><Heart className="w-4 h-4 text-kairos-gold" />{todaysWorkout.targetZone}</p>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          {workoutDeferred ? (
-            <span className="px-6 py-2 rounded-kairos-sm font-heading font-semibold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20">Deferred to Tomorrow</span>
-          ) : workoutStarted ? (
-            <button onClick={() => setWorkoutStarted(false)} className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all border-green-500/30 text-green-400 hover:bg-green-500/10">Complete Workout</button>
-          ) : (
-            <>
-              <button onClick={() => setWorkoutStarted(true)} className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50">Start Workout</button>
-              <button onClick={() => setWorkoutDeferred(true)} className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all">Defer</button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Weekly Schedule */}
-      <div className="bg-kairos-card border border-kairos-border rounded-kairos-sm p-6">
-        <h2 className="font-heading text-xl font-bold text-white mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-kairos-gold" /> Weekly Schedule</h2>
-        <div className="grid grid-cols-7 gap-2">
-          {weeklySchedule.map((day, i) => (
-            <div key={i} className="text-center">
-              <p className="text-kairos-silver-dark text-xs font-heading font-bold mb-2">{day.day}</p>
-              <div className={`${day.color} border border-kairos-border rounded-kairos-sm p-3 min-h-20 flex items-center justify-center`}>
-                <p className="text-kairos-gold text-xs font-heading font-semibold text-center">{day.type}</p>
-              </div>
+      {/* Today's Workout — only shown when user has an active program */}
+      {activeProgram ? (
+        <div className="bg-gradient-to-r from-kairos-gold/10 to-transparent border border-kairos-gold/30 rounded-kairos-sm p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="font-heading text-2xl font-bold text-white mb-2">Today&apos;s Workout</h2>
+              <p className="text-kairos-silver-dark text-sm">{activeProgram.name}</p>
             </div>
-          ))}
+            <Zap className="w-6 h-6 text-kairos-gold" />
+          </div>
+          <div className="flex gap-3">
+            {workoutDeferred ? (
+              <span className="px-6 py-2 rounded-kairos-sm font-heading font-semibold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20">Deferred to Tomorrow</span>
+            ) : workoutStarted ? (
+              <button onClick={() => setWorkoutStarted(false)} className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all border-green-500/30 text-green-400 hover:bg-green-500/10">Complete Workout</button>
+            ) : (
+              <>
+                <button onClick={() => setWorkoutStarted(true)} className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50">Start Workout</button>
+                <button onClick={() => setWorkoutDeferred(true)} className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all">Defer</button>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      ) : programs.length === 0 ? null : (
+        <div className="bg-gradient-to-r from-kairos-gold/10 to-transparent border border-kairos-gold/30 rounded-kairos-sm p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="font-heading text-2xl font-bold text-white mb-2">Today&apos;s Workout</h2>
+              <p className="text-kairos-silver-dark text-sm">Select a program above to see your daily plan</p>
+            </div>
+            <Zap className="w-6 h-6 text-kairos-gold" />
+          </div>
+        </div>
+      )}
 
       {/* Workout Log */}
       <div className="bg-kairos-card border border-kairos-border rounded-kairos-sm p-6">

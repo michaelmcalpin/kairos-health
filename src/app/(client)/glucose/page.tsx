@@ -425,29 +425,34 @@ export default function GlucosePage() {
         </div>
 
         <div className="kairos-card">
-          <h3 className="font-heading font-semibold text-white mb-4">AI Insights</h3>
+          <h3 className="font-heading font-semibold text-white mb-4">Glucose Summary</h3>
           <div className="space-y-4">
-            <div className="flex gap-3 p-3 rounded-kairos-sm bg-green-500/5 border border-green-500/20">
-              <Target size={16} className="text-green-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-body text-white">Time in range improved to {stats.timeInRange}%</p>
-                <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Up from 82% last week. Your fasting windows are helping.</p>
+            {stats.timeInRange > 0 && (
+              <div className={`flex gap-3 p-3 rounded-kairos-sm ${stats.timeInRange >= 70 ? "bg-green-500/5 border border-green-500/20" : "bg-yellow-500/5 border border-yellow-500/20"}`}>
+                <Target size={16} className={`${stats.timeInRange >= 70 ? "text-green-400" : "text-yellow-400"} mt-0.5 flex-shrink-0`} />
+                <div>
+                  <p className="text-sm font-body text-white">Time in range: {stats.timeInRange}%</p>
+                  <p className="text-xs font-body text-kairos-silver-dark mt-0.5">{stats.timeInRange >= 70 ? "Within the recommended target of 70%+ time in range." : "Below the recommended target of 70%+ time in range."}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-3 p-3 rounded-kairos-sm bg-yellow-500/5 border border-yellow-500/20">
-              <AlertTriangle size={16} className="text-yellow-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-body text-white">Post-dinner spikes trending higher</p>
-                <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Consider a 15-min walk after dinner or shifting carbs to earlier meals.</p>
+            )}
+            {stats.avg ? (
+              <div className="flex gap-3 p-3 rounded-kairos-sm bg-kairos-gold/5 border border-kairos-gold/20">
+                <TrendingDown size={16} className="text-kairos-gold mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-body text-white">Estimated A1C: {((Number(stats.avg) + 46.7) / 28.7).toFixed(1)}%</p>
+                  <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Calculated from your average glucose readings using the ADAG formula. Discuss with your provider for clinical interpretation.</p>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-3 p-3 rounded-kairos-sm bg-kairos-gold/5 border border-kairos-gold/20">
-              <TrendingDown size={16} className="text-kairos-gold mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-body text-white">Estimated A1C: {stats.avg ? ((Number(stats.avg) + 46.7) / 28.7).toFixed(1) : "---"}%</p>
-                <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Calculated from your average glucose readings.</p>
+            ) : (
+              <div className="flex gap-3 p-3 rounded-kairos-sm bg-kairos-silver/5 border border-kairos-silver/20">
+                <Target size={16} className="text-kairos-silver mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-body text-white">No glucose data yet</p>
+                  <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Log readings manually or connect a CGM to see insights here.</p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

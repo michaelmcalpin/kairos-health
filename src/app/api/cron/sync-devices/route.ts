@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/server/db";
 import { deviceConnections } from "@/server/db/schema";
 import { eq, and, lt, or } from "drizzle-orm";
-import { syncEngine } from "@/lib/integrations/devices/sync-engine";
+import { syncProviderData } from "@/server/services/device-sync";
 import { logger } from "@/lib/middleware/logger";
 
 export const runtime = "nodejs";
@@ -82,29 +82,29 @@ export async function GET(req: Request) {
       try {
         const syncLabel = `${conn.provider}:${conn.id}`;
 
-        // Check and refresh token if needed
-        if (syncEngine.isTokenExpired(conn)) {
-          logger.info("cron", `Refreshing token for ${conn.provider}`, { connectionId: conn.id });
-          await withTimeout(syncEngine.refreshToken(conn), CONNECTION_TIMEOUT_MS, syncLabel);
-        }
-
-        // Run sync with per-connection timeout
-        const syncResults = await withTimeout(
-          syncEngine.syncConnection(conn),
+        // Use the unified sync pipeline (same as syncNow tRPC mutation)
+        const syncResult = await withTimeout(
+          syncProviderData(
+            conn.clientId,
+            conn.provider,
+            conn.accessTokenEnc ?? "",
+            conn.refreshTokenEnc ?? null,
+            conn.id,
+          ),
           CONNECTION_TIMEOUT_MS,
           syncLabel,
         );
-        const totalRecords = syncResults.reduce(
-          (sum, r) => sum + r.recordsInserted + r.recordsUpdated,
-          0,
-        );
-        const syncErrors = syncResults.flatMap((r) => r.errors);
+
+        // Update lastSyncAt on success
+        await db.update(deviceConnections)
+          .set({ lastSyncAt: new Date(), status: "connected" })
+          .where(eq(deviceConnections.id, conn.id));
 
         results.push({
           provider: conn.provider,
           userId: conn.clientId,
-          records: totalRecords,
-          errors: syncErrors,
+          records: syncResult.recordsSynced,
+          errors: syncResult.errors,
         });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "Unknown error";

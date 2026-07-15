@@ -13,7 +13,13 @@ import { syncProviderData } from "@/server/services/device-sync";
  * as the signing key (always available in the server context).
  */
 function signOAuthState(payload: string): string {
-  const secret = env.CLERK_SECRET_KEY || "dev-only-fallback";
+  const secret = env.CLERK_SECRET_KEY || process.env.OAUTH_STATE_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("CLERK_SECRET_KEY or OAUTH_STATE_SECRET must be set in production");
+    }
+    return crypto.createHmac("sha256", "dev-only-fallback").update(payload, "utf8").digest("hex");
+  }
   return crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
 }
 

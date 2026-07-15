@@ -18,7 +18,7 @@ import {
   activitySummaries,
   bodyMeasurements,
 } from "@/server/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { PROVIDERS, getProviderEnvKeys } from "@/lib/integrations/devices/providers";
 import { logger } from "@/lib/middleware/logger";
 import { decryptToken, encryptToken } from "@/lib/crypto";
@@ -364,12 +364,12 @@ async function fetchWithingsData(token: string): Promise<{
   // and sleep data in parallel
   const [measRes, sleepRes] = await Promise.all([
     apiFetch(
-      `https://wbsapi.withings.net/measure?action=getmeas&meastype=1,6&startdate=${startTs}&enddate=${endTs}`,
-      { headers, method: "POST" },
+      `https://wbsapi.withings.net/measure`,
+      { headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" }, method: "POST", body: new URLSearchParams({ action: "getmeas", meastype: "1,6", startdate: String(startTs), enddate: String(endTs) }).toString() },
     ),
     apiFetch(
-      `https://wbsapi.withings.net/v2/sleep?action=getsummary&startdateymd=${daysAgo(1)}&enddateymd=${today()}`,
-      { headers, method: "POST" },
+      `https://wbsapi.withings.net/v2/sleep`,
+      { headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" }, method: "POST", body: new URLSearchParams({ action: "getsummary", startdateymd: daysAgo(1), enddateymd: today() }).toString() },
     ),
   ]);
 
@@ -403,7 +403,7 @@ async function fetchWithingsData(token: string): Promise<{
     deepMinutes: s.data?.deepsleepduration ? Math.round(s.data.deepsleepduration / 60) : undefined,
     remMinutes: s.data?.remsleepduration ? Math.round(s.data.remsleepduration / 60) : undefined,
     lightMinutes: s.data?.lightsleepduration ? Math.round(s.data.lightsleepduration / 60) : undefined,
-    awakeMinutes: s.data?.wakeupcount != null ? undefined : undefined,
+    awakeMinutes: s.data?.wakeupduration ? Math.round(s.data.wakeupduration / 60) : undefined,
     source: "withings",
   }));
 
@@ -479,6 +479,14 @@ async function fetchFitbitData(token: string): Promise<{
 
 async function insertGlucose(database: Database, userId: string, records: NormalizedGlucose[]): Promise<number> {
   if (records.length === 0) return 0;
+  // Dedup: remove existing records from the same source in the sync window
+  const sources = Array.from(new Set(records.map((r) => r.source)));
+  const timestamps = records.map((r) => r.timestamp);
+  const minTs = new Date(Math.min(...timestamps.map((t) => t.getTime())));
+  const maxTs = new Date(Math.max(...timestamps.map((t) => t.getTime())));
+  await database.delete(glucoseReadings).where(
+    and(eq(glucoseReadings.clientId, userId), inArray(glucoseReadings.source, sources), gte(glucoseReadings.timestamp, minTs), lte(glucoseReadings.timestamp, maxTs)),
+  );
   // Insert in batches of 100
   let inserted = 0;
   for (let i = 0; i < records.length; i += 100) {
@@ -499,6 +507,12 @@ async function insertGlucose(database: Database, userId: string, records: Normal
 
 async function insertSleep(database: Database, userId: string, records: NormalizedSleep[]): Promise<number> {
   if (records.length === 0) return 0;
+  // Dedup: remove existing records from the same source for the same dates
+  const sources = Array.from(new Set(records.map((r) => r.source)));
+  const dates = Array.from(new Set(records.map((r) => r.date)));
+  await database.delete(sleepSessions).where(
+    and(eq(sleepSessions.clientId, userId), inArray(sleepSessions.source, sources), inArray(sleepSessions.date, dates)),
+  );
   await database.insert(sleepSessions).values(
     records.map((r) => ({
       clientId: userId,
@@ -519,6 +533,14 @@ async function insertSleep(database: Database, userId: string, records: Normaliz
 
 async function insertHeartRate(database: Database, userId: string, records: NormalizedHeartRate[]): Promise<number> {
   if (records.length === 0) return 0;
+  // Dedup: remove existing records from the same source in the sync window
+  const sources = Array.from(new Set(records.map((r) => r.source)));
+  const timestamps = records.map((r) => r.timestamp);
+  const minTs = new Date(Math.min(...timestamps.map((t) => t.getTime())));
+  const maxTs = new Date(Math.max(...timestamps.map((t) => t.getTime())));
+  await database.delete(heartRateReadings).where(
+    and(eq(heartRateReadings.clientId, userId), inArray(heartRateReadings.source, sources), gte(heartRateReadings.timestamp, minTs), lte(heartRateReadings.timestamp, maxTs)),
+  );
   for (let i = 0; i < records.length; i += 100) {
     const batch = records.slice(i, i + 100);
     await database.insert(heartRateReadings).values(
@@ -536,6 +558,13 @@ async function insertHeartRate(database: Database, userId: string, records: Norm
 
 async function insertHrv(database: Database, userId: string, records: NormalizedHrv[]): Promise<number> {
   if (records.length === 0) return 0;
+  const sources = Array.from(new Set(records.map((r) => r.source)));
+  const timestamps = records.map((r) => r.timestamp);
+  const minTs = new Date(Math.min(...timestamps.map((t) => t.getTime())));
+  const maxTs = new Date(Math.max(...timestamps.map((t) => t.getTime())));
+  await database.delete(hrvReadings).where(
+    and(eq(hrvReadings.clientId, userId), inArray(hrvReadings.source, sources), gte(hrvReadings.timestamp, minTs), lte(hrvReadings.timestamp, maxTs)),
+  );
   await database.insert(hrvReadings).values(
     records.map((r) => ({
       clientId: userId,
@@ -549,6 +578,11 @@ async function insertHrv(database: Database, userId: string, records: Normalized
 
 async function insertActivity(database: Database, userId: string, records: NormalizedActivity[]): Promise<number> {
   if (records.length === 0) return 0;
+  const sources = Array.from(new Set(records.map((r) => r.source)));
+  const dates = Array.from(new Set(records.map((r) => r.date)));
+  await database.delete(activitySummaries).where(
+    and(eq(activitySummaries.clientId, userId), inArray(activitySummaries.source, sources), inArray(activitySummaries.date, dates)),
+  );
   await database.insert(activitySummaries).values(
     records.map((r) => ({
       clientId: userId,
@@ -564,6 +598,11 @@ async function insertActivity(database: Database, userId: string, records: Norma
 
 async function insertBodyMeasurements(database: Database, userId: string, records: NormalizedBodyMeasurement[]): Promise<number> {
   if (records.length === 0) return 0;
+  const sources = Array.from(new Set(records.map((r) => r.source)));
+  const dates = Array.from(new Set(records.map((r) => r.date)));
+  await database.delete(bodyMeasurements).where(
+    and(eq(bodyMeasurements.clientId, userId), inArray(bodyMeasurements.source, sources), inArray(bodyMeasurements.date, dates)),
+  );
   await database.insert(bodyMeasurements).values(
     records.map((r) => ({
       clientId: userId,

@@ -163,7 +163,7 @@ export default function TrainerSettingsPage() {
       </div>
 
       {saveMessage && (
-        <div className="flex items-center gap-2 p-4 bg-green-500/15 border border-green-500/30 rounded-kairos-sm text-green-400 text-sm">
+        <div className={`flex items-center gap-2 p-4 rounded-kairos-sm text-sm ${saveMessage.includes("Failed") ? "bg-red-500/15 border border-red-500/30 text-red-400" : "bg-green-500/15 border border-green-500/30 text-green-400"}`}>
           <Check size={16} />
           {saveMessage}
         </div>
@@ -199,9 +199,9 @@ export default function TrainerSettingsPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {[
-            { label: "Display Name", name: "displayName", type: "text", disabled: false },
-            { label: "Email", name: "email", type: "email", disabled: true },
-            { label: "Specialization", name: "specialization", type: "text", disabled: false },
+            { label: "Display Name", name: "displayName", type: "text", disabled: true, hint: "Managed by your login provider." },
+            { label: "Email", name: "email", type: "email", disabled: true, hint: "Contact support to update your email address." },
+            { label: "Specialization", name: "specialization", type: "text", disabled: false, hint: "" },
           ].map((field) => (
             <div key={field.name}>
               <label className="block font-body text-kairos-silver-dark text-sm mb-2">{field.label}</label>
@@ -213,22 +213,11 @@ export default function TrainerSettingsPage() {
                 disabled={field.disabled}
                 className={`w-full kairos-input ${field.disabled ? "opacity-60 cursor-not-allowed" : ""}`}
               />
-              {field.disabled && (
-                <p className="text-xs text-kairos-silver-dark mt-1">
-                  Email cannot be changed here. Contact support to update your email address.
-                </p>
+              {field.hint && (
+                <p className="text-xs text-kairos-silver-dark mt-1">{field.hint}</p>
               )}
             </div>
           ))}
-          <div>
-            <label className="block font-body text-kairos-silver-dark text-sm mb-2">Timezone</label>
-            <select name="timezone" value={formData.timezone} onChange={handleInputChange} className="w-full kairos-input">
-              <option value="America/New_York">Eastern Time (ET)</option>
-              <option value="America/Chicago">Central Time (CT)</option>
-              <option value="America/Denver">Mountain Time (MT)</option>
-              <option value="America/Los_Angeles">Pacific Time (PT)</option>
-            </select>
-          </div>
         </div>
       </div>
 

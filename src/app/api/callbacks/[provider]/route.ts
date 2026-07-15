@@ -11,7 +11,14 @@ import { encryptToken } from "@/lib/crypto";
 const MAX_STATE_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
 function verifyOAuthState(statePayload: string, providedSig: string): boolean {
-  const secret = process.env.CLERK_SECRET_KEY || process.env.OAUTH_STATE_SECRET || "dev-only-fallback";
+  const secret = process.env.CLERK_SECRET_KEY || process.env.OAUTH_STATE_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("OAUTH_STATE_SECRET or CLERK_SECRET_KEY must be set in production");
+    }
+    // Only allow fallback in development
+    return crypto.createHmac("sha256", "dev-only-fallback").update(statePayload, "utf8").digest("hex") === providedSig;
+  }
   const expected = crypto.createHmac("sha256", secret).update(statePayload, "utf8").digest("hex");
   try {
     return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(providedSig, "hex"));
@@ -216,21 +223,25 @@ export async function GET(
     }
 
     // Try to redirect to the mobile app first via deep link, with web fallback
-    const webUrl = new URL(`/settings?connected=${providerId}`, req.url);
-    const mobileDeepLink = `everist://devices/callback?provider=${providerId}&status=connected`;
+    // Sanitize providerId for safe HTML injection (only alphanumeric + underscore allowed)
+    const safeProvider = providerId.replace(/[^a-zA-Z0-9_]/g, "");
+    const webUrl = new URL(`/settings?connected=${safeProvider}`, req.url);
+    const mobileDeepLink = `everist://devices/callback?provider=${encodeURIComponent(safeProvider)}&status=connected`;
 
     // Return an HTML page that tries the deep link first, falls back to web
+    const escapedWebUrl = webUrl.toString().replace(/"/g, "&quot;").replace(/</g, "&lt;");
+    const escapedDeepLink = mobileDeepLink.replace(/"/g, "&quot;").replace(/</g, "&lt;");
     return new Response(
       `<!DOCTYPE html>
 <html>
 <head><title>Connecting...</title></head>
 <body>
 <script>
-  window.location.href = "${mobileDeepLink}";
-  setTimeout(function() { window.location.href = "${webUrl.toString()}"; }, 2000);
+  window.location.href = "${escapedDeepLink}";
+  setTimeout(function() { window.location.href = "${escapedWebUrl}"; }, 2000);
 </script>
 <p>Redirecting back to Everist...</p>
-<p>If nothing happens, <a href="${webUrl.toString()}">click here</a>.</p>
+<p>If nothing happens, <a href="${escapedWebUrl}">click here</a>.</p>
 </body>
 </html>`,
       {

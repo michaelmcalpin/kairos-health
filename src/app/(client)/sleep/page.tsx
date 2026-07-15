@@ -353,9 +353,9 @@ export default function SleepPage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard label="Sleep Score" value={period === "day" ? displayRecord.score : sleepStats.avgScore} unit="/100" trend="up" trendValue="+6 pts" icon={<Moon size={16} />} highlight />
-        <KPICard label="Total Sleep" value={period === "day" ? displayRecord.total : sleepStats.avgTotal} unit="hrs" trend="up" trendValue="+0.4h" icon={<Clock size={16} />} />
-        <KPICard label="Deep Sleep" value={period === "day" ? displayRecord.deep : sleepStats.avgDeep} unit="hrs" trend="up" trendValue="+12 min" icon={<Brain size={16} />} />
+        <KPICard label="Sleep Score" value={period === "day" ? displayRecord.score : sleepStats.avgScore} unit="/100" icon={<Moon size={16} />} highlight />
+        <KPICard label="Total Sleep" value={period === "day" ? displayRecord.total : sleepStats.avgTotal} unit="hrs" icon={<Clock size={16} />} />
+        <KPICard label="Deep Sleep" value={period === "day" ? displayRecord.deep : sleepStats.avgDeep} unit="hrs" icon={<Brain size={16} />} />
         <KPICard label="REM Sleep" value={period === "day" ? displayRecord.rem : sleepStats.avgRem} unit="hrs" icon={<Zap size={16} />} />
         <KPICard label="Bedtime" value={displayRecord.bedtime} icon={<Moon size={16} />} />
         <KPICard label="Wake" value={displayRecord.wake} icon={<Sun size={16} />} />
@@ -433,29 +433,34 @@ export default function SleepPage() {
             </div>
 
             <div className="kairos-card">
-              <h3 className="font-heading font-semibold text-white mb-4">Sleep Insights</h3>
+              <h3 className="font-heading font-semibold text-white mb-4">Sleep Summary</h3>
               <div className="space-y-4">
-                <div className="flex gap-3 p-3 rounded-kairos-sm bg-green-500/5 border border-green-500/20">
-                  <TrendingUp size={16} className="text-green-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-body text-white">Deep sleep is above target</p>
-                    <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Your magnesium protocol may be contributing to improved recovery.</p>
+                {displayRecord.score > 0 ? (
+                  <div className={`flex gap-3 p-3 rounded-kairos-sm ${displayRecord.score >= 85 ? "bg-green-500/5 border border-green-500/20" : displayRecord.score >= 70 ? "bg-kairos-gold/5 border border-kairos-gold/20" : "bg-yellow-500/5 border border-yellow-500/20"}`}>
+                    <TrendingUp size={16} className={`${displayRecord.score >= 85 ? "text-green-400" : displayRecord.score >= 70 ? "text-kairos-gold" : "text-yellow-400"} mt-0.5 flex-shrink-0`} />
+                    <div>
+                      <p className="text-sm font-body text-white">Sleep score: {displayRecord.score}/100</p>
+                      <p className="text-xs font-body text-kairos-silver-dark mt-0.5">{displayRecord.score >= 85 ? "Excellent sleep quality." : displayRecord.score >= 70 ? "Good sleep quality. Aim for consistent bedtimes to improve." : "Below target. Consider reviewing your sleep environment and habits."}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-3 p-3 rounded-kairos-sm bg-kairos-gold/5 border border-kairos-gold/20">
-                  <Moon size={16} className="text-kairos-gold mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-body text-white">Consistent bedtime pattern detected</p>
-                    <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Keeping a consistent bedtime improves circadian rhythm.</p>
+                ) : (
+                  <div className="flex gap-3 p-3 rounded-kairos-sm bg-kairos-silver/5 border border-kairos-silver/20">
+                    <Moon size={16} className="text-kairos-silver mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-body text-white">No sleep data for this date</p>
+                      <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Connect a sleep tracker or log manually to see insights here.</p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-3 p-3 rounded-kairos-sm bg-blue-500/5 border border-blue-500/20">
-                  <Brain size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-body text-white">HRV correlation positive</p>
-                    <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Nights with &gt;2h deep sleep correlate with 12% higher morning HRV.</p>
+                )}
+                {hasStageData && (
+                  <div className="flex gap-3 p-3 rounded-kairos-sm bg-blue-500/5 border border-blue-500/20">
+                    <Brain size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-body text-white">Stage breakdown available</p>
+                      <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Adults typically need 1.5-2h deep sleep and 1.5-2h REM per night for optimal recovery.</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>

@@ -48,7 +48,8 @@ export function useMeasurements(dateRange: DateRange): UseMeasurementsReturn {
       date: r.date,
       weight: r.weightLbs ?? 0,
       bodyFat: r.bodyFatPct ?? 0,
-      bmi: r.weightLbs ? Math.round(((r.weightLbs / 2.205) / Math.pow(1.75, 2)) * 10) / 10 : 0,
+      // BMI requires user's height — omit if not available rather than using a hardcoded value
+      bmi: 0,
       leanMass: r.weightLbs && r.bodyFatPct ? Math.round(r.weightLbs * (1 - r.bodyFatPct / 100) * 10) / 10 : 0,
       waistCircumference: r.waistInches ?? 0,
       restingHR: (r as Record<string, unknown>).restingHr as number ?? 0,
