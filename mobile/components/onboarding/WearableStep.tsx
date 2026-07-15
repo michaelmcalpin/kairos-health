@@ -54,7 +54,7 @@ const WEARABLE_OPTIONS: WearableOption[] = [
   {
     id: "garmin",
     name: "Garmin",
-    subtitle: "Garmin Connect",
+    subtitle: "Coming Soon",
     icon: <Activity size={22} color="#4A90D9" />,
     iconBg: "rgba(74, 144, 217, 0.12)",
   },

@@ -98,7 +98,7 @@ const SUPPORTED_DEVICES: SupportedDevice[] = [
   { id: "oura", name: "Oura Ring", iconType: "ring", iconColor: "#A78BFA" },
   { id: "hume", name: "Hume AI", iconType: "brain", iconColor: "#E879A8" },
   { id: "google-fit", name: "Google Fit", iconType: "fitness", iconColor: "#4A9D5B", comingSoon: true },
-  { id: "garmin", name: "Garmin", iconType: "garmin", iconColor: "#4A90D9" },
+  { id: "garmin", name: "Garmin", iconType: "garmin", iconColor: "#4A90D9", comingSoon: true },
   { id: "fitbit", name: "Fitbit", iconType: "fitbit", iconColor: "#06B6D4" },
   { id: "whoop", name: "Whoop", iconType: "whoop", iconColor: "#F97316" },
   { id: "eight-sleep", name: "Eight Sleep", iconType: "sleep", iconColor: "#8B5CF6", comingSoon: true },

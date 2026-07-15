@@ -77,10 +77,10 @@ export const DEVICE_PROVIDERS: DeviceProviderInfo[] = [
     id: "garmin",
     name: "Garmin",
     description:
-      "Activity, heart rate, sleep, stress, and body battery from Garmin devices.",
+      "Activity, heart rate, sleep, stress, and body battery from Garmin devices. Coming soon.",
     icon: "watch",
     connectionType: "oauth",
-    supported: true,
+    supported: false, // Garmin uses OAuth 1.0a — not yet implemented
     dataTypes: [
       "steps",
       "heart_rate",
