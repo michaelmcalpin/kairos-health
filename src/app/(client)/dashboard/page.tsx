@@ -718,7 +718,7 @@ export default function ClientDashboard() {
             icon={<Syringe size={16} />}
             title="Peptides"
             color="text-violet-400"
-            onNavigate={() => router.push("/supplements")}
+            onNavigate={() => router.push("/peptides")}
           >
             {peptideItems.length === 0 ? (
               <p>No peptides prescribed.</p>

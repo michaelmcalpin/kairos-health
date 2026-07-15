@@ -62,6 +62,7 @@ import { Button } from "@/components/ui/Button";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SummitGlyph } from "@/components/brand";
+import { useConnectedDevices } from "@/hooks/useDevices";
 
 /* ------------------------------------------------------------------ */
 /* Fallback sample data                                                */
@@ -69,12 +70,7 @@ import { SummitGlyph } from "@/components/brand";
 
 const FALLBACK_USER = SAMPLE_DATA.userProfile;
 
-const FALLBACK_DEVICES = [
-  { name: "Apple Health", connected: true, route: "/devices/apple-health" as const },
-  { name: "Apple Watch", connected: true, route: null },
-  { name: "Oura Ring", connected: true, route: null },
-  { name: "Dexcom G7", connected: true, route: null },
-];
+/* FALLBACK_DEVICES removed — devices now come from useConnectedDevices hook */
 
 /* ------------------------------------------------------------------ */
 /* Screen                                                              */
@@ -127,7 +123,8 @@ export default function ProfileScreen() {
           authUser?.emailAddresses?.[0]?.emailAddress ?? FALLBACK_USER.email,
       };
 
-  const DEVICES = profileData?.devices ?? FALLBACK_DEVICES;
+  /* -- Connected devices from hook -- */
+  const { devices: connectedDevices } = useConnectedDevices();
 
   /* -- pull to refresh -- */
   const [refreshing, setRefreshing] = useState(false);
@@ -287,35 +284,43 @@ export default function ProfileScreen() {
           title="Connected Devices"
           icon={<Watch size={16} color={Colors.gold} />}
         >
-          {DEVICES.map((d: any, i: any) => (
+          {connectedDevices.length === 0 ? (
             <SettingsRow
-              key={d.name}
-              type="badge"
-              icon={
-                d.name === "Apple Health" ? (
-                  <Heart size={18} color={Colors.silver} />
-                ) : (
-                  <Watch size={18} color={Colors.silver} />
-                )
-              }
-              label={d.name}
-              badgeLabel={d.connected ? "Connected" : "Disconnected"}
-              badgeColor={d.connected ? Colors.success : Colors.silver}
-              onPress={
-                d.route
-                  ? () => router.push(d.route as any)
-                  : noop
-              }
-              last={i === DEVICES.length - 1}
+              icon={<Watch size={18} color={Colors.silver} />}
+              label="No devices connected"
+              subtitle="Connect a device to sync your health data"
+              onPress={() => router.push("/devices" as any)}
+              last
             />
-          ))}
+          ) : (
+            connectedDevices.map((d, i) => (
+              <SettingsRow
+                key={d.id}
+                type="badge"
+                icon={
+                  d.type === "wearable" ? (
+                    <Watch size={18} color={Colors.silver} />
+                  ) : d.type === "ring" ? (
+                    <Activity size={18} color={Colors.silver} />
+                  ) : (
+                    <Heart size={18} color={Colors.silver} />
+                  )
+                }
+                label={d.name}
+                badgeLabel={d.syncStatus === "synced" ? "Connected" : d.syncStatus === "error" ? "Error" : "Syncing"}
+                badgeColor={d.syncStatus === "synced" ? Colors.success : d.syncStatus === "error" ? Colors.danger : Colors.warning}
+                onPress={() => router.push("/devices" as any)}
+                last={i === connectedDevices.length - 1}
+              />
+            ))
+          )}
           <View style={styles.connectDeviceWrap}>
             <Button
               title="Connect Device"
               variant="secondary"
               size="sm"
               icon={<Plus size={16} color={Colors.gold} />}
-              onPress={() => router.push("/devices/connect" as any)}
+              onPress={() => router.push("/devices" as any)}
             />
           </View>
         </SettingsSection>

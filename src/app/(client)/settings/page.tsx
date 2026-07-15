@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Settings,
   User,
@@ -18,10 +19,12 @@ import {
   Mail,
   Activity,
   X,
+  Plug,
 } from "lucide-react";
 import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
 import { trpc } from "@/lib/trpc";
+import { IntegrationDashboard } from "@/components/integrations/IntegrationStatusCard";
 
 export default function SettingsPage() {
   // tRPC queries
@@ -106,12 +109,6 @@ export default function SettingsPage() {
     updateToggleMutation.mutate({ key: "cycleTracker", value: newValue });
   };
 
-  const [devices, setDevices] = useState([
-    { id: "oura", name: "Oura Ring", status: "connected" },
-    { id: "apple", name: "Apple Watch", status: "connected" },
-    { id: "dexcom", name: "Dexcom CGM", status: "not connected" },
-  ]);
-
   // Coach assignment query
   const coachQuery = trpc.clientPortal.settings.getMyCoach.useQuery();
 
@@ -122,8 +119,37 @@ export default function SettingsPage() {
   });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  const [activeSettingsTab, setActiveSettingsTab] = useState<"profile" | "coach" | "notifications" | "appearance" | "documents" | "account">("profile");
+  const [activeSettingsTab, setActiveSettingsTab] = useState<"profile" | "coach" | "notifications" | "appearance" | "documents" | "integrations" | "account">("profile");
   const [activeProfileTab, setActiveProfileTab] = useState<"personal" | "health" | "medical" | "exercise" | "diet">("personal");
+
+  // Read OAuth callback query parameters (?connected=provider or ?error=message)
+  const searchParams = useSearchParams();
+  const [oauthMessage, setOauthMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    const connectedProvider = searchParams.get("connected");
+    const oauthError = searchParams.get("error");
+
+    if (connectedProvider) {
+      setOauthMessage({ type: "success", text: `Successfully connected ${connectedProvider}. Your data will begin syncing shortly.` });
+      setActiveSettingsTab("integrations");
+      // Clean up URL params
+      window.history.replaceState({}, "", "/settings");
+    } else if (oauthError) {
+      setOauthMessage({ type: "error", text: `Connection failed: ${oauthError}` });
+      setActiveSettingsTab("integrations");
+      window.history.replaceState({}, "", "/settings");
+    }
+  }, [searchParams]);
+
+  // Auto-dismiss OAuth toast after 6 seconds
+  useEffect(() => {
+    if (oauthMessage) {
+      const timer = setTimeout(() => setOauthMessage(null), 6000);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [oauthMessage]);
 
   // Hydrate form with user data from database on load
   useEffect(() => {
@@ -225,19 +251,6 @@ export default function SettingsPage() {
   };
 
   // Privacy settings are read-only — the backend does not persist these fields yet.
-
-  const handleDeviceAction = (deviceId: string) => {
-    setDevices((prev) =>
-      prev.map((device) =>
-        device.id === deviceId
-          ? {
-              ...device,
-              status: device.status === "connected" ? "not connected" : "connected",
-            }
-          : device
-      )
-    );
-  };
 
   const handleSaveChanges = async () => {
     const errors: string[] = [];
@@ -355,6 +368,7 @@ export default function SettingsPage() {
     { id: "notifications" as const, label: "Notifications", icon: Bell },
     { id: "appearance" as const, label: "Appearance", icon: Palette },
     { id: "documents" as const, label: "Documents", icon: FileText },
+    { id: "integrations" as const, label: "Integrations", icon: Plug },
     { id: "account" as const, label: "Account", icon: Shield },
   ];
 
@@ -372,6 +386,7 @@ export default function SettingsPage() {
     notifications: "Notifications",
     appearance: "Appearance",
     documents: "Documents",
+    integrations: "Integrations",
     account: "Account",
   };
 
@@ -391,6 +406,20 @@ export default function SettingsPage() {
         {saveMessage && (
           <div className="mb-4 p-3 bg-green-900/50 border border-green-500/50 rounded-kairos-sm text-green-400 text-sm">
             {saveMessage}
+          </div>
+        )}
+
+        {/* OAuth Callback Toast */}
+        {oauthMessage && (
+          <div className={`mb-4 p-3 rounded-kairos-sm text-sm flex items-center justify-between ${
+            oauthMessage.type === "success"
+              ? "bg-green-900/50 border border-green-500/50 text-green-400"
+              : "bg-red-900/50 border border-red-500/50 text-red-400"
+          }`}>
+            <span>{oauthMessage.text}</span>
+            <button onClick={() => setOauthMessage(null)} className="ml-3 hover:opacity-70">
+              <X size={16} />
+            </button>
           </div>
         )}
 
@@ -1122,6 +1151,13 @@ export default function SettingsPage() {
                 <p className="text-xs mt-1">Upload documents from the Genetics, DEXA Scan, Gut Biome, or Medical Records sections</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ═══════════ INTEGRATIONS TAB ═══════════ */}
+        {activeSettingsTab === "integrations" && (
+          <div className="kairos-card rounded-kairos-sm p-8 bg-kairos-card border border-kairos-border">
+            <IntegrationDashboard />
           </div>
         )}
 

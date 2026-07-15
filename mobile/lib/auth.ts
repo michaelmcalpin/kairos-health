@@ -35,9 +35,9 @@ export function useAuth() {
     isSignedIn: true,
     userId: "dev-user-001",
     user: {
-      firstName: "Michael",
-      lastName: "McAlpin",
-      emailAddresses: [{ emailAddress: "michael.mcalpin@gmail.com" }],
+      firstName: "Demo",
+      lastName: "User",
+      emailAddresses: [{ emailAddress: "user@example.com" }],
       imageUrl: null,
       publicMetadata: { onboarded: true },
     },

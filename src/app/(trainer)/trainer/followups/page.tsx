@@ -35,20 +35,21 @@ export default function Page() {
   const stats = {
     total: followUps.length,
     pending: followUps.filter((a) => !a.acknowledgedAt).length,
-    older: followUps.filter((a) => !a.acknowledgedAt && a.createdAt < todayStr).length,
-    createdToday: followUps.filter((a) => !a.acknowledgedAt && a.createdAt.startsWith(todayStr)).length,
+    older: followUps.filter((a) => !a.acknowledgedAt && new Date(a.createdAt).toISOString().split("T")[0] < todayStr).length,
+    createdToday: followUps.filter((a) => !a.acknowledgedAt && new Date(a.createdAt).toISOString().split("T")[0] === todayStr).length,
     completedThisWeek: followUps.filter((a) => a.acknowledgedAt).length,
   };
 
   const getFilteredFollowUps = () => {
     return followUps.filter((item) => {
+      const dateStr = new Date(item.createdAt).toISOString().split("T")[0];
       switch (activeTab) {
         case "Created Today":
-          return !item.acknowledgedAt && item.createdAt.startsWith(todayStr);
+          return !item.acknowledgedAt && dateStr === todayStr;
         case "Older":
-          return !item.acknowledgedAt && item.createdAt < todayStr;
+          return !item.acknowledgedAt && dateStr < todayStr;
         case "Recent":
-          return !item.acknowledgedAt && item.createdAt >= weekAgoStr;
+          return !item.acknowledgedAt && dateStr >= weekAgoStr;
         case "Completed":
           return item.acknowledgedAt;
         case "All":
@@ -62,8 +63,9 @@ export default function Page() {
     acknowledgeAlert({ alertId: id });
   };
 
-  const isOlderAlert = (createdAt: string, completed: boolean) => {
-    return !completed && createdAt < todayStr;
+  const isOlderAlert = (createdAt: string | Date, completed: boolean) => {
+    const dateStr = new Date(createdAt).toISOString().split("T")[0];
+    return !completed && dateStr < todayStr;
   };
 
   const filteredItems = getFilteredFollowUps();
@@ -139,9 +141,10 @@ export default function Page() {
           </div>
         ) : (
           filteredItems.map((item) => {
-            const pColors = (PRIORITY_COLORS as Record<string, { text: string; bg: string }>)[item.priority] ?? PRIORITY_COLORS.medium;
+            const pColors = (PRIORITY_COLORS as Record<string, { text: string; bg: string }>)[item.priority] ?? PRIORITY_COLORS.info;
             const isCompleted = !!item.acknowledgedAt;
-            const isOlderItem = !isCompleted && item.createdAt < todayStr;
+            const itemDateStr = new Date(item.createdAt).toISOString().split("T")[0];
+            const isOlderItem = !isCompleted && itemDateStr < todayStr;
             return (
               <div
                 key={item.id}
@@ -215,7 +218,7 @@ export default function Page() {
                           className={`text-xs font-body font-semibold ${
                             isOlderItem
                               ? "text-red-400"
-                              : item.createdAt.startsWith(todayStr)
+                              : itemDateStr === todayStr
                                 ? "text-kairos-gold"
                                 : "text-kairos-silver-dark"
                           }`}

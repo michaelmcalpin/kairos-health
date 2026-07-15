@@ -16,6 +16,7 @@ import {
   SafeAreaView,
   Alert,
   RefreshControl,
+  Pressable,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import Svg, { Circle } from "react-native-svg";
@@ -93,7 +94,7 @@ const SAMPLE_MEALS: MealDisplay[] = [
   },
 ];
 
-const SAMPLE_WATER = { current: 6, target: 8 };
+/* Water state is managed via useState inside the component */
 
 /* Macro targets (used when calculating from raw API meals) */
 const MACRO_TARGETS = { calories: 2400, protein: 180, carbs: 240, fat: 80 };
@@ -230,6 +231,10 @@ export default function MealsScreen() {
   const macros: MacroSummary[] = mealsQuery.data
     ? buildMacros(meals)
     : SAMPLE_MACROS;
+
+  /* ---- Water intake (local session state) ---- */
+  const [waterCount, setWaterCount] = useState(0);
+  const waterTarget = 8;
 
   /* ---- Pull-to-refresh ---- */
   const [refreshing, setRefreshing] = useState(false);
@@ -396,25 +401,26 @@ export default function MealsScreen() {
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>Water Intake</Text>
             <Text style={styles.waterCount}>
-              {SAMPLE_WATER.current}/{SAMPLE_WATER.target} glasses
+              {waterCount}/{waterTarget} glasses
             </Text>
           </View>
 
           <View style={styles.waterRow}>
-            {Array.from({ length: SAMPLE_WATER.target }).map((_, idx) => (
-              <View
+            {Array.from({ length: waterTarget }).map((_, idx) => (
+              <Pressable
                 key={idx}
+                onPress={() => setWaterCount(idx < waterCount ? idx : idx + 1)}
                 style={[
                   styles.waterGlass,
-                  idx < SAMPLE_WATER.current
+                  idx < waterCount
                     ? styles.waterFilled
                     : styles.waterEmpty,
                 ]}
               >
                 <Text style={styles.waterIcon}>
-                  {idx < SAMPLE_WATER.current ? "⬤" : "○"}
+                  {idx < waterCount ? "⬤" : "○"}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         </Card>

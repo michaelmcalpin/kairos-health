@@ -112,12 +112,11 @@ function generateCalendarDays(currentDay: number): CalendarDay[] {
   return days;
 }
 
-const SAMPLE_NOTES = [
-  { date: "Jun 12", text: "Noticed improved tendon flexibility in right shoulder after 2 weeks of BPC-157." },
-  { date: "Jun 10", text: "Mild redness at TA-1 injection site, resolved within 30 min." },
-  { date: "Jun 8", text: "Skin texture around application area visibly smoother with GHK-Cu." },
+interface PeptideNote {
+  date: string;
+  text: string;
+}
 
-];
 
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
@@ -125,6 +124,7 @@ const SAMPLE_NOTES = [
 
 export default function PeptidesScreen() {
   const [notes, setNotes] = useState("");
+  const [savedNotes, setSavedNotes] = useState<PeptideNote[]>([]);
 
   /* ---- tRPC queries & mutations ---- */
   const cyclesQuery = trpc.clientPortal.peptides.getCycles.useQuery(
@@ -439,18 +439,24 @@ export default function PeptidesScreen() {
           <Text style={styles.sectionTitle}>Notes & Effects</Text>
 
           {/* Existing notes */}
-          {SAMPLE_NOTES.map((note, idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.noteRow,
-                idx < SAMPLE_NOTES.length - 1 && styles.noteBorder,
-              ]}
-            >
-              <Text style={styles.noteDate}>{note.date}</Text>
-              <Text style={styles.noteText}>{note.text}</Text>
-            </View>
-          ))}
+          {savedNotes.length === 0 ? (
+            <Text style={{ color: Colors.silver, fontSize: FontSizes.sm, fontStyle: "italic", paddingVertical: Spacing.sm }}>
+              No notes yet. Add your first note about this protocol.
+            </Text>
+          ) : (
+            savedNotes.map((note, idx) => (
+              <View
+                key={idx}
+                style={[
+                  styles.noteRow,
+                  idx < savedNotes.length - 1 && styles.noteBorder,
+                ]}
+              >
+                <Text style={styles.noteDate}>{note.date}</Text>
+                <Text style={styles.noteText}>{note.text}</Text>
+              </View>
+            ))
+          )}
 
           {/* Add note */}
           <View style={styles.addNote}>
@@ -468,7 +474,9 @@ export default function PeptidesScreen() {
               size="sm"
               disabled={notes.length === 0}
               onPress={() => {
-                Alert.alert("Note Saved", "Your note has been saved successfully.");
+                const now = new Date();
+                const dateStr = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                setSavedNotes((prev) => [{ date: dateStr, text: notes }, ...prev]);
                 setNotes("");
               }}
             />

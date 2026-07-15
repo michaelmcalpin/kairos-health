@@ -8,30 +8,8 @@ import { useSleep } from "@/hooks/client/useSleep";
 import { Moon, Clock, Zap, Brain, TrendingUp, Sun, Plus, X, AlertTriangle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
-// ─── Sleep stages (typical pattern, shown when no device data available) ────
+// ─── Sleep stages ────
 interface SleepStageBlock { stage: string; duration: number; }
-
-/**
- * Returns a typical sleep-stage timeline.  Once real device data
- * (e.g. Oura, Whoop) is available the visualisation should use that
- * instead of this static pattern.
- */
-const TYPICAL_STAGES: SleepStageBlock[] = [
-  { stage: "light", duration: 25 }, { stage: "deep", duration: 35 },
-  { stage: "light", duration: 15 }, { stage: "rem", duration: 20 },
-  { stage: "light", duration: 10 }, { stage: "awake", duration: 5 },
-  { stage: "light", duration: 20 }, { stage: "deep", duration: 40 },
-  { stage: "light", duration: 15 }, { stage: "rem", duration: 25 },
-  { stage: "light", duration: 20 }, { stage: "deep", duration: 30 },
-  { stage: "rem", duration: 20 }, { stage: "light", duration: 30 },
-  { stage: "awake", duration: 5 }, { stage: "light", duration: 20 },
-  { stage: "rem", duration: 25 }, { stage: "light", duration: 25 },
-  { stage: "awake", duration: 5 }, { stage: "light", duration: 20 },
-];
-
-function getSleepStages(): SleepStageBlock[] {
-  return TYPICAL_STAGES;
-}
 
 const stageColors: Record<string, string> = {
   deep: "#6366f1",
@@ -46,7 +24,18 @@ export default function SleepPage() {
 
   const { records: sleepRecords, weeklySummaries, lastRecord, stats: sleepStats, isError, refetch } = useSleep(dateRange);
 
-  const displayRecord = lastRecord || { score: 0, total: 0, deep: 0, rem: 0, light: 0, awake: 0, bedtime: "--", wake: "--" };
+  const displayRecord = lastRecord || { score: 0, total: 0, deep: 0, rem: 0, light: 0, awake: 0, bedtime: "—", wake: "—" };
+
+  // Build stage blocks from actual record data (proportional bar, not a timeline)
+  const hasStageData = displayRecord.deep > 0 || displayRecord.rem > 0 || displayRecord.light > 0 || displayRecord.awake > 0;
+  const stageBlocks: SleepStageBlock[] = hasStageData
+    ? [
+        { stage: "deep", duration: displayRecord.deep * 60 },
+        { stage: "rem", duration: displayRecord.rem * 60 },
+        { stage: "light", duration: displayRecord.light * 60 },
+        { stage: "awake", duration: displayRecord.awake * 60 },
+      ].filter((b) => b.duration > 0)
+    : [];
 
   const utils = trpc.useUtils();
 
@@ -377,14 +366,13 @@ export default function SleepPage() {
         <>
           <div className="kairos-card">
             <h3 className="font-heading font-semibold text-white mb-4">Sleep Stages — {formattedRange}</h3>
-            <div className="space-y-1">
-              {(() => {
-                const stages = getSleepStages();
-                const totalMin = stages.reduce((s, b) => s + b.duration, 0);
-                return (
-                  <div>
-                    <div className="flex h-10 rounded-kairos-sm overflow-hidden">
-                      {stages.map((block, i) => (
+            {hasStageData ? (
+              <div className="space-y-1">
+                <div>
+                  <div className="flex h-10 rounded-kairos-sm overflow-hidden">
+                    {(() => {
+                      const totalMin = stageBlocks.reduce((s, b) => s + b.duration, 0);
+                      return stageBlocks.map((block, i) => (
                         <div
                           key={i}
                           style={{
@@ -392,21 +380,26 @@ export default function SleepPage() {
                             backgroundColor: stageColors[block.stage],
                             opacity: block.stage === "light" ? 0.5 : 1,
                           }}
-                          title={`${block.stage}: ${block.duration}min`}
+                          title={`${block.stage}: ${Math.round(block.duration)}min`}
                         />
-                      ))}
-                    </div>
-                    <div className="flex justify-between mt-2 text-[10px] font-body text-kairos-silver-dark">
-                      <span>{displayRecord.bedtime}</span>
-                      <span>12:00 AM</span>
-                      <span>2:00 AM</span>
-                      <span>4:00 AM</span>
-                      <span>{displayRecord.wake}</span>
-                    </div>
+                      ));
+                    })()}
                   </div>
-                );
-              })()}
-            </div>
+                  <div className="flex justify-between mt-2 text-[10px] font-body text-kairos-silver-dark">
+                    <span>{displayRecord.bedtime}</span>
+                    <span>{displayRecord.wake}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 p-4 rounded-kairos-sm bg-kairos-royal-surface border border-kairos-border">
+                <Moon size={16} className="text-kairos-silver-dark flex-shrink-0" />
+                <p className="text-sm font-body text-kairos-silver-dark">
+                  Stage breakdown available with compatible sleep trackers (Oura, Whoop, Apple Watch).
+                  Add a manual entry with deep and REM hours to see your breakdown.
+                </p>
+              </div>
+            )}
             <div className="flex items-center gap-4 mt-4 text-xs font-body text-kairos-silver-dark">
               <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: stageColors.deep }} /> Deep</span>
               <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: stageColors.rem }} /> REM</span>

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, coachProcedure } from "@/server/trpc";
 import { marketplaceItems } from "@/server/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, or, isNull, desc, sql } from "drizzle-orm";
 
 export const coachMarketplaceRouter = router({
   /**
@@ -20,6 +20,19 @@ export const coachMarketplaceRouter = router({
 
       if (input?.type) {
         filters.push(eq(marketplaceItems.type, input.type));
+      }
+
+      // Scope to items belonging to the coach's company, or global items (no company)
+      if (ctx.companyId) {
+        filters.push(
+          or(
+            eq(marketplaceItems.companyId, ctx.companyId),
+            isNull(marketplaceItems.companyId),
+          )!,
+        );
+      } else {
+        // Coach has no company — only show global (unscoped) items
+        filters.push(isNull(marketplaceItems.companyId));
       }
 
       const items = await ctx.db.query.marketplaceItems.findMany({
@@ -47,8 +60,13 @@ export const coachMarketplaceRouter = router({
    * Get marketplace stats for the coach
    */
   getStats: coachProcedure.query(async ({ ctx }) => {
+    // Scope stats to the coach's company items + global items
+    const companyFilter = ctx.companyId
+      ? or(eq(marketplaceItems.companyId, ctx.companyId), isNull(marketplaceItems.companyId))
+      : isNull(marketplaceItems.companyId);
+
     const allItems = await ctx.db.query.marketplaceItems.findMany({
-      where: eq(marketplaceItems.status, "active"),
+      where: and(eq(marketplaceItems.status, "active"), companyFilter),
     });
 
     const totalProducts = allItems.length;

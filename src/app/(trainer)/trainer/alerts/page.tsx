@@ -88,7 +88,7 @@ export default function CoachAlertsPage() {
         ) : (
           (["urgent", "action", "info"] as const).map((p) => {
             const count = p === "urgent" ? stats.urgent : p === "action" ? stats.action : stats.info;
-            const cfg = PRIORITY_CONFIG[p === "urgent" ? "critical" : p === "action" ? "high" : "medium"];
+            const cfg = PRIORITY_CONFIG[p];
             return (
               <div key={p} className="kairos-card text-center">
                 <span className={`text-2xl font-heading font-bold ${cfg.color}`}>{count}</span>
@@ -143,7 +143,7 @@ export default function CoachAlertsPage() {
         ) : (
           filtered.map((alert) => {
             const priorityKey = alert.priority as keyof typeof PRIORITY_CONFIG;
-            const config = PRIORITY_CONFIG[priorityKey] ?? PRIORITY_CONFIG.medium;
+            const config = PRIORITY_CONFIG[priorityKey] ?? PRIORITY_CONFIG.info;
             const isExpanded = expanded === alert.id;
             return (
               <div key={alert.id} className="kairos-card">

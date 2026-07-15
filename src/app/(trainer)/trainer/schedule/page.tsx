@@ -235,6 +235,8 @@ export default function CoachSchedulePage() {
                 {
                   onSuccess: () => {
                     setSelectedAppointment(null);
+                    void utils.coach.schedule.getCalendarWeek.invalidate();
+                    void utils.coach.schedule.getStats.invalidate();
                   },
                 }
               );

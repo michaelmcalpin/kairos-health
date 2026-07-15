@@ -5,6 +5,7 @@ import { deviceConnections } from "@/server/db/schema";
 import { PROVIDERS, getProviderEnvKeys } from "@/lib/integrations/devices/providers";
 import { eq, and } from "drizzle-orm";
 import { logger } from "@/lib/middleware/logger";
+import { env } from "@/lib/config/env";
 
 const MAX_STATE_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -126,7 +127,7 @@ export async function GET(
       body: new URLSearchParams({
         grant_type: "authorization_code",
         code,
-        redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/callbacks/${providerId}`,
+        redirect_uri: `${env.APP_URL}/api/callbacks/${providerId}`,
         client_id: clientId,
         client_secret: clientSecret,
       }),

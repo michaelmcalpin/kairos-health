@@ -60,11 +60,25 @@ export function useSleep(dateRange: DateRange): UseSleepReturn {
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     return rawRecords.map((r) => {
       const dateObj = new Date(r.date + "T12:00:00");
-      // Estimate bedtime/wake from total sleep duration
-      const totalHrs = (r.totalMinutes ?? 0) / 60;
-      const bedtime = "10:30 PM";
-      const wakeHr = 6 + Math.round((totalHrs - 8) * 10) / 10;
-      const wake = `${Math.max(5, Math.min(9, Math.floor(wakeHr)))}:${String(Math.round((wakeHr % 1) * 60)).padStart(2, "0")} AM`;
+
+      // Format bedtime from 24h "HH:MM" to 12h display, or show placeholder
+      let bedtime = "—";
+      if (r.bedtime) {
+        const [bH, bM] = r.bedtime.split(":").map(Number);
+        const bSuffix = bH >= 12 ? "PM" : "AM";
+        const bDisplay = bH === 0 ? 12 : bH > 12 ? bH - 12 : bH;
+        bedtime = `${bDisplay}:${String(bM).padStart(2, "0")} ${bSuffix}`;
+      }
+
+      // Format wakeTime from 24h "HH:MM" to 12h display, or show placeholder
+      let wake = "—";
+      if (r.wakeTime) {
+        const [wH, wM] = r.wakeTime.split(":").map(Number);
+        const wSuffix = wH >= 12 ? "PM" : "AM";
+        const wDisplay = wH === 0 ? 12 : wH > 12 ? wH - 12 : wH;
+        wake = `${wDisplay}:${String(wM).padStart(2, "0")} ${wSuffix}`;
+      }
+
       return {
         id: r.id,
         date: r.date,

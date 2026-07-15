@@ -20,86 +20,88 @@ import { useRouter } from "expo-router";
 import {
   Shield,
   Plus,
+  Smartphone,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
-import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { trpc } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { DeviceCard, ConnectedDevice } from "@/components/devices/DeviceCard";
 import { AddDeviceCard, SupportedDevice } from "@/components/devices/AddDeviceCard";
+import { useConnectedDevices, ConnectedDevice as HookConnectedDevice } from "@/hooks/useDevices";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-const CONNECTED_DEVICES: ConnectedDevice[] = [
-  {
-    id: "apple-watch",
-    name: "Apple Watch Ultra",
-    model: "Series 2, 49mm",
-    status: "connected",
-    syncMode: "Continuous syncing",
-    lastSync: "5 min ago",
-    dataTypes: ["Heart Rate", "Steps", "HRV", "Sleep", "SpO2", "ECG"],
-    iconType: "watch",
-    iconColor: "#4A90D9",
-  },
-  {
-    id: "oura-ring",
-    name: "Oura Ring",
-    model: "Gen 3, Size 10",
-    status: "connected",
-    syncMode: "Continuous syncing",
-    lastSync: "2h ago",
-    dataTypes: ["Sleep", "HRV", "Temperature", "Activity", "Readiness"],
-    iconType: "ring",
-    iconColor: "#A78BFA",
-  },
-  {
-    id: "dexcom-g7",
-    name: "Dexcom G7",
-    model: "Continuous Glucose Monitor",
-    status: "connected",
-    syncMode: "Real-time",
-    lastSync: "3 min ago",
-    dataTypes: ["Blood Glucose", "Glucose Trends", "Time in Range"],
-    iconType: "cgm",
-    iconColor: "#4A9D5B",
-  },
-  {
-    id: "withings-scale",
-    name: "Withings Body+",
-    model: "Smart Scale",
-    status: "connected",
-    syncMode: "Daily sync",
-    lastSync: "6h ago",
-    dataTypes: ["Weight", "Body Fat %", "Muscle Mass", "BMI"],
-    iconType: "scale",
-    iconColor: "#D4A843",
-  },
-  {
-    id: "withings-bpm",
-    name: "Withings BPM Connect",
-    model: "Blood Pressure Monitor",
-    status: "connected",
-    syncMode: "On-demand",
-    lastSync: "1h ago",
-    dataTypes: ["Systolic", "Diastolic", "Pulse"],
-    iconType: "bp",
-    iconColor: "#C65D5D",
-  },
-];
+/** Map the hook's ConnectedDevice to the DeviceCard's ConnectedDevice shape. */
+const DEVICE_TYPE_TO_ICON: Record<string, ConnectedDevice["iconType"]> = {
+  wearable: "watch",
+  ring: "ring",
+  cgm: "cgm",
+  scale: "scale",
+  bp_monitor: "bp",
+  other: "phone",
+};
+
+const DEVICE_TYPE_TO_COLOR: Record<string, string> = {
+  wearable: "#4A90D9",
+  ring: "#A78BFA",
+  cgm: "#4A9D5B",
+  scale: "#D4A843",
+  bp_monitor: "#C65D5D",
+  other: "#06B6D4",
+};
+
+const SYNC_STATUS_TO_STATUS: Record<string, ConnectedDevice["status"]> = {
+  synced: "connected",
+  syncing: "syncing",
+  error: "disconnected",
+  pending: "connected",
+};
+
+function mapHookDeviceToCard(device: HookConnectedDevice): ConnectedDevice {
+  return {
+    id: device.id,
+    name: device.name,
+    model: device.model,
+    status: SYNC_STATUS_TO_STATUS[device.syncStatus] ?? "connected",
+    syncMode: device.syncStatus === "synced" ? "Continuous syncing" : device.syncStatus === "syncing" ? "Syncing..." : "On-demand",
+    lastSync: device.lastSyncedAt ? formatRelativeTime(device.lastSyncedAt) : "Never",
+    dataTypes: device.dataTypes.map(formatDataType),
+    iconType: DEVICE_TYPE_TO_ICON[device.type] ?? "phone",
+    iconColor: DEVICE_TYPE_TO_COLOR[device.type] ?? "#4A90D9",
+  };
+}
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function formatDataType(dt: string): string {
+  return dt
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 const SUPPORTED_DEVICES: SupportedDevice[] = [
   { id: "apple-health", name: "Apple Health", iconType: "health", iconColor: "#C65D5D" },
   { id: "oura", name: "Oura Ring", iconType: "ring", iconColor: "#A78BFA" },
   { id: "hume", name: "Hume AI", iconType: "brain", iconColor: "#E879A8" },
-  { id: "google-fit", name: "Google Fit", iconType: "fitness", iconColor: "#4A9D5B" },
+  { id: "google-fit", name: "Google Fit", iconType: "fitness", iconColor: "#4A9D5B", comingSoon: true },
   { id: "garmin", name: "Garmin", iconType: "garmin", iconColor: "#4A90D9" },
   { id: "fitbit", name: "Fitbit", iconType: "fitbit", iconColor: "#06B6D4" },
   { id: "whoop", name: "Whoop", iconType: "whoop", iconColor: "#F97316" },
-  { id: "eight-sleep", name: "Eight Sleep", iconType: "sleep", iconColor: "#8B5CF6" },
+  { id: "eight-sleep", name: "Eight Sleep", iconType: "sleep", iconColor: "#8B5CF6", comingSoon: true },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -109,18 +111,20 @@ const SUPPORTED_DEVICES: SupportedDevice[] = [
 export default function DevicesScreen() {
   const router = useRouter();
 
-  /* -- tRPC queries & mutations -- */
-  const devicesQuery = trpc.clientPortal.devices.list.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
-  const devices = (devicesQuery.data as ConnectedDevice[] | undefined) ?? CONNECTED_DEVICES;
+  /* -- Connected devices from hook (empty array when API unreachable) -- */
+  const { devices: hookDevices, isLoading, refetch: refetchDevices } = useConnectedDevices();
+  const devices: ConnectedDevice[] = hookDevices.map(mapHookDeviceToCard);
+
+  /* -- tRPC mutations -- */
   const syncMutation = trpc.clientPortal.devices.syncNow.useMutation();
   const disconnectMutation = trpc.clientPortal.devices.disconnect.useMutation();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await devicesQuery.refetch();
+    await refetchDevices();
     setRefreshing(false);
-  }, [devicesQuery]);
+  }, [refetchDevices]);
 
   const handleSync = (device: ConnectedDevice) => {
     syncMutation.mutate(
@@ -128,7 +132,7 @@ export default function DevicesScreen() {
       {
         onSuccess: () => {
           Alert.alert("Sync Started", `Syncing data from ${device.name}...`, [{ text: "OK" }]);
-          devicesQuery.refetch();
+          refetchDevices();
         },
         onError: () => {
           Alert.alert("Sync Failed", `Could not sync ${device.name}. Please try again.`, [{ text: "OK" }]);
@@ -152,7 +156,7 @@ export default function DevicesScreen() {
               {
                 onSuccess: () => {
                   Alert.alert("Disconnected", `${device.name} has been disconnected.`, [{ text: "OK" }]);
-                  devicesQuery.refetch();
+                  refetchDevices();
                 },
                 onError: () => {
                   Alert.alert("Error", `Could not disconnect ${device.name}. Please try again.`, [{ text: "OK" }]);
@@ -196,19 +200,38 @@ export default function DevicesScreen() {
         {/* ═══════════════════════════════════════════════════════════ */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Your Devices</Text>
-          <Text style={styles.sectionCount}>
-            {devices.length} connected
-          </Text>
+          {devices.length > 0 && (
+            <Text style={styles.sectionCount}>
+              {devices.length} connected
+            </Text>
+          )}
         </View>
 
-        {devices.map((device) => (
-          <DeviceCard
-            key={device.id}
-            device={device}
-            onSync={() => handleSync(device)}
-            onDisconnect={() => handleDisconnect(device)}
-          />
-        ))}
+        {devices.length === 0 ? (
+          <Card style={styles.emptyState}>
+            <Smartphone size={32} color={Colors.silver} />
+            <Text style={styles.emptyTitle}>No devices connected yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Connect a health device below to start syncing your data.
+            </Text>
+            <Button
+              title="Connect a Device"
+              variant="secondary"
+              size="sm"
+              icon={<Plus size={16} color={Colors.gold} />}
+              onPress={() => router.push("/devices/add")}
+            />
+          </Card>
+        ) : (
+          devices.map((device) => (
+            <DeviceCard
+              key={device.id}
+              device={device}
+              onSync={() => handleSync(device)}
+              onDisconnect={() => handleDisconnect(device)}
+            />
+          ))
+        )}
 
         {/* ═══════════════════════════════════════════════════════════ */}
         {/* Add Device                                                 */}
@@ -288,6 +311,24 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     marginBottom: Spacing.md,
     lineHeight: 20,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  emptyTitle: {
+    color: Colors.white,
+    fontSize: FontSizes.md,
+    fontWeight: "600",
+  },
+  emptySubtitle: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: Spacing.xs,
   },
   grid: {
     flexDirection: "row",

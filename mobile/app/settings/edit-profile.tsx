@@ -172,7 +172,9 @@ export default function EditProfileScreen() {
                     style={styles.avatarImage}
                   />
                 ) : (
-                  <Text style={styles.avatarText}>MM</Text>
+                  <Text style={styles.avatarText}>
+                    {((firstName?.[0] ?? "") + (lastName?.[0] ?? "")).toUpperCase() || "?"}
+                  </Text>
                 )}
               </View>
               <View style={styles.cameraOverlay}>

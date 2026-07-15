@@ -25,12 +25,15 @@ export const clientSleepRouter = router({
       return results.map((s) => ({
         id: s.id,
         date: s.date,
+        bedtime: s.bedtime,
+        wakeTime: s.wakeTime,
         totalMinutes: s.totalMinutes,
         deepMinutes: s.deepMinutes,
         remMinutes: s.remMinutes,
         lightMinutes: s.lightMinutes,
         awakeMinutes: s.awakeMinutes,
         score: s.score,
+        notes: s.notes,
         source: s.source,
       }));
     }),
@@ -123,12 +126,15 @@ export const clientSleepRouter = router({
         .values({
           clientId: ctx.dbUserId,
           date: sessionDate,
+          bedtime: input.bedtime ?? null,
+          wakeTime: input.wakeTime ?? null,
           totalMinutes: totalMinutes ?? null,
           deepMinutes: input.deepMinutes ?? null,
           remMinutes: input.remMinutes ?? null,
           lightMinutes: input.lightMinutes ?? null,
           awakeMinutes: input.awakeMinutes ?? null,
           score: input.score ?? null,
+          notes: input.notes ?? null,
           source: input.source,
         })
         .returning();

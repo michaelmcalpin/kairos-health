@@ -541,9 +541,9 @@ export const SAMPLE_COACH_MESSAGES: SampleChatMessage[] = [
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export const SAMPLE_USER_PROFILE = {
-  initials: "MM",
-  name: "Michael McAlpin",
-  email: "michael.mcalpin@gmail.com",
+  initials: "DU",
+  name: "Demo User",
+  email: "user@example.com",
   memberSince: "January 2024",
   age: 38,
   height: "5'10\"",

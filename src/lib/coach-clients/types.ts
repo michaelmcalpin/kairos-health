@@ -65,7 +65,7 @@ export interface ClientProtocol {
 
 // ─── Client Alert ──────────────────────────────────────────────
 
-export type AlertPriority = "high" | "medium" | "low";
+export type AlertPriority = "urgent" | "action" | "info";
 export type AlertCategory = "glucose" | "sleep" | "adherence" | "activity" | "labs" | "protocol";
 
 export interface ClientAlert {
@@ -176,9 +176,9 @@ export const STATUS_DOT_COLORS: Record<ClientStatus, string> = {
 };
 
 export const ALERT_PRIORITY_COLORS: Record<AlertPriority, string> = {
-  high: "border-orange-400 bg-orange-400/10",
-  medium: "border-yellow-400 bg-yellow-400/10",
-  low: "border-blue-400 bg-blue-400/10",
+  urgent: "border-red-400 bg-red-400/10",
+  action: "border-orange-400 bg-orange-400/10",
+  info: "border-blue-400 bg-blue-400/10",
 };
 
 // ─── Helpers ───────────────────────────────────────────────────

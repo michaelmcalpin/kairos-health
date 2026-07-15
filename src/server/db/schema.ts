@@ -159,6 +159,7 @@ export const glucoseReadings = pgTable("glucose_readings", {
   valueMgdl: real("value_mgdl").notNull(),
   source: varchar("source", { length: 50 }).default("dexcom"),
   trendDirection: varchar("trend_direction", { length: 20 }),
+  notes: text("notes"),
 }, (t) => [
   index("glucose_client_ts_idx").on(t.clientId, t.timestamp),
 ]);
@@ -184,12 +185,15 @@ export const sleepSessions = pgTable("sleep_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id").notNull().references(() => users.id),
   date: date("date").notNull(),
+  bedtime: varchar("bedtime", { length: 10 }),
+  wakeTime: varchar("wake_time", { length: 10 }),
   totalMinutes: integer("total_minutes"),
   deepMinutes: integer("deep_minutes"),
   remMinutes: integer("rem_minutes"),
   lightMinutes: integer("light_minutes"),
   awakeMinutes: integer("awake_minutes"),
   score: integer("score"),
+  notes: text("notes"),
   source: varchar("source", { length: 50 }),
 }, (t) => [index("sleep_client_date_idx").on(t.clientId, t.date)]);
 

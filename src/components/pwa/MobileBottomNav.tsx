@@ -42,11 +42,11 @@ const MoreIcon = () => (
 );
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Home", icon: <HomeIcon /> },
+  { href: "/dashboard", label: "Home", icon: <HomeIcon /> },
   { href: "/glucose", label: "Glucose", icon: <GlucoseIcon /> },
   { href: "/sleep", label: "Sleep", icon: <SleepIcon /> },
   { href: "/insights", label: "Sherpa", icon: <InsightsIcon /> },
-  { href: "/more", label: "More", icon: <MoreIcon /> },
+  { href: "/settings", label: "More", icon: <MoreIcon /> },
 ];
 
 export function MobileBottomNav() {
@@ -56,9 +56,7 @@ export function MobileBottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-kairos-border bg-kairos-card/95 backdrop-blur-lg safe-area-bottom md:hidden">
       <div className="flex items-center justify-around px-2 py-1">
         {NAV_ITEMS.map((item) => {
-          const isActive = item.href === "/"
-            ? pathname === "/"
-            : pathname.startsWith(item.href);
+          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
 
           return (
             <Link

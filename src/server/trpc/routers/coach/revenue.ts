@@ -2,7 +2,9 @@ import { router, trainerProcedure } from "@/server/trpc";
 import { trainerClientRelationships, users, clientProfiles } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 
-// Tier pricing for revenue calculations
+// Tier pricing for revenue *estimates* — no real billing system yet.
+// These are the list prices per tier; actual revenue tracking will
+// come once a payment provider (e.g. Stripe) is integrated.
 const tierPricing: Record<string, { coaching: number; label: string }> = {
   tier1: { coaching: 499, label: "Private" },
   tier2: { coaching: 249, label: "Associate" },

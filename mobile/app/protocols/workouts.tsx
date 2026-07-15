@@ -204,7 +204,7 @@ export default function WorkoutsScreen() {
             variant="primary"
             size="lg"
             style={styles.startButton}
-            onPress={() => router.push({ pathname: "/protocols/workout-session", params: { workoutName: todayWorkout.name } })}
+            onPress={() => router.push({ pathname: "/protocols/workout-session", params: { workoutName: todayWorkout.name, exercises: JSON.stringify(todayWorkout.exercises) } })}
           />
         </Card>
 

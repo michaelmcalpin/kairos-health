@@ -121,7 +121,7 @@ export const clientGlucoseRouter = router({
           source: input.source,
           // Store timingContext in trendDirection field (varchar(20), unused for manual entries until schema migration)
           trendDirection: input.timingContext ?? null,
-          // notes are silently dropped (no column in schema yet)
+          notes: input.notes ?? null,
         })
         .returning();
 

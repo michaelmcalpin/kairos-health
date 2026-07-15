@@ -23,6 +23,7 @@ export interface SupportedDevice {
   name: string;
   iconType: "health" | "fitness" | "garmin" | "fitbit" | "whoop" | "sleep" | "ring" | "brain";
   iconColor: string;
+  comingSoon?: boolean;
 }
 
 interface AddDeviceCardProps {
@@ -46,18 +47,29 @@ export function AddDeviceCard({ device, onConnect }: AddDeviceCardProps) {
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-      onPress={onConnect}
+      style={({ pressed }) => [
+        styles.card,
+        pressed && !device.comingSoon && styles.pressed,
+        device.comingSoon && styles.cardDisabled,
+      ]}
+      onPress={device.comingSoon ? undefined : onConnect}
+      disabled={device.comingSoon}
     >
       <View style={[styles.iconCircle, { backgroundColor: device.iconColor + "20" }]}>
-        <IconComponent size={24} color={device.iconColor} />
+        <IconComponent size={24} color={device.comingSoon ? Colors.silver : device.iconColor} />
       </View>
-      <Text style={styles.name} numberOfLines={1}>
+      <Text style={[styles.name, device.comingSoon && styles.nameDisabled]} numberOfLines={1}>
         {device.name}
       </Text>
-      <View style={styles.connectBtn}>
-        <Text style={styles.connectText}>Connect</Text>
-      </View>
+      {device.comingSoon ? (
+        <View style={styles.comingSoonBadge}>
+          <Text style={styles.comingSoonText}>Coming Soon</Text>
+        </View>
+      ) : (
+        <View style={styles.connectBtn}>
+          <Text style={styles.connectText}>Connect</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -76,6 +88,25 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.7,
     transform: [{ scale: 0.98 }],
+  },
+  cardDisabled: {
+    opacity: 0.6,
+  },
+  nameDisabled: {
+    color: Colors.silver,
+  },
+  comingSoonBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: Radii.full,
+  },
+  comingSoonText: {
+    color: Colors.silver,
+    fontSize: FontSizes.xs,
+    fontWeight: "600",
   },
   iconCircle: {
     width: 52,

@@ -596,7 +596,7 @@ export const coachClientsRouter = router({
       const mappedAlerts = clientAlerts.map((a) => ({
         id: a.id,
         clientId: a.clientId,
-        priority: (a.priority === "urgent" ? "high" : a.priority === "action" ? "medium" : "low") as "high" | "medium" | "low",
+        priority: (a.priority ?? "info") as "urgent" | "action" | "info",
         category: (a.type ?? "protocol") as string,
         message: a.message ?? a.title,
         timestamp: a.createdAt.toISOString(),

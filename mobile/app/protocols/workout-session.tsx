@@ -54,91 +54,56 @@ interface Exercise {
 }
 
 /* ------------------------------------------------------------------ */
-/* Sample Push Day workout                                             */
-/* ------------------------------------------------------------------ */
-
-const SAMPLE_PUSH_DAY_EXERCISES: Exercise[] = [
-  {
-    id: "bench",
-    name: "Bench Press",
-    muscleGroup: "Chest",
-    targetSets: 4,
-    targetRepsMin: 8,
-    targetRepsMax: 12,
-    targetWeight: 185,
-    restSeconds: 90,
-    previousPerformance: "10 reps @ 180 lbs",
-    loggedSets: [],
-  },
-  {
-    id: "incline-db",
-    name: "Incline DB Press",
-    muscleGroup: "Upper Chest",
-    targetSets: 3,
-    targetRepsMin: 10,
-    targetRepsMax: 12,
-    targetWeight: 55,
-    restSeconds: 75,
-    previousPerformance: "11 reps @ 50 lbs",
-    loggedSets: [],
-  },
-  {
-    id: "cable-flyes",
-    name: "Cable Flyes",
-    muscleGroup: "Chest",
-    targetSets: 3,
-    targetRepsMin: 12,
-    targetRepsMax: 15,
-    targetWeight: 30,
-    restSeconds: 60,
-    previousPerformance: "14 reps @ 25 lbs",
-    loggedSets: [],
-  },
-  {
-    id: "tricep-push",
-    name: "Tricep Pushdowns",
-    muscleGroup: "Triceps",
-    targetSets: 3,
-    targetRepsMin: 10,
-    targetRepsMax: 15,
-    targetWeight: 50,
-    restSeconds: 60,
-    previousPerformance: "12 reps @ 45 lbs",
-    loggedSets: [],
-  },
-  {
-    id: "overhead-tri",
-    name: "Overhead Tricep Extension",
-    muscleGroup: "Triceps",
-    targetSets: 3,
-    targetRepsMin: 10,
-    targetRepsMax: 15,
-    targetWeight: 35,
-    restSeconds: 60,
-    previousPerformance: "13 reps @ 30 lbs",
-    loggedSets: [],
-  },
-];
-
-/* ------------------------------------------------------------------ */
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
 export default function WorkoutSessionScreen() {
   const router = useRouter();
-  const { workoutName: routeWorkoutName } = useLocalSearchParams<{
+  const { workoutName: routeWorkoutName, exercises: routeExercises } = useLocalSearchParams<{
     workoutName?: string;
+    exercises?: string;
   }>();
 
   // Use workout name from route params if provided, otherwise fall back to default
-  const workoutName = routeWorkoutName || "Push Day";
+  const workoutName = routeWorkoutName || "Workout";
+
+  /* ---- Parse exercises from route params ---- */
+  const parsedExercises = React.useMemo<Exercise[] | null>(() => {
+    if (!routeExercises) return null;
+    try {
+      const raw = JSON.parse(routeExercises) as any[];
+      if (!Array.isArray(raw) || raw.length === 0) return null;
+      return raw.map((ex: any, idx: number) => {
+        const restStr = ex.rest ?? "60s";
+        const restMatch = restStr.match?.(/(\d+)/);
+        const restSeconds = restMatch ? parseInt(restMatch[1], 10) : 60;
+        const weightStr = ex.weight ?? null;
+        const weightMatch = weightStr?.match?.(/(\d+(?:\.\d+)?)/);
+        const targetWeight = weightMatch ? parseFloat(weightMatch[1]) : null;
+        return {
+          id: ex.id ?? `exercise-${idx}`,
+          name: ex.name ?? `Exercise ${idx + 1}`,
+          muscleGroup: ex.muscleGroup ?? "",
+          targetSets: ex.sets ?? 3,
+          targetRepsMin: ex.repsMin ?? ex.reps ?? 8,
+          targetRepsMax: ex.repsMax ?? ex.reps ?? 12,
+          targetWeight,
+          restSeconds,
+          previousPerformance: ex.previousPerformance ?? null,
+          loggedSets: [],
+        };
+      });
+    } catch {
+      return null;
+    }
+  }, [routeExercises]);
 
   /* ---- tRPC mutation ---- */
   const logWorkoutMutation = trpc.clientPortal.workouts.logWorkout.useMutation();
 
   /* -- Workout state -- */
   const [exercises, setExercises] = useState<Exercise[]>(
-    SAMPLE_PUSH_DAY_EXERCISES.map((e) => ({ ...e, loggedSets: [] }))
+    (parsedExercises ?? []).map((e) => ({ ...e, loggedSets: [] }))
   );
   const [currentExerciseIdx, setCurrentExerciseIdx] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
@@ -379,6 +344,38 @@ export default function WorkoutSessionScreen() {
               setTimeout(() => router.push("/protocols/workout-history"), 100);
             }}
           />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* No exercises loaded                                               */
+  /* ---------------------------------------------------------------- */
+  if (exercises.length === 0) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: workoutName }} />
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <Card style={styles.inputCard}>
+            <Text style={[styles.inputCardTitle, { textAlign: "center" }]}>
+              No Exercises Loaded
+            </Text>
+            <Text style={{ color: Colors.silver, fontSize: FontSizes.sm, textAlign: "center", lineHeight: 20 }}>
+              This workout does not have exercises configured yet. Go back and start a workout from your active program, or ask your coach to add exercises.
+            </Text>
+            <Button
+              title="Go Back"
+              variant="primary"
+              size="lg"
+              onPress={() => router.back()}
+              style={{ marginTop: Spacing.md }}
+            />
+          </Card>
         </ScrollView>
       </SafeAreaView>
     );

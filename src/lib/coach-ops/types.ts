@@ -4,7 +4,7 @@
 
 // ─── Alerts ──────────────────────────────────────────────────────
 
-export type AlertPriority = "critical" | "high" | "medium" | "low" | "info";
+export type AlertPriority = "urgent" | "action" | "info";
 export type AlertStatus = "active" | "acknowledged" | "resolved";
 
 export interface CoachAlert {
@@ -22,23 +22,20 @@ export interface CoachAlert {
 export interface CoachAlertStats {
   total: number;
   active: number;
-  critical: number;
-  high: number;
-  medium: number;
-  low: number;
+  urgent: number;
+  action: number;
+  info: number;
 }
 
 export const PRIORITY_CONFIG: Record<AlertPriority, { color: string; bgColor: string; label: string }> = {
-  critical: { color: "text-red-400", bgColor: "bg-red-500/15", label: "Critical" },
-  high: { color: "text-orange-400", bgColor: "bg-orange-500/15", label: "High" },
-  medium: { color: "text-yellow-400", bgColor: "bg-yellow-500/15", label: "Medium" },
-  low: { color: "text-blue-400", bgColor: "bg-blue-500/15", label: "Low" },
+  urgent: { color: "text-red-400", bgColor: "bg-red-500/15", label: "Urgent" },
+  action: { color: "text-orange-400", bgColor: "bg-orange-500/15", label: "Action" },
   info: { color: "text-kairos-silver", bgColor: "bg-kairos-silver/10", label: "Info" },
 };
 
 // ─── Follow-ups ──────────────────────────────────────────────────
 
-export type FollowUpPriority = "high" | "medium" | "low";
+export type FollowUpPriority = "urgent" | "action" | "info";
 export type FollowUpCategory = "Lab Review" | "Prescription Renewal" | "Check-in Call" | "Protocol Check" | "Assessment";
 
 export interface FollowUp {
@@ -70,9 +67,9 @@ export const FOLLOWUP_CATEGORIES: FollowUpCategory[] = [
 ];
 
 export const PRIORITY_COLORS: Record<FollowUpPriority, { text: string; bg: string }> = {
-  high: { text: "text-red-400", bg: "bg-red-900 bg-opacity-30" },
-  medium: { text: "text-kairos-gold", bg: "bg-yellow-900 bg-opacity-20" },
-  low: { text: "text-kairos-silver-dark", bg: "bg-gray-700 bg-opacity-20" },
+  urgent: { text: "text-red-400", bg: "bg-red-900 bg-opacity-30" },
+  action: { text: "text-kairos-gold", bg: "bg-yellow-900 bg-opacity-20" },
+  info: { text: "text-kairos-silver-dark", bg: "bg-gray-700 bg-opacity-20" },
 };
 
 // ─── Marketplace ─────────────────────────────────────────────────
