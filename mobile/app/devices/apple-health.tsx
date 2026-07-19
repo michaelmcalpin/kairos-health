@@ -155,9 +155,18 @@ export default function AppleHealthScreen() {
         },
       );
     } else if (result.error) {
+      // Show the actual error so failures are diagnosable, plus guidance
       Alert.alert(
-        "Permission Required",
-        "Please grant Apple Health permissions in Settings > Privacy & Security > Health > Everist.",
+        "Could Not Connect",
+        `${result.error}\n\nIf you previously denied access, enable it in Settings > Privacy & Security > Health > Everist.`,
+        [{ text: "OK" }],
+      );
+    } else {
+      // No explicit error but not authorized — iOS shows the permission
+      // sheet only ONCE; afterward changes must be made in Settings.
+      Alert.alert(
+        "Check Health Permissions",
+        "If the permission dialog did not appear, open Settings > Privacy & Security > Health > Everist and enable the data types you want to share.",
         [{ text: "OK" }],
       );
     }

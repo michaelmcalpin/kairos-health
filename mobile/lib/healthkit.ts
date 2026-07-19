@@ -10,7 +10,7 @@
  * Uses `react-native-health` for native HealthKit access.
  */
 
-import { Platform } from "react-native";
+import { Platform, NativeModules } from "react-native";
 import AppleHealthKit, {
   HealthKitPermissions,
   HealthInputOptions,
@@ -21,7 +21,11 @@ import AppleHealthKit, {
 // HealthKit availability
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const HK_AVAILABLE = Platform.OS === "ios";
+// True only when running on iOS AND the native HealthKit module is
+// actually linked into the binary (false in Expo Go / dev builds
+// without the react-native-health config plugin applied).
+const HK_AVAILABLE =
+  Platform.OS === "ios" && NativeModules.AppleHealthKit != null;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // HealthKit data type identifiers
@@ -113,17 +117,30 @@ export async function requestHealthKitPermissions(): Promise<HealthKitStatus> {
 
   try {
     return new Promise<HealthKitStatus>((resolve) => {
-      AppleHealthKit.initHealthKit(permissions, (error: string) => {
-        if (error) {
-          resolve({
-            isAvailable: true,
-            isAuthorized: false,
-            error: error ?? "Permission denied",
-          });
-        } else {
-          resolve({ isAvailable: true, isAuthorized: true });
-        }
-      });
+      try {
+        AppleHealthKit.initHealthKit(permissions, (error: string) => {
+          if (error) {
+            resolve({
+              isAvailable: true,
+              isAuthorized: false,
+              error: typeof error === "string" ? error : "Permission denied",
+            });
+          } else {
+            resolve({ isAvailable: true, isAuthorized: true });
+          }
+        });
+      } catch (e) {
+        // Native module missing or threw synchronously — resolve with a
+        // clear error instead of an unhandled rejection (silent failure)
+        resolve({
+          isAvailable: false,
+          isAuthorized: false,
+          error:
+            e instanceof Error
+              ? e.message
+              : "HealthKit native module is not available in this build.",
+        });
+      }
     });
   } catch (error: any) {
     return {

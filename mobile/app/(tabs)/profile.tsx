@@ -87,41 +87,64 @@ export default function ProfileScreen() {
     DEFAULT_QUERY_OPTIONS,
   );
 
-  /* -- Map API response → local shape, falling back to sample data -- */
-  const profileData = profileQuery.data;
-  const USER = profileData
-    ? {
-        initials:
-          ((profileData.firstName?.[0] ?? "") +
-            (profileData.lastName?.[0] ?? "")).toUpperCase() ||
-          FALLBACK_USER.initials,
-        name:
-          [profileData.firstName, profileData.lastName]
-            .filter(Boolean)
-            .join(" ") || FALLBACK_USER.name,
-        email: profileData.email ?? FALLBACK_USER.email,
-        memberSince: profileData.memberSince ?? FALLBACK_USER.memberSince,
-        age: profileData.age ?? FALLBACK_USER.age,
-        height: profileData.height ?? FALLBACK_USER.height,
-        weight: profileData.weight ?? FALLBACK_USER.weight,
-        bloodType: profileData.bloodType ?? FALLBACK_USER.bloodType,
-        healthScore: profileData.healthScore ?? FALLBACK_USER.healthScore,
-        tier: profileData.tier ?? FALLBACK_USER.tier,
-      }
-    : {
-        ...FALLBACK_USER,
-        // Enrich fallback with auth stub data when available
-        initials:
-          ((authUser?.firstName?.[0] ?? "") +
-            (authUser?.lastName?.[0] ?? "")).toUpperCase() ||
-          FALLBACK_USER.initials,
-        name:
-          [authUser?.firstName, authUser?.lastName]
-            .filter(Boolean)
-            .join(" ") || FALLBACK_USER.name,
-        email:
-          authUser?.emailAddresses?.[0]?.emailAddress ?? FALLBACK_USER.email,
-      };
+  /* -- latest weight + computed health score (real data) -- */
+  const latestMeasurementQuery = trpc.clientPortal.measurements.latest.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const healthScoreQuery = trpc.clientPortal.dashboard.getHealthScore.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  /* -- Map API response → local shape -- */
+  /* getSettings returns a NESTED shape: { user, clientProfile, contactInfo, ... } */
+  const profileData = profileQuery.data as any;
+  const apiUser = profileData?.user;
+  const apiProfile = profileData?.clientProfile;
+
+  // Derived display values
+  const computeAge = (dob?: string | null): number | null => {
+    if (!dob) return null;
+    const birth = new Date(dob);
+    if (isNaN(birth.getTime())) return null;
+    const diff = Date.now() - birth.getTime();
+    return Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
+  };
+  const formatHeight = (inches?: number | null): string | null => {
+    if (!inches || inches <= 0) return null;
+    return `${Math.floor(inches / 12)}'${Math.round(inches % 12)}"`;
+  };
+  const formatMemberSince = (createdAt?: string | Date | null): string | null => {
+    if (!createdAt) return null;
+    const d = new Date(createdAt);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString([], { month: "long", year: "numeric" });
+  };
+
+  // Prefer API data → Clerk auth data → generic placeholders (never "Demo User")
+  const firstName = apiUser?.firstName ?? authUser?.firstName ?? "";
+  const lastName = apiUser?.lastName ?? authUser?.lastName ?? "";
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
+
+  const USER = {
+    initials:
+      ((firstName?.[0] ?? "") + (lastName?.[0] ?? "")).toUpperCase() || "?",
+    name: fullName || "Set up your profile",
+    email:
+      apiUser?.email ??
+      authUser?.emailAddresses?.[0]?.emailAddress ??
+      "",
+    memberSince: formatMemberSince(apiUser?.createdAt) ?? "—",
+    age: computeAge(apiProfile?.dateOfBirth) ?? "—",
+    height: formatHeight(apiProfile?.heightInches) ?? "—",
+    weight: (latestMeasurementQuery.data as any)?.weightLbs
+      ? `${(latestMeasurementQuery.data as any).weightLbs} lbs`
+      : "—",
+    bloodType: apiProfile?.bloodType ?? "—",
+    healthScore: (healthScoreQuery.data as any)?.score ?? "—",
+    tier: apiProfile?.tier ?? FALLBACK_USER.tier,
+  };
 
   /* -- Connected devices from hook -- */
   const { devices: connectedDevices } = useConnectedDevices();
