@@ -1,11 +1,16 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { ANTHROPIC_MODEL } from "@/lib/ai/model";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
 import { users, conversations, messages } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { getClientContext } from "@/lib/ai/health-context";
 import { callWithRetry } from "@/lib/ai/retry";
+
+// Streamed AI responses over a large health-context prompt can take
+// 30-90s — without this, Vercel kills the function mid-stream.
+export const maxDuration = 120;
 
 // ---------------------------------------------------------------------------
 // System prompt — comprehensive health analysis
@@ -121,7 +126,7 @@ export async function POST(req: NextRequest) {
     const stream = await callWithRetry(
       () =>
         anthropic.messages.stream({
-          model: "claude-sonnet-4-20250514",
+          model: ANTHROPIC_MODEL,
           max_tokens: 4096,
           system: `${SYSTEM_PROMPT}\n\n--- COMPLETE CLIENT HEALTH PROFILE ---\n${healthContext}`,
           messages: anthropicMessages,

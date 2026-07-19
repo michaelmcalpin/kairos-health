@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { ANTHROPIC_MODEL } from "@/lib/ai/model";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
@@ -121,7 +122,7 @@ export async function POST(req: NextRequest) {
     const response = await callWithRetry(
       () =>
         anthropic.messages.create({
-          model: "claude-sonnet-4-20250514",
+          model: ANTHROPIC_MODEL,
           max_tokens: 8192,
           system: `${EXERCISE_SYSTEM_PROMPT}\n\n--- CLIENT HEALTH PROFILE ---\n${healthContext}`,
           messages,

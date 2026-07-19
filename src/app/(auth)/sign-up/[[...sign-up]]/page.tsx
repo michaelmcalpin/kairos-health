@@ -1,4 +1,5 @@
 import { SignUp } from "@clerk/nextjs";
+import { kairosClerkAppearance } from "@/lib/clerk-appearance";
 
 export default function SignUpPage() {
   return (
@@ -14,18 +15,7 @@ export default function SignUpPage() {
         </div>
         <SignUp
           forceRedirectUrl="/select-role"
-          appearance={{
-            elements: {
-              rootBox: "mx-auto",
-              card: "bg-kairos-card border border-kairos-border shadow-kairos",
-              headerTitle: "text-white font-heading",
-              headerSubtitle: "text-kairos-silver-dark",
-              formButtonPrimary: "bg-kairos-gold hover:bg-kairos-gold-light text-kairos-royal-dark font-heading font-semibold",
-              formFieldInput: "bg-kairos-input border-kairos-border text-white",
-              formFieldLabel: "text-kairos-silver",
-              footerActionLink: "text-kairos-gold hover:text-kairos-gold-light",
-            },
-          }}
+          appearance={kairosClerkAppearance}
         />
       </div>
     </div>

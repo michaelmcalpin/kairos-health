@@ -277,24 +277,31 @@ function AIChatTab() {
 
           for (const line of lines) {
             if (!line.startsWith("data: ")) continue;
+            // Parse inside its own try so malformed/partial JSON lines are
+            // skipped — but handle server "error" events OUTSIDE it, so the
+            // throw actually propagates to the outer catch and reaches the user.
+            let data: any = null;
             try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === "text") {
-                setChatMessages((prev) => {
-                  const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last?.isStreaming) updated[updated.length - 1] = { ...last, body: last.body + data.text };
-                  return updated;
-                });
-              } else if (data.type === "done") {
-                setChatMessages((prev) => {
-                  const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last?.isStreaming) updated[updated.length - 1] = { ...last, isStreaming: false };
-                  return updated;
-                });
-              } else if (data.type === "error") { throw new Error(data.error); }
-            } catch { /* skip */ }
+              data = JSON.parse(line.slice(6));
+            } catch { continue; /* partial line — skip */ }
+
+            if (data.type === "text") {
+              setChatMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.isStreaming) updated[updated.length - 1] = { ...last, body: last.body + data.text };
+                return updated;
+              });
+            } else if (data.type === "done") {
+              setChatMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last?.isStreaming) updated[updated.length - 1] = { ...last, isStreaming: false };
+                return updated;
+              });
+            } else if (data.type === "error") {
+              throw new Error(data.error || "The AI service returned an error. Please try again.");
+            }
           }
         }
 

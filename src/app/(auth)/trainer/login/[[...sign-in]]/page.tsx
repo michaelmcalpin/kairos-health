@@ -1,4 +1,5 @@
 import { SignIn } from "@clerk/nextjs";
+import { kairosClerkAppearance } from "@/lib/clerk-appearance";
 import Link from "next/link";
 
 export default function TrainerLoginPage() {
@@ -15,18 +16,7 @@ export default function TrainerLoginPage() {
         </div>
         <SignIn
           forceRedirectUrl="/select-role?portal=trainer"
-          appearance={{
-            elements: {
-              rootBox: "mx-auto",
-              card: "bg-kairos-card border border-kairos-border shadow-kairos",
-              headerTitle: "text-white font-heading",
-              headerSubtitle: "text-kairos-silver-dark",
-              formButtonPrimary: "bg-kairos-gold hover:bg-kairos-gold-light text-kairos-royal-dark font-heading font-semibold",
-              formFieldInput: "bg-kairos-input border-kairos-border text-white",
-              formFieldLabel: "text-kairos-silver",
-              footerActionLink: "text-kairos-gold hover:text-kairos-gold-light",
-            },
-          }}
+          appearance={kairosClerkAppearance}
         />
         <div className="mt-6">
           <p className="text-sm text-kairos-silver-dark">
