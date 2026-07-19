@@ -11,11 +11,24 @@
  */
 
 import { Platform, NativeModules } from "react-native";
-import AppleHealthKit, {
+import type {
   HealthKitPermissions,
   HealthInputOptions,
   HealthValue,
 } from "react-native-health";
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Native module access
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// IMPORTANT: We access the native module DIRECTLY instead of importing
+// the react-native-health JS wrapper. Under the New Architecture
+// (required by Reanimated 4 / Expo SDK 54), the library's JS wrapper
+// fails with "undefined is not an object" because its Constants don't
+// survive the TurboModule interop layer. The native methods themselves
+// (initHealthKit, get*Samples) work fine through interop, and the
+// permission "constants" are just plain strings anyway.
+const AppleHealthKit: any = NativeModules.AppleHealthKit ?? null;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // HealthKit availability
@@ -24,8 +37,7 @@ import AppleHealthKit, {
 // True only when running on iOS AND the native HealthKit module is
 // actually linked into the binary (false in Expo Go / dev builds
 // without the react-native-health config plugin applied).
-const HK_AVAILABLE =
-  Platform.OS === "ios" && NativeModules.AppleHealthKit != null;
+const HK_AVAILABLE = Platform.OS === "ios" && AppleHealthKit != null;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // HealthKit data type identifiers
@@ -73,22 +85,26 @@ export interface HealthKitStatus {
 // Permissions
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+// Permission names as plain strings — these are the exact values of
+// AppleHealthKit.Constants.Permissions.* (key === value in the library).
+// Using literals avoids touching the Constants object, which is
+// undefined under the New Architecture interop.
 const permissions: HealthKitPermissions = {
   permissions: {
     read: [
-      AppleHealthKit.Constants.Permissions.StepCount,
-      AppleHealthKit.Constants.Permissions.HeartRate,
-      AppleHealthKit.Constants.Permissions.RestingHeartRate,
-      AppleHealthKit.Constants.Permissions.HeartRateVariability,
-      AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-      AppleHealthKit.Constants.Permissions.Weight,
-      AppleHealthKit.Constants.Permissions.BodyFatPercentage,
-      AppleHealthKit.Constants.Permissions.BloodGlucose,
-      AppleHealthKit.Constants.Permissions.SleepAnalysis,
-      AppleHealthKit.Constants.Permissions.OxygenSaturation,
-      AppleHealthKit.Constants.Permissions.BodyTemperature,
-      AppleHealthKit.Constants.Permissions.RespiratoryRate,
-    ],
+      "StepCount",
+      "HeartRate",
+      "RestingHeartRate",
+      "HeartRateVariability",
+      "ActiveEnergyBurned",
+      "Weight",
+      "BodyFatPercentage",
+      "BloodGlucose",
+      "SleepAnalysis",
+      "OxygenSaturation",
+      "BodyTemperature",
+      "RespiratoryRate",
+    ] as any,
     write: [],
   },
 };
