@@ -379,10 +379,18 @@ export const clientDashboardRouter = router({
       });
     }),
 
-  // ── 7-day sparkline data for dashboard ───────────────────
-  getSparklines: clientProcedure.query(async ({ ctx }) => {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  // ── Sparkline data for dashboard (defaults to last 7 days) ─
+  getSparklines: clientProcedure
+    .input(
+      z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }).optional(),
+    )
+    .query(async ({ ctx, input }) => {
+    const sevenDaysAgo = input?.startDate
+      ? new Date(input.startDate)
+      : (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d; })();
     const sevenStr = sevenDaysAgo.toISOString().split("T")[0];
 
     const [sleepRows, glucoseRows, bpRows] = await Promise.all([
@@ -416,10 +424,18 @@ export const clientDashboardRouter = router({
     };
   }),
 
-  // ── Computed health score ────────────────────────────────
-  getHealthScore: clientProcedure.query(async ({ ctx }) => {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  // ── Computed health score (defaults to last 7 days) ──────
+  getHealthScore: clientProcedure
+    .input(
+      z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }).optional(),
+    )
+    .query(async ({ ctx, input }) => {
+    const sevenDaysAgo = input?.startDate
+      ? new Date(input.startDate)
+      : (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d; })();
     const sevenDaysStr = sevenDaysAgo.toISOString().split("T")[0];
 
     const [avgGlucoseResult, avgSleepResult, latestHrv] = await Promise.all([

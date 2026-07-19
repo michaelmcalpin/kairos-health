@@ -21,7 +21,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Camera } from "lucide-react-native";
 
+import { useAuth } from "@clerk/clerk-expo";
+
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { API_URL } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
@@ -47,8 +50,16 @@ const GENDER_OPTIONS: Gender[] = [
 /* ------------------------------------------------------------------ */
 
 export default function EditProfileScreen() {
+  const { getToken } = useAuth();
+
   /* -- tRPC query for current profile -- */
   const profileQuery = trpc.clientPortal.settings.getSettings.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  /* -- latest body measurement (weight lives here, not on the profile) -- */
+  const latestMeasurementQuery = trpc.clientPortal.measurements.latest.useQuery(
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
@@ -76,58 +87,113 @@ export default function EditProfileScreen() {
   /* -- health goals -- */
   const [healthGoals, setHealthGoals] = useState("");
 
+  /* -- profile photo -- */
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
   const [saving, setSaving] = useState(false);
 
   /* -- Populate form state from profile query -- */
+  /* Backend returns a NESTED shape: { user, clientProfile, contactInfo, notificationPreferences } */
   useEffect(() => {
-    const data = profileQuery.data;
+    const data = profileQuery.data as any;
     if (!data) return;
-    setFirstName(data.firstName ?? "");
-    setLastName(data.lastName ?? "");
-    setEmail(data.email ?? "");
-    setPhone((data as any).phone ?? "");
-    setDob((data as any).dateOfBirth ?? "");
-    if ((data as any).heightFt) setHeightFt(String((data as any).heightFt));
-    if ((data as any).heightIn) setHeightIn(String((data as any).heightIn));
-    if ((data as any).heightCm) {
-      setHeightCm(String((data as any).heightCm));
-      setHeightUnit("cm");
+
+    // User (Clerk-managed identity)
+    setFirstName(data.user?.firstName ?? "");
+    setLastName(data.user?.lastName ?? "");
+    setEmail(data.user?.email ?? "");
+    if (data.user?.avatarUrl) setPhotoUri(data.user.avatarUrl);
+
+    // Contact info
+    setPhone(data.contactInfo?.phone ?? "");
+
+    // Client profile
+    setDob(data.clientProfile?.dateOfBirth ?? "");
+    if (data.clientProfile?.gender) setGender(data.clientProfile.gender);
+
+    // Height is stored as total inches — convert to ft/in for display
+    const totalInches = data.clientProfile?.heightInches;
+    if (totalInches && totalInches > 0) {
+      setHeightFt(String(Math.floor(totalInches / 12)));
+      setHeightIn(String(Math.round(totalInches % 12)));
+      setHeightCm(String(Math.round(totalInches * 2.54)));
     }
-    if ((data as any).weightLbs) setWeightLbs(String((data as any).weightLbs));
-    if ((data as any).weightKg) {
-      setWeightKg(String((data as any).weightKg));
-      setWeightUnit("kg");
+
+    // Goals is a string[] — join for the multiline text field
+    if (Array.isArray(data.clientProfile?.goals) && data.clientProfile.goals.length > 0) {
+      setHealthGoals(data.clientProfile.goals.join("\n"));
     }
-    if ((data as any).gender) setGender((data as any).gender);
-    if ((data as any).healthGoals) setHealthGoals((data as any).healthGoals);
   }, [profileQuery.data]);
+
+  /* -- Populate weight from latest body measurement -- */
+  useEffect(() => {
+    const m = latestMeasurementQuery.data as any;
+    if (m?.weightLbs) {
+      setWeightLbs(String(m.weightLbs));
+      setWeightKg(String(Math.round(m.weightLbs * 0.4536 * 10) / 10));
+    }
+  }, [latestMeasurementQuery.data]);
 
   // Profile mutations
   const updateProfileMutation = trpc.clientPortal.settings.updateProfile.useMutation();
   const updateClientProfileMutation = trpc.clientPortal.settings.updateClientProfile.useMutation();
+  const updateContactInfoMutation = trpc.clientPortal.settings.updateContactInfo.useMutation();
+  const createMeasurementMutation = trpc.clientPortal.measurements.create.useMutation();
+  const utils = trpc.useUtils();
 
   /* -- handlers -- */
   const handleSave = async () => {
     setSaving(true);
     try {
-      await Promise.all([
+      // Height: convert to total inches (backend stores heightInches)
+      let heightInches: number | undefined;
+      if (heightUnit === "ft-in" && (heightFt || heightIn)) {
+        heightInches = Number(heightFt || 0) * 12 + Number(heightIn || 0);
+      } else if (heightUnit === "cm" && heightCm) {
+        heightInches = Math.round((Number(heightCm) / 2.54) * 10) / 10;
+      }
+
+      // Goals: backend stores string[] — split the multiline field
+      const goals = healthGoals
+        .split("\n")
+        .map((g) => g.trim())
+        .filter((g) => g.length > 0);
+
+      const mutations: Promise<unknown>[] = [
         updateProfileMutation.mutateAsync({
-          firstName,
-          lastName,
-          email,
-          phone,
-          dateOfBirth: dob,
+          firstName: firstName || undefined,
+          lastName: lastName || undefined,
         }),
         updateClientProfileMutation.mutateAsync({
-          heightFt: heightUnit === "ft-in" ? Number(heightFt) : undefined,
-          heightIn: heightUnit === "ft-in" ? Number(heightIn) : undefined,
-          heightCm: heightUnit === "cm" ? Number(heightCm) : undefined,
-          weightLbs: weightUnit === "lbs" ? Number(weightLbs) : undefined,
-          weightKg: weightUnit === "kg" ? Number(weightKg) : undefined,
-          gender,
-          healthGoals,
+          dateOfBirth: dob || undefined,
+          gender: gender || undefined,
+          heightInches,
+          goals: goals.length > 0 ? goals : undefined,
         }),
-      ]);
+      ];
+
+      if (phone) {
+        mutations.push(updateContactInfoMutation.mutateAsync({ phone }));
+      }
+
+      // Weight lives in body measurements, not the profile
+      const weightVal =
+        weightUnit === "lbs"
+          ? Number(weightLbs)
+          : Math.round(Number(weightKg) / 0.4536 * 10) / 10;
+      const previousWeight = (latestMeasurementQuery.data as any)?.weightLbs;
+      if (weightVal > 0 && weightVal !== previousWeight) {
+        mutations.push(
+          createMeasurementMutation.mutateAsync({
+            weightLbs: weightVal,
+            source: "manual",
+          }),
+        );
+      }
+
+      await Promise.all(mutations);
+      utils.clientPortal.settings.getSettings.invalidate();
+      utils.clientPortal.measurements.latest.invalidate();
       Alert.alert("Saved", "Your profile has been updated.");
     } catch (error: any) {
       Alert.alert("Error", error?.message ?? "Failed to save profile. Please try again.");
@@ -136,16 +202,44 @@ export default function EditProfileScreen() {
     }
   };
 
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-
   const handleChangePhoto = async () => {
     const image = await showImagePickerOptions();
-    if (image) {
-      // Show the picked image locally (optimistic UI)
-      setPhotoUri(image.uri);
+    if (!image) return;
+
+    // Optimistic local preview
+    setPhotoUri(image.uri);
+
+    try {
+      // Upload to the backend blob storage
+      const token = await getToken();
+      const formData = new FormData();
+      formData.append("file", {
+        uri: image.uri,
+        name: image.fileName ?? "avatar.jpg",
+        type: image.type ?? "image/jpeg",
+      } as any);
+      formData.append("category", "photo");
+
+      const res = await fetch(`${API_URL}/api/upload`, {
+        method: "POST",
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error(`Upload failed (${res.status})`);
+      }
+
+      const result = await res.json();
+      const avatarUrl = result?.url ?? result?.blob?.url;
+      if (avatarUrl) {
+        await updateProfileMutation.mutateAsync({ avatarUrl });
+        utils.clientPortal.settings.getSettings.invalidate();
+      }
+    } catch (error: any) {
       Alert.alert(
-        "Photo Selected",
-        "Your profile photo has been updated locally. It will sync to the cloud when the file upload endpoint is available.",
+        "Upload Failed",
+        error?.message ?? "Could not upload your photo. Please try again.",
       );
     }
   };
@@ -213,13 +307,14 @@ export default function EditProfileScreen() {
 
             <Text style={styles.fieldLabel}>Email</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { opacity: 0.6 }]}
               value={email}
-              onChangeText={setEmail}
+              editable={false}
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor={Colors.silver}
             />
+            <Text style={styles.unitLabel}>Managed by your login provider</Text>
 
             <Text style={styles.fieldLabel}>Phone</Text>
             <TextInput

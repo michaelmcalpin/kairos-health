@@ -12,6 +12,13 @@ const isPublicRoute = createRouteMatcher([
   "/admin/login(.*)",
   "/api/webhooks(.*)",
   "/api/cron(.*)",
+  // API routes that perform their own auth (tRPC clientProcedure, route-level
+  // Clerk auth()). Mobile clients send Bearer tokens — auth.protect() would
+  // redirect them to an HTML sign-in page instead of returning JSON 401s.
+  "/api/trpc(.*)",
+  "/api/chat(.*)",
+  "/api/upload(.*)",
+  "/api/callbacks(.*)",
   "/dev(.*)",
 ]);
 

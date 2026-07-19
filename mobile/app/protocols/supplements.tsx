@@ -18,7 +18,7 @@ import {
   RefreshControl,
   Pressable,
 } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
@@ -189,13 +189,25 @@ function groupByTiming(items: any[], adherenceMap?: Record<string, boolean>): Ti
 /* ------------------------------------------------------------------ */
 
 export default function SupplementsScreen() {
+  const router = useRouter();
+
   /* ---- tRPC queries ---- */
   const protocolQuery = trpc.clientPortal.supplements.getActiveProtocol.useQuery(
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
+  // adherenceStats requires a date range — use the last 7 days
+  const adherenceRange = (() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 7);
+    return {
+      startDate: start.toISOString().split("T")[0],
+      endDate: end.toISOString().split("T")[0],
+    };
+  })();
   const adherenceQuery = trpc.clientPortal.supplements.adherenceStats.useQuery(
-    undefined,
+    adherenceRange,
     DEFAULT_QUERY_OPTIONS,
   );
   const logAdherenceMutation = trpc.clientPortal.supplements.logAdherence.useMutation({
@@ -215,9 +227,15 @@ export default function SupplementsScreen() {
       )
     : SAMPLE_TIMING_GROUPS;
 
-  const adherenceRate: number = adherenceQuery.data
-    ? ((adherenceQuery.data as any).rate ?? (adherenceQuery.data as any).adherenceRate ?? SAMPLE_ADHERENCE.rate)
-    : SAMPLE_ADHERENCE.rate;
+  // adherenceStats returns an array of per-day {date, total, taken, percentage}
+  const adherenceRate: number = (() => {
+    const days = adherenceQuery.data as any;
+    if (Array.isArray(days) && days.length > 0) {
+      const sum = days.reduce((s: number, d: any) => s + (d.percentage ?? 0), 0);
+      return Math.round(sum / days.length);
+    }
+    return SAMPLE_ADHERENCE.rate;
+  })();
 
   const totalSupps = timingGroups.reduce((s, g) => s + g.supplements.length, 0);
   const takenCount = timingGroups.reduce(
@@ -236,9 +254,10 @@ export default function SupplementsScreen() {
   /* ---- Toggle adherence handler ---- */
   const handleToggleTaken = (sup: Supplement) => {
     if (sup.id) {
+      // Backend input: { protocolItemId, date?, skipped }
       logAdherenceMutation.mutate({
-        supplementId: sup.id,
-        taken: !sup.taken,
+        protocolItemId: sup.id,
+        skipped: sup.taken, // if currently taken, toggling means skipping
         date: new Date().toISOString().split("T")[0],
       });
     } else {
@@ -336,7 +355,7 @@ export default function SupplementsScreen() {
           variant="secondary"
           size="lg"
           style={styles.addButton}
-          onPress={() => Alert.alert("Add Supplement", "Your coach manages your supplement protocol. Contact them to make changes.")}
+          onPress={() => router.push("/protocols/add-item?category=supplement" as any)}
         />
       </ScrollView>
     </SafeAreaView>

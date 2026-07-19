@@ -44,8 +44,16 @@ import {
   InsightsCard,
 } from "@/components/health";
 import type { DateRange } from "@/components/health";
-import { useBiometricCategories, useHealthScore } from "@/hooks/useHealthData";
+import { useBiometricCategories, useHealthScore, rangeToDates } from "@/hooks/useHealthData";
 import { useHealthAnalysis } from "@/hooks/useInsights";
+
+/** Map the UI date range to the AI analysis range parameter. */
+const RANGE_TO_ANALYSIS: Record<DateRange, "7d" | "30d" | "1y"> = {
+  today: "7d",
+  week: "7d",
+  month: "30d",
+  year: "1y",
+};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Icon map — categories from the hook carry no JSX; we resolve
@@ -77,24 +85,28 @@ export default function HealthScreen() {
   const router = useRouter();
   const [dateRange, setDateRange] = useState<DateRange>("week");
 
+  // Convert the selected range into concrete dates — this drives ALL queries
+  // below so switching Today/Week/Month/Year refetches with the new window.
+  const rangeDates = rangeToDates(dateRange);
+
   // ── tRPC data hooks ─────────────────────────────────────────
   const {
     categories,
     isLoading: categoriesLoading,
     refetch: refetchCategories,
-  } = useBiometricCategories();
+  } = useBiometricCategories(rangeDates);
 
   const {
     healthScoreDetail,
     isLoading: scoreLoading,
     refetch: refetchScore,
-  } = useHealthScore();
+  } = useHealthScore(rangeDates);
 
   const {
     analysis: overallAnalysis,
     isLoading: insightLoading,
     refetch: refetchInsight,
-  } = useHealthAnalysis("overall", "7d");
+  } = useHealthAnalysis("overall", RANGE_TO_ANALYSIS[dateRange]);
 
   const aiInsightText = overallAnalysis?.summary ?? null;
 

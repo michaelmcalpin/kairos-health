@@ -313,7 +313,7 @@ export default function ProtocolsScreen() {
             title="Log Custom Item"
             variant="tertiary"
             size="md"
-            onPress={() => router.push("/protocols/medications")}
+            onPress={() => router.push("/protocols/add-item" as any)}
             style={styles.actionButton}
             icon={<Plus size={16} color={Colors.silverLight} />}
           />

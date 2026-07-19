@@ -38,6 +38,7 @@ export default function ProtocolsLayout() {
       <Stack.Screen name="fasting" options={{ title: "Fasting" }} />
       <Stack.Screen name="peptides" options={{ title: "Peptides" }} />
       <Stack.Screen name="shopping-list" options={{ title: "Shopping List" }} />
+      <Stack.Screen name="add-item" options={{ title: "Add to Protocol", presentation: "modal" }} />
     </Stack>
   );
 }

@@ -13,7 +13,7 @@ import {
   TextInput,
   Alert,
 } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
@@ -123,6 +123,7 @@ interface PeptideNote {
 /* ------------------------------------------------------------------ */
 
 export default function PeptidesScreen() {
+  const router = useRouter();
   const [notes, setNotes] = useState("");
   const [savedNotes, setSavedNotes] = useState<PeptideNote[]>([]);
 
@@ -419,9 +420,12 @@ export default function PeptidesScreen() {
                     text: "Log Dose",
                     onPress: () => {
                       if (cycleId) {
+                        // Backend requires peptideName and a date-only string
                         logDoseMutation.mutate({
                           cycleId,
-                          date: new Date().toISOString(),
+                          peptideName: target.name ?? "Peptide",
+                          dosage: target.dosage ?? undefined,
+                          date: new Date().toISOString().split("T")[0],
                         });
                       } else {
                         Alert.alert("Logged", `${target.name} dose logged successfully.`);
@@ -432,6 +436,15 @@ export default function PeptidesScreen() {
               );
             }
           }}
+        />
+
+        {/* Add Peptide */}
+        <Button
+          title="Add Peptide"
+          variant="secondary"
+          size="lg"
+          style={styles.logDoseButton}
+          onPress={() => router.push("/protocols/add-item?category=peptide" as any)}
         />
 
         {/* Notes / Effects */}

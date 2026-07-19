@@ -1,26 +1,27 @@
 /**
- * Medications screen — empty state.
+ * Medications screen.
  *
- * NOTE: Backend does not have a clientPortal.medications router.
- * Medications are managed through clinical docs and coach interactions.
- * This screen shows an honest empty state rather than fake data.
+ * Shows medication items from the client's active protocol
+ * (protocol items with category === "medication") and lets the
+ * client add their own via the unified Add Item screen.
  */
 
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   SafeAreaView,
-  Alert,
+  RefreshControl,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { Pill, MessageCircle } from "lucide-react-native";
+import { Pill, MessageCircle, Clock } from "lucide-react-native";
 
-import { Colors, Spacing, FontSizes } from "@/lib/constants";
+import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
@@ -28,6 +29,23 @@ import { Button } from "@/components/ui/Button";
 
 export default function MedicationsScreen() {
   const router = useRouter();
+
+  // Medications live in the protocol as items with category "medication"
+  const protocolQuery = trpc.clientPortal.protocol.getActive.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
+
+  const medications = ((protocolQuery.data as any)?.items ?? []).filter(
+    (item: any) => item.category === "medication",
+  );
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await protocolQuery.refetch();
+    setRefreshing(false);
+  }, [protocolQuery]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -37,41 +55,61 @@ export default function MedicationsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.gold}
+            colors={[Colors.gold]}
+          />
+        }
       >
-        {/* Empty State */}
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIconWrap}>
-            <Pill size={48} color={Colors.silver} />
+        {medications.length === 0 ? (
+          /* Empty State */
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconWrap}>
+              <Pill size={48} color={Colors.silver} />
+            </View>
+            <Text style={styles.emptyTitle}>No medications tracked yet</Text>
+            <Text style={styles.emptyMessage}>
+              Add your medications below to track them alongside your
+              supplements and peptides in your daily protocol.
+            </Text>
           </View>
-          <Text style={styles.emptyTitle}>No medications tracked yet</Text>
-          <Text style={styles.emptyMessage}>
-            Medication tracking is managed through your care team.
-            Contact your coach or doctor to add medications to your profile.
-          </Text>
-        </View>
+        ) : (
+          /* Medication list */
+          medications.map((med: any) => (
+            <Card key={med.id} style={styles.medCard}>
+              <View style={styles.medRow}>
+                <View style={styles.medIconWrap}>
+                  <Pill size={20} color="#4A90D9" />
+                </View>
+                <View style={styles.medInfo}>
+                  <Text style={styles.medName}>{med.name}</Text>
+                  <Text style={styles.medDetail}>
+                    {[med.dosage && `${med.dosage}${med.unit ? ` ${med.unit}` : ""}`, med.frequency]
+                      .filter(Boolean)
+                      .join(" · ") || "No dosage set"}
+                  </Text>
+                </View>
+                {med.timeOfDay ? (
+                  <View style={styles.timeBadge}>
+                    <Clock size={12} color={Colors.gold} />
+                    <Text style={styles.timeText}>{med.timeOfDay}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </Card>
+          ))
+        )}
 
-        {/* Info Card */}
-        <Card style={styles.infoCard}>
-          <Text style={styles.infoTitle}>How medication tracking works</Text>
-          <Text style={styles.infoText}>
-            Your care team manages your medication records as part of your
-            clinical profile. Once medications are added, you will be able to
-            view them here along with dosage information and refill reminders.
-          </Text>
-        </Card>
-
-        {/* Coming Soon */}
+        {/* Add Medication */}
         <Button
           title="Add Medication"
           variant="secondary"
           size="lg"
           style={styles.ctaButton}
-          onPress={() =>
-            Alert.alert(
-              "Coming Soon",
-              "Self-service medication tracking is coming in a future update. For now, contact your coach to update medications.",
-            )
-          }
+          onPress={() => router.push("/protocols/add-item?category=medication" as any)}
         />
 
         {/* Talk to Coach */}
@@ -136,22 +174,49 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
-  /* Info Card */
-  infoCard: {
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
+  /* Medication cards */
+  medCard: {
+    paddingVertical: Spacing.md,
   },
-  infoTitle: {
-    fontSize: FontSizes.sm,
+  medRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  medIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(74, 144, 217, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  medInfo: {
+    flex: 1,
+  },
+  medName: {
+    color: Colors.white,
+    fontSize: FontSizes.md,
     fontWeight: "600",
-    color: Colors.gold,
-    textTransform: "uppercase",
-    letterSpacing: 1,
   },
-  infoText: {
+  medDetail: {
+    color: Colors.silver,
     fontSize: FontSizes.sm,
-    color: Colors.silverLight,
-    lineHeight: 20,
+    marginTop: 2,
+  },
+  timeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: Radii.full,
+    backgroundColor: "rgba(201, 169, 78, 0.12)",
+  },
+  timeText: {
+    color: Colors.gold,
+    fontSize: FontSizes.xs,
+    fontWeight: "600",
   },
 
   /* CTA */

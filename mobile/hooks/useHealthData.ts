@@ -15,12 +15,47 @@
 import { trpc, SAMPLE_DATA, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Date range support
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export type HealthDateRange = "today" | "week" | "month" | "year";
+
+export interface DateRangeDates {
+  startDate: string;
+  endDate: string;
+}
+
+/** Convert a UI range selection into ISO date strings (YYYY-MM-DD). */
+export function rangeToDates(range: HealthDateRange): DateRangeDates {
+  const end = new Date();
+  const start = new Date();
+  switch (range) {
+    case "today":
+      // Today only — start at midnight
+      break;
+    case "week":
+      start.setDate(start.getDate() - 7);
+      break;
+    case "month":
+      start.setDate(start.getDate() - 30);
+      break;
+    case "year":
+      start.setDate(start.getDate() - 365);
+      break;
+  }
+  return {
+    startDate: start.toISOString().split("T")[0],
+    endDate: end.toISOString().split("T")[0],
+  };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // useHealthScore
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export function useHealthScore() {
+export function useHealthScore(range?: DateRangeDates) {
   const query = trpc.clientPortal.dashboard.getHealthScore.useQuery(
-    undefined,
+    range ?? undefined,
     DEFAULT_QUERY_OPTIONS,
   );
 
@@ -162,9 +197,9 @@ export function useDashboardOverview() {
 // useSparklines
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export function useSparklines() {
+export function useSparklines(range?: DateRangeDates) {
   const query = trpc.clientPortal.dashboard.getSparklines.useQuery(
-    undefined,
+    range ?? undefined,
     DEFAULT_QUERY_OPTIONS,
   );
 
@@ -221,12 +256,12 @@ export function useAlerts(status: "active" | "all" = "all") {
 // useBiometricCategories  (Health tab grid)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export function useBiometricCategories() {
+export function useBiometricCategories(range?: DateRangeDates) {
   // We rely on the dashboard overview for latest values and
   // sparklines for trend data — both already fetched above.
   // This hook assembles the Health-screen grid shape.
   const overview = useDashboardOverview();
-  const sparks = useSparklines();
+  const sparks = useSparklines(range);
 
   // When API data is available, overlay real values and sparklines onto biometric categories
   const bio = overview.isLoading ? null : overview.biometricsData;

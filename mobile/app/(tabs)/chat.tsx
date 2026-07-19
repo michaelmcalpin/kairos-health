@@ -30,8 +30,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Sparkles, Wifi } from "lucide-react-native";
 
-import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
-import { trpc, SAMPLE_DATA, REALTIME_QUERY_OPTIONS } from "@/lib/api";
+import { useAuth } from "@clerk/clerk-expo";
+
+import { Colors, Spacing, FontSizes, Radii, API_URL } from "@/lib/constants";
+import { trpc, REALTIME_QUERY_OPTIONS, STATIC_QUERY_OPTIONS } from "@/lib/api";
 import { TabSelector, type ChatTab } from "@/components/chat/TabSelector";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
@@ -51,19 +53,40 @@ interface ChatMessage {
 }
 
 /**
- * Map API chat history response to the ChatMessage[] shape used by the UI.
- * The backend returns messages with `role` ("user" | "assistant") and
- * `createdAt`; we normalise here so the rest of the screen stays unchanged.
+ * Map backend messages (from clientPortal.messaging.getMessages) to the
+ * ChatMessage[] shape used by the UI. Backend message shape:
+ * { id, conversationId, senderId, senderRole, isAiMessage, body, readAt, createdAt }
  */
 function mapApiMessages(raw: any[]): ChatMessage[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((m: any, idx: number) => ({
     id: m.id ?? `msg-${idx}`,
-    content: m.content ?? m.text ?? "",
-    timestamp: m.createdAt ?? m.timestamp ?? new Date().toISOString(),
-    isUser: m.role === "user" || m.isUser === true,
-    isRead: m.isRead,
+    content: m.body ?? "",
+    timestamp: m.createdAt ?? new Date().toISOString(),
+    isUser: m.senderRole === "client",
+    isRead: m.readAt != null,
   }));
+}
+
+/**
+ * Parse an SSE (text/event-stream) response body from /api/chat into the
+ * full assistant reply text. React Native fetch buffers the whole body,
+ * so we read it as text and join the "text" delta events.
+ */
+function parseSSEReply(sseText: string): string {
+  let reply = "";
+  for (const line of sseText.split("\n")) {
+    if (!line.startsWith("data: ")) continue;
+    try {
+      const evt = JSON.parse(line.slice(6));
+      if (evt.type === "text" && evt.text) reply += evt.text;
+      if (evt.type === "error") throw new Error(evt.error);
+    } catch (e) {
+      if (e instanceof Error && e.message && !e.message.includes("JSON")) throw e;
+      // Ignore JSON parse errors on partial lines
+    }
+  }
+  return reply;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,23 +94,33 @@ function mapApiMessages(raw: any[]): ChatMessage[] {
 // ---------------------------------------------------------------------------
 
 function AIAssistantTab() {
-  // ---- tRPC: fetch chat history ----
-  const historyQuery = trpc.clientPortal.messaging.listConversations.useQuery(
-    { filter: "ai_coach" },
-    REALTIME_QUERY_OPTIONS,
+  const { getToken } = useAuth();
+
+  // ---- Step 1: ensure an AI conversation exists (idempotent get-or-create) ----
+  const startConversationMutation = trpc.clientPortal.messaging.startConversation.useMutation();
+  const [conversationId, setConversationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    startConversationMutation.mutate(
+      { coachId: null, coachName: "Everist AI", isAiCoach: true },
+      {
+        onSuccess: (conv: any) => {
+          if (conv?.id) setConversationId(conv.id);
+        },
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- Step 2: fetch message history for this conversation ----
+  const historyQuery = trpc.clientPortal.messaging.getMessages.useQuery(
+    { conversationId: conversationId ?? "", limit: 50 },
+    { ...REALTIME_QUERY_OPTIONS, enabled: !!conversationId },
   );
 
-  // ---- tRPC: send message mutation ----
-  const sendMutation = trpc.clientPortal.messaging.sendMessage.useMutation({
-    onSuccess: () => {
-      historyQuery.refetch();
-    },
-  });
-
-  // Live data with sample-data fallback
   const apiMessages: ChatMessage[] = historyQuery.data
     ? mapApiMessages(historyQuery.data as any)
-    : SAMPLE_DATA.aiMessages;
+    : [];
 
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const messages = [...apiMessages, ...localMessages];
@@ -125,78 +158,98 @@ function AIAssistantTab() {
     scrollToBottom();
   }, [messages.length, scrollToBottom]);
 
+  /**
+   * Send a message to the AI via POST /api/chat.
+   * The endpoint persists both the user message and the AI reply,
+   * then we refetch history to display them.
+   */
+  const sendToAI = useCallback(
+    async (text: string) => {
+      const userMessage: ChatMessage = {
+        id: `user-${Date.now()}`,
+        content: text,
+        timestamp: new Date().toISOString(),
+        isUser: true,
+      };
+      setLocalMessages((prev) => [...prev, userMessage]);
+      setIsTyping(true);
+
+      try {
+        const token = await getToken();
+        const history = apiMessages.slice(-20).map((m) => ({
+          role: m.isUser ? "client" : "ai_coach",
+          body: m.content,
+        }));
+
+        const res = await fetch(`${API_URL}/api/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: token ? `Bearer ${token}` : "",
+          },
+          body: JSON.stringify({
+            message: text,
+            conversationId: conversationId ?? undefined,
+            history,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.error ?? `Request failed (${res.status})`);
+        }
+
+        // The endpoint streams SSE; RN fetch buffers the full body
+        const sseText = await res.text();
+        const reply = parseSSEReply(sseText);
+
+        setIsTyping(false);
+        if (reply) {
+          // Show the reply immediately, then sync with the server copy
+          setLocalMessages((prev) => [
+            ...prev,
+            {
+              id: `ai-${Date.now()}`,
+              content: reply,
+              timestamp: new Date().toISOString(),
+              isUser: false,
+            },
+          ]);
+        }
+        historyQuery.refetch();
+      } catch (error: any) {
+        setIsTyping(false);
+        setLocalMessages((prev) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
+            content:
+              error?.message?.includes("not configured")
+                ? "AI chat is not configured yet. Please contact support."
+                : "Sorry, your message could not be sent. Please check your connection and try again.",
+            timestamp: new Date().toISOString(),
+            isUser: false,
+          },
+        ]);
+      }
+    },
+    [getToken, conversationId, apiMessages, historyQuery],
+  );
+
   const handleSend = useCallback(() => {
     const text = inputText.trim();
     if (!text) return;
-
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      content: text,
-      timestamp: new Date().toISOString(),
-      isUser: true,
-    };
-
-    // Optimistically add the user message
-    setLocalMessages((prev) => [...prev, userMessage]);
     setInputText("");
-    setIsTyping(true);
+    sendToAI(text);
+  }, [inputText, sendToAI]);
 
-    // Try the real mutation; fall back to simulated response
-    sendMutation.mutate(
-      { message: text, channel: "ai" },
-      {
-        onSuccess: (data: any) => {
-          setIsTyping(false);
-          // Server replied — refetch handles showing the response
-          historyQuery.refetch();
-        },
-        onError: () => {
-          // Mutation failed — show an error message instead of a fake response
-          setIsTyping(false);
-          const errorMessage: ChatMessage = {
-            id: `error-${Date.now()}`,
-            content: "Sorry, your message could not be sent. Please check your connection and try again.",
-            timestamp: new Date().toISOString(),
-            isUser: false,
-          };
-          setLocalMessages((prev) => [...prev, errorMessage]);
-        },
-      },
-    );
-  }, [inputText, sendMutation, historyQuery]);
-
-  const handleQuickAction = useCallback((message: string) => {
-    setInputText("");
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      content: message,
-      timestamp: new Date().toISOString(),
-      isUser: true,
-    };
-
-    setLocalMessages((prev) => [...prev, userMessage]);
-    setIsTyping(true);
-
-    sendMutation.mutate(
-      { message, channel: "ai" },
-      {
-        onSuccess: () => {
-          setIsTyping(false);
-          historyQuery.refetch();
-        },
-        onError: () => {
-          setIsTyping(false);
-          const errorMessage: ChatMessage = {
-            id: `error-${Date.now()}`,
-            content: "Sorry, your message could not be sent. Please check your connection and try again.",
-            timestamp: new Date().toISOString(),
-            isUser: false,
-          };
-          setLocalMessages((prev) => [...prev, errorMessage]);
-        },
-      },
-    );
-  }, [sendMutation, historyQuery]);
+  const handleQuickAction = useCallback(
+    (message: string) => {
+      setInputText("");
+      sendToAI(message);
+    },
+    [sendToAI],
+  );
 
   const renderMessage = useCallback(
     ({ item }: ListRenderItemInfo<ChatMessage>) => (
@@ -283,23 +336,52 @@ function AIAssistantTab() {
 function CoachChatTab() {
   const router = useRouter();
 
-  // ---- tRPC: fetch coach chat history ----
-  const historyQuery = trpc.clientPortal.messaging.listConversations.useQuery(
-    { filter: "human_coach" },
-    REALTIME_QUERY_OPTIONS,
+  // ---- Load the client's real coach ----
+  const coachQuery = trpc.clientPortal.settings.getMyCoach.useQuery(
+    undefined,
+    STATIC_QUERY_OPTIONS,
+  );
+  const coach = coachQuery.data as any;
+  const coachName = coach
+    ? `${coach.firstName ?? ""} ${coach.lastName ?? ""}`.trim() || "Your Coach"
+    : "Your Coach";
+  const coachInitials = coach
+    ? `${coach.firstName?.[0] ?? ""}${coach.lastName?.[0] ?? ""}`.toUpperCase() || "C"
+    : "C";
+
+  // ---- Ensure a conversation with the coach exists ----
+  const startConversationMutation = trpc.clientPortal.messaging.startConversation.useMutation();
+  const markAsReadMutation = trpc.clientPortal.messaging.markAsRead.useMutation();
+  const [conversationId, setConversationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!coach?.id) return;
+    startConversationMutation.mutate(
+      { coachId: coach.id, coachName, isAiCoach: false },
+      {
+        onSuccess: (conv: any) => {
+          if (conv?.id) {
+            setConversationId(conv.id);
+            markAsReadMutation.mutate({ conversationId: conv.id });
+          }
+        },
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coach?.id]);
+
+  // ---- Fetch messages for this conversation ----
+  const historyQuery = trpc.clientPortal.messaging.getMessages.useQuery(
+    { conversationId: conversationId ?? "", limit: 50 },
+    { ...REALTIME_QUERY_OPTIONS, enabled: !!conversationId },
   );
 
-  // ---- tRPC: send message mutation ----
-  const sendMutation = trpc.clientPortal.messaging.sendMessage.useMutation({
-    onSuccess: () => {
-      historyQuery.refetch();
-    },
-  });
+  // ---- Send message mutation (correct input shape: conversationId + body) ----
+  const sendMutation = trpc.clientPortal.messaging.sendMessage.useMutation();
 
-  // Live data with sample-data fallback
   const apiMessages: ChatMessage[] = historyQuery.data
     ? mapApiMessages(historyQuery.data as any)
-    : SAMPLE_DATA.coachMessages;
+    : [];
 
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const messages = [...apiMessages, ...localMessages];
@@ -340,6 +422,21 @@ function CoachChatTab() {
     const text = inputText.trim();
     if (!text) return;
 
+    if (!conversationId) {
+      setLocalMessages((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          content: coach
+            ? "Setting up your conversation — please try again in a moment."
+            : "You don't have a coach assigned yet. Contact support to get matched with a coach.",
+          timestamp: new Date().toISOString(),
+          isUser: false,
+        },
+      ]);
+      return;
+    }
+
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       content: text,
@@ -352,16 +449,28 @@ function CoachChatTab() {
     setLocalMessages((prev) => [...prev, userMessage]);
     setInputText("");
 
-    // Try the real mutation; on failure the optimistic message stays visible
     sendMutation.mutate(
-      { message: text, channel: "coach" },
+      { conversationId, body: text },
       {
         onSuccess: () => {
           historyQuery.refetch();
         },
+        onError: (error: any) => {
+          setLocalMessages((prev) => [
+            ...prev,
+            {
+              id: `error-${Date.now()}`,
+              content:
+                error?.message ??
+                "Your message could not be sent. Please check your connection and try again.",
+              timestamp: new Date().toISOString(),
+              isUser: false,
+            },
+          ]);
+        },
       },
     );
-  }, [inputText, sendMutation, historyQuery]);
+  }, [inputText, conversationId, coach, sendMutation, historyQuery]);
 
   const renderMessage = useCallback(
     ({ item }: ListRenderItemInfo<ChatMessage>) => (
@@ -371,7 +480,7 @@ function CoachChatTab() {
         timestamp={item.timestamp}
         isUser={item.isUser}
         avatarMode="coach"
-        coachInitials="WK"
+        coachInitials={coachInitials}
         showReadReceipt
         isRead={item.isRead}
       />
@@ -388,15 +497,19 @@ function CoachChatTab() {
           onPress={() => router.push("/coach")}
         >
           <View style={styles.coachHeaderAvatar}>
-            <Text style={styles.coachAvatarText}>WK</Text>
+            <Text style={styles.coachAvatarText}>{coachInitials}</Text>
             {/* Online indicator dot */}
             <View style={styles.coachOnlineBadge} />
           </View>
           <View style={styles.coachHeaderInfo}>
-            <Text style={styles.coachHeaderName}>Coach Walid Kherat</Text>
+            <Text style={styles.coachHeaderName}>
+              {coach ? `Coach ${coachName}` : "Your Coach"}
+            </Text>
             <View style={styles.onlineRow}>
               <Wifi size={11} color={Colors.success} />
-              <Text style={styles.coachOnlineText}>Online</Text>
+              <Text style={styles.coachOnlineText}>
+                {coach ? "Available" : "Not assigned yet"}
+              </Text>
             </View>
           </View>
         </Pressable>
@@ -454,32 +567,6 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getAIResponse(userMessage: string): string {
-  const lower = userMessage.toLowerCase();
-
-  if (lower.includes("lab") || lower.includes("result")) {
-    return "Based on your most recent labs from June 8th, here are the key findings:\n\n- Vitamin D: 62 ng/mL (optimal)\n- hsCRP: 0.4 mg/L (excellent, improved from March)\n- Fasting glucose: 88 mg/dL (within range)\n- ApoB: 95 mg/dL (borderline -- worth monitoring)\n\nOverall your biomarkers are trending in the right direction. Your inflammation markers show significant improvement since starting the anti-inflammatory protocol. Would you like me to dive deeper into any specific marker?";
-  }
-
-  if (lower.includes("supplement")) {
-    return "Your current supplement protocol includes 8 active supplements:\n\n1. Omega-3 Fish Oil -- 2g EPA/DHA (morning)\n2. Vitamin D3+K2 -- 5,000 IU (morning with food)\n3. Magnesium Glycinate -- 400mg (evening)\n4. Creatine Monohydrate -- 5g (any time)\n5. CoQ10 (Ubiquinol) -- 200mg (morning)\n6. Zinc -- 30mg (evening)\n7. Ashwagandha KSM-66 -- 600mg (evening)\n8. NAC -- 600mg (morning)\n\nNo significant interactions detected. Your Vitamin D levels confirm the current dosage is appropriate. Would you like me to check if any adjustments are needed based on your latest labs?";
-  }
-
-  if (lower.includes("symptom")) {
-    return "I'm here to help you understand your symptoms. Please describe what you're experiencing, including:\n\n- When the symptoms started\n- How severe they are (1-10)\n- Whether they're constant or intermittent\n- Any triggers you've noticed\n\nI'll cross-reference with your health data, recent labs, and current protocols to give you insights. Remember, I can provide analysis but always consult your healthcare provider for medical advice.";
-  }
-
-  if (lower.includes("protocol") || lower.includes("today")) {
-    return "Here's your protocol for today (Friday, June 13):\n\nMorning:\n- Omega-3, Vitamin D3+K2, CoQ10, NAC (with breakfast)\n- 20 min zone 2 cardio or morning walk\n\nAfternoon:\n- Creatine (with lunch)\n- Scheduled: Upper body strength training (Dr. Kim's program)\n\nEvening:\n- Magnesium, Zinc, Ashwagandha (with dinner)\n- Blue light blocking glasses after 8 PM\n- Target bedtime: 10:30 PM\n\nAdherence this week: 89%. You missed your evening magnesium on Tuesday. Keep it up!";
-  }
-
-  return "I've analyzed your question against your health profile. Based on your current biomarkers, supplement protocol, and recent trends, I can see several areas worth discussing.\n\nCould you give me a bit more context about what specific aspect you'd like to explore? I can look at your lab trends, supplement interactions, sleep patterns, or cardiovascular metrics in detail.";
 }
 
 // ---------------------------------------------------------------------------

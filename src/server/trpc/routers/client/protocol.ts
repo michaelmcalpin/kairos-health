@@ -45,6 +45,86 @@ export const clientProtocolRouter = router({
     };
   }),
 
+  // Add an item (supplement, medication, peptide, or injection) to the
+  // client's own active protocol. Creates a protocol if none exists yet.
+  addItem: clientProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(255),
+        category: z.enum(["supplement", "medication", "peptide", "injection"]),
+        dosage: z.string().max(100).optional().nullable(),
+        unit: z.string().max(50).optional().nullable(),
+        form: z.string().max(50).optional().nullable(),
+        route: z.string().max(50).optional().nullable(),
+        frequency: z.string().max(50).optional().nullable(),
+        timeOfDay: z.string().max(50).optional().nullable(),
+        notes: z.string().optional().nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Find (or create) the client's active protocol
+      let protocol = await ctx.db.query.supplementProtocols.findFirst({
+        where: and(
+          eq(supplementProtocols.clientId, ctx.dbUserId),
+          eq(supplementProtocols.status, "active"),
+        ),
+        orderBy: desc(supplementProtocols.createdAt),
+      });
+
+      if (!protocol) {
+        const [created] = await ctx.db
+          .insert(supplementProtocols)
+          .values({
+            clientId: ctx.dbUserId,
+            version: 1,
+            status: "active",
+            isAiGenerated: false,
+          })
+          .returning();
+        protocol = created;
+      }
+
+      const [item] = await ctx.db
+        .insert(protocolItems)
+        .values({
+          protocolId: protocol.id,
+          name: input.name,
+          category: input.category,
+          dosage: input.dosage ?? null,
+          unit: input.unit ?? null,
+          form: input.form ?? null,
+          route: input.route ?? null,
+          frequency: input.frequency ?? null,
+          timeOfDay: input.timeOfDay ?? null,
+          coachNotes: input.notes ? `Self-logged: ${input.notes}` : "Self-logged",
+        })
+        .returning();
+
+      return item;
+    }),
+
+  // Remove a self-logged item from the client's protocol
+  removeItem: clientProcedure
+    .input(z.object({ itemId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      // Verify the item belongs to one of this client's protocols
+      const item = await ctx.db.query.protocolItems.findFirst({
+        where: eq(protocolItems.id, input.itemId),
+      });
+      if (!item) return { success: false };
+
+      const protocol = await ctx.db.query.supplementProtocols.findFirst({
+        where: and(
+          eq(supplementProtocols.id, item.protocolId),
+          eq(supplementProtocols.clientId, ctx.dbUserId),
+        ),
+      });
+      if (!protocol) return { success: false };
+
+      await ctx.db.delete(protocolItems).where(eq(protocolItems.id, input.itemId));
+      return { success: true };
+    }),
+
   // Get adherence logs for a specific date
   getAdherence: clientProcedure
     .input(z.object({ date: z.string() }))
