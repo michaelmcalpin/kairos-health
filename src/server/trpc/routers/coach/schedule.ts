@@ -630,7 +630,7 @@ export const coachScheduleRouter = router({
     const avail = await ctx.db.query.coachAvailability.findFirst({
       where: eq(coachAvailability.coachId, ctx.dbUserId),
     });
-    return avail ?? { weeklySchedule: [], bufferMinutes: 15, blockedDates: [] };
+    return avail ?? { weeklySchedule: [], bufferMinutes: 15, blockedDates: [], dateOverrides: {}, timezone: null };
   }),
 
   updateAvailability: trainerProcedure
@@ -638,6 +638,14 @@ export const coachScheduleRouter = router({
       z.object({
         bufferMinutes: z.number().min(0).max(60).optional(),
         blockedDates: z.array(z.string()).optional(),
+        timezone: z.string().max(64).optional(),
+        dateOverrides: z.record(
+          z.string(),
+          z.object({
+            enabled: z.boolean(),
+            slots: z.array(z.object({ start: z.string(), end: z.string() })),
+          }),
+        ).optional(),
         weeklySchedule: z.array(z.object({
           dayOfWeek: z.number().min(0).max(6),
           enabled: z.boolean(),
@@ -659,6 +667,8 @@ export const coachScheduleRouter = router({
           .set({
             ...(input.bufferMinutes !== undefined && { bufferMinutes: input.bufferMinutes }),
             ...(input.blockedDates !== undefined && { blockedDates: input.blockedDates }),
+            ...(input.timezone !== undefined && { timezone: input.timezone }),
+            ...(input.dateOverrides !== undefined && { dateOverrides: input.dateOverrides }),
             ...(input.weeklySchedule !== undefined && { weeklySchedule: input.weeklySchedule }),
             updatedAt: new Date(),
           })
@@ -673,6 +683,8 @@ export const coachScheduleRouter = router({
           coachId: ctx.dbUserId,
           bufferMinutes: input.bufferMinutes ?? 15,
           blockedDates: input.blockedDates ?? [],
+          timezone: input.timezone ?? null,
+          dateOverrides: input.dateOverrides ?? {},
           weeklySchedule: input.weeklySchedule ?? [],
         })
         .returning();

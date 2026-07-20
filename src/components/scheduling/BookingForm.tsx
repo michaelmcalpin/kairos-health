@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { timezoneLabel } from "@/lib/timezone";
 
 // ─── Local types & constants (previously from @/lib/scheduling/types) ───
 
@@ -55,6 +56,35 @@ function formatDateDisplay(dateStr: string): string {
   return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
+// Slot shape returned by clientPortal.scheduling.getAvailableSlots.
+// start/end are the COACH-local "HH:mm" strings the backend validates
+// against; startUtc/endUtc (when present) are the true instants used
+// purely for client-local display.
+interface AvailableSlot {
+  start: string;
+  end: string;
+  startUtc?: string | null;
+  endUtc?: string | null;
+  coachTimezone?: string | null;
+}
+
+/**
+ * Display a slot boundary in the CLIENT's local timezone when a UTC
+ * instant is available; otherwise fall back to the raw coach-local
+ * string. If the local time lands on a different calendar date than
+ * the selected date, append a +1d / −1d hint.
+ */
+function formatSlotTime(utc: string | null | undefined, raw: string, selectedDate: string): string {
+  if (!utc) return formatTimeDisplay(raw);
+  const d = new Date(utc);
+  let label = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  // en-CA yields YYYY-MM-DD, directly comparable to selectedDate
+  const localDay = d.toLocaleDateString("en-CA");
+  if (localDay > selectedDate) label += " +1d";
+  else if (localDay < selectedDate) label += " −1d";
+  return label;
+}
+
 // ─── Component ──────────────────────────────────────────────────
 
 interface BookingFormProps {
@@ -77,7 +107,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
   const [sessionType, setSessionType] = useState<SessionType | null>(null);
   const [meetingType, setMeetingType] = useState<MeetingType>("video");
   const [selectedDate, setSelectedDate] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState<{ start: string; end: string } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [notes, setNotes] = useState("");
 
   const sessionInfo = sessionType ? getSessionTypeInfo(sessionType) : null;
@@ -233,24 +263,46 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
                   No available slots on this date.
                 </p>
               ) : (
-                <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
-                  {availableSlots.map((slot) => (
-                    <button
-                      key={slot.start}
-                      onClick={() => {
-                        setSelectedSlot(slot);
-                        setStep("details");
-                      }}
-                      className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                        selectedSlot?.start === slot.start
-                          ? "bg-kairos-gold text-kairos-royal font-medium"
-                          : "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                      }`}
-                    >
-                      {formatTimeDisplay(slot.start)}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
+                    {availableSlots.map((slot) => (
+                      <button
+                        key={slot.start}
+                        onClick={() => {
+                          setSelectedSlot(slot);
+                          setStep("details");
+                        }}
+                        className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                          selectedSlot?.start === slot.start
+                            ? "bg-kairos-gold text-kairos-royal font-medium"
+                            : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                        }`}
+                      >
+                        {formatSlotTime(slot.startUtc, slot.start, selectedDate)}
+                      </button>
+                    ))}
+                  </div>
+                  {(() => {
+                    const coachTz = availableSlots[0]?.coachTimezone ?? null;
+                    const clientTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                    if (!coachTz) {
+                      return (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Times shown in your coach&apos;s local time.
+                        </p>
+                      );
+                    }
+                    if (coachTz !== clientTz) {
+                      return (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Times shown in your local timezone ({timezoneLabel(clientTz)}). Your coach
+                          is in {timezoneLabel(coachTz)}.
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
+                </>
               )}
             </div>
           )}
@@ -272,7 +324,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
           </h3>
           <p className="text-sm text-gray-400 mb-4">
             {sessionInfo.label} on {formatDateDisplay(selectedDate)} at{" "}
-            {formatTimeDisplay(selectedSlot.start)}
+            {formatSlotTime(selectedSlot.startUtc, selectedSlot.start, selectedDate)}
           </p>
 
           {/* Meeting type */}
@@ -351,8 +403,8 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
             <div className="flex justify-between">
               <span className="text-sm text-gray-400">Time</span>
               <span className="text-sm text-white font-medium">
-                {formatTimeDisplay(selectedSlot.start)} —{" "}
-                {formatTimeDisplay(selectedSlot.end)}
+                {formatSlotTime(selectedSlot.startUtc, selectedSlot.start, selectedDate)} —{" "}
+                {formatSlotTime(selectedSlot.endUtc, selectedSlot.end, selectedDate)}
               </span>
             </div>
             <div className="flex justify-between">

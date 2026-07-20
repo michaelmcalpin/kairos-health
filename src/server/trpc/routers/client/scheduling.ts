@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import { appointments, sessionNotes, coachAvailability, users } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { zonedTimeToUtc } from "@/lib/timezone";
 
 const SESSION_TYPES = [
   { id: "initial_consultation", label: "Initial Consultation", duration: 60, description: "First meeting to discuss goals and health history" },
@@ -81,12 +82,27 @@ export const clientSchedulingRouter = router({
       const blocked = (avail?.blockedDates as string[] | null) ?? [];
       if (blocked.includes(input.date)) return [];
 
-      // T12:00:00 avoids UTC day-shift on non-UTC servers
-      const dayOfWeek = new Date(`${input.date}T12:00:00`).getDay();
-      const schedule = avail?.weeklySchedule ?? [];
-      const daySchedule = schedule.find((d) => d.dayOfWeek === dayOfWeek);
+      // Per-date override takes priority over the weekly pattern —
+      // availability can change day by day.
+      const overrides = (avail?.dateOverrides ?? {}) as Record<
+        string,
+        { enabled: boolean; slots: { start: string; end: string }[] }
+      >;
+      const override = overrides[input.date];
 
-      if (!daySchedule?.enabled || !daySchedule.slots.length) return [];
+      let dayWindows: { start: string; end: string }[];
+      if (override) {
+        if (!override.enabled || !override.slots.length) return [];
+        dayWindows = override.slots;
+      } else {
+        // T12:00:00 avoids UTC day-shift on non-UTC servers
+        const dayOfWeek = new Date(`${input.date}T12:00:00`).getDay();
+        const schedule = avail?.weeklySchedule ?? [];
+        const daySchedule = schedule.find((d) => d.dayOfWeek === dayOfWeek);
+        if (!daySchedule?.enabled || !daySchedule.slots.length) return [];
+        dayWindows = daySchedule.slots;
+      }
+      const daySchedule = { enabled: true, slots: dayWindows };
 
       // Get existing appointments for that day
       const existing = await ctx.db.query.appointments.findMany({
@@ -104,7 +120,14 @@ export const clientSchedulingRouter = router({
 
       // Generate available slots
       const buffer = avail?.bufferMinutes ?? 15;
-      const slots: { start: string; end: string }[] = [];
+      const coachTz = avail?.timezone ?? null;
+      const slots: {
+        start: string;
+        end: string;
+        startUtc: string | null;
+        endUtc: string | null;
+        coachTimezone: string | null;
+      }[] = [];
 
       for (const window of daySchedule.slots) {
         let cursor = window.start;
@@ -117,7 +140,15 @@ export const clientSchedulingRouter = router({
           );
 
           if (!conflicts) {
-            slots.push({ start: cursor, end });
+            // When the coach's timezone is known, provide UTC instants so
+            // the client UI can render slots in the CLIENT's local time.
+            slots.push({
+              start: cursor,
+              end,
+              startUtc: coachTz ? zonedTimeToUtc(input.date, cursor, coachTz).toISOString() : null,
+              endUtc: coachTz ? zonedTimeToUtc(input.date, end, coachTz).toISOString() : null,
+              coachTimezone: coachTz,
+            });
           }
           cursor = addMinutes(cursor, buffer + input.durationMinutes);
         }
@@ -174,15 +205,25 @@ export const clientSchedulingRouter = router({
         });
       }
 
-      const dayOfWeek = new Date(`${input.date}T12:00:00`).getDay();
-      const daySchedule = (avail?.weeklySchedule ?? []).find(
-        (d) => d.dayOfWeek === dayOfWeek,
-      );
-      const withinWindow =
-        daySchedule?.enabled &&
-        daySchedule.slots.some(
-          (w) => input.startTime >= w.start && requestedEnd <= w.end,
+      // Per-date override takes priority over the weekly pattern
+      const bookOverrides = (avail?.dateOverrides ?? {}) as Record<
+        string,
+        { enabled: boolean; slots: { start: string; end: string }[] }
+      >;
+      const bookOverride = bookOverrides[input.date];
+      let windows: { start: string; end: string }[] | null = null;
+      if (bookOverride) {
+        windows = bookOverride.enabled ? bookOverride.slots : [];
+      } else {
+        const dayOfWeek = new Date(`${input.date}T12:00:00`).getDay();
+        const daySchedule = (avail?.weeklySchedule ?? []).find(
+          (d) => d.dayOfWeek === dayOfWeek,
         );
+        windows = daySchedule?.enabled ? daySchedule.slots : [];
+      }
+      const withinWindow = windows.some(
+        (w) => input.startTime >= w.start && requestedEnd <= w.end,
+      );
       if (avail && !withinWindow) {
         throw new TRPCError({
           code: "BAD_REQUEST",

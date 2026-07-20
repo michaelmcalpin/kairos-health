@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Clock, Plus, Trash2, Save, CalendarOff, Check } from "lucide-react";
+import { Clock, Plus, Trash2, Save, CalendarOff, CalendarDays, Check, Globe, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { COMMON_TIMEZONES } from "@/lib/timezone";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -13,6 +14,11 @@ interface TimeSlot {
 
 interface DaySchedule {
   dayOfWeek: number;
+  enabled: boolean;
+  slots: TimeSlot[];
+}
+
+interface DateOverride {
   enabled: boolean;
   slots: TimeSlot[];
 }
@@ -48,10 +54,17 @@ export function AvailabilityEditor() {
     },
   });
 
+  // Browser-detected IANA timezone — used as the default when the
+  // coach has never picked a timezone.
+  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
   const [schedule, setSchedule] = useState<DaySchedule[]>(DEFAULT_SCHEDULE);
   const [bufferMinutes, setBufferMinutes] = useState(15);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
   const [newBlockedDate, setNewBlockedDate] = useState("");
+  const [timezone, setTimezone] = useState(browserTimezone);
+  const [dateOverrides, setDateOverrides] = useState<Record<string, DateOverride>>({});
+  const [newOverrideDate, setNewOverrideDate] = useState("");
   const [saved, setSaved] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -79,8 +92,17 @@ export function AvailabilityEditor() {
       }
       setBufferMinutes(existing?.bufferMinutes ?? 15);
       setBlockedDates((existing?.blockedDates as string[]) ?? []);
+      setDateOverrides((existing?.dateOverrides as Record<string, DateOverride>) ?? {});
+      if (existing?.timezone) {
+        setTimezone(existing.timezone);
+      } else {
+        // No timezone saved yet — default to the browser-detected zone
+        // and mark dirty so the first save persists it.
+        setTimezone(browserTimezone);
+        setHasChanges(true);
+      }
     }
-  }, [existing]);
+  }, [existing, browserTimezone]);
 
   // Track changes
   const markChanged = useCallback(() => {
@@ -155,6 +177,88 @@ export function AvailabilityEditor() {
     markChanged();
   }
 
+  // ── Date overrides (Specific Days) ──
+  function addDateOverride() {
+    if (!newOverrideDate || dateOverrides[newOverrideDate]) return;
+    // Default the override to that weekday's current weekly hours,
+    // or a single 09:00–17:00 slot if the weekday has none.
+    const weekday = new Date(newOverrideDate + "T12:00:00").getDay();
+    const daySchedule = schedule.find((d) => d.dayOfWeek === weekday);
+    const slots =
+      daySchedule && daySchedule.enabled && daySchedule.slots.length > 0
+        ? daySchedule.slots.map((s) => ({ ...s }))
+        : [{ start: "09:00", end: "17:00" }];
+    setDateOverrides((prev) => ({ ...prev, [newOverrideDate]: { enabled: true, slots } }));
+    setNewOverrideDate("");
+    markChanged();
+  }
+
+  function toggleOverride(date: string) {
+    setDateOverrides((prev) => {
+      const o = prev[date];
+      if (!o) return prev;
+      const enabled = !o.enabled;
+      return {
+        ...prev,
+        [date]: {
+          ...o,
+          enabled,
+          slots: enabled && o.slots.length === 0 ? [{ start: "09:00", end: "17:00" }] : o.slots,
+        },
+      };
+    });
+    markChanged();
+  }
+
+  function updateOverrideSlot(date: string, slotIdx: number, field: "start" | "end", value: string) {
+    setDateOverrides((prev) => {
+      const o = prev[date];
+      if (!o) return prev;
+      return {
+        ...prev,
+        [date]: { ...o, slots: o.slots.map((s, i) => (i === slotIdx ? { ...s, [field]: value } : s)) },
+      };
+    });
+    markChanged();
+  }
+
+  function addOverrideSlot(date: string) {
+    setDateOverrides((prev) => {
+      const o = prev[date];
+      if (!o) return prev;
+      const lastSlot = o.slots[o.slots.length - 1];
+      const newStart = lastSlot ? lastSlot.end : "09:00";
+      const startHour = parseInt(newStart.split(":")[0]);
+      const endHour = Math.min(startHour + 2, 23);
+      return {
+        ...prev,
+        [date]: {
+          ...o,
+          slots: [...o.slots, { start: newStart, end: `${String(endHour).padStart(2, "0")}:00` }],
+        },
+      };
+    });
+    markChanged();
+  }
+
+  function removeOverrideSlot(date: string, slotIdx: number) {
+    setDateOverrides((prev) => {
+      const o = prev[date];
+      if (!o) return prev;
+      return { ...prev, [date]: { ...o, slots: o.slots.filter((_, i) => i !== slotIdx) } };
+    });
+    markChanged();
+  }
+
+  function removeDateOverride(date: string) {
+    setDateOverrides((prev) => {
+      const next = { ...prev };
+      delete next[date];
+      return next;
+    });
+    markChanged();
+  }
+
   // ── Save ──
   function handleSave() {
     setSaveError(null);
@@ -164,6 +268,8 @@ export function AvailabilityEditor() {
       weeklySchedule: schedule,
       bufferMinutes,
       blockedDates,
+      timezone,
+      dateOverrides,
     });
   }
 
@@ -193,6 +299,44 @@ export function AvailabilityEditor() {
           {saveError}
         </div>
       )}
+
+      {/* Timezone */}
+      <div className="kairos-card p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Globe className="w-5 h-5 text-kairos-gold" />
+          <h3 className="font-heading font-bold text-lg text-white">Timezone</h3>
+        </div>
+        <p className="text-sm text-kairos-silver-dark mb-4">
+          All times below are in this timezone. Clients see slots converted to their own timezone.
+        </p>
+        <label className="text-xs text-kairos-silver-dark mb-2 block" htmlFor="availability-timezone">
+          Your timezone
+        </label>
+        <select
+          id="availability-timezone"
+          value={timezone}
+          onChange={(e) => {
+            setTimezone(e.target.value);
+            markChanged();
+          }}
+          className="kairos-input w-full max-w-xs"
+        >
+          {/* Prepend browser-detected (and any saved) zone not in the common list */}
+          {Array.from(new Set([browserTimezone, timezone]))
+            .filter((tz) => !COMMON_TIMEZONES.some((c) => c.value === tz))
+            .map((tz) => (
+              <option key={tz} value={tz}>
+                {tz.replace(/_/g, " ")}
+                {tz === browserTimezone ? " (detected)" : ""}
+              </option>
+            ))}
+          {COMMON_TIMEZONES.map((tz) => (
+            <option key={tz.value} value={tz.value}>
+              {tz.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Weekly Schedule */}
       <div className="kairos-card p-6">
@@ -297,6 +441,131 @@ export function AvailabilityEditor() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Specific Days (date overrides) */}
+      <div className="kairos-card p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <CalendarDays className="w-5 h-5 text-kairos-gold" />
+          <h3 className="font-heading font-bold text-lg text-white">Specific Days</h3>
+        </div>
+        <p className="text-sm text-kairos-silver-dark mb-4">
+          Override your regular hours for specific dates — busy days, travel, or extra availability.
+        </p>
+
+        <div className="flex items-center gap-3 mb-4">
+          <input
+            type="date"
+            value={newOverrideDate}
+            onChange={(e) => setNewOverrideDate(e.target.value)}
+            className="kairos-input w-48"
+            min={new Date().toISOString().split("T")[0]}
+          />
+          <button
+            onClick={addDateOverride}
+            disabled={!newOverrideDate || !!dateOverrides[newOverrideDate]}
+            className="kairos-btn-outline gap-1 flex items-center text-sm disabled:opacity-50"
+          >
+            <Plus size={14} /> Customize Day
+          </button>
+        </div>
+
+        {Object.keys(dateOverrides).length > 0 ? (
+          <div className="space-y-3">
+            {Object.keys(dateOverrides)
+              .sort()
+              .map((date) => {
+                const override = dateOverrides[date];
+                const label = new Date(date + "T12:00:00").toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                });
+                return (
+                  <div
+                    key={date}
+                    className={`border rounded-xl p-4 transition-colors ${
+                      override.enabled
+                        ? "border-kairos-border bg-kairos-card-hover/30"
+                        : "border-kairos-border/40 bg-transparent opacity-60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      {/* Date + availability toggle */}
+                      <div className="flex items-center gap-3 min-w-[160px]">
+                        <button
+                          onClick={() => toggleOverride(date)}
+                          title={override.enabled ? "Mark unavailable" : "Mark available"}
+                          className={`relative w-10 h-5 rounded-full transition-colors ${
+                            override.enabled ? "bg-kairos-gold" : "bg-gray-600"
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                              override.enabled ? "left-5.5 translate-x-0.5" : "left-0.5"
+                            }`}
+                          />
+                        </button>
+                        <span className="font-heading font-semibold text-sm text-white">{label}</span>
+                      </div>
+
+                      {/* Time slots (when available) */}
+                      {override.enabled ? (
+                        <div className="flex flex-wrap items-center gap-2 flex-1 justify-end">
+                          {override.slots.map((slot, idx) => (
+                            <div key={idx} className="flex items-center gap-1">
+                              <input
+                                type="time"
+                                value={slot.start}
+                                onChange={(e) => updateOverrideSlot(date, idx, "start", e.target.value)}
+                                className="bg-kairos-royal-surface border border-kairos-border rounded-lg px-2 py-1 text-sm text-white focus:border-kairos-gold outline-none w-[110px]"
+                              />
+                              <span className="text-kairos-silver-dark text-xs">to</span>
+                              <input
+                                type="time"
+                                value={slot.end}
+                                onChange={(e) => updateOverrideSlot(date, idx, "end", e.target.value)}
+                                className="bg-kairos-royal-surface border border-kairos-border rounded-lg px-2 py-1 text-sm text-white focus:border-kairos-gold outline-none w-[110px]"
+                              />
+                              {override.slots.length > 1 && (
+                                <button
+                                  onClick={() => removeOverrideSlot(date, idx)}
+                                  className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                                  title="Remove time slot"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => addOverrideSlot(date)}
+                            className="p-1.5 text-kairos-gold hover:bg-kairos-gold/10 rounded-lg transition-colors"
+                            title="Add another time window"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-500 italic flex-1 text-right">Unavailable</span>
+                      )}
+
+                      {/* Remove override */}
+                      <button
+                        onClick={() => removeDateOverride(date)}
+                        className="p-1 text-kairos-silver-dark hover:text-white transition-colors flex-shrink-0"
+                        title="Remove this day override"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 italic">No day-specific overrides</p>
+        )}
       </div>
 
       {/* Buffer Time */}

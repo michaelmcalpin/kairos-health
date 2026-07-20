@@ -769,6 +769,15 @@ export const coachAvailability = pgTable("coach_availability", {
   }[]>(),
   bufferMinutes: integer("buffer_minutes").default(15),
   blockedDates: jsonb("blocked_dates").$type<string[]>().default([]),
+  // Per-date overrides — availability can change daily. Keyed by
+  // YYYY-MM-DD; overrides the weekly pattern for that specific date.
+  // enabled=false closes the day entirely.
+  dateOverrides: jsonb("date_overrides").$type<Record<string, {
+    enabled: boolean; slots: { start: string; end: string }[];
+  }>>().default({}),
+  // IANA timezone (e.g. "America/New_York") — all schedule times are in
+  // the coach's local timezone; booking UIs convert for the client.
+  timezone: varchar("timezone", { length: 64 }),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
