@@ -48,6 +48,7 @@ import {
   Camera,
   Target,
   CalendarCheck,
+  ShieldCheck,
 } from "lucide-react";
 
 export type NavItem = {
@@ -309,6 +310,7 @@ export const clientNavItems: NavItem[] = [
   { label: "Medications", href: "/medications", icon: <Tablets size={18} />, section: "Protocols" },
 
   // Account
+  { label: "Care Team", href: "/care-team", icon: <ShieldCheck size={18} />, section: "Account" },
   { label: "Settings", href: "/settings", icon: <Settings size={18} />, section: "Account" },
 
 ];

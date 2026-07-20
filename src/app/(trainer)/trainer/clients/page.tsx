@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Search, Users, UserPlus, X, Mail, Check, Clock, ChevronDown, Trash2, Plus, Phone, Calendar } from "lucide-react";
+import { Search, Users, UserPlus, X, Mail, Check, Clock, ChevronDown, Trash2, Plus, Phone, Calendar, ShieldCheck } from "lucide-react";
 import { TIER_LABELS, STATUS_LABELS } from "@/lib/coach-clients/types";
 import type { ClientTier, ClientStatus } from "@/lib/coach-clients/types";
 import { ClientCard } from "@/components/coach/ClientCard";
@@ -206,6 +206,9 @@ export default function CoachClientsPage() {
         )}
       </div>
 
+      {/* Shared with me */}
+      <SharedWithMeSection />
+
       {/* Add Client Modal */}
       {showAddModal && (
         <AddClientModal
@@ -213,6 +216,86 @@ export default function CoachClientsPage() {
           onClientAdded={handleClientAdded}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Shared With Me ──────────────────────────────────────────
+
+const SHARED_ACCESS_BADGES = [
+  { key: "dietAccess", letter: "D", label: "Diet" },
+  { key: "exerciseAccess", letter: "E", label: "Exercise" },
+  { key: "labsAccess", letter: "L", label: "Labs" },
+  { key: "healthDataAccess", letter: "H", label: "Health Data" },
+] as const;
+
+function SharedWithMeSection() {
+  const { data: shared = [], isLoading } = trpc.coach.sharedAccess.sharedWithMe.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  if (isLoading || shared.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <ShieldCheck size={16} className="text-kairos-gold" />
+        <h2 className="text-lg font-heading font-bold text-white">Shared with me</h2>
+        <span className="text-xs text-gray-500">({shared.length})</span>
+      </div>
+      <p className="text-xs text-gray-500 -mt-1">
+        Clients outside your roster who granted you access to specific categories of their data.
+      </p>
+      <div className="space-y-2">
+        {shared.map((s) => {
+          const name = `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || s.email || "Client";
+          const initials = ((s.firstName?.[0] ?? s.email?.[0] ?? "C") + (s.lastName?.[0] ?? "")).toUpperCase();
+          return (
+            <Link key={s.grantId} href={`/trainer/clients/${s.clientId}`}>
+              <div className="kairos-card p-4 flex items-center justify-between gap-3 flex-wrap hover:border-kairos-gold/30 transition-colors cursor-pointer">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
+                    {s.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.avatarUrl} alt="" className="w-full h-full object-cover rounded-full" />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{name}</p>
+                    <p className="text-xs text-gray-500 truncate">{s.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {SHARED_ACCESS_BADGES.map((badge) => {
+                    const level = s[badge.key] as "none" | "read" | "write";
+                    return (
+                      <span
+                        key={badge.key}
+                        title={`${badge.label}: ${level === "none" ? "no access" : level === "read" ? "view only" : "view & edit"}`}
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                          level === "write"
+                            ? "bg-kairos-gold/15 text-kairos-gold border-kairos-gold/30"
+                            : level === "read"
+                              ? "bg-blue-500/10 text-blue-400 border-blue-500/30"
+                              : "bg-gray-800/60 text-gray-600 border-gray-700/50 line-through"
+                        }`}
+                      >
+                        {badge.letter}
+                        {level !== "none" && (
+                          <span className="font-normal opacity-80">{level === "read" ? "view" : "edit"}</span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }

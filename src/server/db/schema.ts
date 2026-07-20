@@ -1117,3 +1117,52 @@ export const marketplaceItems = pgTable("marketplace_items", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// ======================== COACH ACCESS SHARING ========================
+// Client-controlled access grants: a client can give ANY coach access to
+// specific categories of their data, each at read or read/write level.
+// This extends beyond the primary trainerClientRelationships assignment.
+
+export const accessLevelEnum = pgEnum("access_level", ["none", "read", "write"]);
+export const accessGrantStatusEnum = pgEnum("access_grant_status", ["active", "revoked"]);
+
+export const clientCoachAccess = pgTable("client_coach_access", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  coachId: uuid("coach_id").notNull().references(() => users.id),
+  // Per-category access levels — the client decides each independently.
+  dietAccess: accessLevelEnum("diet_access").notNull().default("none"),
+  exerciseAccess: accessLevelEnum("exercise_access").notNull().default("none"),
+  labsAccess: accessLevelEnum("labs_access").notNull().default("none"),
+  healthDataAccess: accessLevelEnum("health_data_access").notNull().default("none"),
+  status: accessGrantStatusEnum("status").notNull().default("active"),
+  grantedAt: timestamp("granted_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at"),
+}, (t) => [
+  index("cca_client_idx").on(t.clientId, t.status),
+  index("cca_coach_idx").on(t.coachId, t.status),
+]);
+
+// Coach-to-coach discussion threads about a shared client.
+// IMPORTANT: clients must NEVER be able to read these — enforcement is
+// in the tRPC layer (trainerProcedure only + participant checks).
+export const coachThreads = pgTable("coach_threads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  createdBy: uuid("created_by").notNull().references(() => users.id),
+  lastMessageAt: timestamp("last_message_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("coach_thread_client_idx").on(t.clientId),
+]);
+
+export const coachThreadMessages = pgTable("coach_thread_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  threadId: uuid("thread_id").notNull().references(() => coachThreads.id),
+  senderCoachId: uuid("sender_coach_id").notNull().references(() => users.id),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("coach_thread_msg_idx").on(t.threadId, t.createdAt),
+]);

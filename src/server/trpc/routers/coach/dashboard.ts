@@ -8,8 +8,25 @@ import {
   sleepSessions,
   glucoseReadings,
   appointments,
+  clientCoachAccess,
+  hrvReadings,
+  deviceConnections,
 } from "@/server/db/schema";
-import { eq, desc, and, sql, gte, between, inArray } from "drizzle-orm";
+import { eq, desc, asc, and, sql, gte, between, inArray } from "drizzle-orm";
+
+// Helper: safely run a query against a table that may not exist yet.
+// Returns the fallback instead of crashing the whole procedure.
+const safeQ = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+  try {
+    return await fn();
+  } catch {
+    return fallback;
+  }
+};
+
+/** Display name for a user row, falling back to email then "Client". */
+const displayName = (u?: { firstName: string | null; lastName: string | null; email: string } | null) =>
+  u ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.email : "Client";
 
 // ─── Tier pricing for revenue calculation ─────────────────────
 const TIER_PRICING: Record<string, number> = {
@@ -403,6 +420,369 @@ export const coachDashboardRouter = router({
       .limit(20);
 
     return recentAlerts;
+  }),
+
+  // ══════════════ Redesigned dashboard procedures ══════════════
+
+  /**
+   * getDaySchedule — this coach's appointments for a single day,
+   * sorted by start time.
+   */
+  getDaySchedule: trainerProcedure
+    .input(z.object({ date: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const coachId = ctx.dbUserId;
+
+      const dayAppointments = await safeQ(
+        () =>
+          ctx.db.query.appointments.findMany({
+            where: and(
+              eq(appointments.coachId, coachId),
+              eq(appointments.date, input.date),
+            ),
+            orderBy: [asc(appointments.startTime)],
+            limit: 100,
+          }),
+        [] as (typeof appointments.$inferSelect)[],
+      );
+
+      // Fall back to users lookup for appointments missing a clientName
+      const missingNameIds = Array.from(
+        new Set(dayAppointments.filter((a) => !a.clientName).map((a) => a.clientId)),
+      );
+      const nameUsers = missingNameIds.length
+        ? await safeQ(
+            () => ctx.db.query.users.findMany({ where: inArray(users.id, missingNameIds) }),
+            [] as (typeof users.$inferSelect)[],
+          )
+        : [];
+      const nameMap = new Map(nameUsers.map((u) => [u.id, u]));
+
+      return dayAppointments.map((appt) => ({
+        id: appt.id,
+        clientId: appt.clientId,
+        clientName: appt.clientName ?? displayName(nameMap.get(appt.clientId)),
+        startTime: appt.startTime,
+        endTime: appt.endTime,
+        durationMinutes: appt.durationMinutes ?? 60,
+        sessionType: appt.sessionType,
+        meetingType: appt.meetingType,
+        status: appt.status,
+        meetingLink: appt.meetingLink ?? null,
+      }));
+    }),
+
+  /**
+   * getClientAlertsFeed — "needs attention" feed across this coach's
+   * full roster (primary relationships + shared-access clients).
+   * Kinds: alert (active alerts), hrv (recent deviation from 14-day avg),
+   * no_data (connected device but nothing synced for 48h+).
+   */
+  getClientAlertsFeed: trainerProcedure.query(async ({ ctx }) => {
+    const coachId = ctx.dbUserId;
+
+    // ── Roster: primary relationships + shared-access grants ──
+    const [rels, accessGrants] = await Promise.all([
+      safeQ(
+        () =>
+          ctx.db.query.trainerClientRelationships.findMany({
+            where: and(
+              eq(trainerClientRelationships.trainerId, coachId),
+              eq(trainerClientRelationships.status, "active"),
+            ),
+          }),
+        [] as (typeof trainerClientRelationships.$inferSelect)[],
+      ),
+      safeQ(
+        () =>
+          ctx.db.query.clientCoachAccess.findMany({
+            where: and(
+              eq(clientCoachAccess.coachId, coachId),
+              eq(clientCoachAccess.status, "active"),
+            ),
+          }),
+        [] as (typeof clientCoachAccess.$inferSelect)[],
+      ),
+    ]);
+
+    const clientIds = Array.from(
+      new Set([...rels.map((r) => r.clientId), ...accessGrants.map((a) => a.clientId)]),
+    ).slice(0, 100);
+    if (clientIds.length === 0) return [];
+
+    const now = Date.now();
+    const cutoff48h = new Date(now - 48 * 60 * 60 * 1000);
+    const cutoff14d = new Date(now - 14 * 24 * 60 * 60 * 1000);
+    const twoDaysAgoStr = cutoff48h.toISOString().split("T")[0];
+
+    type CountRow = { clientId: string; count: number };
+
+    const [
+      clientUsers,
+      activeAlerts,
+      latestHrvRaw,
+      hrvAvgRows,
+      devices,
+      hrvCounts,
+      glucoseCounts,
+      sleepCounts,
+    ] = await Promise.all([
+      safeQ(
+        () => ctx.db.query.users.findMany({ where: inArray(users.id, clientIds) }),
+        [] as (typeof users.$inferSelect)[],
+      ),
+      // Active alerts
+      safeQ(
+        () =>
+          ctx.db.query.alerts.findMany({
+            where: and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")),
+            orderBy: [desc(alerts.createdAt)],
+            limit: 200,
+          }),
+        [] as (typeof alerts.$inferSelect)[],
+      ),
+      // Latest HRV reading per client within the last 48h
+      safeQ(
+        () =>
+          ctx.db.execute(sql`
+            SELECT DISTINCT ON (client_id) client_id, rmssd, timestamp
+            FROM hrv_readings
+            WHERE client_id = ANY(${clientIds}) AND timestamp >= ${cutoff48h}
+            ORDER BY client_id, timestamp DESC
+          `),
+        [] as unknown as Awaited<ReturnType<typeof ctx.db.execute>>,
+      ),
+      // 14-day average rmssd per client
+      safeQ(
+        () =>
+          ctx.db
+            .select({
+              clientId: hrvReadings.clientId,
+              avgRmssd: sql<number>`avg(${hrvReadings.rmssd})`,
+            })
+            .from(hrvReadings)
+            .where(
+              and(inArray(hrvReadings.clientId, clientIds), gte(hrvReadings.timestamp, cutoff14d)),
+            )
+            .groupBy(hrvReadings.clientId),
+        [] as { clientId: string; avgRmssd: number }[],
+      ),
+      // Connected devices
+      safeQ(
+        () =>
+          ctx.db.query.deviceConnections.findMany({
+            where: and(
+              inArray(deviceConnections.clientId, clientIds),
+              eq(deviceConnections.status, "connected"),
+            ),
+          }),
+        [] as (typeof deviceConnections.$inferSelect)[],
+      ),
+      // Recent-reading counts (48h) per client, per modality
+      safeQ(
+        () =>
+          ctx.db
+            .select({ clientId: hrvReadings.clientId, count: sql<number>`count(*)` })
+            .from(hrvReadings)
+            .where(
+              and(inArray(hrvReadings.clientId, clientIds), gte(hrvReadings.timestamp, cutoff48h)),
+            )
+            .groupBy(hrvReadings.clientId),
+        [] as CountRow[],
+      ),
+      safeQ(
+        () =>
+          ctx.db
+            .select({ clientId: glucoseReadings.clientId, count: sql<number>`count(*)` })
+            .from(glucoseReadings)
+            .where(
+              and(
+                inArray(glucoseReadings.clientId, clientIds),
+                gte(glucoseReadings.timestamp, cutoff48h),
+              ),
+            )
+            .groupBy(glucoseReadings.clientId),
+        [] as CountRow[],
+      ),
+      safeQ(
+        () =>
+          ctx.db
+            .select({ clientId: sleepSessions.clientId, count: sql<number>`count(*)` })
+            .from(sleepSessions)
+            .where(
+              and(
+                inArray(sleepSessions.clientId, clientIds),
+                gte(sleepSessions.date, sql`${twoDaysAgoStr}::date`),
+              ),
+            )
+            .groupBy(sleepSessions.clientId),
+        [] as CountRow[],
+      ),
+    ]);
+
+    const userMap = new Map(clientUsers.map((u) => [u.id, u]));
+    const hrvAvgMap = new Map(hrvAvgRows.map((r) => [r.clientId, Number(r.avgRmssd)]));
+    const latestHrvRows = latestHrvRaw as unknown as Array<{
+      client_id: string;
+      rmssd: number | string;
+      timestamp: Date | string;
+    }>;
+    const recentDataClientIds = new Set<string>([
+      ...hrvCounts.filter((c) => Number(c.count) > 0).map((c) => c.clientId),
+      ...glucoseCounts.filter((c) => Number(c.count) > 0).map((c) => c.clientId),
+      ...sleepCounts.filter((c) => Number(c.count) > 0).map((c) => c.clientId),
+    ]);
+    const devicesByClient = new Map<string, (typeof deviceConnections.$inferSelect)[]>();
+    for (const d of devices) {
+      const list = devicesByClient.get(d.clientId) ?? [];
+      list.push(d);
+      devicesByClient.set(d.clientId, list);
+    }
+
+    type Severity = "high" | "medium" | "low";
+    type AttentionItem = {
+      clientId: string;
+      clientName: string;
+      avatarUrl: string | null;
+      kind: "alert" | "hrv" | "no_data";
+      severity: Severity;
+      detail: string;
+      timestamp: string;
+    };
+
+    const items: AttentionItem[] = [];
+    const nameOf = (clientId: string) => displayName(userMap.get(clientId));
+    const avatarOf = (clientId: string) => userMap.get(clientId)?.avatarUrl ?? null;
+
+    // ── kind: alert ──
+    const alertSeverity: Record<string, Severity> = { urgent: "high", action: "medium", info: "low" };
+    for (const a of activeAlerts) {
+      items.push({
+        clientId: a.clientId,
+        clientName: nameOf(a.clientId),
+        avatarUrl: avatarOf(a.clientId),
+        kind: "alert",
+        severity: alertSeverity[a.priority] ?? "low",
+        detail: a.title,
+        timestamp: (a.createdAt ?? new Date()).toISOString(),
+      });
+    }
+
+    // ── kind: hrv ──
+    for (const row of latestHrvRows) {
+      const avg = hrvAvgMap.get(row.client_id);
+      if (!avg || avg <= 0) continue;
+      const latest = Number(row.rmssd);
+      const deviation = ((latest - avg) / avg) * 100;
+      if (Math.abs(deviation) <= 25) continue;
+      const direction = deviation < 0 ? "below" : "above";
+      items.push({
+        clientId: row.client_id,
+        clientName: nameOf(row.client_id),
+        avatarUrl: avatarOf(row.client_id),
+        kind: "hrv",
+        severity: Math.abs(deviation) > 40 ? "high" : "medium",
+        detail: `HRV ${Math.round(latest)}ms — ${Math.round(Math.abs(deviation))}% ${direction} 14-day avg`,
+        timestamp: new Date(row.timestamp).toISOString(),
+      });
+    }
+
+    // ── kind: no_data ──
+    for (const clientId of clientIds) {
+      const clientDevices = devicesByClient.get(clientId);
+      if (!clientDevices || clientDevices.length === 0) continue;
+      const hasRecentReadings = recentDataClientIds.has(clientId);
+      const allSyncsStale = clientDevices.every(
+        (d) => !d.lastSyncAt || d.lastSyncAt.getTime() < cutoff48h.getTime(),
+      );
+      if (hasRecentReadings && !allSyncsStale) continue;
+      if (!hasRecentReadings || allSyncsStale) {
+        const latestSync = clientDevices.reduce<Date | null>(
+          (acc, d) => (d.lastSyncAt && (!acc || d.lastSyncAt > acc) ? d.lastSyncAt : acc),
+          null,
+        );
+        items.push({
+          clientId,
+          clientName: nameOf(clientId),
+          avatarUrl: avatarOf(clientId),
+          kind: "no_data",
+          severity: "medium",
+          detail: "No device readings for 2+ days",
+          timestamp: (latestSync ?? cutoff48h).toISOString(),
+        });
+      }
+    }
+
+    // ── Sort: high severity first, then newest first ──
+    const severityRank: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
+    items.sort((a, b) => {
+      if (severityRank[a.severity] !== severityRank[b.severity]) {
+        return severityRank[a.severity] - severityRank[b.severity];
+      }
+      return b.timestamp.localeCompare(a.timestamp);
+    });
+
+    return items;
+  }),
+
+  /**
+   * getUnresponded — conversations where the last message was sent by
+   * the client and is still awaiting the coach's reply. Oldest first.
+   */
+  getUnresponded: trainerProcedure.query(async ({ ctx }) => {
+    const coachId = ctx.dbUserId;
+
+    // Last message per conversation for this coach's conversations
+    const lastMsgRaw = await safeQ(
+      () =>
+        ctx.db.execute(sql`
+          SELECT DISTINCT ON (m.conversation_id)
+            m.conversation_id, m.sender_role, m.body, m.created_at, c.client_id
+          FROM messages m
+          JOIN conversations c ON c.id = m.conversation_id
+          WHERE c.trainer_id = ${coachId}
+          ORDER BY m.conversation_id, m.created_at DESC
+        `),
+      [] as unknown as Awaited<ReturnType<typeof ctx.db.execute>>,
+    );
+
+    const lastMsgs = (lastMsgRaw as unknown as Array<{
+      conversation_id: string;
+      sender_role: string;
+      body: string;
+      created_at: Date | string;
+      client_id: string;
+    }>).filter((m) => m.sender_role === "client");
+
+    if (lastMsgs.length === 0) return [];
+
+    const msgClientIds = Array.from(new Set(lastMsgs.map((m) => m.client_id)));
+    const msgUsers = await safeQ(
+      () => ctx.db.query.users.findMany({ where: inArray(users.id, msgClientIds) }),
+      [] as (typeof users.$inferSelect)[],
+    );
+    const msgUserMap = new Map(msgUsers.map((u) => [u.id, u]));
+
+    const nowMs = Date.now();
+    const result = lastMsgs.map((m) => {
+      const lastMessageAt = new Date(m.created_at);
+      const hoursWaiting =
+        Math.round(((nowMs - lastMessageAt.getTime()) / (60 * 60 * 1000)) * 10) / 10;
+      const body = m.body ?? "";
+      return {
+        conversationId: m.conversation_id,
+        clientId: m.client_id,
+        clientName: displayName(msgUserMap.get(m.client_id)),
+        avatarUrl: msgUserMap.get(m.client_id)?.avatarUrl ?? null,
+        lastMessageBody: body.length > 140 ? `${body.slice(0, 140)}…` : body,
+        lastMessageAt: lastMessageAt.toISOString(),
+        hoursWaiting,
+      };
+    });
+
+    // Oldest-waiting first
+    result.sort((a, b) => a.lastMessageAt.localeCompare(b.lastMessageAt));
+    return result;
   }),
 });
 

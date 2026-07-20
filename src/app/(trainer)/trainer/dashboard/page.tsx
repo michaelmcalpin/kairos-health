@@ -1,217 +1,370 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { KPICard } from "@/components/ui/KPICard";
-import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
-import { useDateRange } from "@/hooks/useDateRange";
 import { useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
-import { Users, Bell, Calendar, TrendingUp, DollarSign, Clock, ArrowRight, Video } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Video,
+  Phone,
+  MapPin,
+  Bell,
+  Activity,
+  WifiOff,
+  CalendarX,
+  MessageSquare,
+  CheckCircle2,
+} from "lucide-react";
 
-const ICON_MAP: Record<string, React.ReactNode> = {
-  users: <Users size={16} />,
-  bell: <Bell size={16} />,
-  calendar: <Calendar size={16} />,
-  trending: <TrendingUp size={16} />,
-  dollar: <DollarSign size={16} />,
-  clock: <Clock size={16} />,
+// ─── Date helpers ────────────────────────────────────────────────
+
+/** Local YYYY-MM-DD (avoids UTC shift from toISOString). */
+function toDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(d: Date, n: number): Date {
+  const next = new Date(d);
+  next.setDate(next.getDate() + n);
+  return next;
+}
+
+function dateLabel(d: Date): string {
+  const today = new Date();
+  const str = toDateStr(d);
+  if (str === toDateStr(today)) return "Today";
+  if (str === toDateStr(addDays(today, 1))) return "Tomorrow";
+  if (str === toDateStr(addDays(today, -1))) return "Yesterday";
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+/** "09:00" → "9:00 AM" */
+function formatTime12(t: string | null | undefined): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  if (Number.isNaN(h)) return t;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  return `${h12}:${String(m ?? 0).padStart(2, "0")} ${ampm}`;
+}
+
+function relativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function waitingLabel(hours: number): string {
+  if (hours < 1) return "waiting <1h";
+  if (hours >= 24) return `waiting ${Math.floor(hours / 24)}d`;
+  return `waiting ${Math.round(hours)}h`;
+}
+
+/** "follow_up" → "Follow Up" */
+function humanize(s: string | null | undefined): string {
+  if (!s) return "";
+  return s
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+// ─── Small shared UI bits ────────────────────────────────────────
+
+function PanelSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="h-12 rounded-xl animate-pulse bg-gray-800/50" />
+      ))}
+    </div>
+  );
+}
+
+function PanelError({ message }: { message: string }) {
+  return <p className="text-sm text-red-400/80 py-4">{message}</p>;
+}
+
+const MEETING_TYPE_ICON: Record<string, React.ReactNode> = {
+  video: <Video size={14} />,
+  phone: <Phone size={14} />,
+  in_person: <MapPin size={14} />,
 };
+
+const KIND_ICON: Record<string, React.ReactNode> = {
+  alert: <Bell size={14} />,
+  hrv: <Activity size={14} />,
+  no_data: <WifiOff size={14} />,
+};
+
+const SEVERITY_DOT: Record<string, string> = {
+  high: "bg-red-400",
+  medium: "bg-amber-400",
+  low: "bg-blue-400",
+};
+
+// ─── Page ────────────────────────────────────────────────────────
 
 export default function TrainerDashboard() {
   const router = useRouter();
   const { brand } = useCompanyBrand();
   const isWhiteLabel = !isPlatformBrand(brand);
   const accentColor = isWhiteLabel ? brand.brandColor : undefined;
+  const accent = accentColor || "rgb(var(--k-accent))";
 
-  const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
-    useDateRange({ initialPeriod: "day" });
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const dateStr = toDateStr(selectedDate);
+  const isToday = dateStr === toDateStr(new Date());
 
-  const range = useMemo(() => ({
-    startDate: dateRange.startDate.toISOString().split("T")[0],
-    endDate: dateRange.endDate.toISOString().split("T")[0],
-  }), [dateRange]);
-
-  // ── tRPC query — real DB data ──────────────────────────────
-  const { data, isLoading, error } = trpc.coach.dashboard.getDashboard.useQuery(range, {
-    staleTime: 30_000,
+  // ── tRPC queries (per-panel loading/error) ──
+  const schedule = trpc.coach.dashboard.getDaySchedule.useQuery(
+    { date: dateStr },
+    { staleTime: 30_000, refetchOnWindowFocus: false },
+  );
+  const attention = trpc.coach.dashboard.getClientAlertsFeed.useQuery(undefined, {
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const unresponded = trpc.coach.dashboard.getUnresponded.useQuery(undefined, {
+    staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
 
-  // Loading skeleton
-  if (isLoading) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <DateRangeNavigator
-          availablePeriods={["day", "week", "month"]}
-          selectedPeriod={period}
-          onPeriodChange={setPeriod}
-          formattedRange={formattedRange}
-          isCurrent={isCurrent}
-          canForward={canForward}
-          onBack={goBack}
-          onForward={goForward}
-          onToday={goToToday}
-        />
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="kairos-card h-24 animate-pulse bg-gray-800/50" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 kairos-card h-64 animate-pulse bg-gray-800/50" />
-          <div className="kairos-card h-64 animate-pulse bg-gray-800/50" />
-        </div>
-      </div>
-    );
-  }
-
-  // Error or no data — show empty state
-  if (error || !data) {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <DateRangeNavigator
-          availablePeriods={["day", "week", "month"]}
-          selectedPeriod={period}
-          onPeriodChange={setPeriod}
-          formattedRange={formattedRange}
-          isCurrent={isCurrent}
-          canForward={canForward}
-          onBack={goBack}
-          onForward={goForward}
-          onToday={goToToday}
-        />
-        <div className="kairos-card p-12 text-center">
-          <Users size={48} className="mx-auto mb-4 text-gray-600" />
-          <h3 className="font-heading font-semibold text-white mb-2">
-            {error ? "Unable to load dashboard" : "No data yet"}
-          </h3>
-          <p className="text-sm text-gray-400">
-            {error
-              ? "There was an error loading your dashboard. Please try refreshing."
-              : "Your dashboard will populate once you have active clients."}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // ── Group appointments by starting hour ──
+  const { hours, apptsByHour } = useMemo(() => {
+    const appts = schedule.data ?? [];
+    const byHour = new Map<number, typeof appts>();
+    let minHour = 6;
+    let maxHour = 20;
+    for (const a of appts) {
+      const h = parseInt(a.startTime.split(":")[0], 10);
+      if (Number.isNaN(h)) continue;
+      minHour = Math.min(minHour, h);
+      maxHour = Math.max(maxHour, h);
+      const list = byHour.get(h) ?? [];
+      list.push(a);
+      byHour.set(h, list);
+    }
+    const hourList: number[] = [];
+    for (let h = minHour; h <= maxHour; h++) hourList.push(h);
+    return { hours: hourList, apptsByHour: byHour };
+  }, [schedule.data]);
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <DateRangeNavigator
-        availablePeriods={["day", "week", "month"]}
-        selectedPeriod={period}
-        onPeriodChange={setPeriod}
-        formattedRange={formattedRange}
-        isCurrent={isCurrent}
-        canForward={canForward}
-        onBack={goBack}
-        onForward={goForward}
-        onToday={goToToday}
-      />
-
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {data.kpis.map((kpi) => (
-          <KPICard
-            key={kpi.label}
-            label={kpi.label}
-            value={kpi.value}
-            unit={kpi.unit}
-            trend={kpi.trend === "flat" ? undefined : kpi.trend}
-            trendValue={kpi.trendValue}
-            icon={ICON_MAP[kpi.icon] ?? <TrendingUp size={16} />}
-            highlight={kpi.icon === "trending"}
-            accentColor={accentColor}
-          />
-        ))}
+      {/* ── Date bar ── */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => setSelectedDate((d) => addDays(d, -1))}
+          className="p-2 rounded-lg border border-kairos-border text-kairos-silver hover:text-white hover:bg-gray-800/50 transition-colors"
+          aria-label="Previous day"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <button
+          onClick={() => setSelectedDate((d) => addDays(d, 1))}
+          className="p-2 rounded-lg border border-kairos-border text-kairos-silver hover:text-white hover:bg-gray-800/50 transition-colors"
+          aria-label="Next day"
+        >
+          <ChevronRight size={16} />
+        </button>
+        <h2 className="font-heading font-semibold text-white text-lg">
+          {dateLabel(selectedDate)}
+        </h2>
+        {!isToday && (
+          <button
+            onClick={() => setSelectedDate(new Date())}
+            className="text-xs font-heading font-semibold px-3 py-1.5 rounded-lg border border-kairos-border text-kairos-gold hover:bg-kairos-gold/10 transition-colors"
+          >
+            Today
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Client Queue */}
-        <div className="lg:col-span-2 kairos-card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-heading font-semibold text-white">Priority Clients</h3>
-            <button onClick={() => router.push("/trainer/clients")} className="flex items-center gap-1 text-xs font-heading font-semibold text-kairos-gold hover:text-kairos-gold-light transition-colors group">
-              View All <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
-            </button>
-          </div>
-          {data.priorityClients.length === 0 ? (
-            <p className="text-sm text-gray-500 py-4">No clients assigned yet.</p>
+      {/* ── Two-column grid ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+        {/* ── LEFT: Day schedule ── */}
+        <div className="lg:col-span-3 kairos-card">
+          <h3 className="font-heading font-semibold text-white mb-4">Schedule</h3>
+
+          {schedule.isLoading ? (
+            <PanelSkeleton rows={6} />
+          ) : schedule.error ? (
+            <PanelError message="Unable to load the schedule. Please try refreshing." />
+          ) : (schedule.data?.length ?? 0) === 0 ? (
+            <div className="py-12 text-center">
+              <CalendarX size={36} className="mx-auto mb-3 text-gray-600" />
+              <p className="text-sm text-gray-500">No appointments this day.</p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {data.priorityClients.map((client) => (
-                <Link key={client.id} href={`/trainer/clients/${client.id}`}>
-                  <div className="flex items-center gap-4 py-3 px-3 rounded-xl hover:bg-gray-800/50 transition-colors cursor-pointer">
-                    <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: (accentColor || "rgb(var(--k-accent))") + "20" }}
-                    >
-                      <span className="text-xs font-heading font-bold" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
-                        {client.initials}
+            <div>
+              {hours.map((hour) => {
+                const hourAppts = apptsByHour.get(hour) ?? [];
+                return (
+                  <div key={hour} className="flex gap-3 border-t border-kairos-border/50 first:border-t-0">
+                    <div className="w-16 shrink-0 pt-2 pb-2">
+                      <span className="text-[11px] text-gray-500 font-heading">
+                        {formatTime12(`${String(hour).padStart(2, "0")}:00`)}
                       </span>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-heading font-semibold text-white">{client.name}</p>
-                      <p className="text-xs text-gray-500">{client.status}</p>
+                    <div className="flex-1 py-1.5 min-h-[2.25rem] space-y-2">
+                      {hourAppts.map((appt) => (
+                        <div
+                          key={appt.id}
+                          className={`rounded-xl border border-kairos-border bg-gray-800/40 px-3 py-2.5 flex items-center gap-3 ${
+                            appt.status === "cancelled" ? "opacity-50" : ""
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Link
+                                href={`/trainer/clients/${appt.clientId}`}
+                                className="text-sm font-heading font-semibold text-white hover:text-kairos-gold transition-colors truncate"
+                              >
+                                {appt.clientName}
+                              </Link>
+                              <span
+                                className="text-[10px] font-heading font-semibold rounded-full px-2 py-0.5 shrink-0"
+                                style={{ backgroundColor: accent + "20", color: accent }}
+                              >
+                                {humanize(appt.sessionType)}
+                              </span>
+                              {appt.status === "cancelled" && (
+                                <span className="text-[10px] text-red-400/80 shrink-0">Cancelled</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {formatTime12(appt.startTime)}
+                              {appt.endTime ? ` – ${formatTime12(appt.endTime)}` : ""}
+                            </p>
+                          </div>
+                          <span className="text-kairos-silver shrink-0" title={humanize(appt.meetingType)}>
+                            {MEETING_TYPE_ICON[appt.meetingType] ?? <Video size={14} />}
+                          </span>
+                          {appt.meetingLink && appt.status === "confirmed" && (
+                            <a
+                              href={appt.meetingLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-heading font-semibold px-2.5 py-1 rounded-lg text-kairos-gold border border-kairos-gold/40 hover:bg-kairos-gold/15 transition-colors shrink-0"
+                            >
+                              Join
+                            </a>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-heading font-bold" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
-                        {client.healthScore}
-                      </p>
-                      <p className="text-[10px] text-gray-500">health score</p>
-                    </div>
-                    {client.alerts > 0 && (
-                      <span className="bg-red-500/15 text-red-400 text-[10px] font-heading font-bold rounded-full px-2 py-0.5">
-                        {client.alerts}
-                      </span>
-                    )}
                   </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Schedule */}
-        <div className="kairos-card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-heading font-semibold text-white">
-              {period === "day" ? "Today\u0027s Schedule" : `Schedule — ${formattedRange}`}
-            </h3>
-            <button onClick={() => router.push("/trainer/schedule")} className="flex items-center gap-1 text-xs font-heading font-semibold text-kairos-gold hover:text-kairos-gold-light transition-colors group">
-              View All <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
-            </button>
-          </div>
-          {data.todaySchedule.length === 0 ? (
-            <p className="text-sm text-gray-500 py-4">No sessions scheduled.</p>
-          ) : (
-            <div className="space-y-3">
-              {data.todaySchedule.map((session) => (
-                <div key={session.id} className="flex items-center gap-3 py-2">
-                  <span className="text-xs w-16 shrink-0" style={{ color: accentColor || "rgb(var(--k-accent))" }}>
-                    {session.time}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white truncate">{session.client}</p>
-                    <p className="text-[10px] text-gray-500">{session.type}</p>
+        {/* ── RIGHT: attention + unresponded ── */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Needs Attention */}
+          <div className="kairos-card">
+            <h3 className="font-heading font-semibold text-white mb-4">Needs Attention</h3>
+            {attention.isLoading ? (
+              <PanelSkeleton rows={4} />
+            ) : attention.error ? (
+              <PanelError message="Unable to load client alerts." />
+            ) : (attention.data?.length ?? 0) === 0 ? (
+              <div className="py-8 text-center">
+                <CheckCircle2 size={32} className="mx-auto mb-3 text-emerald-500/60" />
+                <p className="text-sm text-gray-500">All clients look good.</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {attention.data!.map((item, i) => (
+                  <div
+                    key={`${item.clientId}-${item.kind}-${i}`}
+                    className="flex items-start gap-3 py-2.5 px-2 rounded-xl hover:bg-gray-800/40 transition-colors"
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${SEVERITY_DOT[item.severity] ?? "bg-blue-400"}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/trainer/clients/${item.clientId}`}
+                          className="text-sm font-heading font-semibold text-white hover:text-kairos-gold transition-colors truncate"
+                        >
+                          {item.clientName}
+                        </Link>
+                        <span className="text-kairos-silver shrink-0">
+                          {KIND_ICON[item.kind] ?? <Bell size={14} />}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{item.detail}</p>
+                    </div>
+                    <span className="text-[10px] text-gray-500 shrink-0 mt-0.5">
+                      {relativeTime(item.timestamp)}
+                    </span>
                   </div>
-                  {session.meetingLink && (
-                    <a
-                      href={session.meetingLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-lg text-kairos-gold hover:bg-kairos-gold/15 transition-colors shrink-0"
-                      title="Join Video Call"
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Awaiting Your Reply */}
+          <div className="kairos-card">
+            <h3 className="font-heading font-semibold text-white mb-4">Awaiting Your Reply</h3>
+            {unresponded.isLoading ? (
+              <PanelSkeleton rows={3} />
+            ) : unresponded.error ? (
+              <PanelError message="Unable to load messages." />
+            ) : (unresponded.data?.length ?? 0) === 0 ? (
+              <div className="py-8 text-center">
+                <MessageSquare size={32} className="mx-auto mb-3 text-gray-600" />
+                <p className="text-sm text-gray-500">You&apos;re all caught up.</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {unresponded.data!.map((conv) => (
+                  <button
+                    key={conv.conversationId}
+                    onClick={() =>
+                      router.push(`/trainer/messages?conversationId=${conv.conversationId}`)
+                    }
+                    className="w-full text-left flex items-start gap-3 py-2.5 px-2 rounded-xl hover:bg-gray-800/40 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-heading font-semibold text-white truncate">
+                        {conv.clientName}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">
+                        {conv.lastMessageBody}
+                      </p>
+                    </div>
+                    <span
+                      className={`text-[10px] font-heading font-semibold rounded-full px-2 py-0.5 shrink-0 mt-0.5 ${
+                        conv.hoursWaiting > 24
+                          ? "bg-red-500/15 text-red-400"
+                          : conv.hoursWaiting > 4
+                            ? "bg-amber-500/15 text-amber-400"
+                            : "bg-gray-700/50 text-gray-400"
+                      }`}
                     >
-                      <Video size={14} />
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                      {waitingLabel(conv.hoursWaiting)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -8,7 +8,7 @@ import {
   AlertCircle, Clock, Pin, Trash2, CheckCircle, Send, X, Video,
   Droplets, Moon, Heart, Scale, Dumbbell, Target, FlaskConical,
   Apple, Pill, Zap, ClipboardList, ChevronRight, Timer, Footprints,
-  Dna, FileText,
+  Dna, FileText, Lock, MessagesSquare, Users, ShieldCheck,
 } from "lucide-react";
 import { useThemeColors } from "@/lib/theme";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
@@ -21,7 +21,7 @@ import { trpc } from "@/lib/trpc";
 
 // ─── Types ──────────────────────────────────────────────────────
 
-type DataTab = "overview" | "glucose" | "sleep" | "hrv" | "bp" | "body" | "workouts" | "activity" | "fasting" | "goals" | "labs" | "nutrition" | "supplements" | "checkins" | "genetics" | "clinical";
+type DataTab = "overview" | "glucose" | "sleep" | "hrv" | "bp" | "body" | "workouts" | "activity" | "fasting" | "goals" | "labs" | "nutrition" | "supplements" | "checkins" | "genetics" | "clinical" | "discussion";
 
 const DATA_TABS: { id: DataTab; label: string; icon: typeof Activity }[] = [
   { id: "overview", label: "Overview", icon: Activity },
@@ -40,7 +40,59 @@ const DATA_TABS: { id: DataTab; label: string; icon: typeof Activity }[] = [
   { id: "fasting", label: "Fasting", icon: Timer },
   { id: "supplements", label: "Supplements", icon: Pill },
   { id: "checkins", label: "Check-ins", icon: ClipboardList },
+  { id: "discussion", label: "Coach Discussion", icon: MessagesSquare },
 ];
+
+// ─── Access gating (client-controlled sharing) ──────────────────
+
+type AccessCategory = "diet" | "exercise" | "labs" | "healthData";
+type AccessLevel = "none" | "read" | "write";
+
+type MyAccess = {
+  isPrimary: boolean;
+  hasAnyAccess: boolean;
+  diet: AccessLevel;
+  exercise: AccessLevel;
+  labs: AccessLevel;
+  healthData: AccessLevel;
+};
+
+/** Which sharing category gates each data tab (tabs not listed are never gated). */
+const TAB_ACCESS_CATEGORY: Partial<Record<DataTab, AccessCategory>> = {
+  nutrition: "diet",
+  fasting: "diet",
+  supplements: "diet",
+  workouts: "exercise",
+  activity: "exercise",
+  labs: "labs",
+  genetics: "labs",
+  clinical: "labs",
+  glucose: "healthData",
+  sleep: "healthData",
+  hrv: "healthData",
+  bp: "healthData",
+  body: "healthData",
+  checkins: "healthData",
+};
+
+const ACCESS_CATEGORY_LABELS: Record<AccessCategory, string> = {
+  diet: "Diet",
+  exercise: "Exercise",
+  labs: "Labs",
+  healthData: "Health Data",
+};
+
+const ACCESS_LEVEL_LABELS: Record<Exclude<AccessLevel, "none">, string> = {
+  read: "view",
+  write: "view & edit",
+};
+
+function grantedCategorySummary(access: MyAccess): string {
+  const parts = (Object.keys(ACCESS_CATEGORY_LABELS) as AccessCategory[])
+    .filter((c) => access[c] !== "none")
+    .map((c) => `${ACCESS_CATEGORY_LABELS[c]} (${ACCESS_LEVEL_LABELS[access[c] as "read" | "write"]})`);
+  return parts.join(", ");
+}
 
 // ─── Sparkline helper ───────────────────────────────────────────
 
@@ -123,9 +175,24 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   // ── tRPC queries ──────────────────────────────────────────────
   const detailQuery = trpc.coach.clients.getDetail.useQuery(
     { clientId: params.id },
-    { staleTime: 15_000, refetchOnWindowFocus: false }
+    { staleTime: 15_000, refetchOnWindowFocus: false, retry: false }
   );
   const client = detailQuery.data;
+
+  // My access to this client (primary = full; otherwise client-granted categories)
+  const myAccessQuery = trpc.coach.sharedAccess.myAccess.useQuery(
+    { clientId: params.id },
+    { staleTime: 30_000, refetchOnWindowFocus: false, retry: false }
+  );
+  const myAccess = myAccessQuery.data as MyAccess | undefined;
+  const isSharedOnly = !!myAccess && myAccess.hasAnyAccess && !myAccess.isPrimary;
+
+  const canViewTab = (tab: DataTab): boolean => {
+    if (!isSharedOnly) return true;
+    const cat = TAB_ACCESS_CATEGORY[tab];
+    if (!cat) return true;
+    return myAccess![cat] !== "none";
+  };
 
   const notesQuery = trpc.coach.clients.getNotes.useQuery(
     { clientId: params.id },
@@ -212,6 +279,20 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   }
 
   if (!client) {
+    // Not on my primary roster — if the client shared data with me, show the limited shared view.
+    if (myAccessQuery.isLoading) {
+      return (
+        <div className="space-y-6 animate-fade-in">
+          <Link href="/trainer/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
+            <ArrowLeft size={14} /> Back to clients
+          </Link>
+          <div className="kairos-card h-28 animate-pulse bg-gray-800/50" />
+        </div>
+      );
+    }
+    if (myAccess?.hasAnyAccess) {
+      return <SharedClientView clientId={params.id} access={myAccess} />;
+    }
     return (
       <div className="space-y-6 animate-fade-in">
         <Link href="/trainer/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
@@ -263,6 +344,17 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       <Link href="/trainer/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
         <ArrowLeft size={14} /> Back to clients
       </Link>
+
+      {/* Shared-access banner (non-primary coaches) */}
+      {isSharedOnly && myAccess && (
+        <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-kairos-gold/5 border border-kairos-gold/20">
+          <ShieldCheck size={16} className="text-kairos-gold shrink-0 mt-0.5" />
+          <p className="text-xs text-gray-300">
+            Shared access: <span className="text-kairos-gold font-medium">{grantedCategorySummary(myAccess)}</span>
+            {" "}— other sections are not shared with you.
+          </p>
+        </div>
+      )}
 
       {/* Client Header */}
       <div className="kairos-card">
@@ -379,6 +471,20 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin">
         {DATA_TABS.map((tab) => {
           const Icon = tab.icon;
+          const locked = !canViewTab(tab.id);
+          if (locked) {
+            return (
+              <button
+                key={tab.id}
+                disabled
+                title="Not shared with you"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium whitespace-nowrap text-gray-600 border border-transparent cursor-not-allowed"
+              >
+                <Lock size={11} />
+                {tab.label}
+              </button>
+            );
+          }
           return (
             <button
               key={tab.id}
@@ -399,7 +505,14 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       {/* Tab Content + Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          {healthQuery.isLoading ? (
+          {activeTab === "discussion" ? (
+            <CoachDiscussion clientId={params.id} />
+          ) : !canViewTab(activeTab) ? (
+            <div className="kairos-card p-10 text-center">
+              <Lock size={24} className="mx-auto mb-3 text-gray-600" />
+              <p className="text-sm text-gray-500">Not shared with you</p>
+            </div>
+          ) : healthQuery.isLoading ? (
             <div className="kairos-card h-64 animate-pulse bg-gray-800/50 flex items-center justify-center">
               <p className="text-sm text-gray-500">Loading health data...</p>
             </div>
@@ -643,6 +756,235 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
           <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
         </div>
         <div className="p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Coach Discussion (coach-to-coach thread) ───────────────────
+
+function CoachDiscussion({ clientId }: { clientId: string }) {
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [body, setBody] = useState("");
+  const listEndRef = useRef<HTMLDivElement | null>(null);
+
+  const getThreadMutation = trpc.coach.sharedAccess.getThread.useMutation({
+    onSuccess: (thread) => setThreadId(thread?.id ?? null),
+  });
+  const getThreadMutate = getThreadMutation.mutate;
+
+  useEffect(() => {
+    getThreadMutate({ clientId });
+  }, [clientId, getThreadMutate]);
+
+  const messagesQuery = trpc.coach.sharedAccess.getThreadMessages.useQuery(
+    { threadId: threadId ?? "" },
+    { enabled: !!threadId, refetchInterval: 15_000, refetchOnWindowFocus: false }
+  );
+  const messages = messagesQuery.data ?? [];
+
+  const coachesQuery = trpc.coach.sharedAccess.coachesForClient.useQuery(
+    { clientId },
+    { staleTime: 60_000, refetchOnWindowFocus: false }
+  );
+  const coaches = coachesQuery.data ?? [];
+
+  const postMutation = trpc.coach.sharedAccess.postThreadMessage.useMutation({
+    onSuccess: () => {
+      setBody("");
+      messagesQuery.refetch();
+    },
+  });
+
+  // Auto-scroll to the newest message
+  useEffect(() => {
+    listEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  const handleSend = () => {
+    if (!threadId || !body.trim() || postMutation.isPending) return;
+    postMutation.mutate({ threadId, body: body.trim() });
+  };
+
+  return (
+    <div className="kairos-card">
+      <h2 className="text-base font-heading font-bold text-kairos-gold mb-1 flex items-center gap-2">
+        <MessagesSquare size={16} /> Coach Discussion
+      </h2>
+      <p className="text-[11px] text-gray-500 mb-3 flex items-center gap-1">
+        <Lock size={10} /> Private coach-to-coach discussion. Clients cannot see these messages.
+      </p>
+
+      {/* Care team chips */}
+      {coaches.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-4 pb-3 border-b border-gray-800">
+          <span className="text-[10px] text-gray-500 uppercase flex items-center gap-1">
+            <Users size={11} /> Care team:
+          </span>
+          {coaches.map((c) => {
+            const name = `${c.firstName ?? ""} ${c.lastName ?? ""}`.trim() || c.email || "Coach";
+            return (
+              <span
+                key={c.coachId}
+                className={`inline-flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full text-[11px] border ${
+                  c.isPrimary
+                    ? "bg-kairos-gold/10 text-kairos-gold border-kairos-gold/30"
+                    : "bg-gray-800 text-gray-300 border-gray-700"
+                }`}
+              >
+                <span className="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center text-[9px] font-bold text-white overflow-hidden">
+                  {c.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.avatarUrl} alt="" className="w-full h-full object-cover rounded-full" />
+                  ) : (
+                    ((c.firstName?.[0] ?? c.email?.[0] ?? "C") + (c.lastName?.[0] ?? "")).toUpperCase()
+                  )}
+                </span>
+                {name}
+                {c.isPrimary && <span className="text-[9px] uppercase opacity-80">(Primary)</span>}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className="max-h-96 min-h-[160px] overflow-y-auto space-y-3 mb-4 pr-1">
+        {getThreadMutation.isPending || (threadId && messagesQuery.isLoading) ? (
+          <p className="text-xs text-gray-500 text-center py-8">Loading discussion...</p>
+        ) : getThreadMutation.isError ? (
+          <p className="text-xs text-red-400 text-center py-8">{getThreadMutation.error.message}</p>
+        ) : messages.length === 0 ? (
+          <p className="text-xs text-gray-500 text-center py-8">No messages yet. Start the discussion.</p>
+        ) : (
+          messages.map((m) => (
+            <div key={m.id} className={`flex ${m.isMe ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[80%] rounded-xl px-3 py-2 border ${
+                  m.isMe
+                    ? "bg-kairos-gold/10 border-kairos-gold/20"
+                    : "bg-gray-800/60 border-gray-700/50"
+                }`}
+              >
+                <div className="flex items-baseline gap-2 mb-0.5">
+                  <span className={`text-[11px] font-semibold ${m.isMe ? "text-kairos-gold" : "text-gray-300"}`}>
+                    {m.isMe ? "You" : m.senderName}
+                  </span>
+                  <span className="text-[9px] text-gray-500">
+                    {new Date(m.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-200 whitespace-pre-wrap break-words">{m.body}</p>
+              </div>
+            </div>
+          ))
+        )}
+        <div ref={listEndRef} />
+      </div>
+
+      {/* Composer */}
+      {postMutation.isError && (
+        <p className="text-xs text-red-400 mb-2">{postMutation.error.message}</p>
+      )}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="Message the care team..."
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+          disabled={!threadId}
+          className="flex-1 px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-kairos-gold/50 disabled:opacity-50"
+        />
+        <button
+          onClick={handleSend}
+          disabled={!threadId || !body.trim() || postMutation.isPending}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors disabled:opacity-40"
+        >
+          <Send size={13} /> Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Shared client view (non-primary coach, no roster relationship) ──
+
+function SharedClientView({ clientId, access }: { clientId: string; access: MyAccess }) {
+  const sharedQuery = trpc.coach.sharedAccess.sharedWithMe.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  const shared = sharedQuery.data?.find((s) => s.clientId === clientId);
+  const name = shared ? `${shared.firstName ?? ""} ${shared.lastName ?? ""}`.trim() || shared.email || "Shared Client" : "Shared Client";
+  const clientInitials = shared
+    ? ((shared.firstName?.[0] ?? shared.email?.[0] ?? "C") + (shared.lastName?.[0] ?? "")).toUpperCase()
+    : "?";
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <Link href="/trainer/clients" className="inline-flex items-center gap-1 text-gray-400 hover:text-kairos-gold text-sm transition-colors">
+        <ArrowLeft size={14} /> Back to clients
+      </Link>
+
+      {/* Client header */}
+      <div className="kairos-card">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-kairos-gold/20 flex items-center justify-center text-kairos-gold font-heading font-bold text-lg overflow-hidden">
+              {shared?.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={shared.avatarUrl} alt="" className="w-full h-full object-cover rounded-full" />
+              ) : (
+                clientInitials
+              )}
+            </div>
+            <div>
+              <h1 className="text-xl font-heading font-bold text-white">{name}</h1>
+              {shared?.email && <p className="text-sm text-gray-500">{shared.email}</p>}
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/30">
+            <ShieldCheck size={12} /> Shared with you
+          </span>
+        </div>
+      </div>
+
+      {/* Access summary banner */}
+      <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-kairos-gold/5 border border-kairos-gold/20">
+        <ShieldCheck size={16} className="text-kairos-gold shrink-0 mt-0.5" />
+        <p className="text-xs text-gray-300">
+          Shared access: <span className="text-kairos-gold font-medium">{grantedCategorySummary(access)}</span>
+          {" "}— other sections are not shared with you.
+        </p>
+      </div>
+
+      {/* Category access grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {(Object.keys(ACCESS_CATEGORY_LABELS) as AccessCategory[]).map((cat) => {
+          const level = access[cat];
+          return (
+            <div key={cat} className="kairos-card p-3 text-center">
+              <p className="text-[10px] text-gray-500 uppercase mb-1">{ACCESS_CATEGORY_LABELS[cat]}</p>
+              {level === "none" ? (
+                <p className="text-xs text-gray-600 flex items-center justify-center gap-1">
+                  <Lock size={10} /> Not shared with you
+                </p>
+              ) : (
+                <p className={`text-xs font-medium ${level === "write" ? "text-kairos-gold" : "text-blue-400"}`}>
+                  {ACCESS_LEVEL_LABELS[level]}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Coach discussion */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <CoachDiscussion clientId={clientId} />
+        </div>
       </div>
     </div>
   );

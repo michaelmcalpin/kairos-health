@@ -36,6 +36,7 @@ import {
   Globe,
   Ruler,
   UserPlus,
+  Users,
   Stethoscope,
   Phone,
   Crown,
@@ -416,6 +417,12 @@ export default function ProfileScreen() {
             label="Your Coach"
             value={(profileData as any)?.coachName ?? "Not assigned"}
             onPress={() => router.push("/coach")}
+          />
+          <SettingsRow
+            icon={<Users size={18} color={Colors.silver} />}
+            label="Care Team"
+            subtitle="Manage coach access to your data"
+            onPress={() => router.push("/settings/care-team" as any)}
           />
           <SettingsRow
             type="value"

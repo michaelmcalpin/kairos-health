@@ -36,6 +36,10 @@ export default function SettingsLayout() {
         options={{ title: "Edit Profile" }}
       />
       <Stack.Screen
+        name="care-team"
+        options={{ title: "Care Team" }}
+      />
+      <Stack.Screen
         name="privacy"
         options={{ title: "Privacy & Security" }}
       />
