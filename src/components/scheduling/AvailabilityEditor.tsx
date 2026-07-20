@@ -36,8 +36,15 @@ export function AvailabilityEditor() {
   const updateMutation = trpc.coach.schedule.updateAvailability.useMutation({
     onSuccess: () => {
       void utils.coach.schedule.getAvailability.invalidate();
+      setHasChanges(false);
+      setNeverSaved(false);
+      setSaveError(null);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+    },
+    onError: (err) => {
+      // Save failed — keep hasChanges true so the button stays enabled
+      setSaveError(err.message || "Could not save your availability. Please try again.");
     },
   });
 
@@ -47,11 +54,15 @@ export function AvailabilityEditor() {
   const [newBlockedDate, setNewBlockedDate] = useState("");
   const [saved, setSaved] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // True when the coach has never saved availability — the default
+  // schedule shown is NOT active until saved, and clients see no slots.
+  const [neverSaved, setNeverSaved] = useState(false);
 
   // Initialize from existing data
   useEffect(() => {
-    if (existing) {
-      const ws = existing.weeklySchedule as DaySchedule[] | undefined;
+    if (existing !== undefined) {
+      const ws = existing?.weeklySchedule as DaySchedule[] | undefined;
       if (ws && ws.length > 0) {
         // Merge with defaults to ensure all 7 days exist
         const merged = DEFAULT_SCHEDULE.map((def) => {
@@ -59,9 +70,15 @@ export function AvailabilityEditor() {
           return found ?? def;
         });
         setSchedule(merged);
+        setNeverSaved(false);
+      } else {
+        // FIRST RUN: nothing saved yet. Show defaults but make it
+        // unmistakable that clients cannot book until Save is clicked.
+        setNeverSaved(true);
+        setHasChanges(true);
       }
-      setBufferMinutes(existing.bufferMinutes ?? 15);
-      setBlockedDates((existing.blockedDates as string[]) ?? []);
+      setBufferMinutes(existing?.bufferMinutes ?? 15);
+      setBlockedDates((existing?.blockedDates as string[]) ?? []);
     }
   }, [existing]);
 
@@ -140,12 +157,14 @@ export function AvailabilityEditor() {
 
   // ── Save ──
   function handleSave() {
+    setSaveError(null);
+    // hasChanges is cleared in onSuccess — NOT here — so a failed save
+    // leaves the button enabled instead of silently looking saved.
     updateMutation.mutate({
       weeklySchedule: schedule,
       bufferMinutes,
       blockedDates,
     });
-    setHasChanges(false);
   }
 
   if (isLoading) {
@@ -159,6 +178,22 @@ export function AvailabilityEditor() {
 
   return (
     <div className="space-y-6">
+      {/* First-run warning — availability is NOT live until saved */}
+      {neverSaved && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+          <strong>Your availability is not set yet.</strong> The schedule below is a
+          suggested default — clients cannot book with you until you review it and
+          click <strong>Save</strong>.
+        </div>
+      )}
+
+      {/* Save error */}
+      {saveError && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {saveError}
+        </div>
+      )}
+
       {/* Weekly Schedule */}
       <div className="kairos-card p-6">
         <div className="flex items-center justify-between mb-6">

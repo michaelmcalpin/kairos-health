@@ -77,7 +77,12 @@ export const clientSchedulingRouter = router({
         where: eq(coachAvailability.coachId, input.coachId),
       });
 
-      const dayOfWeek = new Date(input.date).getDay();
+      // Blocked dates (vacation etc.) — no slots at all
+      const blocked = (avail?.blockedDates as string[] | null) ?? [];
+      if (blocked.includes(input.date)) return [];
+
+      // T12:00:00 avoids UTC day-shift on non-UTC servers
+      const dayOfWeek = new Date(`${input.date}T12:00:00`).getDay();
       const schedule = avail?.weeklySchedule ?? [];
       const daySchedule = schedule.find((d) => d.dayOfWeek === dayOfWeek);
 
@@ -154,6 +159,55 @@ export const clientSchedulingRouter = router({
 
       const sessionInfo = SESSION_TYPES.find((s) => s.id === input.sessionType);
       const duration = sessionInfo?.duration ?? 60;
+      const requestedEnd = addMinutes(input.startTime, duration);
+
+      // ── Validate against the coach's availability ──
+      const avail = await ctx.db.query.coachAvailability.findFirst({
+        where: eq(coachAvailability.coachId, input.coachId),
+      });
+
+      const blocked = (avail?.blockedDates as string[] | null) ?? [];
+      if (blocked.includes(input.date)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The coach is not available on this date.",
+        });
+      }
+
+      const dayOfWeek = new Date(`${input.date}T12:00:00`).getDay();
+      const daySchedule = (avail?.weeklySchedule ?? []).find(
+        (d) => d.dayOfWeek === dayOfWeek,
+      );
+      const withinWindow =
+        daySchedule?.enabled &&
+        daySchedule.slots.some(
+          (w) => input.startTime >= w.start && requestedEnd <= w.end,
+        );
+      if (avail && !withinWindow) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "That time is outside the coach's available hours. Please pick another slot.",
+        });
+      }
+
+      // ── Reject double-booking ──
+      const existing = await ctx.db.query.appointments.findMany({
+        where: and(
+          eq(appointments.coachId, input.coachId),
+          eq(appointments.date, input.date),
+          sql`${appointments.status} NOT IN ('cancelled')`,
+        ),
+      });
+      const overlaps = existing.some((a) => {
+        const aEnd = a.endTime ?? addMinutes(a.startTime, a.durationMinutes ?? 60);
+        return input.startTime < aEnd && requestedEnd > a.startTime;
+      });
+      if (overlaps) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "That time slot was just taken. Please choose another slot.",
+        });
+      }
 
       const [created] = await ctx.db
         .insert(appointments)

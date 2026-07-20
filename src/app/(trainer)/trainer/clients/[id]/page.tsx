@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, MessageSquare, Settings, Calendar, Activity, TrendingUp,
-  AlertCircle, Clock, Pin, Trash2, CheckCircle, Send, X, Video,
+  AlertCircle, Pin, Trash2, CheckCircle, Send, X, Video,
   Droplets, Moon, Heart, Scale, Dumbbell, Target, FlaskConical,
   Apple, Pill, Zap, ClipboardList, ChevronRight, Timer, Footprints,
   Dna, FileText, Lock, MessagesSquare, Users, ShieldCheck,
+  Plus, Pencil, Archive, Syringe,
 } from "lucide-react";
 import { useThemeColors } from "@/lib/theme";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
@@ -38,7 +39,7 @@ const DATA_TABS: { id: DataTab; label: string; icon: typeof Activity }[] = [
   { id: "clinical", label: "Clinical Docs", icon: FileText },
   { id: "nutrition", label: "Nutrition", icon: Apple },
   { id: "fasting", label: "Fasting", icon: Timer },
-  { id: "supplements", label: "Supplements", icon: Pill },
+  { id: "supplements", label: "Protocol", icon: Pill },
   { id: "checkins", label: "Check-ins", icon: ClipboardList },
   { id: "discussion", label: "Coach Discussion", icon: MessagesSquare },
 ];
@@ -154,6 +155,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [protocolNotes, setProtocolNotes] = useState("");
   const [protocolPriority, setProtocolPriority] = useState("Normal");
   const [protocolSaved, setProtocolSaved] = useState(false);
+  const [protocolError, setProtocolError] = useState<string | null>(null);
 
   // ── Schedule modal state ──────────────────────────────────────
   const [schedSessionType, setSchedSessionType] = useState<"initial_consultation" | "follow_up" | "protocol_review" | "lab_review" | "goal_setting" | "ad_hoc">("follow_up");
@@ -228,8 +230,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const updateProtocolMutation = trpc.coach.clients.updateProtocol.useMutation({
     onSuccess: () => {
       notesQuery.refetch();
+      setProtocolError(null);
       setProtocolSaved(true);
       setTimeout(() => { setShowProtocolModal(false); setProtocolNotes(""); setProtocolPriority("Normal"); setProtocolSaved(false); }, 1500);
+    },
+    onError: (err) => {
+      setProtocolError(err.message || "Failed to save protocol adjustment note.");
     },
   });
 
@@ -424,7 +430,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           <button onClick={handleScheduleSession} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors">
             <Video size={14} /> Schedule Session
           </button>
-          <button onClick={() => setShowProtocolModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors">
+          <button onClick={() => { setProtocolError(null); setShowProtocolModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors">
             <Settings size={14} /> Adjust Protocol
           </button>
           <div className="flex-1" />
@@ -512,6 +518,11 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               <Lock size={24} className="mx-auto mb-3 text-gray-600" />
               <p className="text-sm text-gray-500">Not shared with you</p>
             </div>
+          ) : activeTab === "supplements" ? (
+            <ProtocolEditor
+              clientId={params.id}
+              canEdit={!isSharedOnly || myAccess?.diet === "write"}
+            />
           ) : healthQuery.isLoading ? (
             <div className="kairos-card h-64 animate-pulse bg-gray-800/50 flex items-center justify-center">
               <p className="text-sm text-gray-500">Loading health data...</p>
@@ -639,8 +650,21 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       {/* Protocol Adjustment Modal */}
       {showProtocolModal && (
         <Modal title="Adjust Protocol" onClose={() => setShowProtocolModal(false)}>
-          <p className="text-sm text-gray-400 mb-4">Protocol changes for <span className="text-white font-semibold">{client.name}</span></p>
+          <p className="text-sm text-gray-400 mb-2">
+            Send an adjustment <span className="text-white font-semibold">note</span> about{" "}
+            <span className="text-white font-semibold">{client.name}</span>&apos;s protocol. This does not change protocol items directly.
+          </p>
+          <p className="text-xs text-gray-500 mb-4">
+            To add, edit, or remove protocol items, use the{" "}
+            <button
+              onClick={() => { setShowProtocolModal(false); setActiveTab("supplements"); }}
+              className="text-kairos-gold hover:underline"
+            >
+              Protocol tab
+            </button>.
+          </p>
           {protocolSaved && <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/20 mb-3"><p className="text-sm text-green-400">Saved!</p></div>}
+          {protocolError && <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 mb-3"><p className="text-sm text-red-400">{protocolError}</p></div>}
           <textarea value={protocolNotes} onChange={(e) => setProtocolNotes(e.target.value)} placeholder="Describe changes..." className="kairos-input w-full h-28 resize-none mb-3" />
           <select value={protocolPriority} onChange={(e) => setProtocolPriority(e.target.value)} className="kairos-input w-full mb-4">
             <option>Normal</option>
@@ -980,13 +1004,445 @@ function SharedClientView({ clientId, access }: { clientId: string; access: MyAc
         })}
       </div>
 
-      {/* Coach discussion */}
+      {/* Protocol (shared Diet access) + Coach discussion */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
+          {access.diet !== "none" && (
+            <ProtocolEditor clientId={clientId} canEdit={access.diet === "write"} />
+          )}
           <CoachDiscussion clientId={clientId} />
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Protocol Editor (coach.protocols) ──────────────────────────
+
+type ProtocolCategory = "supplement" | "medication" | "peptide" | "injection";
+
+const PROTOCOL_CATEGORY_ORDER: ProtocolCategory[] = ["supplement", "medication", "peptide", "injection"];
+
+const PROTOCOL_CATEGORY_LABELS: Record<ProtocolCategory, string> = {
+  supplement: "Supplement",
+  medication: "Medication",
+  peptide: "Peptide",
+  injection: "Injection",
+};
+
+const PROTOCOL_CATEGORY_BADGES: Record<ProtocolCategory, string> = {
+  supplement: "bg-green-500/10 text-green-400 border-green-500/30",
+  medication: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+  peptide: "bg-purple-500/10 text-purple-400 border-purple-500/30",
+  injection: "bg-orange-500/10 text-orange-400 border-orange-500/30",
+};
+
+const PROTOCOL_STATUS_BADGES: Record<string, string> = {
+  active: "bg-green-500/10 text-green-400 border-green-500/30",
+  proposed: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+  archived: "bg-gray-700/50 text-gray-400 border-gray-600",
+};
+
+type ProtocolItem = {
+  id: string;
+  name: string;
+  category: string;
+  dosage: string | null;
+  unit: string | null;
+  form: string | null;
+  route: string | null;
+  frequency: string | null;
+  timeOfDay: string | null;
+  rationale: string | null;
+  coachNotes: string | null;
+};
+
+type ProtocolItemFormState = {
+  category: ProtocolCategory;
+  name: string;
+  dosage: string;
+  unit: string;
+  form: string;
+  route: string;
+  frequency: string;
+  timeOfDay: string;
+  rationale: string;
+  coachNotes: string;
+};
+
+function ProtocolEditor({ clientId, canEdit = true }: { clientId: string; canEdit?: boolean }) {
+  const utils = trpc.useUtils();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showItemModal, setShowItemModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<ProtocolItem | null>(null);
+  const [removingItem, setRemovingItem] = useState<ProtocolItem | null>(null);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+
+  const protocolQuery = trpc.coach.protocols.getActive.useQuery(
+    { clientId },
+    { staleTime: 10_000, refetchOnWindowFocus: false, retry: false }
+  );
+  const protocol = protocolQuery.data;
+
+  const invalidate = () => utils.coach.protocols.getActive.invalidate({ clientId });
+  const surfaceError = (err: { message?: string }) =>
+    setErrorMsg(err.message || "Something went wrong. Please try again.");
+
+  const createMutation = trpc.coach.protocols.create.useMutation({
+    onSuccess: () => { invalidate(); setShowItemModal(false); setEditingItem(null); setErrorMsg(null); },
+    onError: surfaceError,
+  });
+  const addItemMutation = trpc.coach.protocols.addItem.useMutation({
+    onSuccess: () => { invalidate(); setShowItemModal(false); setEditingItem(null); setErrorMsg(null); },
+    onError: surfaceError,
+  });
+  const updateItemMutation = trpc.coach.protocols.updateItem.useMutation({
+    onSuccess: () => { invalidate(); setShowItemModal(false); setEditingItem(null); setErrorMsg(null); },
+    onError: surfaceError,
+  });
+  const removeItemMutation = trpc.coach.protocols.removeItem.useMutation({
+    onSuccess: () => { invalidate(); setRemovingItem(null); setErrorMsg(null); },
+    onError: surfaceError,
+  });
+  const updateStatusMutation = trpc.coach.protocols.updateStatus.useMutation({
+    onSuccess: () => { invalidate(); setShowArchiveConfirm(false); setErrorMsg(null); },
+    onError: surfaceError,
+  });
+
+  const savingItem = createMutation.isPending || addItemMutation.isPending || updateItemMutation.isPending;
+
+  const openAddModal = () => { setEditingItem(null); setErrorMsg(null); setShowItemModal(true); };
+  const openEditModal = (item: ProtocolItem) => { setEditingItem(item); setErrorMsg(null); setShowItemModal(true); };
+
+  const handleSubmitItem = (form: ProtocolItemFormState) => {
+    const item = {
+      name: form.name.trim(),
+      category: form.category,
+      dosage: form.dosage.trim() || null,
+      unit: form.unit.trim() || null,
+      form: form.form.trim() || null,
+      route: form.route.trim() || null,
+      frequency: form.frequency.trim() || null,
+      timeOfDay: form.timeOfDay.trim() || null,
+      rationale: form.rationale.trim() || null,
+      coachNotes: form.coachNotes.trim() || null,
+    };
+    if (!item.name) return;
+    if (editingItem) {
+      updateItemMutation.mutate({ itemId: editingItem.id, updates: item });
+    } else if (protocol) {
+      addItemMutation.mutate({ protocolId: protocol.id, item });
+    } else {
+      // No active protocol yet — create one (activated immediately) with this first item.
+      createMutation.mutate({ clientId, items: [item], activateImmediately: true });
+    }
+  };
+
+  const items = (protocol?.items ?? []) as ProtocolItem[];
+  const sortedItems = [...items].sort((a, b) => {
+    const catDiff =
+      PROTOCOL_CATEGORY_ORDER.indexOf(a.category as ProtocolCategory) -
+      PROTOCOL_CATEGORY_ORDER.indexOf(b.category as ProtocolCategory);
+    return catDiff !== 0 ? catDiff : a.name.localeCompare(b.name);
+  });
+
+  return (
+    <div className="kairos-card">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2">
+          <Pill size={16} /> Protocol
+          {protocol && (
+            <>
+              <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${PROTOCOL_STATUS_BADGES[protocol.status] ?? PROTOCOL_STATUS_BADGES.archived}`}>
+                {protocol.status}
+              </span>
+              <span className="text-[10px] text-gray-500 font-normal">v{protocol.version}</span>
+            </>
+          )}
+        </h2>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            {protocol && (
+              <button
+                onClick={openAddModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+              >
+                <Plus size={12} /> Add Item
+              </button>
+            )}
+            {protocol?.status === "active" && (
+              <button
+                onClick={() => setShowArchiveConfirm(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-gray-800 text-gray-400 border border-gray-700 hover:text-gray-200 hover:border-gray-600 transition-colors"
+                title="Archive this protocol"
+              >
+                <Archive size={12} /> Archive
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {!canEdit && (
+        <p className="text-[11px] text-gray-500 mb-3 flex items-center gap-1">
+          <Lock size={10} /> Read-only — you don&apos;t have Diet edit access for this client.
+        </p>
+      )}
+
+      {/* Error banner */}
+      {errorMsg && (
+        <div className="flex items-start justify-between gap-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 mb-3">
+          <p className="text-xs text-red-400">{errorMsg}</p>
+          <button onClick={() => setErrorMsg(null)} className="text-red-400/60 hover:text-red-400 shrink-0">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Body */}
+      {protocolQuery.isLoading ? (
+        <p className="text-xs text-gray-500 text-center py-8">Loading protocol...</p>
+      ) : protocolQuery.isError ? (
+        <p className="text-xs text-red-400 text-center py-8">{protocolQuery.error.message}</p>
+      ) : !protocol ? (
+        <div className="text-center py-10">
+          <Syringe size={24} className="mx-auto mb-3 text-gray-600" />
+          <p className="text-sm text-gray-500 mb-1">No active protocol for this client</p>
+          <p className="text-xs text-gray-600 mb-4">Create one to manage supplements, medications, peptides, and injections.</p>
+          {canEdit && (
+            <button
+              onClick={openAddModal}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+            >
+              <Plus size={14} /> Create Protocol
+            </button>
+          )}
+        </div>
+      ) : sortedItems.length === 0 ? (
+        <p className="text-sm text-gray-500 text-center py-8">No items in this protocol yet. Add the first one.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-800">
+                {["Item", "Dosage", "Frequency", "Time of Day", ""].map((h, i) => (
+                  <th key={i} className="text-left py-2 px-3 text-[10px] text-gray-500 uppercase font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedItems.map((item) => {
+                const cat = (item.category as ProtocolCategory) in PROTOCOL_CATEGORY_LABELS
+                  ? (item.category as ProtocolCategory)
+                  : "supplement";
+                const dosage = [item.dosage, item.unit].filter(Boolean).join(" ");
+                const subParts = [item.form, item.route].filter(Boolean).join(" · ");
+                return (
+                  <tr key={item.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                    <td className="py-2 px-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-white font-medium">{item.name}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase ${PROTOCOL_CATEGORY_BADGES[cat]}`}>
+                          {PROTOCOL_CATEGORY_LABELS[cat]}
+                        </span>
+                      </div>
+                      {subParts && <p className="text-[10px] text-gray-500 mt-0.5">{subParts}</p>}
+                      {item.rationale && <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1" title={item.rationale}>Why: {item.rationale}</p>}
+                    </td>
+                    <td className="py-2 px-3 text-gray-300">{dosage || "—"}</td>
+                    <td className="py-2 px-3 text-gray-300">{item.frequency ?? "—"}</td>
+                    <td className="py-2 px-3 text-gray-300">{item.timeOfDay ?? "—"}</td>
+                    <td className="py-2 px-3">
+                      {canEdit && (
+                        <div className="flex items-center gap-1 justify-end">
+                          <button
+                            onClick={() => openEditModal(item)}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-kairos-gold hover:bg-kairos-gold/10 transition-colors"
+                            title="Edit item"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            onClick={() => { setErrorMsg(null); setRemovingItem(item); }}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            title="Remove item"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add / Edit item modal */}
+      {showItemModal && (
+        <ProtocolItemModal
+          key={editingItem?.id ?? "new"}
+          title={editingItem ? "Edit Protocol Item" : protocol ? "Add Protocol Item" : "Create Protocol"}
+          initial={editingItem}
+          saving={savingItem}
+          onClose={() => { setShowItemModal(false); setEditingItem(null); }}
+          onSubmit={handleSubmitItem}
+        />
+      )}
+
+      {/* Remove item confirmation */}
+      {removingItem && (
+        <Modal title="Remove Item" onClose={() => setRemovingItem(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-400">
+              Remove <span className="text-white font-semibold">{removingItem.name}</span> from this protocol?
+            </p>
+            <p className="text-xs text-gray-500">This also deletes the item&apos;s adherence history.</p>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setRemovingItem(null)} className="kairos-btn-outline flex-1">Cancel</button>
+              <button
+                onClick={() => removeItemMutation.mutate({ itemId: removingItem.id })}
+                disabled={removeItemMutation.isPending}
+                className="flex-1 py-2 rounded-xl text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+              >
+                {removeItemMutation.isPending ? "Removing..." : "Remove Item"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Archive protocol confirmation */}
+      {showArchiveConfirm && protocol && (
+        <Modal title="Archive Protocol" onClose={() => setShowArchiveConfirm(false)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-400">
+              Archive protocol <span className="text-white font-semibold">v{protocol.version}</span>?
+              The client will no longer see it as their active protocol.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShowArchiveConfirm(false)} className="kairos-btn-outline flex-1">Cancel</button>
+              <button
+                onClick={() => updateStatusMutation.mutate({ protocolId: protocol.id, status: "archived" })}
+                disabled={updateStatusMutation.isPending}
+                className="flex-1 py-2 rounded-xl text-sm font-medium bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500/20 transition-colors disabled:opacity-50"
+              >
+                {updateStatusMutation.isPending ? "Archiving..." : "Archive"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function ProtocolItemModal({
+  title,
+  initial,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  title: string;
+  initial: ProtocolItem | null;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (form: ProtocolItemFormState) => void;
+}) {
+  const [form, setForm] = useState<ProtocolItemFormState>({
+    category: (initial && (initial.category as ProtocolCategory) in PROTOCOL_CATEGORY_LABELS
+      ? (initial.category as ProtocolCategory)
+      : "supplement"),
+    name: initial?.name ?? "",
+    dosage: initial?.dosage ?? "",
+    unit: initial?.unit ?? "",
+    form: initial?.form ?? "",
+    route: initial?.route ?? "",
+    frequency: initial?.frequency ?? "",
+    timeOfDay: initial?.timeOfDay ?? "",
+    rationale: initial?.rationale ?? "",
+    coachNotes: initial?.coachNotes ?? "",
+  });
+
+  const set = (key: keyof ProtocolItemFormState) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const showRoute = form.category === "peptide" || form.category === "injection";
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Category</label>
+            <select value={form.category} onChange={set("category")} className="kairos-input w-full">
+              {PROTOCOL_CATEGORY_ORDER.map((c) => (
+                <option key={c} value={c}>{PROTOCOL_CATEGORY_LABELS[c]}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Name *</label>
+            <input type="text" value={form.name} onChange={set("name")} placeholder="e.g. Magnesium Glycinate" className="kairos-input w-full" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Dosage</label>
+            <input type="text" value={form.dosage} onChange={set("dosage")} placeholder="e.g. 400" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Unit</label>
+            <input type="text" value={form.unit} onChange={set("unit")} placeholder="e.g. mg" className="kairos-input w-full" />
+          </div>
+        </div>
+        <div className={`grid gap-3 ${showRoute ? "grid-cols-2" : "grid-cols-1"}`}>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Form</label>
+            <input type="text" value={form.form} onChange={set("form")} placeholder="e.g. capsule, vial" className="kairos-input w-full" />
+          </div>
+          {showRoute && (
+            <div>
+              <label className="text-[10px] text-gray-500 uppercase mb-1 block">Route</label>
+              <input type="text" value={form.route} onChange={set("route")} placeholder="e.g. subcutaneous" className="kairos-input w-full" />
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Frequency</label>
+            <input type="text" value={form.frequency} onChange={set("frequency")} placeholder="e.g. daily" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Time of Day</label>
+            <input type="text" value={form.timeOfDay} onChange={set("timeOfDay")} placeholder="e.g. morning, with food" className="kairos-input w-full" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Rationale (visible to client)</label>
+          <textarea value={form.rationale} onChange={set("rationale")} placeholder="Why this item is part of the protocol..." className="kairos-input w-full h-16 resize-none" />
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Coach Notes (private)</label>
+          <textarea value={form.coachNotes} onChange={set("coachNotes")} placeholder="Internal notes, titration plan..." className="kairos-input w-full h-16 resize-none" />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button
+          onClick={() => onSubmit(form)}
+          disabled={!form.name.trim() || saving}
+          className="kairos-btn-gold flex-1 disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Save Item"}
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -1468,22 +1924,7 @@ function TabContent({
         </div>
       );
 
-    case "supplements":
-      return (
-        <div className="kairos-card">
-          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
-            <Pill size={16} /> Supplement Protocol ({health.supplements.length} items)
-          </h2>
-          {health.supplements.length === 0 ? (
-            <p className="text-sm text-gray-500 py-6 text-center">No active protocol</p>
-          ) : (
-            <DataTable
-              headers={["Name", "Dosage", "Frequency", "Time", "Notes"]}
-              rows={health.supplements.map((s) => [s.name, s.dosage, s.frequency, s.timeOfDay, s.notes])}
-            />
-          )}
-        </div>
-      );
+    // "supplements" (Protocol) is rendered by <ProtocolEditor /> directly, not here.
 
     case "checkins":
       return (

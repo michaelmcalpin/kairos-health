@@ -13,15 +13,21 @@ import {
   protocolItems,
   trainerClientRelationships,
   adherenceLogs,
+  clientCoachAccess,
 } from "@/server/db/schema";
 import { eq, and, desc, inArray } from "drizzle-orm";
 
 // ─── Relationship guard ─────────────────────────────────────
+// Allows access when the coach is the client's primary coach (active
+// trainer-client relationship) OR when the client has shared Diet access
+// with the coach (clientCoachAccess): "read" suffices for reads, "write"
+// is required for write operations.
 async function verifyCoachClientRelationship(
   db: typeof import("@/server/db").db,
   coachId: string,
   clientId: string,
   userRole?: string,
+  minLevel: "read" | "write" = "write",
 ) {
   if (userRole === "super_admin") return;
   const rel = await db.query.trainerClientRelationships.findFirst({
@@ -31,7 +37,21 @@ async function verifyCoachClientRelationship(
       eq(trainerClientRelationships.status, "active"),
     ),
   });
-  if (!rel) {
+  if (rel) return;
+
+  // No primary relationship — check client-granted shared access (Diet category).
+  const grant = await db.query.clientCoachAccess.findFirst({
+    where: and(
+      eq(clientCoachAccess.clientId, clientId),
+      eq(clientCoachAccess.coachId, coachId),
+      eq(clientCoachAccess.status, "active"),
+    ),
+  });
+  const allowed =
+    !!grant &&
+    (grant.dietAccess === "write" ||
+      (minLevel === "read" && grant.dietAccess === "read"));
+  if (!allowed) {
     throw new TRPCError({ code: "FORBIDDEN", message: "No active relationship with this client" });
   }
 }
@@ -59,7 +79,7 @@ export const coachProtocolsRouter = router({
   getActive: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole, "read");
 
       const protocol = await ctx.db.query.supplementProtocols.findFirst({
         where: and(
@@ -105,7 +125,7 @@ export const coachProtocolsRouter = router({
   listAll: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole, "read");
 
       const protocols = await ctx.db.query.supplementProtocols.findMany({
         where: eq(supplementProtocols.clientId, input.clientId),
