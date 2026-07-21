@@ -100,6 +100,8 @@ const permissions: HealthKitPermissions = {
       "Weight",
       "BodyFatPercentage",
       "BloodGlucose",
+      "BloodPressureSystolic",
+      "BloodPressureDiastolic",
       "SleepAnalysis",
       "OxygenSaturation",
       "BodyTemperature",
@@ -185,8 +187,18 @@ export async function readHealthData(
     const options: HealthInputOptions = {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
-      limit: 100,
+      limit: 1000,
     };
+
+    // Request explicit units so values arrive in the units the backend
+    // expects (HealthKit otherwise returns locale/default units).
+    if (type === "HKQuantityTypeIdentifierBodyMass") {
+      (options as any).unit = "pound";
+    } else if (type === "HKQuantityTypeIdentifierBloodGlucose") {
+      (options as any).unit = "mgPerdL";
+    }
+    // NOTE: HRV (HeartRateVariabilitySDNN) is intentionally left unitless —
+    // the native module returns seconds, converted to ms in useHealthSync.
 
     return new Promise<HealthKitSample[]>((resolve) => {
       const callback = (err: string, results: HealthValue[]) => {
@@ -221,9 +233,7 @@ export async function readHealthData(
           AppleHealthKit.getHeartRateVariabilitySamples(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierActiveEnergyBurned":
-          // ActiveEnergyBurned not directly available as a method;
-          // fall through to generic callback
-          resolve([]);
+          AppleHealthKit.getActiveEnergyBurned(options, callback as any);
           break;
         case "HKQuantityTypeIdentifierBodyMass":
           AppleHealthKit.getWeightSamples(options, callback as any);

@@ -62,20 +62,57 @@ export function useHealthKitStatus() {
 // useHealthSync — read HealthKit data and push to backend
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/** Extract the YYYY-MM-DD portion of an ISO timestamp (device-local as reported by HealthKit). */
+function dateOf(iso: string | undefined | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().split("T")[0];
+}
+
+/** HH:MM from an ISO timestamp (local time). */
+function timeOf(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * Defensively decide whether a HealthKit sleep sample counts as actual
+ * sleep. react-native-health returns `value` as a string on sleep
+ * samples ("INBED" | "ASLEEP" | "AWAKE", newer versions also
+ * "CORE"/"DEEP"/"REM"). Some shapes return the raw HKCategoryValue
+ * number (0 = inBed, 1 = asleep, 2 = awake).
+ */
+function isAsleepSample(sample: any): boolean {
+  const v = sample?.value;
+  if (typeof v === "string") {
+    const upper = v.toUpperCase();
+    if (upper === "INBED" || upper === "AWAKE") return false;
+    return (
+      upper === "ASLEEP" ||
+      upper.startsWith("ASLEEP") ||
+      upper === "CORE" ||
+      upper === "DEEP" ||
+      upper === "REM"
+    );
+  }
+  if (typeof v === "number") return v === 1;
+  // Unknown shape — count it rather than dropping sleep entirely
+  return true;
+}
+
 export function useHealthSync() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
-  // Backend mutations for syncing health data
-  const syncMutation = trpc.clientPortal.devices.syncNow.useMutation();
-  const glucoseCreate = trpc.clientPortal.glucose.create.useMutation();
-  const measurementsCreate = trpc.clientPortal.measurements.create.useMutation();
-  const sleepCreate = trpc.clientPortal.sleep.create.useMutation();
-  const checkinSubmit = trpc.clientPortal.checkin.submit.useMutation();
+  // Single bulk-ingest mutation — replaces the old per-category mutations
+  const healthkitSync = trpc.clientPortal.devices.healthkitSync.useMutation();
 
   /**
-   * Read the last 24 hours of health data from HealthKit and push
-   * it to the Everist backend. Shows an alert on completion/failure.
+   * Read the last 7 days of health data from HealthKit and push it to
+   * the Everist backend in one bulk `healthkitSync` call. The backend
+   * dedups by source + timestamp window / date, so re-syncing the same
+   * window is safe.
    */
   const syncFromHealthKit = useCallback(async () => {
     if (!HealthKit.isHealthKitAvailable()) {
@@ -89,202 +126,244 @@ export function useHealthSync() {
     }
 
     setIsSyncing(true);
-    const errors: string[] = [];
-    let sentCount = 0;
 
     try {
-      // Read last 24 hours of data from HealthKit
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
+      // Sync window: last 7 days
+      const windowStart = new Date();
+      windowStart.setDate(windowStart.getDate() - 7);
 
-      const [steps, heartRate, hrv, sleep, weight, glucose] = await Promise.all([
-        HealthKit.readHealthData("HKQuantityTypeIdentifierStepCount", yesterday),
-        HealthKit.readHealthData("HKQuantityTypeIdentifierHeartRate", yesterday),
-        HealthKit.readHealthData("HKQuantityTypeIdentifierHeartRateVariabilitySDNN", yesterday),
-        HealthKit.readHealthData("HKCategoryTypeIdentifierSleepAnalysis", yesterday),
-        HealthKit.readHealthData("HKQuantityTypeIdentifierBodyMass", yesterday),
-        HealthKit.readHealthData("HKQuantityTypeIdentifierBloodGlucose", yesterday),
+      const [
+        steps,
+        heartRate,
+        restingHR,
+        hrv,
+        sleep,
+        weight,
+        bodyFat,
+        glucose,
+        bpSystolic,
+        bpDiastolic,
+        activeEnergy,
+      ] = await Promise.all([
+        HealthKit.readHealthData("HKQuantityTypeIdentifierStepCount", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierHeartRate", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierRestingHeartRate", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierHeartRateVariabilitySDNN", windowStart),
+        HealthKit.readHealthData("HKCategoryTypeIdentifierSleepAnalysis", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierBodyMass", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierBodyFatPercentage", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierBloodGlucose", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierBloodPressureSystolic", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierBloodPressureDiastolic", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierActiveEnergyBurned", windowStart),
       ]);
 
-      const totalSamples =
-        steps.length +
-        heartRate.length +
-        hrv.length +
-        sleep.length +
-        weight.length +
-        glucose.length;
+      // ── Heart rate: per-sample, plus resting HR folded in ──
+      const heartRatePayload: { timestamp: string; bpm: number }[] = [];
+      for (const s of [...heartRate, ...restingHR]) {
+        const bpm = Number(s.value);
+        if (s.startDate && bpm > 0) {
+          heartRatePayload.push({ timestamp: s.startDate, bpm: Math.round(bpm) });
+        }
+      }
 
-      if (totalSamples === 0) {
+      // ── HRV: native returns SECONDS — convert to ms, per-sample ──
+      const hrvPayload: { timestamp: string; ms: number }[] = [];
+      for (const s of hrv) {
+        const seconds = Number(s.value);
+        if (s.startDate && seconds > 0) {
+          hrvPayload.push({ timestamp: s.startDate, ms: seconds * 1000 });
+        }
+      }
+
+      // ── Glucose: native returns mg/dL (explicit unit) — use directly ──
+      const glucosePayload: { timestamp: string; valueMgdl: number }[] = [];
+      for (const s of glucose) {
+        const mgdl = Number(s.value);
+        if (s.startDate && mgdl > 0) {
+          glucosePayload.push({ timestamp: s.startDate, valueMgdl: mgdl });
+        }
+      }
+
+      // ── Blood pressure: pair systolic/diastolic samples by timestamp ──
+      const bpPayload: { date: string; systolic: number; diastolic: number }[] = [];
+      {
+        const diastolicByTs = new Map<string, number>();
+        for (const d of bpDiastolic) {
+          if (d.startDate && Number(d.value) > 0) {
+            diastolicByTs.set(d.startDate, Number(d.value));
+          }
+        }
+        for (const s of bpSystolic) {
+          const sys = Number(s.value);
+          const dia = s.startDate ? diastolicByTs.get(s.startDate) : undefined;
+          const date = dateOf(s.startDate);
+          if (date && sys > 0 && dia != null && dia > 0) {
+            bpPayload.push({ date, systolic: Math.round(sys), diastolic: Math.round(dia) });
+          }
+        }
+      }
+
+      // ── Sleep: only ASLEEP samples, aggregated per wake date ──
+      const sleepPayload: {
+        date: string;
+        totalMinutes: number;
+        bedtime?: string;
+        wakeTime?: string;
+      }[] = [];
+      {
+        const byDate = new Map<
+          string,
+          { totalMinutes: number; earliestStart: string; latestEnd: string }
+        >();
+        for (const s of sleep) {
+          if (!isAsleepSample(s)) continue;
+          if (!s.startDate || !s.endDate) continue;
+          const durationMin =
+            (new Date(s.endDate).getTime() - new Date(s.startDate).getTime()) / 60000;
+          if (!(durationMin > 0)) continue;
+          // Attribute the session to the wake date (end of the sample)
+          const date = dateOf(s.endDate);
+          if (!date) continue;
+          const existing = byDate.get(date);
+          if (existing) {
+            existing.totalMinutes += durationMin;
+            if (s.startDate < existing.earliestStart) existing.earliestStart = s.startDate;
+            if (s.endDate > existing.latestEnd) existing.latestEnd = s.endDate;
+          } else {
+            byDate.set(date, {
+              totalMinutes: durationMin,
+              earliestStart: s.startDate,
+              latestEnd: s.endDate,
+            });
+          }
+        }
+        for (const [date, agg] of byDate) {
+          sleepPayload.push({
+            date,
+            totalMinutes: Math.round(agg.totalMinutes),
+            bedtime: timeOf(agg.earliestStart),
+            wakeTime: timeOf(agg.latestEnd),
+          });
+        }
+      }
+
+      // ── Weight (native returns POUNDS via explicit unit) + body fat ──
+      const weightPayload: { date: string; weightLbs?: number; bodyFatPct?: number }[] = [];
+      {
+        const byDate = new Map<string, { weightLbs?: number; bodyFatPct?: number }>();
+        for (const s of weight) {
+          const lbs = Number(s.value);
+          const date = dateOf(s.startDate);
+          if (date && lbs > 0) {
+            const entry = byDate.get(date) ?? {};
+            entry.weightLbs = Math.round(lbs * 10) / 10;
+            byDate.set(date, entry);
+          }
+        }
+        // Merge body fat into the same-date entry when possible; otherwise
+        // create its own entry
+        for (const s of bodyFat) {
+          const pct = Number(s.value);
+          const date = dateOf(s.startDate);
+          if (date && pct > 0) {
+            const entry = byDate.get(date) ?? {};
+            entry.bodyFatPct = Math.round(pct * 10) / 10;
+            byDate.set(date, entry);
+          }
+        }
+        for (const [date, entry] of byDate) {
+          weightPayload.push({ date, ...entry });
+        }
+      }
+
+      // ── Activity: steps + active calories aggregated per day ──
+      const activityPayload: { date: string; steps?: number; caloriesActive?: number }[] = [];
+      {
+        const byDate = new Map<string, { steps?: number; caloriesActive?: number }>();
+        for (const s of steps) {
+          const count = Number(s.value);
+          const date = dateOf(s.startDate);
+          if (date && count > 0) {
+            const entry = byDate.get(date) ?? {};
+            entry.steps = (entry.steps ?? 0) + count;
+            byDate.set(date, entry);
+          }
+        }
+        for (const s of activeEnergy) {
+          const kcal = Number(s.value);
+          const date = dateOf(s.startDate);
+          if (date && kcal > 0) {
+            const entry = byDate.get(date) ?? {};
+            entry.caloriesActive = (entry.caloriesActive ?? 0) + kcal;
+            byDate.set(date, entry);
+          }
+        }
+        for (const [date, entry] of byDate) {
+          activityPayload.push({
+            date,
+            steps: entry.steps != null ? Math.round(entry.steps) : undefined,
+            caloriesActive:
+              entry.caloriesActive != null ? Math.round(entry.caloriesActive) : undefined,
+          });
+        }
+      }
+
+      // ── Build the bulk payload — only include categories with data ──
+      const payload: Record<string, unknown> = {};
+      if (heartRatePayload.length > 0) payload.heartRate = heartRatePayload.slice(0, 2000);
+      if (hrvPayload.length > 0) payload.hrv = hrvPayload.slice(0, 2000);
+      if (glucosePayload.length > 0) payload.glucose = glucosePayload.slice(0, 2000);
+      if (bpPayload.length > 0) payload.bloodPressure = bpPayload.slice(0, 2000);
+      if (sleepPayload.length > 0) payload.sleep = sleepPayload.slice(0, 2000);
+      if (weightPayload.length > 0) payload.weight = weightPayload.slice(0, 2000);
+      if (activityPayload.length > 0) payload.activity = activityPayload.slice(0, 2000);
+
+      if (Object.keys(payload).length === 0) {
         Alert.alert(
           "No New Data",
-          "No health data was found in the last 24 hours. Make sure Apple Health has data from your devices.",
+          "No health data was found in the last 7 days. Make sure Apple Health has data from your devices.",
         );
         return;
       }
 
-      // ── Send glucose readings to backend ──
-      for (const reading of glucose) {
-        try {
-          // HealthKit blood glucose is in mg/dL
-          const value = reading.value;
-          if (value != null && value > 0) {
-            await new Promise<void>((resolve, reject) => {
-              glucoseCreate.mutate(
-                {
-                  valueMgdl: Number(value),
-                  timestamp: reading.startDate ?? new Date().toISOString(),
-                  source: "apple_health",
-                },
-                { onSuccess: () => { sentCount++; resolve(); }, onError: (e: any) => reject(e) },
-              );
-            });
-          }
-        } catch (e: any) {
-          errors.push(`glucose: ${e.message ?? "failed"}`);
-        }
-      }
-
-      // ── Send weight to backend (most recent only) ──
-      if (weight.length > 0) {
-        try {
-          const latest = weight[weight.length - 1];
-          const kg = latest.value;
-          if (kg != null && kg > 0) {
-            // HealthKit weight is in kg; backend expects lbs
-            const lbs = Number(kg) * 2.20462;
-            await new Promise<void>((resolve, reject) => {
-              measurementsCreate.mutate(
-                {
-                  weightLbs: Math.round(lbs * 10) / 10,
-                  date: (latest.startDate ?? new Date().toISOString()).split("T")[0],
-                  source: "apple_health",
-                },
-                { onSuccess: () => { sentCount++; resolve(); }, onError: (e: any) => reject(e) },
-              );
-            });
-          }
-        } catch (e: any) {
-          errors.push(`weight: ${e.message ?? "failed"}`);
-        }
-      }
-
-      // ── Send sleep data to backend ──
-      if (sleep.length > 0) {
-        try {
-          // HealthKit sleep analysis has multiple samples (inBed, asleep, etc.)
-          // Sum total sleep duration from asleep samples
-          let totalMinutes = 0;
-          let earliestStart: string | null = null;
-          let latestEnd: string | null = null;
-
-          for (const s of sleep) {
-            const start = s.startDate;
-            const end = s.endDate;
-            if (start && end) {
-              const durationMs = new Date(end).getTime() - new Date(start).getTime();
-              totalMinutes += durationMs / 60000;
-              if (!earliestStart || start < earliestStart) earliestStart = start;
-              if (!latestEnd || end > latestEnd) latestEnd = end;
-            }
-          }
-
-          if (totalMinutes > 0) {
-            const sessionDate = earliestStart
-              ? new Date(earliestStart).toISOString().split("T")[0]
-              : new Date().toISOString().split("T")[0];
-
-            await new Promise<void>((resolve, reject) => {
-              sleepCreate.mutate(
-                {
-                  date: sessionDate,
-                  totalMinutes: Math.round(totalMinutes),
-                  source: "apple_health",
-                },
-                { onSuccess: () => { sentCount++; resolve(); }, onError: (e: any) => reject(e) },
-              );
-            });
-          }
-        } catch (e: any) {
-          errors.push(`sleep: ${e.message ?? "failed"}`);
-        }
-      }
-
-      // ── Send steps, heart rate, and HRV via daily check-in ──
-      try {
-        const checkinData: Record<string, any> = {
-          date: new Date().toISOString().split("T")[0],
-          dataSources: { steps: "apple_health", heartRate: "apple_health", hrv: "apple_health" },
-        };
-
-        // Sum total steps
-        if (steps.length > 0) {
-          const totalSteps = steps.reduce(
-            (sum: number, s: any) => sum + (Number(s.value ?? s.quantity) || 0),
-            0,
-          );
-          if (totalSteps > 0) checkinData.steps = Math.round(totalSteps);
-        }
-
-        // Average resting heart rate (not directly stored per-reading in backend)
-        // Use HRV if available
-        if (hrv.length > 0) {
-          const avgHrv = hrv.reduce(
-            (sum: number, h: any) => sum + (Number(h.value ?? h.quantity) || 0),
-            0,
-          ) / hrv.length;
-          if (avgHrv > 0) checkinData.hrvScore = Math.round(avgHrv);
-        }
-
-        if (Object.keys(checkinData).length > 2) {
-          // Has actual health data beyond just date and dataSources
-          await new Promise<void>((resolve, reject) => {
-            checkinSubmit.mutate(checkinData, {
-              onSuccess: () => { sentCount++; resolve(); },
-              onError: (e: any) => reject(e),
-            });
-          });
-        }
-      } catch (e: any) {
-        errors.push(`checkin: ${e.message ?? "failed"}`);
-      }
-
-      // ── Update sync timestamp on backend ──
-      try {
-        await new Promise<void>((resolve) => {
-          syncMutation.mutate(
-            { provider: "apple_health" },
-            {
-              onSuccess: () => resolve(),
-              onError: () => resolve(), // Don't fail on sync log errors
-            },
-          );
-        });
-      } catch {
-        // Sync log update is non-critical
-      }
+      // ── One bulk call to the backend ──
+      const result: any = await healthkitSync.mutateAsync(payload as any);
 
       setLastSyncTime(new Date().toISOString());
 
-      if (errors.length > 0) {
-        Alert.alert(
-          "Partial Sync",
-          `Synced ${sentCount} data points from Apple Health. Some data types could not be sent: ${errors.join(", ")}`,
-        );
-      } else {
-        Alert.alert(
-          "Sync Complete",
-          `Successfully synced ${sentCount} data points from Apple Health to your Everist account.`,
-        );
-      }
+      // Honest reporting: only mention categories that actually had samples
+      const counts: Record<string, number> = result?.counts ?? {};
+      const labels: Record<string, string> = {
+        heartRate: "heart rate",
+        hrv: "HRV",
+        glucose: "glucose",
+        bloodPressure: "blood pressure",
+        sleep: "sleep",
+        weight: "weight",
+        activity: "activity",
+      };
+      const summary = Object.entries(counts)
+        .filter(([, n]) => Number(n) > 0)
+        .map(([key, n]) => `${labels[key] ?? key}: ${n}`)
+        .join(", ");
+      const total = Number(result?.total ?? 0);
+
+      Alert.alert(
+        "Sync Complete",
+        summary.length > 0
+          ? `Synced ${total} records from Apple Health (${summary}).`
+          : "Sync finished, but no records were stored.",
+      );
     } catch (error: any) {
       Alert.alert(
         "Sync Error",
-        error.message ?? "Failed to sync health data. Please try again.",
+        error?.message ?? "Failed to sync health data. Please try again.",
       );
     } finally {
       setIsSyncing(false);
     }
-  }, [syncMutation, glucoseCreate, measurementsCreate, sleepCreate, checkinSubmit]);
+  }, [healthkitSync]);
 
   return { syncFromHealthKit, isSyncing, lastSyncTime };
 }

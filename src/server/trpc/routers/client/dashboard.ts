@@ -45,6 +45,7 @@ export const clientDashboardRouter = router({
       latestBody,
       latestBP,
       todayGlucoseRows,
+      todayActivityRows,
     ] = await Promise.all([
       ctx.db.query.clientProfiles.findFirst({
         where: eq(clientProfiles.userId, ctx.dbUserId),
@@ -97,7 +98,22 @@ export const clientDashboardRouter = router({
         ),
         orderBy: glucoseReadings.timestamp,
       }), []),
+      // Today's activity summaries (steps source of truth — may have
+      // multiple rows from different sources)
+      safeQ(() => ctx.db.query.activitySummaries.findMany({
+        where: and(
+          eq(activitySummaries.clientId, ctx.dbUserId),
+          eq(activitySummaries.date, todayStr),
+        ),
+      }), []),
     ]);
+
+    // Steps KPI: prefer TODAY's activity summary (highest step count across
+    // sources); fall back to the latest check-in ONLY if it is from today.
+    const todaySteps = todayActivityRows.reduce<number | null>(
+      (best, row) => (row.steps != null && (best === null || row.steps > best) ? row.steps : best),
+      null,
+    );
 
     // Glucose spike analysis: count readings >140 mg/dL as spikes
     const SPIKE_THRESHOLD = 140;
@@ -155,9 +171,11 @@ export const clientDashboardRouter = router({
         bloodPressure: latestBP
           ? { systolic: latestBP.systolic, diastolic: latestBP.diastolic, pulse: latestBP.pulse, date: latestBP.date }
           : null,
-        steps: latestCheckin?.steps
-          ? { value: latestCheckin.steps, date: latestCheckin.date }
-          : null,
+        steps: todaySteps != null
+          ? { value: todaySteps, date: todayStr }
+          : latestCheckin?.steps && latestCheckin.date === todayStr
+            ? { value: latestCheckin.steps, date: latestCheckin.date }
+            : null,
         bmCount: todayCheckin?.bmCount ?? null,
         unreadAlerts: Number(unreadAlertRows[0]?.count ?? 0),
         checkedInToday: !!todayCheckin,

@@ -2,8 +2,18 @@ import { z } from "zod";
 import crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
-import { deviceConnections, syncLogs } from "@/server/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import {
+  deviceConnections,
+  syncLogs,
+  heartRateReadings,
+  hrvReadings,
+  glucoseReadings,
+  bloodPressureReadings,
+  sleepSessions,
+  bodyMeasurements,
+  activitySummaries,
+} from "@/server/db/schema";
+import { eq, and, desc, gte, lte, inArray } from "drizzle-orm";
 import { PROVIDERS } from "@/lib/integrations/devices/providers";
 import { env } from "@/lib/config/env";
 import { syncProviderData } from "@/server/services/device-sync";
@@ -341,6 +351,254 @@ export const clientDevicesRouter = router({
           errors: [errorMsg],
         };
       }
+    }),
+
+  /**
+   * Bulk-ingest Apple HealthKit data pushed from the mobile app.
+   *
+   * All arrays are optional; each is capped at 2000 items. Rows are
+   * inserted with source "apple_health" using the same delete-then-insert
+   * dedup pattern as the server-side device sync (delete existing
+   * apple_health rows in the same timestamp window / same dates, then
+   * insert in batches of 100).
+   *
+   * Returns counts per category and updates the apple_health
+   * device connection's lastSyncAt.
+   */
+  healthkitSync: clientProcedure
+    .input(
+      z.object({
+        heartRate: z.array(z.object({
+          timestamp: z.string(),
+          bpm: z.number(),
+        })).max(2000).optional(),
+        hrv: z.array(z.object({
+          timestamp: z.string(),
+          ms: z.number(),
+        })).max(2000).optional(),
+        glucose: z.array(z.object({
+          timestamp: z.string(),
+          valueMgdl: z.number(),
+        })).max(2000).optional(),
+        bloodPressure: z.array(z.object({
+          date: z.string(),
+          systolic: z.number(),
+          diastolic: z.number(),
+        })).max(2000).optional(),
+        sleep: z.array(z.object({
+          date: z.string(),
+          totalMinutes: z.number(),
+          bedtime: z.string().optional(),
+          wakeTime: z.string().optional(),
+        })).max(2000).optional(),
+        weight: z.array(z.object({
+          date: z.string(),
+          weightLbs: z.number().optional(),
+          bodyFatPct: z.number().optional(),
+        })).max(2000).optional(),
+        activity: z.array(z.object({
+          date: z.string(),
+          steps: z.number().optional(),
+          caloriesActive: z.number().optional(),
+        })).max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const SOURCE = "apple_health";
+      const userId = ctx.dbUserId;
+      const BATCH = 100;
+
+      /** Min/max Date window for a set of ISO timestamps */
+      const tsWindow = (timestamps: Date[]) => ({
+        minTs: new Date(Math.min(...timestamps.map((t) => t.getTime()))),
+        maxTs: new Date(Math.max(...timestamps.map((t) => t.getTime()))),
+      });
+
+      const counts = {
+        heartRate: 0,
+        hrv: 0,
+        glucose: 0,
+        bloodPressure: 0,
+        sleep: 0,
+        weight: 0,
+        activity: 0,
+      };
+
+      // ── Heart rate (timestamp window dedup) ──
+      if (input.heartRate && input.heartRate.length > 0) {
+        const rows = input.heartRate.map((r) => ({
+          clientId: userId,
+          timestamp: new Date(r.timestamp),
+          bpm: Math.round(r.bpm),
+          source: SOURCE,
+        }));
+        const { minTs, maxTs } = tsWindow(rows.map((r) => r.timestamp));
+        await ctx.db.delete(heartRateReadings).where(
+          and(
+            eq(heartRateReadings.clientId, userId),
+            eq(heartRateReadings.source, SOURCE),
+            gte(heartRateReadings.timestamp, minTs),
+            lte(heartRateReadings.timestamp, maxTs),
+          ),
+        );
+        for (let i = 0; i < rows.length; i += BATCH) {
+          await ctx.db.insert(heartRateReadings).values(rows.slice(i, i + BATCH));
+        }
+        counts.heartRate = rows.length;
+      }
+
+      // ── HRV (timestamp window dedup; SDNN ms stored in rmssd) ──
+      if (input.hrv && input.hrv.length > 0) {
+        const rows = input.hrv.map((r) => ({
+          clientId: userId,
+          timestamp: new Date(r.timestamp),
+          rmssd: r.ms,
+          source: SOURCE,
+        }));
+        const { minTs, maxTs } = tsWindow(rows.map((r) => r.timestamp));
+        await ctx.db.delete(hrvReadings).where(
+          and(
+            eq(hrvReadings.clientId, userId),
+            eq(hrvReadings.source, SOURCE),
+            gte(hrvReadings.timestamp, minTs),
+            lte(hrvReadings.timestamp, maxTs),
+          ),
+        );
+        for (let i = 0; i < rows.length; i += BATCH) {
+          await ctx.db.insert(hrvReadings).values(rows.slice(i, i + BATCH));
+        }
+        counts.hrv = rows.length;
+      }
+
+      // ── Glucose (timestamp window dedup) ──
+      if (input.glucose && input.glucose.length > 0) {
+        const rows = input.glucose.map((r) => ({
+          clientId: userId,
+          timestamp: new Date(r.timestamp),
+          valueMgdl: r.valueMgdl,
+          source: SOURCE,
+        }));
+        const { minTs, maxTs } = tsWindow(rows.map((r) => r.timestamp));
+        await ctx.db.delete(glucoseReadings).where(
+          and(
+            eq(glucoseReadings.clientId, userId),
+            eq(glucoseReadings.source, SOURCE),
+            gte(glucoseReadings.timestamp, minTs),
+            lte(glucoseReadings.timestamp, maxTs),
+          ),
+        );
+        for (let i = 0; i < rows.length; i += BATCH) {
+          await ctx.db.insert(glucoseReadings).values(rows.slice(i, i + BATCH));
+        }
+        counts.glucose = rows.length;
+      }
+
+      // ── Blood pressure (same-dates dedup) ──
+      if (input.bloodPressure && input.bloodPressure.length > 0) {
+        const rows = input.bloodPressure.map((r) => ({
+          clientId: userId,
+          date: r.date,
+          systolic: Math.round(r.systolic),
+          diastolic: Math.round(r.diastolic),
+          source: SOURCE,
+        }));
+        const dates = Array.from(new Set(rows.map((r) => r.date)));
+        await ctx.db.delete(bloodPressureReadings).where(
+          and(
+            eq(bloodPressureReadings.clientId, userId),
+            eq(bloodPressureReadings.source, SOURCE),
+            inArray(bloodPressureReadings.date, dates),
+          ),
+        );
+        for (let i = 0; i < rows.length; i += BATCH) {
+          await ctx.db.insert(bloodPressureReadings).values(rows.slice(i, i + BATCH));
+        }
+        counts.bloodPressure = rows.length;
+      }
+
+      // ── Sleep sessions (same-dates dedup) ──
+      if (input.sleep && input.sleep.length > 0) {
+        const rows = input.sleep.map((r) => ({
+          clientId: userId,
+          date: r.date,
+          totalMinutes: Math.round(r.totalMinutes),
+          bedtime: r.bedtime ?? null,
+          wakeTime: r.wakeTime ?? null,
+          source: SOURCE,
+        }));
+        const dates = Array.from(new Set(rows.map((r) => r.date)));
+        await ctx.db.delete(sleepSessions).where(
+          and(
+            eq(sleepSessions.clientId, userId),
+            eq(sleepSessions.source, SOURCE),
+            inArray(sleepSessions.date, dates),
+          ),
+        );
+        for (let i = 0; i < rows.length; i += BATCH) {
+          await ctx.db.insert(sleepSessions).values(rows.slice(i, i + BATCH));
+        }
+        counts.sleep = rows.length;
+      }
+
+      // ── Body measurements (same-dates dedup) ──
+      if (input.weight && input.weight.length > 0) {
+        const rows = input.weight.map((r) => ({
+          clientId: userId,
+          date: r.date,
+          weightLbs: r.weightLbs ?? null,
+          bodyFatPct: r.bodyFatPct ?? null,
+          source: SOURCE,
+        }));
+        const dates = Array.from(new Set(rows.map((r) => r.date)));
+        await ctx.db.delete(bodyMeasurements).where(
+          and(
+            eq(bodyMeasurements.clientId, userId),
+            eq(bodyMeasurements.source, SOURCE),
+            inArray(bodyMeasurements.date, dates),
+          ),
+        );
+        for (let i = 0; i < rows.length; i += BATCH) {
+          await ctx.db.insert(bodyMeasurements).values(rows.slice(i, i + BATCH));
+        }
+        counts.weight = rows.length;
+      }
+
+      // ── Activity summaries (same-dates dedup) ──
+      if (input.activity && input.activity.length > 0) {
+        const rows = input.activity.map((r) => ({
+          clientId: userId,
+          date: r.date,
+          steps: r.steps != null ? Math.round(r.steps) : null,
+          caloriesActive: r.caloriesActive != null ? Math.round(r.caloriesActive) : null,
+          source: SOURCE,
+        }));
+        const dates = Array.from(new Set(rows.map((r) => r.date)));
+        await ctx.db.delete(activitySummaries).where(
+          and(
+            eq(activitySummaries.clientId, userId),
+            eq(activitySummaries.source, SOURCE),
+            inArray(activitySummaries.date, dates),
+          ),
+        );
+        for (let i = 0; i < rows.length; i += BATCH) {
+          await ctx.db.insert(activitySummaries).values(rows.slice(i, i + BATCH));
+        }
+        counts.activity = rows.length;
+      }
+
+      // ── Record the sync on the apple_health connection ──
+      await ctx.db
+        .update(deviceConnections)
+        .set({ lastSyncAt: new Date(), status: "connected" })
+        .where(
+          and(
+            eq(deviceConnections.clientId, userId),
+            eq(deviceConnections.provider, "apple_health"),
+          ),
+        );
+
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      return { success: true, counts, total };
     }),
 
   /**

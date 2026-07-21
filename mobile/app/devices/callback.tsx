@@ -38,14 +38,14 @@ export default function OAuthCallbackScreen() {
   useEffect(() => {
     if (status === "connected") {
       // Refetch device connections so the UI updates
-      utils.clientPortal.devices.listConnections.invalidate();
+      utils.clientPortal.devices.list.invalidate();
       utils.clientPortal.devices.getConnection.invalidate();
       setStage("success");
     } else if (errorMsg || status === "error") {
       setStage("error");
     } else {
       // Unknown state — treat as success if we got here
-      utils.clientPortal.devices.listConnections.invalidate();
+      utils.clientPortal.devices.list.invalidate();
       setStage("success");
     }
   }, [status, errorMsg]);

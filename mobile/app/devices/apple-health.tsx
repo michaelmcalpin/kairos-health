@@ -17,7 +17,6 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
-  Pressable,
   Alert,
   ActivityIndicator,
   Platform,
@@ -37,9 +36,7 @@ import {
   Droplets,
   Shield,
   RefreshCw,
-  CheckCircle,
   Clock,
-  ChevronDown,
   AlertCircle,
   Link,
 } from "lucide-react-native";
@@ -60,15 +57,6 @@ interface DataToggle {
   icon: React.ReactNode;
   enabled: boolean;
 }
-
-type SyncFrequency = "realtime" | "hourly" | "6hours" | "manual";
-
-const SYNC_OPTIONS: { value: SyncFrequency; label: string }[] = [
-  { value: "realtime", label: "Real-time" },
-  { value: "hourly", label: "Every hour" },
-  { value: "6hours", label: "Every 6 hours" },
-  { value: "manual", label: "Manual only" },
-];
 
 /* ------------------------------------------------------------------ */
 /* Screen                                                              */
@@ -101,10 +89,6 @@ export default function AppleHealthScreen() {
     hkLastSync
       ? new Date(hkLastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       : connectionData?.lastSyncAt ?? "Never";
-
-  /* -- Sync frequency -- */
-  const [syncFrequency, setSyncFrequency] = useState<SyncFrequency>("realtime");
-  const [showFrequencyPicker, setShowFrequencyPicker] = useState(false);
 
   /* -- Read toggles -- */
   const [readSteps, setReadSteps] = useState(true);
@@ -226,9 +210,6 @@ export default function AppleHealthScreen() {
       ],
     );
   };
-
-  const currentFreqLabel =
-    SYNC_OPTIONS.find((o) => o.value === syncFrequency)?.label ?? "";
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -454,57 +435,16 @@ export default function AppleHealthScreen() {
         {/* ═══════════════════════════════════════════════════════════ */}
         <Card style={styles.categoryCard}>
           <Text style={styles.categoryTitle}>Sync Frequency</Text>
+          <Text style={styles.categorySubtitle}>
+            Data is synced when you tap "Sync Now" above.
+          </Text>
 
-          <Pressable
-            style={styles.frequencySelector}
-            onPress={() => setShowFrequencyPicker(!showFrequencyPicker)}
-          >
+          <View style={styles.frequencySelector}>
             <View style={styles.frequencySelectorLeft}>
               <Clock size={18} color={Colors.silver} />
-              <Text style={styles.frequencySelectorLabel}>
-                {currentFreqLabel}
-              </Text>
+              <Text style={styles.frequencySelectorLabel}>Manual sync</Text>
             </View>
-            <ChevronDown
-              size={18}
-              color={Colors.silver}
-              style={
-                showFrequencyPicker ? { transform: [{ rotate: "180deg" }] } : {}
-              }
-            />
-          </Pressable>
-
-          {showFrequencyPicker && (
-            <View style={styles.frequencyOptions}>
-              {SYNC_OPTIONS.map((option) => (
-                <Pressable
-                  key={option.value}
-                  style={[
-                    styles.frequencyOption,
-                    syncFrequency === option.value &&
-                      styles.frequencyOptionActive,
-                  ]}
-                  onPress={() => {
-                    setSyncFrequency(option.value);
-                    setShowFrequencyPicker(false);
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.frequencyOptionText,
-                      syncFrequency === option.value &&
-                        styles.frequencyOptionTextActive,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
-                  {syncFrequency === option.value && (
-                    <CheckCircle size={16} color={Colors.gold} />
-                  )}
-                </Pressable>
-              ))}
-            </View>
-          )}
+          </View>
         </Card>
 
         {/* ═══════════════════════════════════════════════════════════ */}
@@ -516,7 +456,7 @@ export default function AppleHealthScreen() {
               <Clock size={16} color={Colors.info} />
             </View>
             <Text style={styles.infoText}>
-              Health data is synced from the last 90 days. Older data can be
+              Health data is synced from the last 7 days. Older data can be
               imported manually from your settings.
             </Text>
           </View>
