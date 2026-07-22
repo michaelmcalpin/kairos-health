@@ -54,6 +54,7 @@ export default function AppointmentsPage() {
   const [view, setView] = useState<"list" | "book" | "detail">("list");
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"upcoming" | "past" | "all">("upcoming");
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -84,7 +85,13 @@ export default function AppointmentsPage() {
   const bookMutation = trpc.clientPortal.scheduling.bookAppointment.useMutation({
     onSuccess: () => {
       utils.clientPortal.scheduling.listAppointments.invalidate();
+      setBookingError(null);
       setView("list");
+    },
+    onError: (error) => {
+      // Surface server-side booking failures (e.g. slot already taken,
+      // outside coach hours) instead of failing silently.
+      setBookingError(error.message || "Unable to book this appointment. Please try a different time.");
     },
   });
 
@@ -103,6 +110,7 @@ export default function AppointmentsPage() {
     startTime: string;
     notes: string;
   }) => {
+    setBookingError(null);
     bookMutation.mutate({
       coachId,
       coachName,
@@ -134,12 +142,19 @@ export default function AppointmentsPage() {
       </div>
 
       {view === "book" && (
-        <BookingForm
-          coachId={coachId}
-          coachName={coachName}
-          onBook={handleBook}
-          onCancel={() => setView("list")}
-        />
+        <>
+          {bookingError && (
+            <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+              <p className="text-sm text-red-400">{bookingError}</p>
+            </div>
+          )}
+          <BookingForm
+            coachId={coachId}
+            coachName={coachName}
+            onBook={handleBook}
+            onCancel={() => { setBookingError(null); setView("list"); }}
+          />
+        </>
       )}
 
       {view === "detail" && selectedAppointment && (

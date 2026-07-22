@@ -475,15 +475,28 @@ export const clientDashboardRouter = router({
       }), undefined),
     ]);
 
+    // Only use components that actually have data — no fabricated defaults.
+    const avgGlucoseRaw = avgGlucoseResult[0]?.avg;
+    const avgSleepRaw = avgSleepResult[0]?.avg;
+    const avgGlucose = avgGlucoseRaw != null ? Number(avgGlucoseRaw) : null;
+    const avgSleep = avgSleepRaw != null ? Number(avgSleepRaw) : null;
+    const hrv = latestHrv?.rmssd ?? null;
+
+    if (avgGlucose === null && avgSleep === null && hrv === null) {
+      return { score: null, avgGlucose: null, avgSleep: null, hrv: null, hasData: false };
+    }
+
     let score = 75;
-    const avgGlucose = Number(avgGlucoseResult[0]?.avg ?? 95);
-    const avgSleep = Number(avgSleepResult[0]?.avg ?? 70);
-    const hrv = latestHrv?.rmssd ?? 40;
+    if (avgSleep !== null) {
+      score += avgSleep >= 80 ? 8 : avgSleep >= 70 ? 4 : avgSleep >= 60 ? 0 : -10;
+    }
+    if (avgGlucose !== null) {
+      score += avgGlucose >= 70 && avgGlucose <= 100 ? 5 : avgGlucose <= 120 ? 0 : -8;
+    }
+    if (hrv !== null) {
+      score += hrv > 50 ? 7 : hrv >= 30 ? 2 : -5;
+    }
 
-    score += avgSleep >= 80 ? 8 : avgSleep >= 70 ? 4 : avgSleep >= 60 ? 0 : -10;
-    score += avgGlucose >= 70 && avgGlucose <= 100 ? 5 : avgGlucose <= 120 ? 0 : -8;
-    score += hrv > 50 ? 7 : hrv >= 30 ? 2 : -5;
-
-    return { score: Math.min(100, Math.max(0, score)), avgGlucose, avgSleep, hrv };
+    return { score: Math.min(100, Math.max(0, score)), avgGlucose, avgSleep, hrv, hasData: true };
   }),
 });

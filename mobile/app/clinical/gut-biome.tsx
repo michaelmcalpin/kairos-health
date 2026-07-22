@@ -4,6 +4,10 @@
  *
  * tRPC paths used (under `clientPortal`):
  *   - clinicalDocs.list({ docType: "gut_biome" })  -> list of gut biome docs with parsedData
+ *
+ * Renders only real data from the backend. When no report has been
+ * uploaded yet (or the query fails) an honest empty/error state is
+ * shown instead of fabricated values.
  */
 
 import React from "react";
@@ -22,38 +26,21 @@ import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorView } from "@/components/ui/ErrorView";
 import type { StatusVariant } from "@/lib/types";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { showImagePickerOptions } from "@/lib/image-picker";
 
 /* ------------------------------------------------------------------ */
-/* Sample data (fallback when API is unreachable)                      */
+/* Types                                                               */
 /* ------------------------------------------------------------------ */
-
-const SAMPLE_GUT_SCORE = {
-  overall: 78,
-  maxScore: 100,
-  testDate: "Apr 22, 2026",
-  provider: "Viome",
-};
-
-const SAMPLE_DIVERSITY = {
-  shannonIndex: 3.2,
-  rating: "Good" as const,
-};
 
 interface PhylumData {
   name: string;
   percentage: number;
   color: string;
 }
-
-const SAMPLE_PHYLA: PhylumData[] = [
-  { name: "Firmicutes", percentage: 52, color: Colors.info },
-  { name: "Bacteroidetes", percentage: 38, color: Colors.success },
-  { name: "Proteobacteria", percentage: 6, color: Colors.warning },
-  { name: "Others", percentage: 4, color: Colors.silver },
-];
 
 interface KeyFinding {
   organism: string;
@@ -62,63 +49,17 @@ interface KeyFinding {
   note: string;
 }
 
-const SAMPLE_KEY_FINDINGS: KeyFinding[] = [
-  {
-    organism: "Akkermansia",
-    status: "Optimal",
-    variant: "success",
-    note: "Supports gut barrier integrity and metabolic health.",
-  },
-  {
-    organism: "Bifidobacterium",
-    status: "Low",
-    variant: "warning",
-    note: "Supplement recommended. Consider probiotic with B. longum and B. breve strains.",
-  },
-  {
-    organism: "Lactobacillus",
-    status: "Normal",
-    variant: "info",
-    note: "Adequate levels supporting immune function and nutrient absorption.",
-  },
-  {
-    organism: "F/B Ratio",
-    status: "1.37 — Normal",
-    variant: "info",
-    note: "Firmicutes-to-Bacteroidetes ratio within healthy range (0.5–2.0).",
-  },
-];
-
 interface Recommendation {
   category: string;
   items: string[];
 }
 
-const SAMPLE_RECOMMENDATIONS: Recommendation[] = [
-  {
-    category: "Increase",
-    items: [
-      "Fermented foods (kimchi, sauerkraut, kefir)",
-      "Prebiotic fiber (chicory root, garlic, onions)",
-      "Polyphenol-rich foods (blueberries, dark chocolate)",
-    ],
-  },
-  {
-    category: "Reduce",
-    items: [
-      "Refined sugars and artificial sweeteners",
-      "Processed seed oils",
-    ],
-  },
-  {
-    category: "Supplements",
-    items: [
-      "Bifidobacterium probiotic (10B CFU daily)",
-      "Butyrate supplement (300mg, 2x daily)",
-      "L-Glutamine (5g daily for gut lining support)",
-    ],
-  },
-];
+function formatDate(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
 /* ------------------------------------------------------------------ */
 /* Score Ring Component                                                 */
@@ -188,6 +129,44 @@ const scoreStyles = StyleSheet.create({
 });
 
 /* ------------------------------------------------------------------ */
+/* Upload flow (shared by empty state CTA and bottom button)           */
+/* ------------------------------------------------------------------ */
+
+function useUploadGutBiome() {
+  const createDoc = trpc.clientPortal.clinicalDocs.create.useMutation();
+
+  return async () => {
+    const image = await showImagePickerOptions();
+    if (!image) return;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        createDoc.mutate(
+          {
+            docType: "gut_biome",
+            title: `Gut Biome Report - ${new Date().toLocaleDateString()}`,
+            sourceFileName: image.fileName ?? `gut_biome_${Date.now()}.jpg`,
+            notes: `Captured via mobile app. Image URI: ${image.uri}`,
+          },
+          {
+            onSuccess: () => resolve(),
+            onError: (err: any) => reject(err),
+          },
+        );
+      });
+      Alert.alert(
+        "Document Uploaded",
+        "Your gut biome report has been submitted. It will be reviewed by your care team within 24-48 hours.",
+      );
+    } catch (err: any) {
+      Alert.alert(
+        "Upload Failed",
+        err?.message ?? "Your report could not be uploaded. Please try again later.",
+      );
+    }
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -197,36 +176,92 @@ export default function GutBiomeScreen() {
     { docType: "gut_biome" },
     DEFAULT_QUERY_OPTIONS,
   );
+  const uploadGutBiome = useUploadGutBiome();
 
-  // Backend returns an array of clinical documents with parsedData JSON blobs.
-  // Extract the latest document's parsedData for display, falling back to sample data.
   const docs = (query.data ?? []) as any[];
   const latest = docs[0]; // already sorted by createdAt DESC
   const parsed = latest?.parsedData as Record<string, any> | null | undefined;
 
-  const GUT_SCORE = parsed?.score
-    ? {
-        overall: parsed.score.overall ?? SAMPLE_GUT_SCORE.overall,
-        maxScore: parsed.score.maxScore ?? SAMPLE_GUT_SCORE.maxScore,
-        testDate: parsed.score.testDate ?? SAMPLE_GUT_SCORE.testDate,
-        provider: parsed.score.provider ?? SAMPLE_GUT_SCORE.provider,
-      }
-    : latest
-      ? {
-          ...SAMPLE_GUT_SCORE,
-          testDate: latest.reportDate
-            ? new Date(latest.reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-            : SAMPLE_GUT_SCORE.testDate,
-          provider: latest.providerName ?? SAMPLE_GUT_SCORE.provider,
-        }
-      : SAMPLE_GUT_SCORE;
+  // ── Loading state ───────────────────────────────────────────────
+  if (query.isLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: "Gut Biome" }} />
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-  const DIVERSITY = parsed?.diversity
-    ? {
-        shannonIndex: parsed.diversity.shannonIndex ?? SAMPLE_DIVERSITY.shannonIndex,
-        rating: (parsed.diversity.rating ?? SAMPLE_DIVERSITY.rating) as "Good",
-      }
-    : SAMPLE_DIVERSITY;
+  // ── Error state ─────────────────────────────────────────────────
+  if (query.error) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: "Gut Biome" }} />
+        <ErrorView
+          title="Couldn't load gut biome results"
+          message="We couldn't reach the server. Please try again."
+          onRetry={() => query.refetch()}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  // ── Empty state ─────────────────────────────────────────────────
+  if (!latest) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: "Gut Biome" }} />
+        <View style={styles.center}>
+          <EmptyState
+            icon="document"
+            title="No gut biome results yet"
+            message="Upload a microbiome report (e.g. Viome) and your care team will review it and add the results here."
+            actionLabel="Upload a report"
+            onAction={uploadGutBiome}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Real data mapping (no fabricated fallbacks) ─────────────────
+  const testDate = formatDate(latest.reportDate) ?? formatDate(latest.createdAt);
+  const provider = latest.providerName ?? null;
+
+  const score =
+    parsed?.score && parsed.score.overall != null
+      ? {
+          overall: Number(parsed.score.overall),
+          maxScore: Number(parsed.score.maxScore ?? 100),
+        }
+      : null;
+
+  const scoreVariant: StatusVariant =
+    score === null
+      ? "default"
+      : (score.overall / score.maxScore) * 100 >= 70
+        ? "success"
+        : (score.overall / score.maxScore) * 100 >= 50
+          ? "warning"
+          : "danger";
+  const scoreLabel =
+    score === null
+      ? ""
+      : (score.overall / score.maxScore) * 100 >= 70
+        ? "Good"
+        : (score.overall / score.maxScore) * 100 >= 50
+          ? "Fair"
+          : "Poor";
+
+  const diversity =
+    parsed?.diversity && parsed.diversity.shannonIndex != null
+      ? {
+          shannonIndex: Number(parsed.diversity.shannonIndex),
+          rating: (parsed.diversity.rating ?? null) as string | null,
+        }
+      : null;
 
   const phylaColorMap: Record<string, string> = {
     Firmicutes: Colors.info,
@@ -234,13 +269,13 @@ export default function GutBiomeScreen() {
     Proteobacteria: Colors.warning,
   };
 
-  const PHYLA: PhylumData[] = parsed?.phyla
-    ? (parsed.phyla as any[]).map((p: any) => ({
+  const phyla: PhylumData[] = Array.isArray(parsed?.phyla)
+    ? (parsed!.phyla as any[]).map((p: any) => ({
         name: p.name ?? "",
         percentage: p.percentage ?? 0,
         color: phylaColorMap[p.name] ?? Colors.silver,
       }))
-    : SAMPLE_PHYLA;
+    : [];
 
   const variantMap: Record<string, StatusVariant> = {
     optimal: "success",
@@ -249,21 +284,28 @@ export default function GutBiomeScreen() {
     high: "danger",
   };
 
-  const KEY_FINDINGS: KeyFinding[] = parsed?.findings
-    ? (parsed.findings as any[]).map((f: any) => ({
+  const findings: KeyFinding[] = Array.isArray(parsed?.findings)
+    ? (parsed!.findings as any[]).map((f: any) => ({
         organism: f.organism ?? "",
         status: f.status ?? "",
         variant: (variantMap[(f.status ?? "").toLowerCase()] ?? "info") as StatusVariant,
         note: f.note ?? "",
       }))
-    : SAMPLE_KEY_FINDINGS;
+    : [];
 
-  const RECOMMENDATIONS: Recommendation[] = parsed?.recommendations
-    ? (parsed.recommendations as any[]).map((r: any) => ({
+  const recommendations: Recommendation[] = Array.isArray(parsed?.recommendations)
+    ? (parsed!.recommendations as any[]).map((r: any) => ({
         category: r.category ?? "",
         items: r.items ?? [],
       }))
-    : SAMPLE_RECOMMENDATIONS;
+    : [];
+
+  const hasParsedResults =
+    score !== null ||
+    diversity !== null ||
+    phyla.length > 0 ||
+    findings.length > 0 ||
+    recommendations.length > 0;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -274,190 +316,180 @@ export default function GutBiomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Overall Score */}
+        {/* Most Recent Report */}
         <Card style={styles.section}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>Overall Gut Health</Text>
-            <Badge label="Good" variant="success" />
-          </View>
-
-          <ScoreRing
-            score={GUT_SCORE.overall}
-            maxScore={GUT_SCORE.maxScore}
-          />
-
+          <Text style={styles.sectionTitle}>Most Recent Report</Text>
           <View style={styles.testMeta}>
-            <Text style={styles.metaText}>
-              Test Date: {GUT_SCORE.testDate}
-            </Text>
-            <Text style={styles.metaText}>
-              Provider: {GUT_SCORE.provider}
-            </Text>
+            {testDate && <Text style={styles.metaText}>Test Date: {testDate}</Text>}
+            {provider && <Text style={styles.metaText}>Provider: {provider}</Text>}
           </View>
         </Card>
+
+        {/* Awaiting review — document uploaded but no parsed results yet */}
+        {!hasParsedResults && (
+          <Card style={styles.section}>
+            <Text style={styles.sectionTitle}>Results Pending</Text>
+            <Text style={styles.pendingText}>
+              Your gut biome report has been received and is awaiting review by
+              your care team. Detailed results will appear here once processed.
+            </Text>
+          </Card>
+        )}
+
+        {/* Overall Score */}
+        {score && (
+          <Card style={styles.section}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>Overall Gut Health</Text>
+              <Badge label={scoreLabel} variant={scoreVariant} />
+            </View>
+
+            <ScoreRing score={score.overall} maxScore={score.maxScore} />
+          </Card>
+        )}
 
         {/* Diversity Index */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Diversity Index</Text>
+        {diversity && (
+          <Card style={styles.section}>
+            <Text style={styles.sectionTitle}>Diversity Index</Text>
 
-          <View style={styles.diversityRow}>
-            <View>
-              <Text style={styles.diversityLabel}>Shannon Index</Text>
-              <Text style={styles.diversityValue}>
-                {DIVERSITY.shannonIndex}
-              </Text>
+            <View style={styles.diversityRow}>
+              <View>
+                <Text style={styles.diversityLabel}>Shannon Index</Text>
+                <Text style={styles.diversityValue}>
+                  {diversity.shannonIndex}
+                </Text>
+              </View>
+              {diversity.rating && (
+                <Badge
+                  label={diversity.rating}
+                  variant={
+                    diversity.shannonIndex >= 3
+                      ? "success"
+                      : diversity.shannonIndex >= 2
+                        ? "warning"
+                        : "danger"
+                  }
+                />
+              )}
             </View>
-            <Badge label={DIVERSITY.rating} variant="success" />
-          </View>
 
-          {/* Diversity scale */}
-          <View style={styles.scaleContainer}>
-            <View style={styles.scaleTrack}>
-              <View
-                style={[
-                  styles.scaleMarker,
-                  {
-                    left: `${(DIVERSITY.shannonIndex / 5) * 100}%`,
-                  },
-                ]}
-              />
-            </View>
-            <View style={styles.scaleLabels}>
-              <Text style={styles.scaleLabel}>0 (Low)</Text>
-              <Text style={styles.scaleLabel}>2.5</Text>
-              <Text style={styles.scaleLabel}>5.0 (High)</Text>
-            </View>
-          </View>
-        </Card>
-
-        {/* Bacterial Phyla */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Top Bacterial Phyla</Text>
-
-          {/* Stacked bar */}
-          <View style={styles.phylaBar}>
-            {PHYLA.map((phylum) => (
-              <View
-                key={phylum.name}
-                style={[
-                  styles.phylaSegment,
-                  {
-                    width: `${phylum.percentage}%`,
-                    backgroundColor: phylum.color,
-                  },
-                ]}
-              />
-            ))}
-          </View>
-
-          {/* Labels */}
-          {PHYLA.map((phylum) => (
-            <View key={phylum.name} style={styles.phylaRow}>
-              <View style={styles.phylaLabel}>
+            {/* Diversity scale */}
+            <View style={styles.scaleContainer}>
+              <View style={styles.scaleTrack}>
                 <View
                   style={[
-                    styles.phylaDot,
-                    { backgroundColor: phylum.color },
+                    styles.scaleMarker,
+                    {
+                      left: `${Math.min((diversity.shannonIndex / 5) * 100, 100)}%`,
+                    },
                   ]}
                 />
-                <Text style={styles.phylaName}>{phylum.name}</Text>
               </View>
-              <Text style={styles.phylaPercent}>{phylum.percentage}%</Text>
-            </View>
-          ))}
-        </Card>
-
-        {/* Key Findings */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Key Findings</Text>
-
-          {KEY_FINDINGS.map((finding, idx) => (
-            <View
-              key={finding.organism}
-              style={[
-                styles.findingRow,
-                idx < KEY_FINDINGS.length - 1 && styles.findingBorder,
-              ]}
-            >
-              <View style={styles.findingHeader}>
-                <Text style={styles.findingOrganism}>
-                  {finding.organism}
-                </Text>
-                <Badge label={finding.status} variant={finding.variant} />
+              <View style={styles.scaleLabels}>
+                <Text style={styles.scaleLabel}>0 (Low)</Text>
+                <Text style={styles.scaleLabel}>2.5</Text>
+                <Text style={styles.scaleLabel}>5.0 (High)</Text>
               </View>
-              <Text style={styles.findingNote}>{finding.note}</Text>
             </View>
-          ))}
-        </Card>
+          </Card>
+        )}
 
-        {/* Dietary Recommendations */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Dietary Recommendations</Text>
+        {/* Bacterial Phyla */}
+        {phyla.length > 0 && (
+          <Card style={styles.section}>
+            <Text style={styles.sectionTitle}>Top Bacterial Phyla</Text>
 
-          {RECOMMENDATIONS.map((rec) => (
-            <View key={rec.category} style={styles.recGroup}>
-              <Text style={styles.recCategory}>{rec.category}</Text>
-              {rec.items.map((item, idx) => (
-                <View key={idx} style={styles.recItem}>
-                  <Text style={styles.recBullet}>{"•"}</Text>
-                  <Text style={styles.recText}>{item}</Text>
-                </View>
+            {/* Stacked bar */}
+            <View style={styles.phylaBar}>
+              {phyla.map((phylum) => (
+                <View
+                  key={phylum.name}
+                  style={[
+                    styles.phylaSegment,
+                    {
+                      width: `${phylum.percentage}%`,
+                      backgroundColor: phylum.color,
+                    },
+                  ]}
+                />
               ))}
             </View>
-          ))}
-        </Card>
+
+            {/* Labels */}
+            {phyla.map((phylum) => (
+              <View key={phylum.name} style={styles.phylaRow}>
+                <View style={styles.phylaLabel}>
+                  <View
+                    style={[
+                      styles.phylaDot,
+                      { backgroundColor: phylum.color },
+                    ]}
+                  />
+                  <Text style={styles.phylaName}>{phylum.name}</Text>
+                </View>
+                <Text style={styles.phylaPercent}>{phylum.percentage}%</Text>
+              </View>
+            ))}
+          </Card>
+        )}
+
+        {/* Key Findings */}
+        {findings.length > 0 && (
+          <Card style={styles.section}>
+            <Text style={styles.sectionTitle}>Key Findings</Text>
+
+            {findings.map((finding, idx) => (
+              <View
+                key={finding.organism || idx}
+                style={[
+                  styles.findingRow,
+                  idx < findings.length - 1 && styles.findingBorder,
+                ]}
+              >
+                <View style={styles.findingHeader}>
+                  <Text style={styles.findingOrganism}>
+                    {finding.organism}
+                  </Text>
+                  <Badge label={finding.status} variant={finding.variant} />
+                </View>
+                {!!finding.note && (
+                  <Text style={styles.findingNote}>{finding.note}</Text>
+                )}
+              </View>
+            ))}
+          </Card>
+        )}
+
+        {/* Dietary Recommendations */}
+        {recommendations.length > 0 && (
+          <Card style={styles.section}>
+            <Text style={styles.sectionTitle}>Dietary Recommendations</Text>
+
+            {recommendations.map((rec) => (
+              <View key={rec.category} style={styles.recGroup}>
+                <Text style={styles.recCategory}>{rec.category}</Text>
+                {rec.items.map((item, idx) => (
+                  <View key={idx} style={styles.recItem}>
+                    <Text style={styles.recBullet}>{"•"}</Text>
+                    <Text style={styles.recText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </Card>
+        )}
 
         {/* Upload Button */}
-        <UploadGutBiomeButton />
+        <Button
+          title="Upload Gut Biome Report"
+          variant="secondary"
+          size="lg"
+          style={styles.uploadButton}
+          onPress={uploadGutBiome}
+        />
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Upload Button with backend integration                              */
-/* ------------------------------------------------------------------ */
-
-function UploadGutBiomeButton() {
-  const createDoc = trpc.clientPortal.clinicalDocs.create.useMutation();
-
-  return (
-    <Button
-      title="Upload Viome Report"
-      variant="secondary"
-      size="lg"
-      style={styles.uploadButton}
-      onPress={async () => {
-        const image = await showImagePickerOptions();
-        if (image) {
-          try {
-            await new Promise<void>((resolve, reject) => {
-              createDoc.mutate(
-                {
-                  docType: "gut_biome",
-                  title: `Gut Biome Report - ${new Date().toLocaleDateString()}`,
-                  sourceFileName: image.fileName ?? `gut_biome_${Date.now()}.jpg`,
-                  notes: `Captured via mobile app. Image URI: ${image.uri}`,
-                },
-                {
-                  onSuccess: () => resolve(),
-                  onError: (err: any) => reject(err),
-                },
-              );
-            });
-            Alert.alert(
-              "Document Uploaded",
-              "Your Viome report has been submitted. It will be reviewed by your care team within 24-48 hours.",
-            );
-          } catch (err: any) {
-            Alert.alert(
-              "Document Captured",
-              "Your Viome report image was captured but could not be uploaded to the server. The image is saved locally. Please try again later.",
-            );
-          }
-        }
-      }}
-    />
   );
 }
 
@@ -477,6 +509,10 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingBottom: Spacing.xxl,
     gap: Spacing.md,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
   },
 
   /* Sections */
@@ -503,6 +539,11 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: FontSizes.sm,
     color: Colors.silver,
+  },
+  pendingText: {
+    fontSize: FontSizes.sm,
+    color: Colors.silver,
+    lineHeight: 20,
   },
 
   /* Diversity */

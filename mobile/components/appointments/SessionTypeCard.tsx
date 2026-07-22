@@ -12,7 +12,7 @@ export interface SessionType {
   id: string;
   name: string;
   duration: string;
-  price: string;
+  price?: string;
   description: string;
   icon: React.ComponentType<any>;
 }
@@ -56,8 +56,12 @@ export function SessionTypeCard({
 
       <View style={styles.bottomRow}>
         <Text style={styles.duration}>{sessionType.duration}</Text>
-        <Text style={styles.priceDot}> · </Text>
-        <Text style={styles.price}>{sessionType.price}</Text>
+        {!!sessionType.price && (
+          <>
+            <Text style={styles.priceDot}> · </Text>
+            <Text style={styles.price}>{sessionType.price}</Text>
+          </>
+        )}
       </View>
 
       {/* Selection check */}

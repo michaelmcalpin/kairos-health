@@ -2,30 +2,32 @@
  * Blood Pressure detail screen.
  *
  * Displays latest reading, BP classification guide, recent readings
- * history, and 7-day systolic/diastolic trend.
+ * history, and 7-day systolic/diastolic trend — all from real backend
+ * data. Shows an honest empty state when no readings exist yet.
+ *
+ * tRPC paths used (under `clientPortal`):
+ *   - bloodPressure.getHistory  -> readings within a date range
+ *   - bloodPressure.getLatest   -> most recent reading
  */
 
 import React from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Activity, Heart, Watch } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorView } from "@/components/ui/ErrorView";
+import type { StatusVariant } from "@/lib/types";
 import { TrendLine } from "@/components/health";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample Data
+// Constants & Helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-const SAMPLE_LATEST = {
-  systolic: 118,
-  diastolic: 76,
-  pulse: 62,
-  timestamp: "Today, 7:15 AM",
-};
 
 const CLASSIFICATIONS = [
   { label: "Optimal", range: "<120/80", color: Colors.success },
@@ -35,55 +37,29 @@ const CLASSIFICATIONS = [
   { label: "Stage 2", range: "160+/100+", color: Colors.danger },
 ];
 
-const SAMPLE_HISTORY = [
-  { id: "1", date: "Today", time: "7:15 AM", sys: 118, dia: 76, pulse: 62 },
-  { id: "2", date: "Today", time: "9:30 PM", sys: 122, dia: 78, pulse: 68 },
-  { id: "3", date: "Yesterday", time: "7:00 AM", sys: 120, dia: 77, pulse: 64 },
-  { id: "4", date: "Yesterday", time: "9:15 PM", sys: 119, dia: 75, pulse: 66 },
-  { id: "5", date: "2 days ago", time: "7:20 AM", sys: 121, dia: 79, pulse: 63 },
-  { id: "6", date: "2 days ago", time: "9:00 PM", sys: 117, dia: 74, pulse: 65 },
-  { id: "7", date: "3 days ago", time: "7:10 AM", sys: 122, dia: 80, pulse: 61 },
-  { id: "8", date: "3 days ago", time: "9:45 PM", sys: 120, dia: 78, pulse: 64 },
-  { id: "9", date: "4 days ago", time: "7:30 AM", sys: 119, dia: 76, pulse: 62 },
-  { id: "10", date: "4 days ago", time: "9:30 PM", sys: 121, dia: 77, pulse: 67 },
-  { id: "11", date: "5 days ago", time: "7:05 AM", sys: 123, dia: 81, pulse: 63 },
-  { id: "12", date: "5 days ago", time: "9:20 PM", sys: 118, dia: 75, pulse: 66 },
-  { id: "13", date: "6 days ago", time: "7:25 AM", sys: 122, dia: 79, pulse: 64 },
-  { id: "14", date: "6 days ago", time: "9:10 PM", sys: 120, dia: 76, pulse: 65 },
-];
+function getClassification(sys: number): {
+  label: string;
+  color: string;
+  variant: StatusVariant;
+} {
+  if (sys < 120) return { label: "Optimal", color: Colors.success, variant: "success" };
+  if (sys < 130) return { label: "Normal", color: Colors.info, variant: "info" };
+  if (sys < 140) return { label: "Elevated", color: Colors.warning, variant: "warning" };
+  if (sys < 160) return { label: "Stage 1", color: "#F97316", variant: "danger" };
+  return { label: "Stage 2", color: Colors.danger, variant: "danger" };
+}
 
-const SAMPLE_SYSTOLIC_TREND = [
-  { label: "Mon", value: 122 },
-  { label: "Tue", value: 120 },
-  { label: "Wed", value: 119 },
-  { label: "Thu", value: 121 },
-  { label: "Fri", value: 118 },
-  { label: "Sat", value: 117 },
-  { label: "Sun", value: 118 },
-];
+function isoDate(offsetDays = 0): string {
+  return new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+}
 
-const SAMPLE_DIASTOLIC_TREND = [
-  { label: "Mon", value: 80 },
-  { label: "Tue", value: 78 },
-  { label: "Wed", value: 76 },
-  { label: "Thu", value: 78 },
-  { label: "Fri", value: 75 },
-  { label: "Sat", value: 74 },
-  { label: "Sun", value: 76 },
-];
-
-const SAMPLE_SOURCE = "Withings BPM Connect";
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Helpers
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-function getClassification(sys: number): { label: string; color: string } {
-  if (sys < 120) return { label: "Optimal", color: Colors.success };
-  if (sys < 130) return { label: "Normal", color: Colors.info };
-  if (sys < 140) return { label: "Elevated", color: Colors.warning };
-  if (sys < 160) return { label: "Stage 1", color: "#F97316" };
-  return { label: "Stage 2", color: Colors.danger };
+function formatSource(source?: string | null): string | null {
+  if (!source) return null;
+  if (source === "manual") return "Manual Entry";
+  if (source === "apple_health") return "Apple Health";
+  return source;
 }
 
 /** Derive a 7-point weekly trend from the history readings by day. */
@@ -97,9 +73,9 @@ function deriveWeeklyTrend(
     existing.push(r[key]);
     dayMap.set(r.date, existing);
   }
-  const entries = Array.from(dayMap.entries()).slice(0, 7);
+  const entries = Array.from(dayMap.entries()).slice(0, 7).reverse();
   return entries.map(([date, values]) => ({
-    label: date.length > 5 ? date.slice(0, 5) : date,
+    label: new Date(date + "T12:00:00").toLocaleDateString([], { weekday: "short" }),
     value: Math.round(values.reduce((a, b) => a + b, 0) / values.length),
   }));
 }
@@ -109,9 +85,13 @@ function deriveWeeklyTrend(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function BloodPressureScreen() {
+  const router = useRouter();
+  const today = isoDate();
+  const monthAgo = isoDate(-30);
+
   // ─── tRPC Queries ───────────────────────────────────────
   const historyQuery = trpc.clientPortal.bloodPressure.getHistory.useQuery(
-    { limit: 30 },
+    { startDate: monthAgo, endDate: today },
     DEFAULT_QUERY_OPTIONS,
   );
   const latestQuery = trpc.clientPortal.bloodPressure.getLatest.useQuery(
@@ -119,43 +99,84 @@ export default function BloodPressureScreen() {
     DEFAULT_QUERY_OPTIONS,
   );
 
-  // ─── Map API data with sample fallback ──────────────────
-  const latestReading = latestQuery.data
+  // ─── Loading state ──────────────────────────────────────
+  if (historyQuery.isLoading || latestQuery.isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ─── Error state ────────────────────────────────────────
+  if (historyQuery.error) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <ErrorView
+          title="Couldn't load blood pressure data"
+          message="We couldn't reach the server. Please try again."
+          onRetry={() => {
+            historyQuery.refetch();
+            latestQuery.refetch();
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  // ─── Real data mapping (no fabricated fallbacks) ────────
+  const rawHistory = (historyQuery.data ?? []) as any[];
+  const latestRaw = (latestQuery.data ?? null) as any;
+
+  // ─── Empty state — no readings at all ───────────────────
+  if (rawHistory.length === 0 && !latestRaw) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.center}>
+          <EmptyState
+            icon="heart"
+            title="No blood pressure readings yet"
+            message="Connect a blood pressure monitor or log a manual reading to see your history here."
+            actionLabel="Connect a device"
+            onAction={() => router.push("/devices/connect" as any)}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const latestReading = latestRaw
     ? {
-        systolic: (latestQuery.data as any).systolic,
-        diastolic: (latestQuery.data as any).diastolic,
-        pulse: (latestQuery.data as any).pulse ?? SAMPLE_LATEST.pulse,
-        timestamp: new Date(
-          (latestQuery.data as any).date || (latestQuery.data as any).createdAt,
-        ).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+        systolic: latestRaw.systolic as number,
+        diastolic: latestRaw.diastolic as number,
+        pulse: (latestRaw.pulse ?? null) as number | null,
+        timestamp: latestRaw.date
+          ? new Date(latestRaw.date + "T12:00:00").toLocaleDateString([], {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            })
+          : "",
       }
-    : SAMPLE_LATEST;
+    : null;
 
-  const history = historyQuery.data
-    ? (historyQuery.data as any[]).map((r, idx) => ({
-        id: r.id || String(idx + 1),
-        date: new Date(r.date || r.createdAt).toLocaleDateString(),
-        time: new Date(r.date || r.createdAt).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        sys: r.systolic,
-        dia: r.diastolic,
-        pulse: r.pulse ?? 0,
-      }))
-    : SAMPLE_HISTORY;
+  const history = rawHistory.map((r, idx) => ({
+    id: r.id || String(idx + 1),
+    date: r.date as string,
+    displayDate: new Date(r.date + "T12:00:00").toLocaleDateString(),
+    sys: r.systolic as number,
+    dia: r.diastolic as number,
+    pulse: (r.pulse ?? null) as number | null,
+  }));
 
-  // Derive 7-day trend from history data
-  const systolicTrend = historyQuery.data
-    ? deriveWeeklyTrend(history, "sys")
-    : SAMPLE_SYSTOLIC_TREND;
-  const diastolicTrend = historyQuery.data
-    ? deriveWeeklyTrend(history, "dia")
-    : SAMPLE_DIASTOLIC_TREND;
+  const trendInput = history.map((h) => ({ date: h.date, sys: h.sys, dia: h.dia }));
+  const systolicTrend = deriveWeeklyTrend(trendInput, "sys");
+  const diastolicTrend = deriveWeeklyTrend(trendInput, "dia");
 
-  const source = (latestQuery.data as any)?.source ?? SAMPLE_SOURCE;
-
-  const latestClass = getClassification(latestReading.systolic);
+  const source = formatSource(latestRaw?.source);
+  const latestClass = latestReading ? getClassification(latestReading.systolic) : null;
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -164,31 +185,35 @@ export default function BloodPressureScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ─── Latest Reading ───────────────────────────────── */}
-        <Card style={styles.latestCard}>
-          <View style={styles.latestHeader}>
-            <View style={styles.latestIconWrap}>
-              <Activity size={24} color="#C65D5D" />
+        {latestReading && latestClass && (
+          <Card style={styles.latestCard}>
+            <View style={styles.latestHeader}>
+              <View style={styles.latestIconWrap}>
+                <Activity size={24} color="#C65D5D" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.latestLabel}>Latest Reading</Text>
+                <Text style={styles.latestTimestamp}>{latestReading.timestamp}</Text>
+              </View>
+              <Badge label={latestClass.label} variant={latestClass.variant} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.latestLabel}>Latest Reading</Text>
-              <Text style={styles.latestTimestamp}>{latestReading.timestamp}</Text>
+
+            <View style={styles.latestValueRow}>
+              <Text style={styles.latestValue}>
+                {latestReading.systolic}/{latestReading.diastolic}
+              </Text>
+              <Text style={styles.latestUnit}>mmHg</Text>
             </View>
-            <Badge label={latestClass.label} variant="success" />
-          </View>
 
-          <View style={styles.latestValueRow}>
-            <Text style={styles.latestValue}>
-              {latestReading.systolic}/{latestReading.diastolic}
-            </Text>
-            <Text style={styles.latestUnit}>mmHg</Text>
-          </View>
-
-          <View style={styles.pulseRow}>
-            <Heart size={14} color={Colors.danger} />
-            <Text style={styles.pulseLabel}>Pulse</Text>
-            <Text style={styles.pulseValue}>{latestReading.pulse} bpm</Text>
-          </View>
-        </Card>
+            {latestReading.pulse != null && (
+              <View style={styles.pulseRow}>
+                <Heart size={14} color={Colors.danger} />
+                <Text style={styles.pulseLabel}>Pulse</Text>
+                <Text style={styles.pulseValue}>{latestReading.pulse} bpm</Text>
+              </View>
+            )}
+          </Card>
+        )}
 
         {/* ─── Classification Guide ─────────────────────────── */}
         <Text style={styles.sectionTitle}>Classification Guide</Text>
@@ -204,7 +229,7 @@ export default function BloodPressureScreen() {
                 />
                 <Text style={styles.classLabel}>{cls.label}</Text>
                 <Text style={styles.classRange}>{cls.range}</Text>
-                {cls.label === latestClass.label && (
+                {latestClass && cls.label === latestClass.label && (
                   <View style={styles.classCurrentBadge}>
                     <Text style={styles.classCurrentText}>You</Text>
                   </View>
@@ -218,81 +243,92 @@ export default function BloodPressureScreen() {
         </Card>
 
         {/* ─── Recent Readings ──────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Recent Readings</Text>
-        <Card>
-          {/* Header row */}
-          <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Date</Text>
-            <Text style={styles.tableHeaderCell}>Sys/Dia</Text>
-            <Text style={styles.tableHeaderCell}>Pulse</Text>
-          </View>
-          {history.map((reading, idx) => {
-            const cls = getClassification(reading.sys);
-            return (
-              <React.Fragment key={reading.id}>
-                <View style={styles.tableRow}>
-                  <View style={{ flex: 2 }}>
-                    <Text style={styles.tableDate}>{reading.date}</Text>
-                    <Text style={styles.tableTime}>{reading.time}</Text>
-                  </View>
-                  <View style={styles.tableCellCenter}>
-                    <Text style={styles.tableBP}>
-                      {reading.sys}/{reading.dia}
-                    </Text>
-                    <View
-                      style={[
-                        styles.tableDot,
-                        { backgroundColor: cls.color },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.tablePulse}>{reading.pulse}</Text>
-                </View>
-                {idx < history.length - 1 && (
-                  <View style={styles.classSeparator} />
-                )}
-              </React.Fragment>
-            );
-          })}
-        </Card>
+        {history.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Recent Readings</Text>
+            <Card>
+              {/* Header row */}
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Date</Text>
+                <Text style={styles.tableHeaderCell}>Sys/Dia</Text>
+                <Text style={styles.tableHeaderCell}>Pulse</Text>
+              </View>
+              {history.map((reading, idx) => {
+                const cls = getClassification(reading.sys);
+                return (
+                  <React.Fragment key={reading.id}>
+                    <View style={styles.tableRow}>
+                      <View style={{ flex: 2 }}>
+                        <Text style={styles.tableDate}>{reading.displayDate}</Text>
+                      </View>
+                      <View style={styles.tableCellCenter}>
+                        <Text style={styles.tableBP}>
+                          {reading.sys}/{reading.dia}
+                        </Text>
+                        <View
+                          style={[
+                            styles.tableDot,
+                            { backgroundColor: cls.color },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.tablePulse}>
+                        {reading.pulse != null ? reading.pulse : "—"}
+                      </Text>
+                    </View>
+                    {idx < history.length - 1 && (
+                      <View style={styles.classSeparator} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </Card>
+          </>
+        )}
 
         {/* ─── 7-Day Trend ──────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>7-Day Trend</Text>
-        <Card>
-          <View style={styles.trendLegend}>
-            <View style={styles.trendLegendItem}>
-              <View
-                style={[
-                  styles.trendLegendDot,
-                  { backgroundColor: "#C65D5D" },
-                ]}
+        {systolicTrend.length > 1 && (
+          <>
+            <Text style={styles.sectionTitle}>7-Day Trend</Text>
+            <Card>
+              <View style={styles.trendLegend}>
+                <View style={styles.trendLegendItem}>
+                  <View
+                    style={[
+                      styles.trendLegendDot,
+                      { backgroundColor: "#C65D5D" },
+                    ]}
+                  />
+                  <Text style={styles.trendLegendLabel}>Systolic</Text>
+                </View>
+                <View style={styles.trendLegendItem}>
+                  <View
+                    style={[
+                      styles.trendLegendDot,
+                      { backgroundColor: Colors.info },
+                    ]}
+                  />
+                  <Text style={styles.trendLegendLabel}>Diastolic</Text>
+                </View>
+              </View>
+              <TrendLine
+                data={systolicTrend}
+                color="#C65D5D"
+                secondaryData={diastolicTrend}
+                secondaryColor={Colors.info}
+                height={120}
               />
-              <Text style={styles.trendLegendLabel}>Systolic</Text>
-            </View>
-            <View style={styles.trendLegendItem}>
-              <View
-                style={[
-                  styles.trendLegendDot,
-                  { backgroundColor: Colors.info },
-                ]}
-              />
-              <Text style={styles.trendLegendLabel}>Diastolic</Text>
-            </View>
-          </View>
-          <TrendLine
-            data={systolicTrend}
-            color="#C65D5D"
-            secondaryData={diastolicTrend}
-            secondaryColor={Colors.info}
-            height={120}
-          />
-        </Card>
+            </Card>
+          </>
+        )}
 
         {/* ─── Source ───────────────────────────────────────── */}
-        <View style={styles.sourceRow}>
-          <Watch size={14} color={Colors.silver} />
-          <Text style={styles.sourceText}>Source: {source}</Text>
-        </View>
+        {source && (
+          <View style={styles.sourceRow}>
+            <Watch size={14} color={Colors.silver} />
+            <Text style={styles.sourceText}>Source: {source}</Text>
+          </View>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -311,6 +347,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.md,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
   },
 
   // Latest
@@ -450,11 +490,6 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: FontSizes.sm,
     fontWeight: "600",
-  },
-  tableTime: {
-    color: Colors.silver,
-    fontSize: FontSizes.xs,
-    fontWeight: "500",
   },
   tableCellCenter: {
     flex: 1,

@@ -6,6 +6,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { CompanyBrandProvider, useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { FloatingChat } from "@/components/chat/FloatingChat";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { trpc } from "@/lib/trpc";
 
 /** Nav items gated behind feature toggles: label → toggle key */
@@ -55,6 +56,7 @@ function ClientShell({ children }: { children: React.ReactNode }) {
         <main className="p-6">{children}</main>
       </div>
       <FloatingChat />
+      <FeedbackButton />
     </div>
   );
 }

@@ -393,17 +393,26 @@ export default function ClientDashboard() {
           </p>
         </div>
         {healthScore && (
-          <div className="flex items-center gap-4 kairos-card p-4">
-            <HealthScoreRing score={healthScore.score} size={100} />
-            <div className="space-y-1">
-              <p className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">Health Score</p>
-              <div className="text-xs font-body text-kairos-silver-dark space-y-0.5">
-                <p>Sleep avg: <span className="text-white">{healthScore.avgSleep}/100</span></p>
-                <p>Glucose avg: <span className="text-white">{healthScore.avgGlucose} mg/dL</span></p>
-                <p>HRV: <span className="text-white">{healthScore.hrv} ms</span></p>
+          healthScore.score != null ? (
+            <div className="flex items-center gap-4 kairos-card p-4">
+              <HealthScoreRing score={healthScore.score} size={100} />
+              <div className="space-y-1">
+                <p className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">Health Score</p>
+                <div className="text-xs font-body text-kairos-silver-dark space-y-0.5">
+                  <p>Sleep avg: <span className="text-white">{healthScore.avgSleep != null ? `${healthScore.avgSleep}/100` : "—"}</span></p>
+                  <p>Glucose avg: <span className="text-white">{healthScore.avgGlucose != null ? `${healthScore.avgGlucose} mg/dL` : "—"}</span></p>
+                  <p>HRV: <span className="text-white">{healthScore.hrv != null ? `${healthScore.hrv} ms` : "—"}</span></p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="kairos-card p-4 max-w-xs">
+              <p className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark mb-1">Health Score</p>
+              <p className="text-xs font-body text-kairos-silver-dark">
+                Connect a device or log data to see your health score
+              </p>
+            </div>
+          )
         )}
       </div>
 

@@ -24,7 +24,7 @@ interface BookingSummaryProps {
   date: string;
   time: string;
   duration: string;
-  price: string;
+  price?: string;
   method: "Video Call" | "In-Person";
   notes: string;
   onNotesChange: (text: string) => void;
@@ -75,12 +75,14 @@ export function BookingSummary({
         <SummaryRow icon={FileText} label="Session" value={sessionName} />
         <SummaryRow icon={Calendar} label="Date" value={date} />
         <SummaryRow icon={Clock} label="Time" value={`${time} (${duration})`} />
-        <SummaryRow
-          icon={DollarSign}
-          label="Cost"
-          value={price}
-          valueColor={Colors.gold}
-        />
+        {!!price && (
+          <SummaryRow
+            icon={DollarSign}
+            label="Cost"
+            value={price}
+            valueColor={Colors.gold}
+          />
+        )}
         <SummaryRow
           icon={method === "Video Call" ? Video : MapPin}
           label="Method"

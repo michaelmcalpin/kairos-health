@@ -1,112 +1,74 @@
 /**
- * TimeSlotGrid — grid of available time slots.
- * Available slots are interactive, unavailable are dimmed.
- * Selected slot highlighted with gold.
+ * TimeSlotGrid — grid of available time slots supplied by the backend
+ * (clientPortal.scheduling.getAvailableSlots). Shows a loading spinner
+ * while slots are fetched and an honest empty message when the coach
+ * has no availability for the selected date.
  */
 
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 
-const ALL_SLOTS = [
-  "9:00 AM",
-  "9:30 AM",
-  "10:00 AM",
-  "10:30 AM",
-  "11:00 AM",
-  "1:00 PM",
-  "1:30 PM",
-  "2:00 PM",
-  "2:30 PM",
-  "3:00 PM",
-  "3:30 PM",
-  "4:00 PM",
-];
-
-// Simulate some unavailable slots based on day of week
-function getUnavailableSlots(date: Date): Set<string> {
-  const day = date.getDay();
-  const unavailable = new Set<string>();
-
-  // Different patterns per day for realism
-  if (day === 1) {
-    unavailable.add("9:00 AM");
-    unavailable.add("10:30 AM");
-    unavailable.add("2:00 PM");
-  } else if (day === 2) {
-    unavailable.add("9:30 AM");
-    unavailable.add("1:00 PM");
-    unavailable.add("3:30 PM");
-  } else if (day === 3) {
-    unavailable.add("10:00 AM");
-    unavailable.add("11:00 AM");
-    unavailable.add("2:30 PM");
-  } else if (day === 4) {
-    unavailable.add("9:00 AM");
-    unavailable.add("1:30 PM");
-    unavailable.add("4:00 PM");
-  } else if (day === 5) {
-    unavailable.add("10:30 AM");
-    unavailable.add("3:00 PM");
-  } else {
-    // Weekend — more limited
-    unavailable.add("9:00 AM");
-    unavailable.add("9:30 AM");
-    unavailable.add("1:00 PM");
-    unavailable.add("1:30 PM");
-    unavailable.add("3:30 PM");
-    unavailable.add("4:00 PM");
-  }
-
-  return unavailable;
+export interface TimeSlot {
+  /** Raw start time in the coach's local time — "HH:MM" (used for booking). */
+  value: string;
+  /** Display label, e.g. "9:00 AM" (already converted to client-local time when possible). */
+  label: string;
 }
 
 interface TimeSlotGridProps {
-  selectedDate: Date;
+  slots: TimeSlot[];
+  loading?: boolean;
   selectedTime: string | null;
   onSelectTime: (time: string) => void;
 }
 
 export function TimeSlotGrid({
-  selectedDate,
+  slots,
+  loading = false,
   selectedTime,
   onSelectTime,
 }: TimeSlotGridProps) {
-  const unavailable = getUnavailableSlots(selectedDate);
-
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Available Times</Text>
-      <View style={styles.grid}>
-        {ALL_SLOTS.map((slot) => {
-          const isUnavailable = unavailable.has(slot);
-          const isSelected = selectedTime === slot;
 
-          return (
-            <Pressable
-              key={slot}
-              onPress={() => !isUnavailable && onSelectTime(slot)}
-              disabled={isUnavailable}
-              style={[
-                styles.slot,
-                isSelected && styles.slotSelected,
-                isUnavailable && styles.slotUnavailable,
-              ]}
-            >
-              <Text
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="small" color={Colors.gold} />
+        </View>
+      ) : slots.length === 0 ? (
+        <Text style={styles.emptyText}>
+          No available times on this date. Try another day.
+        </Text>
+      ) : (
+        <View style={styles.grid}>
+          {slots.map((slot) => {
+            const isSelected = selectedTime === slot.value;
+
+            return (
+              <Pressable
+                key={slot.value}
+                onPress={() => onSelectTime(slot.value)}
                 style={[
-                  styles.slotText,
-                  isSelected && styles.slotTextSelected,
-                  isUnavailable && styles.slotTextUnavailable,
+                  styles.slot,
+                  isSelected && styles.slotSelected,
                 ]}
               >
-                {slot}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+                <Text
+                  style={[
+                    styles.slotText,
+                    isSelected && styles.slotTextSelected,
+                  ]}
+                >
+                  {slot.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
@@ -122,6 +84,16 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  loadingWrap: {
+    paddingVertical: Spacing.lg,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
+    paddingVertical: Spacing.md,
   },
   grid: {
     flexDirection: "row",
@@ -141,10 +113,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gold,
     borderColor: Colors.gold,
   },
-  slotUnavailable: {
-    opacity: 0.35,
-    backgroundColor: Colors.navyLight,
-  },
   slotText: {
     fontSize: FontSizes.sm,
     fontWeight: "500",
@@ -153,8 +121,5 @@ const styles = StyleSheet.create({
   slotTextSelected: {
     color: Colors.dark,
     fontWeight: "700",
-  },
-  slotTextUnavailable: {
-    color: Colors.silver,
   },
 });

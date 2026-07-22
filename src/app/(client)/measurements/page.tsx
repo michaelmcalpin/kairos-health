@@ -49,9 +49,7 @@ interface RawMeasurement {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const DEFAULT_HEIGHT_INCHES = 70;
-
-function calcBmi(weightLbs: number, heightIn: number = DEFAULT_HEIGHT_INCHES): number {
+function calcBmi(weightLbs: number, heightIn: number): number {
   if (!heightIn || !weightLbs) return 0;
   return (weightLbs / (heightIn * heightIn)) * 703;
 }
@@ -907,6 +905,10 @@ export default function MeasurementsPage() {
   const { data: measurements = [], isLoading } =
     trpc.clientPortal.measurements.list.useQuery({ startDate, endDate });
 
+  // Client's actual height (from Settings) — required for a real BMI
+  const { data: settings } = trpc.clientPortal.settings.getSettings.useQuery();
+  const heightInches = settings?.clientProfile?.heightInches ?? null;
+
   const sorted = useMemo(
     () =>
       [...measurements].sort(
@@ -925,7 +927,10 @@ export default function MeasurementsPage() {
     weightLbs != null && bodyFatPct != null
       ? calcLeanMass(weightLbs, bodyFatPct)
       : null;
-  const bmi = weightLbs != null ? calcBmi(weightLbs) : null;
+  const bmi =
+    weightLbs != null && heightInches != null
+      ? calcBmi(weightLbs, heightInches)
+      : null;
 
   const prevWeight = previous?.weightLbs ?? null;
   const prevBodyFat = previous?.bodyFatPct ?? null;
@@ -933,7 +938,10 @@ export default function MeasurementsPage() {
     prevWeight != null && prevBodyFat != null
       ? calcLeanMass(prevWeight, prevBodyFat)
       : null;
-  const prevBmi = prevWeight != null ? calcBmi(prevWeight) : null;
+  const prevBmi =
+    prevWeight != null && heightInches != null
+      ? calcBmi(prevWeight, heightInches)
+      : null;
 
   // History accessors for sparklines (oldest first)
   const historyAsc = useMemo(() => [...sorted].reverse(), [sorted]);
@@ -1104,22 +1112,36 @@ export default function MeasurementsPage() {
               : "--"
           }
         />
-        <SummaryCard
-          label="BMI"
-          value={bmi != null ? bmi.toFixed(1) : "--"}
-          unit=""
-          icon={<Scale className="w-5 h-5" />}
-          trend={
-            bmi != null && prevBmi != null
-              ? trendDir(bmi, prevBmi)
-              : "flat"
-          }
-          changeText={
-            bmi != null && prevBmi != null
-              ? signed(bmi - prevBmi, 2)
-              : "--"
-          }
-        />
+        {heightInches != null ? (
+          <SummaryCard
+            label="BMI"
+            value={bmi != null ? bmi.toFixed(1) : "--"}
+            unit=""
+            icon={<Scale className="w-5 h-5" />}
+            trend={
+              bmi != null && prevBmi != null
+                ? trendDir(bmi, prevBmi)
+                : "flat"
+            }
+            changeText={
+              bmi != null && prevBmi != null
+                ? signed(bmi - prevBmi, 2)
+                : "--"
+            }
+          />
+        ) : (
+          <div className="kairos-card p-5 rounded-kairos-sm border border-kairos-border">
+            <div className="flex items-start justify-between mb-3">
+              <div className="text-kairos-gold">
+                <Scale className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-xs font-body text-kairos-silver-dark mb-1">BMI</p>
+            <p className="text-sm font-body text-kairos-silver">
+              Add your height in Settings to see BMI
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 2. Body Composition Bar */}

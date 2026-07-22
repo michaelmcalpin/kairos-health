@@ -1,8 +1,15 @@
 /**
- * Genetics screen — genetic profile summary, key findings, and risk factors.
+ * Genetics screen — genetic profile summary and key findings.
  *
  * tRPC paths used (under `clientPortal`):
- *   - genetics.getProfile   -> profile summary + markers (used to build findings + risk factors)
+ *   - genetics.getProfile   -> profile summary + markers
+ *   - genetics.getMarkers   -> all markers for the latest profile
+ *   - clinicalDocs.create   -> upload a genetic report for care-team review
+ *
+ * Renders only real data from the backend. When no genetic profile
+ * exists yet (or the query fails) an honest empty/error state is shown
+ * instead of fabricated values. The previous fake "Risk Factors"
+ * section (invented percentiles) has been removed.
  */
 
 import React from "react";
@@ -21,21 +28,14 @@ import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import type { StatusVariant } from "@/lib/types";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorView } from "@/components/ui/ErrorView";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { showImagePickerOptions } from "@/lib/image-picker";
 
 /* ------------------------------------------------------------------ */
-/* Sample data (fallback when API is unreachable)                      */
+/* Types                                                               */
 /* ------------------------------------------------------------------ */
-
-const SAMPLE_PROFILE = {
-  provider: "Whole Genome Sequencing",
-  lab: "Nebula Genomics",
-  date: "Feb 14, 2026",
-  variants: 42,
-  actionable: 8,
-};
 
 interface GeneticFinding {
   gene: string;
@@ -45,82 +45,50 @@ interface GeneticFinding {
   category: string;
 }
 
-const SAMPLE_KEY_FINDINGS: GeneticFinding[] = [
-  {
-    gene: "MTHFR",
-    variant: "Heterozygous C677T",
-    interpretation: "Reduced methylation capacity (~35% reduction in enzyme activity)",
-    impact: "Use methylated B vitamins (methylfolate, methylcobalamin)",
-    category: "Methylation",
-  },
-  {
-    gene: "APOE",
-    variant: "3/3 (Wild Type)",
-    interpretation: "Normal cardiovascular and neurological risk baseline",
-    impact: "Standard dietary recommendations apply",
-    category: "Cardiovascular",
-  },
-  {
-    gene: "COMT",
-    variant: "Val/Met (Intermediate)",
-    interpretation: "Moderate dopamine clearance rate",
-    impact: "Balanced stress response; may benefit from magnesium",
-    category: "Neurotransmitter",
-  },
-];
-
-interface RiskFactor {
-  name: string;
-  risk: "low" | "moderate" | "elevated" | "high";
-  percentile: string;
-  details: string;
+function formatDate(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-const riskToVariant: Record<RiskFactor["risk"], StatusVariant> = {
-  low: "success",
-  moderate: "info",
-  elevated: "warning",
-  high: "danger",
-};
+/* ------------------------------------------------------------------ */
+/* Upload flow (same clinicalDocs flow as other clinical screens)      */
+/* ------------------------------------------------------------------ */
 
-const SAMPLE_RISK_FACTORS: RiskFactor[] = [
-  {
-    name: "Type 2 Diabetes",
-    risk: "moderate",
-    percentile: "42nd percentile",
-    details: "Slight increase based on TCF7L2 variant; mitigated by current lifestyle",
-  },
-  {
-    name: "Cardiovascular Disease",
-    risk: "low",
-    percentile: "28th percentile",
-    details: "APOE 3/3 with favorable lipid genetics; no FH variants detected",
-  },
-  {
-    name: "Alzheimer's Disease",
-    risk: "low",
-    percentile: "22nd percentile",
-    details: "APOE 3/3 — population average risk; no TREM2 variants",
-  },
-  {
-    name: "Inflammatory Response",
-    risk: "elevated",
-    percentile: "71st percentile",
-    details: "IL-6 promoter variant associated with higher baseline inflammation",
-  },
-  {
-    name: "Caffeine Metabolism",
-    risk: "low",
-    percentile: "Fast metabolizer",
-    details: "CYP1A2 *1A/*1A — rapid caffeine clearance; normal consumption safe",
-  },
-  {
-    name: "Vitamin D Synthesis",
-    risk: "moderate",
-    percentile: "55th percentile",
-    details: "VDR and GC gene variants reduce conversion efficiency; supplement recommended",
-  },
-];
+function useUploadGeneticReport() {
+  const createDoc = trpc.clientPortal.clinicalDocs.create.useMutation();
+
+  return async () => {
+    const image = await showImagePickerOptions();
+    if (!image) return;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        createDoc.mutate(
+          {
+            docType: "medical_record",
+            title: `Genetic Report - ${new Date().toLocaleDateString()}`,
+            sourceFileName: image.fileName ?? `genetics_${Date.now()}.jpg`,
+            notes: `Genetic report captured via mobile app. Image URI: ${image.uri}`,
+          },
+          {
+            onSuccess: () => resolve(),
+            onError: (err: any) => reject(err),
+          },
+        );
+      });
+      Alert.alert(
+        "Document Uploaded",
+        "Your genetic report has been submitted. It will be reviewed by your care team within 24-48 hours.",
+      );
+    } catch (err: any) {
+      Alert.alert(
+        "Upload Failed",
+        err?.message ?? "Your genetic report could not be uploaded. Please try again later.",
+      );
+    }
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
@@ -136,39 +104,72 @@ export default function GeneticsScreen() {
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
+  const uploadGeneticReport = useUploadGeneticReport();
 
-  // Map API response → local shapes, falling back to sample data.
+  // ── Loading state ───────────────────────────────────────────────
+  if (query.isLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: "Genetics" }} />
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Error state ─────────────────────────────────────────────────
+  if (query.error) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: "Genetics" }} />
+        <ErrorView
+          title="Couldn't load genetic profile"
+          message="We couldn't reach the server. Please try again."
+          onRetry={() => query.refetch()}
+        />
+      </SafeAreaView>
+    );
+  }
+
   // Backend returns: { id, uploadType, status, createdAt, markers: [...] } | null
   const apiData = query.data as any;
 
-  // Use markers from the dedicated markers query, then fall back to profile markers, then sample data
+  // ── Empty state ─────────────────────────────────────────────────
+  if (!apiData) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: "Genetics" }} />
+        <View style={styles.center}>
+          <EmptyState
+            icon="document"
+            title="No genetic data yet"
+            message="Upload a genetic report and your care team will review it and add your results here."
+            actionLabel="Upload a report"
+            onAction={uploadGeneticReport}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Real data mapping (no fabricated fallbacks) ─────────────────
   const markersData = (markersQuery.data ?? []) as any[];
-  const allMarkers = markersData.length > 0 ? markersData : (apiData?.markers ?? []);
+  const allMarkers: any[] = markersData.length > 0 ? markersData : (apiData.markers ?? []);
 
-  const PROFILE = apiData
-    ? {
-        provider: apiData.uploadType ?? SAMPLE_PROFILE.provider,
-        lab: SAMPLE_PROFILE.lab,
-        date: apiData.createdAt
-          ? new Date(apiData.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-          : SAMPLE_PROFILE.date,
-        variants: allMarkers.length || SAMPLE_PROFILE.variants,
-        actionable: allMarkers.filter((m: any) => m.clinicalPriority === "high").length || SAMPLE_PROFILE.actionable,
-      }
-    : SAMPLE_PROFILE;
+  const profileDate = formatDate(apiData.createdAt);
+  const uploadType: string | null = apiData.uploadType ?? null;
+  const actionableCount = allMarkers.filter(
+    (m: any) => m.clinicalPriority === "high",
+  ).length;
 
-  const KEY_FINDINGS: GeneticFinding[] = allMarkers.length > 0
-    ? (allMarkers as any[]).slice(0, 6).map((m: any) => ({
-        gene: m.gene ?? "",
-        variant: m.mutation ?? m.rsId ?? "",
-        interpretation: m.function ?? "",
-        impact: m.supplementProtocol ?? m.dietStrategy ?? m.lifestyleStrategy ?? "",
-        category: m.pathway ?? m.section ?? "",
-      }))
-    : SAMPLE_KEY_FINDINGS;
-
-  // Risk factors are not directly provided by the API — use sample data
-  const RISK_FACTORS: RiskFactor[] = SAMPLE_RISK_FACTORS;
+  const findings: GeneticFinding[] = allMarkers.map((m: any) => ({
+    gene: m.gene ?? "",
+    variant: m.mutation ?? m.rsId ?? "",
+    interpretation: m.function ?? "",
+    impact: m.supplementProtocol ?? m.dietStrategy ?? m.lifestyleStrategy ?? "",
+    category: m.pathway ?? m.section ?? "",
+  }));
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -183,82 +184,78 @@ export default function GeneticsScreen() {
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Genetic Profile</Text>
 
-          <Text style={styles.profileProvider}>{PROFILE.provider}</Text>
-          <Text style={styles.profileLab}>
-            {PROFILE.lab} &middot; {PROFILE.date}
+          <Text style={styles.profileProvider}>
+            {uploadType ?? "Genetic Report"}
           </Text>
+          {profileDate && (
+            <Text style={styles.profileLab}>Uploaded {profileDate}</Text>
+          )}
 
           <View style={styles.statRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{PROFILE.variants}</Text>
+              <Text style={styles.statValue}>{allMarkers.length}</Text>
               <Text style={styles.statLabel}>Variants Analyzed</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={[styles.statValue, { color: Colors.gold }]}>
-                {PROFILE.actionable}
+                {actionableCount}
               </Text>
-              <Text style={styles.statLabel}>Actionable Findings</Text>
+              <Text style={styles.statLabel}>High-Priority Findings</Text>
             </View>
           </View>
         </Card>
 
         {/* Key Findings */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Key Findings</Text>
+        {findings.length > 0 ? (
+          <Card style={styles.section}>
+            <Text style={styles.sectionTitle}>Key Findings</Text>
 
-          {KEY_FINDINGS.map((finding, idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.findingCard,
-                idx < KEY_FINDINGS.length - 1 && styles.findingBorder,
-              ]}
-            >
-              <View style={styles.findingHeader}>
-                <View style={styles.geneTag}>
-                  <Text style={styles.geneTagText}>{finding.gene}</Text>
+            {findings.map((finding, idx) => (
+              <View
+                key={idx}
+                style={[
+                  styles.findingCard,
+                  idx < findings.length - 1 && styles.findingBorder,
+                ]}
+              >
+                <View style={styles.findingHeader}>
+                  <View style={styles.geneTag}>
+                    <Text style={styles.geneTagText}>{finding.gene}</Text>
+                  </View>
+                  {!!finding.category && (
+                    <Badge label={finding.category} variant="default" />
+                  )}
                 </View>
-                <Badge label={finding.category} variant="default" />
+
+                {!!finding.variant && (
+                  <Text style={styles.variantText}>{finding.variant}</Text>
+                )}
+                {!!finding.interpretation && (
+                  <Text style={styles.interpretation}>
+                    {finding.interpretation}
+                  </Text>
+                )}
+
+                {!!finding.impact && (
+                  <View style={styles.impactBox}>
+                    <Text style={styles.impactLabel}>Action</Text>
+                    <Text style={styles.impactText}>{finding.impact}</Text>
+                  </View>
+                )}
               </View>
-
-              <Text style={styles.variantText}>{finding.variant}</Text>
-              <Text style={styles.interpretation}>
-                {finding.interpretation}
-              </Text>
-
-              <View style={styles.impactBox}>
-                <Text style={styles.impactLabel}>Action</Text>
-                <Text style={styles.impactText}>{finding.impact}</Text>
-              </View>
-            </View>
-          ))}
-        </Card>
-
-        {/* Risk Factors */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Risk Factors</Text>
-
-          {RISK_FACTORS.map((risk, idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.riskRow,
-                idx < RISK_FACTORS.length - 1 && styles.riskBorder,
-              ]}
-            >
-              <View style={styles.rowBetween}>
-                <Text style={styles.riskName}>{risk.name}</Text>
-                <Badge
-                  label={risk.risk}
-                  variant={riskToVariant[risk.risk]}
-                />
-              </View>
-              <Text style={styles.riskPercentile}>{risk.percentile}</Text>
-              <Text style={styles.riskDetails}>{risk.details}</Text>
-            </View>
-          ))}
-        </Card>
+            ))}
+          </Card>
+        ) : (
+          <Card style={styles.section}>
+            <Text style={styles.sectionTitle}>Results Pending</Text>
+            <Text style={styles.pendingText}>
+              Your genetic report has been received and is awaiting review by
+              your care team. Detailed findings will appear here once
+              processed.
+            </Text>
+          </Card>
+        )}
 
         {/* Upload Button */}
         <Button
@@ -266,15 +263,7 @@ export default function GeneticsScreen() {
           variant="secondary"
           size="lg"
           style={styles.uploadButton}
-          onPress={async () => {
-            const image = await showImagePickerOptions();
-            if (image) {
-              Alert.alert(
-                "Document Captured",
-                "Your genetic report has been saved. It will be reviewed by your care team within 24-48 hours.",
-              );
-            }
-          }}
+          onPress={uploadGeneticReport}
         />
       </ScrollView>
     </SafeAreaView>
@@ -298,6 +287,10 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
     gap: Spacing.md,
   },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+  },
 
   /* Sections */
   section: {
@@ -309,11 +302,6 @@ const styles = StyleSheet.create({
     color: Colors.gold,
     textTransform: "uppercase",
     letterSpacing: 1,
-  },
-  rowBetween: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
   },
 
   /* Profile */
@@ -408,26 +396,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.silverLight,
   },
-
-  /* Risks */
-  riskRow: {
-    paddingVertical: Spacing.sm,
-    gap: 4,
-  },
-  riskBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  riskName: {
-    fontSize: FontSizes.md,
-    fontWeight: "600",
-    color: Colors.white,
-  },
-  riskPercentile: {
-    fontSize: FontSizes.sm,
-    color: Colors.goldLight,
-  },
-  riskDetails: {
+  pendingText: {
     fontSize: FontSizes.sm,
     color: Colors.silver,
     lineHeight: 20,

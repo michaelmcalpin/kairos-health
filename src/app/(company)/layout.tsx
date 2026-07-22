@@ -5,6 +5,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { CompanyBrandProvider, useCompanyBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 function CompanyShell({ children }: { children: React.ReactNode }) {
   const { brand, cssVars } = useCompanyBrand();
@@ -31,6 +32,7 @@ function CompanyShell({ children }: { children: React.ReactNode }) {
         />
         <main className="p-6">{children}</main>
       </div>
+      <FeedbackButton />
     </div>
   );
 }

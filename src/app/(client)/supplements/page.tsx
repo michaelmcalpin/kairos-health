@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pill, CheckCircle, TrendingUp } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
@@ -29,10 +29,31 @@ export default function SupplementsPage() {
     onSuccess: () => {
       void utils.clientPortal.supplements.getActiveProtocol.invalidate();
       void utils.clientPortal.supplements.adherenceStats.invalidate();
+      void utils.clientPortal.supplements.getAdherence.invalidate();
     },
   });
 
   const [takenIds, setTakenIds] = useState<Set<string>>(new Set());
+
+  // Seed today's checked state from adherence already logged on the server
+  const todayStr = new Date().toISOString().split("T")[0];
+  const { data: todayAdherence } = trpc.clientPortal.supplements.getAdherence.useQuery({
+    startDate: todayStr,
+    endDate: todayStr,
+  });
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (todayAdherence && !seededRef.current) {
+      seededRef.current = true;
+      setTakenIds(
+        new Set(
+          todayAdherence
+            .filter((a) => !a.skipped && a.protocolItemId)
+            .map((a) => a.protocolItemId as string)
+        )
+      );
+    }
+  }, [todayAdherence]);
 
   const { records: supplementHistory, stats: supplementStats } = useSupplements(dateRange);
 
@@ -56,16 +77,21 @@ export default function SupplementsPage() {
   const avgAdherence = supplementStats.avgAdherence;
 
   function toggle(id: string) {
+    const wasTaken = takenIds.has(id);
     setTakenIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
+      if (wasTaken) {
         next.delete(id);
       } else {
         next.add(id);
       }
       return next;
     });
-    logAdherenceMutation.mutate({ protocolItemId: id });
+    // Only log adherence when checking — the backend is insert-only, so
+    // unchecking must not create a new "taken" record.
+    if (!wasTaken) {
+      logAdherenceMutation.mutate({ protocolItemId: id });
+    }
   }
 
   const grouped = items.reduce<Record<string, ProtocolItem[]>>((acc, item) => {

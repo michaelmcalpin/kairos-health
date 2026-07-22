@@ -1,6 +1,11 @@
 /**
- * Appointment detail screen — displays full information for a single
- * appointment including provider, schedule, notes, and checklist.
+ * Appointment detail screen — displays the real information for a single
+ * appointment (provider, schedule, meeting type, notes). Only fields the
+ * backend actually returns are rendered — no fabricated defaults.
+ *
+ * tRPC paths used (under `clientPortal`):
+ *   - scheduling.getAppointment     -> raw appointment record
+ *   - scheduling.cancelAppointment  -> cancel
  */
 
 import React, { useState, useCallback } from "react";
@@ -8,12 +13,10 @@ import {
   View,
   Text,
   ScrollView,
-  Pressable,
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
   Alert,
-  Linking,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,47 +26,84 @@ import {
   Calendar,
   User,
   MapPin,
+  Phone,
   FileText,
-  CheckSquare,
-  Square,
-  FlaskConical,
-  ExternalLink,
 } from "lucide-react-native";
 
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
-import { useAppointmentDetail, useCancelAppointment } from "@/hooks";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorView } from "@/components/ui/ErrorView";
+import type { StatusVariant } from "@/lib/types";
+import { Colors, Spacing, FontSizes } from "@/lib/constants";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { useCancelAppointment } from "@/hooks";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                        */
+/* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
-const SAMPLE_APPOINTMENT = {
-  title: "Lab Review",
-  type: "Lab Review",
-  status: "Confirmed",
-  date: "June 18, 2026",
-  time: "2:30 PM",
-  duration: "45 minutes",
-  method: "In-Person" as const,
-  address: "1250 Health Sciences Drive, Suite 400, San Francisco, CA 94143",
-  provider: {
-    name: "Dr. Sarah Chen",
-    specialty: "Internal Medicine & Preventive Health",
-    avatar: null,
-  },
-  notes:
-    "Follow-up review of comprehensive blood panel from June 1. Will discuss lipid optimization strategy and potential adjustments to supplement protocol based on latest biomarker results.",
-  checklist: [
-    { id: "c1", text: "Fast for 12 hours before appointment", done: true },
-    { id: "c2", text: "Bring recent lab results printout", done: false },
-    { id: "c3", text: "List current supplements and medications", done: false },
-    { id: "c4", text: "Prepare questions about LDL-P trend", done: true },
-    { id: "c5", text: "Wear short sleeves for blood draw", done: false },
-  ],
-};
+function titleCase(raw?: string | null): string {
+  if (!raw) return "Appointment";
+  return raw
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function formatDate(raw?: string | null): string {
+  if (!raw) return "";
+  try {
+    return new Date(raw + "T12:00:00").toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return raw;
+  }
+}
+
+function formatTime(raw?: string | null): string {
+  if (!raw) return "";
+  try {
+    const [h, m] = raw.split(":").map(Number);
+    const period = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+  } catch {
+    return raw;
+  }
+}
+
+function statusVariant(status?: string | null): StatusVariant {
+  switch (status) {
+    case "confirmed":
+    case "completed":
+      return "success";
+    case "pending":
+      return "info";
+    case "cancelled":
+      return "danger";
+    default:
+      return "default";
+  }
+}
+
+function meetingTypeLabel(raw?: string | null): string {
+  switch (raw) {
+    case "video":
+      return "Video Call";
+    case "phone":
+      return "Phone Call";
+    case "in_person":
+      return "In-Person";
+    default:
+      return titleCase(raw ?? "");
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* Component                                                          */
@@ -72,52 +112,78 @@ const SAMPLE_APPOINTMENT = {
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { appointment: apiAppointment, isLoading, refetch } = useAppointmentDetail(id ?? null);
-  const { cancel: cancelAppointment } = useCancelAppointment();
 
-  const APPOINTMENT = apiAppointment
-    ? {
-        // Sample data provides sensible defaults for fields the API may not return
-        ...SAMPLE_APPOINTMENT,
-        // API data takes priority over sample defaults
-        title: apiAppointment.title ?? SAMPLE_APPOINTMENT.title,
-        type: apiAppointment.type ?? SAMPLE_APPOINTMENT.type,
-        status: apiAppointment.status
-          ? apiAppointment.status.charAt(0).toUpperCase() + apiAppointment.status.slice(1)
-          : SAMPLE_APPOINTMENT.status,
-        date: apiAppointment.date ?? SAMPLE_APPOINTMENT.date,
-        time: apiAppointment.time ?? SAMPLE_APPOINTMENT.time,
-        duration: (apiAppointment as any).duration ?? SAMPLE_APPOINTMENT.duration,
-        method: (apiAppointment.method as "Video Call" | "In-Person") ?? SAMPLE_APPOINTMENT.method,
-        address: (apiAppointment as any).address ?? SAMPLE_APPOINTMENT.address,
-        provider: {
-          ...SAMPLE_APPOINTMENT.provider,
-          name: apiAppointment.provider ?? SAMPLE_APPOINTMENT.provider.name,
-          specialty: (apiAppointment as any).providerSpecialty ?? SAMPLE_APPOINTMENT.provider.specialty,
-        },
-        notes: (apiAppointment as any).notes ?? SAMPLE_APPOINTMENT.notes,
-        checklist: (apiAppointment as any).checklist ?? SAMPLE_APPOINTMENT.checklist,
-      }
-    : SAMPLE_APPOINTMENT;
+  const query = trpc.clientPortal.scheduling.getAppointment.useQuery(
+    { appointmentId: id ?? "" },
+    {
+      ...DEFAULT_QUERY_OPTIONS,
+      enabled: DEFAULT_QUERY_OPTIONS.enabled && !!id,
+    } as any,
+  );
+  const { cancel: cancelAppointment } = useCancelAppointment();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refetch();
+    await query.refetch();
     setRefreshing(false);
-  }, [refetch]);
+  }, [query]);
 
-  const [checklist, setChecklist] = useState<Array<{ id: string; text: string; done: boolean }>>(APPOINTMENT.checklist);
-
-  const toggleItem = (id: string) => {
-    setChecklist((prev: Array<{ id: string; text: string; done: boolean }>) =>
-      prev.map((item: { id: string; text: string; done: boolean }) =>
-        item.id === id ? { ...item, done: !item.done } : item,
-      ),
+  /* ---- Loading ---- */
+  if (query.isLoading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={["bottom"]}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
     );
-  };
+  }
 
-  const completedCount = checklist.filter((i: { id: string; text: string; done: boolean }) => i.done).length;
+  /* ---- Error ---- */
+  if (query.error) {
+    return (
+      <SafeAreaView style={styles.safe} edges={["bottom"]}>
+        <ErrorView
+          title="Couldn't load appointment"
+          message="We couldn't reach the server or the appointment was not found."
+          onRetry={() => query.refetch()}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  const appt = query.data as any;
+
+  /* ---- Not found ---- */
+  if (!appt) {
+    return (
+      <SafeAreaView style={styles.safe} edges={["bottom"]}>
+        <View style={styles.center}>
+          <EmptyState
+            icon="clipboard"
+            title="Appointment not found"
+            message="This appointment may have been cancelled or is no longer available."
+            actionLabel="Go Back"
+            onAction={() => router.back()}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const title = titleCase(appt.sessionType);
+  const status = appt.status ?? "confirmed";
+  const meetingType = meetingTypeLabel(appt.meetingType);
+  const timeText = [
+    formatTime(appt.startTime),
+    appt.endTime ? `– ${formatTime(appt.endTime)}` : null,
+    appt.durationMinutes ? `(${appt.durationMinutes} min)` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const isCancelled = status === "cancelled";
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
@@ -134,160 +200,135 @@ export default function AppointmentDetailScreen() {
           />
         }
       >
-        {isLoading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.gold} />
-          </View>
-        )}
-
         {/* ---- Badges ---- */}
         <View style={styles.badges}>
-          <Badge label={APPOINTMENT.type} variant="info" />
-          <Badge label={APPOINTMENT.status} variant="success" />
+          <Badge label={title} variant="info" />
+          <Badge label={titleCase(status)} variant={statusVariant(status)} />
         </View>
 
         {/* ---- Title ---- */}
-        <Text style={styles.title}>{APPOINTMENT.title}</Text>
+        <Text style={styles.title}>{title}</Text>
 
-        {/* ---- Date / Time / Duration ---- */}
+        {/* ---- Date / Time / Method ---- */}
         <Card style={styles.scheduleCard}>
           <View style={styles.scheduleRow}>
             <Calendar size={16} color={Colors.gold} />
-            <Text style={styles.scheduleText}>{APPOINTMENT.date}</Text>
+            <Text style={styles.scheduleText}>{formatDate(appt.date)}</Text>
           </View>
+          {!!timeText && (
+            <View style={styles.scheduleRow}>
+              <Clock size={16} color={Colors.gold} />
+              <Text style={styles.scheduleText}>{timeText}</Text>
+            </View>
+          )}
           <View style={styles.scheduleRow}>
-            <Clock size={16} color={Colors.gold} />
-            <Text style={styles.scheduleText}>
-              {APPOINTMENT.time} ({APPOINTMENT.duration})
-            </Text>
-          </View>
-          <View style={styles.scheduleRow}>
-            <MapPin size={16} color={Colors.gold} />
-            <Text style={styles.scheduleText}>{APPOINTMENT.method}</Text>
+            {appt.meetingType === "video" ? (
+              <Video size={16} color={Colors.gold} />
+            ) : appt.meetingType === "phone" ? (
+              <Phone size={16} color={Colors.gold} />
+            ) : (
+              <MapPin size={16} color={Colors.gold} />
+            )}
+            <Text style={styles.scheduleText}>{meetingType}</Text>
           </View>
         </Card>
 
         {/* ---- Provider Card ---- */}
-        <Text style={styles.sectionTitle}>Provider</Text>
-        <Card style={styles.providerCard}>
-          <View style={styles.providerRow}>
-            <View style={styles.avatar}>
-              <User size={24} color={Colors.gold} />
-            </View>
-            <View style={styles.providerInfo}>
-              <Text style={styles.providerName}>
-                {APPOINTMENT.provider.name}
-              </Text>
-              <Text style={styles.providerSpec}>
-                {APPOINTMENT.provider.specialty}
-              </Text>
-            </View>
-          </View>
-        </Card>
+        {!!appt.coachName && (
+          <>
+            <Text style={styles.sectionTitle}>Provider</Text>
+            <Card style={styles.providerCard}>
+              <View style={styles.providerRow}>
+                <View style={styles.avatar}>
+                  <User size={24} color={Colors.gold} />
+                </View>
+                <View style={styles.providerInfo}>
+                  <Text style={styles.providerName}>{appt.coachName}</Text>
+                </View>
+              </View>
+            </Card>
+          </>
+        )}
 
-        {/* ---- Location / Method ---- */}
-        <Text style={styles.sectionTitle}>Location</Text>
-        <Card style={styles.locationCard}>
-          {APPOINTMENT.method === "Video Call" ? (
-            <View>
+        {/* ---- Meeting details ---- */}
+        {appt.meetingType === "video" && (
+          <>
+            <Text style={styles.sectionTitle}>Location</Text>
+            <Card style={styles.locationCard}>
               <View style={styles.locationRow}>
                 <Video size={18} color={Colors.info} />
                 <Text style={styles.locationLabel}>Video Consultation</Text>
               </View>
-              <Button
-                title="Join Video Call"
-                variant="primary"
-                onPress={() => {
-                  const url = (apiAppointment as any)?.meetingUrl || (apiAppointment as any)?.videoUrl;
-                  if (url) {
-                    Linking.openURL(url);
-                  } else {
-                    Alert.alert("Video Call", "The video call link will be available when your appointment begins.");
-                  }
-                }}
-                icon={<ExternalLink size={16} color={Colors.dark} />}
-                style={styles.joinBtn}
-              />
-            </View>
-          ) : (
-            <View>
-              <View style={styles.locationRow}>
-                <MapPin size={18} color={Colors.success} />
-                <Text style={styles.locationLabel}>In-Person Visit</Text>
-              </View>
-              <Text style={styles.address}>{APPOINTMENT.address}</Text>
-            </View>
-          )}
-        </Card>
-
-        {/* ---- Notes ---- */}
-        <Text style={styles.sectionTitle}>Notes</Text>
-        <Card style={styles.notesCard}>
-          <View style={styles.notesHeader}>
-            <FileText size={16} color={Colors.silver} />
-            <Text style={styles.notesLabel}>Appointment Notes</Text>
-          </View>
-          <Text style={styles.notesText}>{APPOINTMENT.notes}</Text>
-        </Card>
-
-        {/* ---- Pre-Appointment Checklist ---- */}
-        <Text style={styles.sectionTitle}>
-          Pre-Appointment Checklist ({completedCount}/{checklist.length})
-        </Text>
-        <Card style={styles.checklistCard}>
-          {checklist.map((item: { id: string; text: string; done: boolean }, idx: number) => (
-            <Pressable
-              key={item.id}
-              style={[
-                styles.checkItem,
-                idx < checklist.length - 1 && styles.checkItemBorder,
-              ]}
-              onPress={() => toggleItem(item.id)}
-            >
-              {item.done ? (
-                <CheckSquare size={20} color={Colors.success} />
-              ) : (
-                <Square size={20} color={Colors.silver} />
-              )}
-              <Text
-                style={[
-                  styles.checkText,
-                  item.done && styles.checkTextDone,
-                ]}
-              >
-                {item.text}
+              <Text style={styles.locationHint}>
+                Your coach will share the video call link before the session
+                begins.
               </Text>
-            </Pressable>
-          ))}
-        </Card>
+            </Card>
+          </>
+        )}
+
+        {/* ---- Notes (only when present) ---- */}
+        {!!appt.notes && (
+          <>
+            <Text style={styles.sectionTitle}>Notes</Text>
+            <Card style={styles.notesCard}>
+              <View style={styles.notesHeader}>
+                <FileText size={16} color={Colors.silver} />
+                <Text style={styles.notesLabel}>Appointment Notes</Text>
+              </View>
+              <Text style={styles.notesText}>{appt.notes}</Text>
+            </Card>
+          </>
+        )}
+
+        {/* ---- Cancellation reason ---- */}
+        {isCancelled && !!appt.cancellationReason && (
+          <>
+            <Text style={styles.sectionTitle}>Cancellation Reason</Text>
+            <Card style={styles.notesCard}>
+              <Text style={styles.notesText}>{appt.cancellationReason}</Text>
+            </Card>
+          </>
+        )}
 
         {/* ---- Actions ---- */}
-        <View style={styles.actions}>
-          <Button
-            title="Reschedule"
-            variant="secondary"
-            onPress={() => Alert.alert("Reschedule", "Please contact your coach to reschedule this appointment.")}
-            style={styles.actionBtn}
-          />
-          <Button
-            title="Cancel"
-            variant="danger"
-            onPress={() => {
-              Alert.alert(
-                "Cancel Appointment",
-                "Are you sure you want to cancel this appointment?",
-                [
-                  { text: "Keep", style: "cancel" },
-                  { text: "Cancel Appointment", style: "destructive", onPress: () => {
-                    cancelAppointment(id ?? "");
-                    router.back();
-                  }},
-                ]
-              );
-            }}
-            style={styles.actionBtn}
-          />
-        </View>
+        {!isCancelled && (
+          <View style={styles.actions}>
+            <Button
+              title="Reschedule"
+              variant="secondary"
+              onPress={() =>
+                Alert.alert(
+                  "Reschedule",
+                  "Please contact your coach to reschedule this appointment.",
+                )
+              }
+              style={styles.actionBtn}
+            />
+            <Button
+              title="Cancel"
+              variant="danger"
+              onPress={() => {
+                Alert.alert(
+                  "Cancel Appointment",
+                  "Are you sure you want to cancel this appointment?",
+                  [
+                    { text: "Keep", style: "cancel" },
+                    {
+                      text: "Cancel Appointment",
+                      style: "destructive",
+                      onPress: () => {
+                        cancelAppointment(id ?? "");
+                        router.back();
+                      },
+                    },
+                  ],
+                );
+              }}
+              style={styles.actionBtn}
+            />
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -308,6 +349,10 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.md,
     paddingBottom: Spacing.xxl,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
   },
 
   /* Badges */
@@ -372,11 +417,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     fontWeight: "600",
     color: Colors.white,
-    marginBottom: 2,
-  },
-  providerSpec: {
-    fontSize: FontSizes.sm,
-    color: Colors.silver,
   },
 
   /* Location */
@@ -392,13 +432,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.white,
   },
-  address: {
+  locationHint: {
     fontSize: FontSizes.sm,
     color: Colors.silver,
     lineHeight: 20,
-  },
-  joinBtn: {
-    marginTop: Spacing.sm,
   },
 
   /* Notes */
@@ -420,28 +457,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 
-  /* Checklist */
-  checklistCard: {},
-  checkItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingVertical: 12,
-  },
-  checkItemBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  checkText: {
-    flex: 1,
-    fontSize: FontSizes.sm,
-    color: Colors.silverLight,
-  },
-  checkTextDone: {
-    color: Colors.silver,
-    textDecorationLine: "line-through",
-  },
-
   /* Actions */
   actions: {
     flexDirection: "row",
@@ -450,9 +465,5 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     flex: 1,
-  },
-  loadingContainer: {
-    paddingVertical: Spacing.xxl,
-    alignItems: "center",
   },
 });

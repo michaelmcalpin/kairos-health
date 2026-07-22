@@ -55,6 +55,10 @@ export default function SettingsLayout() {
         name="data-sources"
         options={{ title: "Data Sources" }}
       />
+      <Stack.Screen
+        name="feedback"
+        options={{ title: "Send Feedback" }}
+      />
     </Stack>
   );
 }

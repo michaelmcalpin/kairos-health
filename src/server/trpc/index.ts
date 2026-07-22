@@ -52,6 +52,9 @@ const isAuthed = t.middleware(({ ctx, next }) => {
 
 export const protectedProcedure = t.procedure.use(isAuthed);
 
+// Generic authenticated procedure (any role) — auth + dbUserId resolution, no role restriction.
+export const authedProcedure = protectedProcedure;
+
 // Middleware: requires specific role (super_admin can access everything)
 const requireRole = (...roles: UserRole[]) =>
   t.middleware(({ ctx, next }) => {

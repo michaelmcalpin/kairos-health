@@ -145,8 +145,8 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
               type="number"
               min={0}
               max={300}
-              value={(data.hrv as number) || 0}
-              onChange={(e) => onChange('hrv', e.target.value ? parseInt(e.target.value) : null)}
+              value={(data.hrvScore as number) || 0}
+              onChange={(e) => onChange('hrvScore', e.target.value ? parseInt(e.target.value) : null)}
               placeholder="45"
               className="kairos-input w-full"
             />
@@ -160,8 +160,8 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
               type="number"
               min="0"
               max="100"
-              value={(data.readiness as number) || 0}
-              onChange={(e) => onChange('readiness', e.target.value ? parseInt(e.target.value) : null)}
+              value={(data.readinessScore as number) || 0}
+              onChange={(e) => onChange('readinessScore', e.target.value ? parseInt(e.target.value) : null)}
               placeholder="78"
               className="kairos-input w-full"
             />

@@ -1,5 +1,6 @@
 import { router } from "@/server/trpc";
 import { authRouter } from "./auth";
+import { feedbackRouter } from "./feedback";
 
 // Client routers
 import { clientDashboardRouter } from "./client/dashboard";
@@ -57,6 +58,7 @@ import { adminUsersRouter } from "./admin/users";
 import { adminCompaniesRouter } from "./admin/companies";
 import { adminContentRouter } from "./admin/content";
 import { adminReferencesRouter } from "./admin/references";
+import { adminFeedbackRouter } from "./admin/feedback";
 
 // Company admin routers
 import { companyDashboardRouter } from "./company/dashboard";
@@ -64,6 +66,7 @@ import { companySettingsRouter } from "./company/settings";
 
 export const appRouter = router({
   auth: authRouter,
+  feedback: feedbackRouter,
   clientPortal: router({
     dashboard: clientDashboardRouter,
     alerts: clientAlertsRouter,
@@ -124,6 +127,7 @@ export const appRouter = router({
     companies: adminCompaniesRouter,
     content: adminContentRouter,
     references: adminReferencesRouter,
+    feedback: adminFeedbackRouter,
   }),
 });
 

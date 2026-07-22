@@ -10,6 +10,7 @@ import {
   Bell,
   Brain,
   MessageSquare,
+  MessageCircle,
   Droplets,
   Moon,
   FlaskConical,
@@ -322,6 +323,7 @@ export const trainerNavItems: NavItem[] = [
   { label: "Schedule", href: "/trainer/schedule", icon: <Calendar size={18} />, section: "Overview" },
   { label: "Follow-ups", href: "/trainer/followups", icon: <ClipboardList size={18} />, section: "Overview" },
   { label: "Clients", href: "/trainer/clients", icon: <Users size={18} />, section: "Clients" },
+  { label: "Messages", href: "/trainer/messages", icon: <MessageCircle size={18} />, section: "Clients" },
   { label: "Metrics", href: "/trainer/metrics", icon: <TrendingUp size={18} />, section: "Clients" },
   { label: "Profile", href: "/trainer/profile", icon: <UserCircle size={18} />, section: "Business" },
   { label: "Revenue", href: "/trainer/revenue", icon: <DollarSign size={18} />, section: "Business" },
@@ -347,6 +349,7 @@ export const superAdminNavItems: NavItem[] = [
   { label: "Revenue", href: "/super-admin/revenue", icon: <DollarSign size={18} />, section: "Data" },
   { label: "Content", href: "/super-admin/content", icon: <FileText size={18} />, section: "Manage" },
   { label: "References", href: "/super-admin/references", icon: <BookOpen size={18} />, section: "Manage" },
+  { label: "Feedback", href: "/super-admin/feedback", icon: <MessageSquare size={18} />, section: "Manage" },
   { label: "Settings", href: "/super-admin/settings", icon: <Settings size={18} />, section: "Manage" },
 ];
 

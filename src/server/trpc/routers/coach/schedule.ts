@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
-import { appointments, sessionNotes, coachAvailability, trainerProfiles, users, notificationPreferences, alerts, conversations, messages } from "@/server/db/schema";
+import { appointments, sessionNotes, coachAvailability, trainerProfiles, users, notificationPreferences, alerts, conversations, messages, trainerClientRelationships, clientCoachAccess } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, lt, ne, sql } from "drizzle-orm";
 import { createZoomMeeting, deleteZoomMeeting } from "@/lib/zoom";
 import { generateIcsContent } from "@/lib/calendar/ics";
@@ -252,6 +252,39 @@ export const coachScheduleRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // Verify the coach is actually connected to this client before booking:
+      // either an active primary relationship, or an active shared-access grant
+      // with at least one category above "none". super_admin bypasses.
+      if (ctx.userRole !== "super_admin") {
+        const [rel, accessGrant] = await Promise.all([
+          ctx.db.query.trainerClientRelationships.findFirst({
+            where: and(
+              eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+              eq(trainerClientRelationships.clientId, input.clientId),
+              eq(trainerClientRelationships.status, "active"),
+            ),
+          }),
+          ctx.db.query.clientCoachAccess.findFirst({
+            where: and(
+              eq(clientCoachAccess.coachId, ctx.dbUserId),
+              eq(clientCoachAccess.clientId, input.clientId),
+              eq(clientCoachAccess.status, "active"),
+            ),
+          }),
+        ]);
+
+        const hasGrantAccess =
+          !!accessGrant &&
+          (accessGrant.dietAccess !== "none" ||
+            accessGrant.exerciseAccess !== "none" ||
+            accessGrant.labsAccess !== "none" ||
+            accessGrant.healthDataAccess !== "none");
+
+        if (!rel && !hasGrantAccess) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "You are not connected to this client." });
+        }
+      }
+
       const coachUser = await ctx.db.query.users.findFirst({
         where: eq(users.id, ctx.dbUserId),
       });
@@ -562,67 +595,6 @@ export const coachScheduleRouter = router({
         .returning();
 
       return updated;
-    }),
-
-  // Get available slots for a date
-  getAvailableSlots: trainerProcedure
-    .input(
-      z.object({
-        date: z.string(),
-        durationMinutes: z.number().min(15).max(120),
-      })
-    )
-    .query(async ({ ctx, input }) => {
-      const avail = await ctx.db.query.coachAvailability.findFirst({
-        where: eq(coachAvailability.coachId, ctx.dbUserId),
-      });
-
-      // Check if the requested date is blocked by the trainer
-      const blockedDates = avail?.blockedDates ?? [];
-      if (blockedDates.includes(input.date)) return [];
-
-      // Append T12:00:00 to avoid UTC midnight interpretation which can
-      // return the wrong day-of-week for users in western timezones.
-      const dayOfWeek = new Date(input.date + "T12:00:00").getDay();
-      const schedule = avail?.weeklySchedule ?? [];
-      const daySchedule = schedule.find((d) => d.dayOfWeek === dayOfWeek);
-
-      if (!daySchedule?.enabled || !daySchedule.slots.length) return [];
-
-      const existing = await ctx.db.query.appointments.findMany({
-        where: and(
-          eq(appointments.coachId, ctx.dbUserId),
-          eq(appointments.date, input.date),
-          ne(appointments.status, "cancelled"),
-        ),
-      });
-
-      const bookedSlots = existing.map((a) => ({
-        start: a.startTime,
-        end: a.endTime ?? addMinutes(a.startTime, a.durationMinutes ?? 60),
-      }));
-
-      const buffer = avail?.bufferMinutes ?? 15;
-      const slots: { start: string; end: string }[] = [];
-
-      for (const window of daySchedule.slots) {
-        let cursor = window.start;
-        while (cursor < window.end) {
-          const end = addMinutes(cursor, input.durationMinutes);
-          if (end > window.end) break;
-
-          const conflicts = bookedSlots.some(
-            (b) => cursor < b.end && end > b.start
-          );
-
-          if (!conflicts) {
-            slots.push({ start: cursor, end });
-          }
-          cursor = addMinutes(cursor, buffer + input.durationMinutes);
-        }
-      }
-
-      return slots;
     }),
 
   // Get/update availability settings

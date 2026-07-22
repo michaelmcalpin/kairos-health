@@ -1,140 +1,166 @@
 /**
  * Glucose monitoring detail screen.
  *
- * Displays current reading, daily range, key readings throughout the day,
- * 7-day average trend, and time-in-range breakdown.
+ * Displays latest reading, daily range, today's readings, 7-day average
+ * trend, and time-in-range — all from real backend data. Shows an honest
+ * empty state when no glucose data has been recorded yet.
+ *
+ * tRPC paths used (under `clientPortal`):
+ *   - glucose.list           -> readings within a date range
+ *   - glucose.stats          -> min / max / avg / time-in-range
+ *   - glucose.dailyAverages  -> daily averages for the trend chart
  */
 
 import React from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Droplets, TrendingDown, TrendingUp, Watch } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorView } from "@/components/ui/ErrorView";
+import type { StatusVariant } from "@/lib/types";
 import { TrendLine, DonutChart } from "@/components/health";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample Data
+// Helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const SAMPLE_CURRENT_READING = {
-  value: 92,
-  unit: "mg/dL",
-  status: "Normal" as const,
-  timestamp: "8:45 AM",
-  trend: "stable" as const,
-};
+function isoDate(offsetDays = 0): string {
+  return new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+}
 
-const SAMPLE_DAILY_RANGE = {
-  low: 78,
-  high: 124,
-  average: 95,
-};
+function glucoseStatus(value: number): { label: string; variant: StatusVariant } {
+  if (value < 70) return { label: "Low", variant: "warning" };
+  if (value <= 140) return { label: "Normal", variant: "success" };
+  if (value <= 180) return { label: "High", variant: "warning" };
+  return { label: "Very High", variant: "danger" };
+}
 
-const SAMPLE_READINGS = [
-  { id: "1", time: "6:30 AM", label: "Fasting", value: 82, status: "optimal" },
-  { id: "2", time: "8:15 AM", label: "Post-breakfast", value: 118, status: "normal" },
-  { id: "3", time: "11:45 AM", label: "Pre-lunch", value: 89, status: "optimal" },
-  { id: "4", time: "1:30 PM", label: "Post-lunch", value: 124, status: "normal" },
-  { id: "5", time: "5:45 PM", label: "Pre-dinner", value: 91, status: "optimal" },
-  { id: "6", time: "8:00 PM", label: "Post-dinner", value: 105, status: "normal" },
-];
-
-const SAMPLE_WEEKLY_TREND = [
-  { label: "Mon", value: 98 },
-  { label: "Tue", value: 95 },
-  { label: "Wed", value: 91 },
-  { label: "Thu", value: 94 },
-  { label: "Fri", value: 89 },
-  { label: "Sat", value: 93 },
-  { label: "Sun", value: 92 },
-];
-
-const SAMPLE_TIME_IN_RANGE = [
-  { label: "In Range (70-140)", value: 85, color: Colors.success },
-  { label: "Below Range", value: 10, color: Colors.info },
-  { label: "Above Range", value: 5, color: Colors.warning },
-];
-
-const SAMPLE_SOURCE = "Dexcom G7";
+function formatSource(source?: string | null): string | null {
+  if (!source) return null;
+  if (source === "apple_health") return "Apple Health";
+  if (source === "manual") return "Manual Entry";
+  if (source === "oura") return "Oura Ring";
+  return source;
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Screen
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function GlucoseScreen() {
+  const router = useRouter();
+  const today = isoDate();
+  const weekAgo = isoDate(-6);
+
   // ─── tRPC Queries ───────────────────────────────────────
   const glucoseListQuery = trpc.clientPortal.glucose.list.useQuery(
-    { limit: 100 },
+    { startDate: today, endDate: today },
     DEFAULT_QUERY_OPTIONS,
   );
   const glucoseStatsQuery = trpc.clientPortal.glucose.stats.useQuery(
-    undefined,
+    { startDate: today, endDate: today },
     DEFAULT_QUERY_OPTIONS,
   );
   const dailyAvgQuery = trpc.clientPortal.glucose.dailyAverages.useQuery(
-    undefined,
+    { startDate: weekAgo, endDate: today },
     DEFAULT_QUERY_OPTIONS,
   );
 
-  // ─── Map API data with sample fallback ──────────────────
-  const readings = glucoseListQuery.data
-    ? (glucoseListQuery.data as any[]).map((r, idx) => ({
-        id: r.id || String(idx + 1),
-        time: new Date(r.timestamp || r.createdAt).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        label: r.timingContext || "Reading",
-        value: r.valueMgdl,
-        status: r.valueMgdl >= 70 && r.valueMgdl <= 100 ? "optimal" : "normal",
-      }))
-    : SAMPLE_READINGS;
+  // ─── Loading state ──────────────────────────────────────
+  if (glucoseListQuery.isLoading || dailyAvgQuery.isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-  const statsData = glucoseStatsQuery.data as any;
-  const currentReading = statsData
-    ? {
-        value: statsData.latest?.valueMgdl ?? statsData.average ?? SAMPLE_CURRENT_READING.value,
-        unit: "mg/dL",
-        status: (statsData.latest?.valueMgdl ?? statsData.average ?? 92) < 140 ? ("Normal" as const) : ("High" as const),
-        timestamp: statsData.latest
-          ? new Date(statsData.latest.timestamp || statsData.latest.createdAt).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : SAMPLE_CURRENT_READING.timestamp,
-        trend: "stable" as const,
-      }
-    : SAMPLE_CURRENT_READING;
+  // ─── Error state ────────────────────────────────────────
+  if (glucoseListQuery.error) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <ErrorView
+          title="Couldn't load glucose data"
+          message="We couldn't reach the server. Please try again."
+          onRetry={() => {
+            glucoseListQuery.refetch();
+            glucoseStatsQuery.refetch();
+            dailyAvgQuery.refetch();
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
 
-  const dailyRange = statsData
-    ? {
-        low: statsData.min ?? statsData.low ?? SAMPLE_DAILY_RANGE.low,
-        high: statsData.max ?? statsData.high ?? SAMPLE_DAILY_RANGE.high,
-        average: statsData.average ?? SAMPLE_DAILY_RANGE.average,
-      }
-    : SAMPLE_DAILY_RANGE;
+  // ─── Real data mapping (no fabricated fallbacks) ────────
+  const todaysReadings = ((glucoseListQuery.data ?? []) as any[]).map((r, idx) => ({
+    id: r.id || String(idx + 1),
+    time: new Date(r.timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    label:
+      typeof r.trendDirection === "string" && r.trendDirection.length > 0
+        ? r.trendDirection.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+        : "Reading",
+    value: r.valueMgdl as number,
+    source: r.source as string | null,
+  }));
 
-  const weeklyTrend = dailyAvgQuery.data
-    ? (dailyAvgQuery.data as any[]).slice(-7).map((d) => ({
-        label: new Date(d.date).toLocaleDateString([], { weekday: "short" }),
-        value: Math.round(d.average ?? d.avgValue ?? d.valueMgdl ?? 0),
-      }))
-    : SAMPLE_WEEKLY_TREND;
+  const dailyAverages = (dailyAvgQuery.data ?? []) as any[];
 
-  const timeInRange = statsData?.timeInRange
-    ? [
-        { label: "In Range (70-140)", value: statsData.timeInRange.inRange ?? 85, color: Colors.success },
-        { label: "Below Range", value: statsData.timeInRange.belowRange ?? 10, color: Colors.info },
-        { label: "Above Range", value: statsData.timeInRange.aboveRange ?? 5, color: Colors.warning },
-      ]
-    : SAMPLE_TIME_IN_RANGE;
+  // ─── Empty state — no glucose data at all ───────────────
+  if (todaysReadings.length === 0 && dailyAverages.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.center}>
+          <EmptyState
+            icon="activity"
+            title="No glucose data yet"
+            message="Connect a CGM or log a manual reading to see your glucose trends here."
+            actionLabel="Connect a device"
+            onAction={() => router.push("/devices/connect" as any)}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-  const inRangePercent = timeInRange[0].value;
-  const source = statsData?.source ?? SAMPLE_SOURCE;
+  const latestReading = todaysReadings[0] ?? null; // list is ordered DESC
+  const latestStatus = latestReading ? glucoseStatus(latestReading.value) : null;
+
+  const stats = glucoseStatsQuery.data as any;
+  const dailyRange =
+    stats && stats.count > 0
+      ? { low: stats.min, high: stats.max, average: stats.avg }
+      : null;
+
+  const weeklyTrend = dailyAverages.slice(-7).map((d) => ({
+    label: new Date(d.date + "T12:00:00").toLocaleDateString([], { weekday: "short" }),
+    value: Math.round(d.avg ?? 0),
+  }));
+
+  const inRangePercent: number | null =
+    stats?.timeInRange != null ? Number(stats.timeInRange) : null;
+  const timeInRange =
+    inRangePercent != null
+      ? [
+          { label: "In Range (70-140)", value: inRangePercent, color: Colors.success },
+          { label: "Out of Range", value: Math.max(0, Math.round((100 - inRangePercent) * 10) / 10), color: Colors.warning },
+        ]
+      : null;
+
+  const source = formatSource(latestReading?.source);
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -143,129 +169,167 @@ export default function GlucoseScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ─── Current Reading Card ─────────────────────────── */}
-        <Card style={styles.currentCard}>
-          <View style={styles.currentHeader}>
-            <View style={styles.currentIconWrap}>
-              <Droplets size={24} color="#F59E0B" />
+        {latestReading && latestStatus ? (
+          <Card style={styles.currentCard}>
+            <View style={styles.currentHeader}>
+              <View style={styles.currentIconWrap}>
+                <Droplets size={24} color="#F59E0B" />
+              </View>
+              <View>
+                <Text style={styles.currentLabel}>Current Glucose</Text>
+                <Text style={styles.currentTimestamp}>
+                  {latestReading.time}
+                </Text>
+              </View>
+              <Badge label={latestStatus.label} variant={latestStatus.variant} />
             </View>
-            <View>
-              <Text style={styles.currentLabel}>Current Glucose</Text>
-              <Text style={styles.currentTimestamp}>
-                {currentReading.timestamp}
-              </Text>
+            <View style={styles.currentValueRow}>
+              <Text style={styles.currentValue}>{latestReading.value}</Text>
+              <Text style={styles.currentUnit}>mg/dL</Text>
             </View>
-            <Badge label={currentReading.status} variant="success" />
-          </View>
-          <View style={styles.currentValueRow}>
-            <Text style={styles.currentValue}>{currentReading.value}</Text>
-            <Text style={styles.currentUnit}>{currentReading.unit}</Text>
-          </View>
-        </Card>
+          </Card>
+        ) : (
+          <Card style={styles.currentCard}>
+            <View style={styles.currentHeader}>
+              <View style={styles.currentIconWrap}>
+                <Droplets size={24} color="#F59E0B" />
+              </View>
+              <View>
+                <Text style={styles.currentLabel}>Current Glucose</Text>
+                <Text style={styles.currentTimestamp}>
+                  No readings recorded today
+                </Text>
+              </View>
+            </View>
+          </Card>
+        )}
 
         {/* ─── Daily Range ──────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Daily Range</Text>
-        <Card>
-          <View style={styles.rangeRow}>
-            <RangeItem
-              label="Low"
-              value={dailyRange.low}
-              icon={<TrendingDown size={14} color={Colors.info} />}
-            />
-            <View style={styles.rangeDivider} />
-            <RangeItem
-              label="Average"
-              value={dailyRange.average}
-              icon={<Droplets size={14} color={Colors.gold} />}
-              highlighted
-            />
-            <View style={styles.rangeDivider} />
-            <RangeItem
-              label="High"
-              value={dailyRange.high}
-              icon={<TrendingUp size={14} color={Colors.warning} />}
-            />
-          </View>
-          {/* Range bar */}
-          <View style={styles.rangeBar}>
-            <View style={styles.rangeBarTrack}>
-              {/* Normal range zone */}
-              <View style={styles.rangeBarNormal} />
-              {/* Current value marker */}
-              <View
-                style={[
-                  styles.rangeBarMarker,
-                  {
-                    left: `${((dailyRange.average - 60) / (160 - 60)) * 100}%`,
-                  },
-                ]}
-              />
-            </View>
-            <View style={styles.rangeLabels}>
-              <Text style={styles.rangeMinMax}>60</Text>
-              <Text style={styles.rangeMinMax}>160</Text>
-            </View>
-          </View>
-        </Card>
-
-        {/* ─── Today's Readings ─────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Today's Readings</Text>
-        <Card>
-          {readings.map((reading, idx) => (
-            <React.Fragment key={reading.id}>
-              <View style={styles.readingRow}>
-                <View style={styles.readingTime}>
-                  <Text style={styles.readingTimeText}>{reading.time}</Text>
-                </View>
-                <View style={styles.readingInfo}>
-                  <Text style={styles.readingLabel}>{reading.label}</Text>
-                </View>
-                <View style={styles.readingValueWrap}>
-                  <Text
+        {dailyRange && (
+          <>
+            <Text style={styles.sectionTitle}>Daily Range</Text>
+            <Card>
+              <View style={styles.rangeRow}>
+                <RangeItem
+                  label="Low"
+                  value={dailyRange.low}
+                  icon={<TrendingDown size={14} color={Colors.info} />}
+                />
+                <View style={styles.rangeDivider} />
+                <RangeItem
+                  label="Average"
+                  value={dailyRange.average}
+                  icon={<Droplets size={14} color={Colors.gold} />}
+                  highlighted
+                />
+                <View style={styles.rangeDivider} />
+                <RangeItem
+                  label="High"
+                  value={dailyRange.high}
+                  icon={<TrendingUp size={14} color={Colors.warning} />}
+                />
+              </View>
+              {/* Range bar */}
+              <View style={styles.rangeBar}>
+                <View style={styles.rangeBarTrack}>
+                  {/* Normal range zone */}
+                  <View style={styles.rangeBarNormal} />
+                  {/* Current value marker */}
+                  <View
                     style={[
-                      styles.readingValue,
-                      reading.status === "optimal" && styles.readingOptimal,
+                      styles.rangeBarMarker,
+                      {
+                        left: `${Math.min(Math.max(((dailyRange.average - 60) / (160 - 60)) * 100, 0), 100)}%`,
+                      },
                     ]}
-                  >
-                    {reading.value}
-                  </Text>
-                  <Text style={styles.readingUnit}>mg/dL</Text>
+                  />
+                </View>
+                <View style={styles.rangeLabels}>
+                  <Text style={styles.rangeMinMax}>60</Text>
+                  <Text style={styles.rangeMinMax}>160</Text>
                 </View>
               </View>
-              {idx < readings.length - 1 && (
-                <View style={styles.readingSeparator} />
-              )}
-            </React.Fragment>
-          ))}
-        </Card>
+            </Card>
+          </>
+        )}
+
+        {/* ─── Today's Readings ─────────────────────────────── */}
+        {todaysReadings.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Today's Readings</Text>
+            <Card>
+              {todaysReadings.map((reading, idx) => {
+                const status = glucoseStatus(reading.value);
+                return (
+                  <React.Fragment key={reading.id}>
+                    <View style={styles.readingRow}>
+                      <View style={styles.readingTime}>
+                        <Text style={styles.readingTimeText}>{reading.time}</Text>
+                      </View>
+                      <View style={styles.readingInfo}>
+                        <Text style={styles.readingLabel}>{reading.label}</Text>
+                      </View>
+                      <View style={styles.readingValueWrap}>
+                        <Text
+                          style={[
+                            styles.readingValue,
+                            status.variant === "success" && styles.readingOptimal,
+                            status.variant === "danger" && styles.readingDanger,
+                          ]}
+                        >
+                          {reading.value}
+                        </Text>
+                        <Text style={styles.readingUnit}>mg/dL</Text>
+                      </View>
+                    </View>
+                    {idx < todaysReadings.length - 1 && (
+                      <View style={styles.readingSeparator} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </Card>
+          </>
+        )}
 
         {/* ─── 7-Day Average Trend ──────────────────────────── */}
-        <Text style={styles.sectionTitle}>7-Day Average</Text>
-        <Card>
-          <TrendLine
-            data={weeklyTrend}
-            color="#F59E0B"
-            height={100}
-            unit=""
-          />
-        </Card>
+        {weeklyTrend.length > 1 && (
+          <>
+            <Text style={styles.sectionTitle}>7-Day Average</Text>
+            <Card>
+              <TrendLine
+                data={weeklyTrend}
+                color="#F59E0B"
+                height={100}
+                unit=""
+              />
+            </Card>
+          </>
+        )}
 
         {/* ─── Time in Range ────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Time in Range</Text>
-        <Card style={styles.donutCard}>
-          <DonutChart
-            segments={timeInRange}
-            centerLabel={`${inRangePercent}%`}
-            centerSublabel="In Range"
-            size={150}
-            strokeWidth={14}
-          />
-        </Card>
+        {timeInRange && inRangePercent != null && (
+          <>
+            <Text style={styles.sectionTitle}>Time in Range (Today)</Text>
+            <Card style={styles.donutCard}>
+              <DonutChart
+                segments={timeInRange}
+                centerLabel={`${inRangePercent}%`}
+                centerSublabel="In Range"
+                size={150}
+                strokeWidth={14}
+              />
+            </Card>
+          </>
+        )}
 
         {/* ─── Source ───────────────────────────────────────── */}
-        <View style={styles.sourceRow}>
-          <Watch size={14} color={Colors.silver} />
-          <Text style={styles.sourceText}>Source: {source}</Text>
-        </View>
+        {source && (
+          <View style={styles.sourceRow}>
+            <Watch size={14} color={Colors.silver} />
+            <Text style={styles.sourceText}>Source: {source}</Text>
+          </View>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -315,6 +379,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.md,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
   },
 
   // Current reading
@@ -474,6 +542,9 @@ const styles = StyleSheet.create({
   },
   readingOptimal: {
     color: Colors.success,
+  },
+  readingDanger: {
+    color: Colors.danger,
   },
   readingUnit: {
     color: Colors.silver,

@@ -252,7 +252,7 @@ export default function TrainerDashboard() {
                           <span className="text-kairos-silver shrink-0" title={humanize(appt.meetingType)}>
                             {MEETING_TYPE_ICON[appt.meetingType] ?? <Video size={14} />}
                           </span>
-                          {appt.meetingLink && appt.status === "confirmed" && (
+                          {appt.meetingLink && appt.status !== "cancelled" && (
                             <a
                               href={appt.meetingLink}
                               target="_blank"

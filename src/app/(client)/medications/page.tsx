@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Tablets, CheckCircle, Clock, AlertTriangle, Plus, Info } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/utils/cn";
@@ -32,11 +32,37 @@ const timeIcons: Record<string, string> = {
 };
 
 export default function MedicationsPage() {
+  const utils = trpc.useUtils();
   const { data: protocol, isLoading } = trpc.clientPortal.supplements.getActiveProtocol.useQuery();
-  const logAdherence = trpc.clientPortal.supplements.logAdherence.useMutation();
+  const logAdherence = trpc.clientPortal.supplements.logAdherence.useMutation({
+    onSuccess: () => {
+      void utils.clientPortal.supplements.getAdherence.invalidate();
+      void utils.clientPortal.supplements.adherenceStats.invalidate();
+    },
+  });
 
   const [takenIds, setTakenIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Seed today's checked state from adherence already logged on the server
+  const todayStr = new Date().toISOString().split("T")[0];
+  const { data: todayAdherence } = trpc.clientPortal.supplements.getAdherence.useQuery({
+    startDate: todayStr,
+    endDate: todayStr,
+  });
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (todayAdherence && !seededRef.current) {
+      seededRef.current = true;
+      setTakenIds(
+        new Set(
+          todayAdherence
+            .filter((a) => !a.skipped && a.protocolItemId)
+            .map((a) => a.protocolItemId as string)
+        )
+      );
+    }
+  }, [todayAdherence]);
 
   // Filter for medication category items only
   const medications = useMemo<MedicationItem[]>(() => {
@@ -61,13 +87,18 @@ export default function MedicationsPage() {
   const pct = totalCount > 0 ? Math.round((takenCount / totalCount) * 100) : 0;
 
   function toggle(id: string) {
+    const wasTaken = takenIds.has(id);
     setTakenIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
+      if (wasTaken) next.delete(id);
       else next.add(id);
       return next;
     });
-    logAdherence.mutate({ protocolItemId: id });
+    // Only log adherence when checking — the backend is insert-only, so
+    // unchecking must not create a new "taken" record.
+    if (!wasTaken) {
+      logAdherence.mutate({ protocolItemId: id });
+    }
   }
 
   // Group by time of day

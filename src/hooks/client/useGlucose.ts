@@ -67,17 +67,21 @@ export function useGlucose(dateRange: DateRange): UseGlucoseReturn {
 
   const readings = useMemo<GlucoseReading[]>(() => {
     if (!rawReadings) return [];
-    return rawReadings.map((r) => {
-      const ts = new Date(r.timestamp);
-      return {
-        id: r.id,
-        timestamp: ts,
-        time: `${String(ts.getHours()).padStart(2, "0")}:${String(ts.getMinutes()).padStart(2, "0")}`,
-        value: r.valueMgdl,
-        source: r.source ?? "manual",
-        trendDirection: r.trendDirection,
-      };
-    });
+    // glucose.list returns readings newest-first (DESC); sort ascending so
+    // charts plot forward in time and the last element is the newest reading.
+    return rawReadings
+      .map((r) => {
+        const ts = new Date(r.timestamp);
+        return {
+          id: r.id,
+          timestamp: ts,
+          time: `${String(ts.getHours()).padStart(2, "0")}:${String(ts.getMinutes()).padStart(2, "0")}`,
+          value: r.valueMgdl,
+          source: r.source ?? "manual",
+          trendDirection: r.trendDirection,
+        };
+      })
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
   }, [rawReadings]);
 
   const dailySummaries = useMemo<DailyGlucoseSummary[]>(() => {

@@ -1,236 +1,97 @@
 /**
- * Add Device (pairing) screen.
+ * Add Device screen.
  *
- * Shows an animated scanning indicator, handles the pairing flow
- * from scanning -> found -> pairing -> success, and explains
- * required permissions.
+ * Direct Bluetooth pairing is not implemented yet, so this screen says
+ * so honestly (no simulated scanning / fake devices) and points users
+ * to the integrations that actually work today: linked accounts
+ * (/devices/connect) and Apple Health sync (/devices/apple-health).
  */
 
-import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  Easing,
-} from "react-native";
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import {
-  Bluetooth,
-  CheckCircle,
-  Info,
-  Watch,
-} from "lucide-react-native";
+import { Bluetooth, Cloud, Heart, Info } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ScanningIndicator } from "@/components/devices/ScanningIndicator";
-
-/* ------------------------------------------------------------------ */
-/* Pairing states                                                      */
-/* ------------------------------------------------------------------ */
-
-type PairingState = "scanning" | "found" | "pairing" | "success";
-
-/* ------------------------------------------------------------------ */
-/* Screen                                                              */
-/* ------------------------------------------------------------------ */
 
 export default function AddDeviceScreen() {
   const router = useRouter();
-  const [state, setState] = useState<PairingState>("scanning");
-
-  /* Checkmark scale animation for success state */
-  const checkScale = useRef(new Animated.Value(0)).current;
-
-  /* Simulate device found after 3 seconds */
-  useEffect(() => {
-    if (state === "scanning") {
-      const timer = setTimeout(() => setState("found"), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [state]);
-
-  /* Animate checkmark on success */
-  useEffect(() => {
-    if (state === "success") {
-      Animated.spring(checkScale, {
-        toValue: 1,
-        friction: 5,
-        tension: 120,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [state, checkScale]);
-
-  const handlePair = () => {
-    setState("pairing");
-    // Simulate pairing process
-    setTimeout(() => setState("success"), 2000);
-  };
-
-  const handleDone = () => {
-    router.back();
-  };
-
-  const handleRetry = () => {
-    setState("scanning");
-  };
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <View style={styles.content}>
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {/* Status area                                                */}
-        {/* ═══════════════════════════════════════════════════════════ */}
+        {/* ─── Coming soon header ─────────────────────────────── */}
         <View style={styles.statusArea}>
-          {state === "success" ? (
-            <Animated.View style={{ transform: [{ scale: checkScale }] }}>
-              <View style={styles.successCircle}>
-                <CheckCircle size={48} color={Colors.success} />
-              </View>
-            </Animated.View>
-          ) : (
-            <ScanningIndicator active={state === "scanning" || state === "pairing"} />
-          )}
-
-          <Text style={styles.statusTitle}>
-            {state === "scanning" && "Searching for devices..."}
-            {state === "found" && "Device Found!"}
-            {state === "pairing" && "Pairing..."}
-            {state === "success" && "Connected!"}
-          </Text>
+          <View style={styles.iconCircle}>
+            <Bluetooth size={40} color={Colors.gold} strokeWidth={1.5} />
+          </View>
+          <Text style={styles.statusTitle}>Bluetooth pairing coming soon</Text>
           <Text style={styles.statusSubtitle}>
-            {state === "scanning" &&
-              "Make sure your device is nearby and in pairing mode."}
-            {state === "found" &&
-              "A compatible device was detected. Tap Pair to connect."}
-            {state === "pairing" &&
-              "Establishing secure connection with your device..."}
-            {state === "success" &&
-              "Your device is now syncing data to Everist.ai."}
+            Direct Bluetooth device pairing isn't available in the app yet.
+            In the meantime, you can sync your health data through a linked
+            account or Apple Health.
           </Text>
         </View>
 
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {/* Device found card                                          */}
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {(state === "found" || state === "pairing") && (
-          <Card style={styles.deviceFoundCard}>
-            <View style={styles.foundRow}>
-              <View style={styles.foundIcon}>
-                <Watch size={24} color={Colors.gold} />
-              </View>
-              <View style={styles.foundInfo}>
-                <Text style={styles.foundName}>Apple Watch Ultra</Text>
-                <Text style={styles.foundModel}>Series 2, 49mm</Text>
-              </View>
-              <Bluetooth size={18} color={Colors.info} />
+        {/* ─── Available options ──────────────────────────────── */}
+        <Card style={styles.optionCard}>
+          <View style={styles.optionRow}>
+            <View style={styles.optionIcon}>
+              <Cloud size={22} color={Colors.gold} />
             </View>
-
-            <Button
-              title={state === "pairing" ? "Pairing..." : "Pair Device"}
-              variant="primary"
-              onPress={handlePair}
-              loading={state === "pairing"}
-              disabled={state === "pairing"}
-              style={styles.pairBtn}
-            />
-          </Card>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {/* Success actions                                            */}
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {state === "success" && (
-          <View style={styles.successActions}>
-            <Button
-              title="Done"
-              variant="primary"
-              size="lg"
-              onPress={handleDone}
-              style={styles.doneBtn}
-            />
+            <View style={styles.optionInfo}>
+              <Text style={styles.optionTitle}>Connect an Account</Text>
+              <Text style={styles.optionText}>
+                Link Oura, Hume, and other supported services to sync data
+                automatically.
+              </Text>
+            </View>
           </View>
-        )}
+          <Button
+            title="Connect an Account"
+            variant="primary"
+            onPress={() => router.push("/devices/connect" as any)}
+            style={styles.optionBtn}
+          />
+        </Card>
 
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {/* Instructions                                               */}
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {state !== "success" && (
-          <View style={styles.instructions}>
-            <Text style={styles.instructionsTitle}>Pairing Instructions</Text>
-
-            <InstructionStep
-              number="1"
-              text="Ensure Bluetooth is enabled on your phone."
-            />
-            <InstructionStep
-              number="2"
-              text="Put your device in pairing mode (check device manual)."
-            />
-            <InstructionStep
-              number="3"
-              text="Keep the device within 10 feet of your phone."
-            />
-            <InstructionStep
-              number="4"
-              text="Tap 'Pair' when the device appears above."
-              last
-            />
+        <Card style={styles.optionCard}>
+          <View style={styles.optionRow}>
+            <View style={styles.optionIcon}>
+              <Heart size={22} color={Colors.gold} />
+            </View>
+            <View style={styles.optionInfo}>
+              <Text style={styles.optionTitle}>Apple Health</Text>
+              <Text style={styles.optionText}>
+                Sync steps, sleep, heart rate, and workouts from Apple Health
+                — including data from paired watches and devices.
+              </Text>
+            </View>
           </View>
-        )}
+          <Button
+            title="Set Up Apple Health"
+            variant="secondary"
+            onPress={() => router.push("/devices/apple-health" as any)}
+            style={styles.optionBtn}
+          />
+        </Card>
 
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {/* Permissions info                                           */}
-        {/* ═══════════════════════════════════════════════════════════ */}
+        {/* ─── Info note ──────────────────────────────────────── */}
         <Card style={styles.permCard}>
           <View style={styles.permRow}>
             <Info size={16} color={Colors.info} />
             <Text style={styles.permText}>
-              Everist.ai will request access to Bluetooth and Health data.
-              These permissions are required to sync your device data securely.
-              You can revoke access at any time in your phone's Settings.
+              Most wearables (Apple Watch, Oura Ring, Withings devices) already
+              sync through Apple Health or their linked accounts — no direct
+              Bluetooth pairing needed.
             </Text>
           </View>
         </Card>
-
-        {/* Retry button while scanning */}
-        {state === "scanning" && (
-          <Button
-            title="Cancel"
-            variant="tertiary"
-            onPress={() => router.back()}
-            style={styles.cancelBtn}
-          />
-        )}
       </View>
     </SafeAreaView>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* InstructionStep helper                                              */
-/* ------------------------------------------------------------------ */
-
-function InstructionStep({
-  number,
-  text,
-  last = false,
-}: {
-  number: string;
-  text: string;
-  last?: boolean;
-}) {
-  return (
-    <View style={[styles.stepRow, !last && styles.stepBorder]}>
-      <View style={styles.stepNumber}>
-        <Text style={styles.stepNumberText}>{number}</Text>
-      </View>
-      <Text style={styles.stepText}>{text}</Text>
-    </View>
   );
 }
 
@@ -251,11 +112,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.xl,
   },
+  iconCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.navyLight,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.md,
+  },
   statusTitle: {
     color: Colors.white,
     fontSize: FontSizes.xl,
     fontWeight: "700",
-    marginTop: Spacing.lg,
     textAlign: "center",
   },
   statusSubtitle: {
@@ -264,97 +135,45 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: Spacing.sm,
     lineHeight: 20,
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
   },
-  successCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: Colors.successMuted,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  deviceFoundCard: {
+  optionCard: {
     marginBottom: Spacing.md,
   },
-  foundRow: {
+  optionRow: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  foundIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(74, 144, 217, 0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: Spacing.md,
-  },
-  foundInfo: {
-    flex: 1,
-  },
-  foundName: {
-    color: Colors.white,
-    fontSize: FontSizes.md,
-    fontWeight: "600",
-  },
-  foundModel: {
-    color: Colors.silver,
-    fontSize: FontSizes.xs,
-    marginTop: 2,
-  },
-  pairBtn: {
-    marginTop: Spacing.xs,
-  },
-  successActions: {
-    marginTop: Spacing.md,
-  },
-  doneBtn: {
-    width: "100%",
-  },
-  instructions: {
-    marginBottom: Spacing.md,
-  },
-  instructionsTitle: {
-    color: Colors.white,
-    fontSize: FontSizes.md,
-    fontWeight: "700",
-    marginBottom: Spacing.md,
-  },
-  stepRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.sm,
+    alignItems: "flex-start",
     gap: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  stepBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  stepNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Colors.navyLight,
+  optionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(74, 144, 217, 0.12)",
     alignItems: "center",
     justifyContent: "center",
   },
-  stepNumberText: {
-    color: Colors.gold,
-    fontSize: FontSizes.sm,
-    fontWeight: "700",
-  },
-  stepText: {
-    color: Colors.silverLight,
-    fontSize: FontSizes.sm,
+  optionInfo: {
     flex: 1,
+  },
+  optionTitle: {
+    color: Colors.white,
+    fontSize: FontSizes.md,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  optionText: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
     lineHeight: 20,
+  },
+  optionBtn: {
+    marginTop: Spacing.xs,
   },
   permCard: {
     backgroundColor: Colors.infoMuted,
     borderColor: "rgba(74, 144, 217, 0.2)",
-    marginBottom: Spacing.md,
   },
   permRow: {
     flexDirection: "row",
@@ -366,8 +185,5 @@ const styles = StyleSheet.create({
     color: Colors.silver,
     fontSize: FontSizes.xs,
     lineHeight: 18,
-  },
-  cancelBtn: {
-    marginTop: Spacing.sm,
   },
 });

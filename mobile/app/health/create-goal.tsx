@@ -468,40 +468,34 @@ export default function CreateGoalScreen() {
         break;
     }
 
+    // The backend has no goal-update procedure (only create / addCheckpoint /
+    // updateStatus / delete), so editing an existing goal is not supported —
+    // creating here would silently duplicate the goal.
+    if (isEditMode) {
+      Alert.alert(
+        "Editing Not Available",
+        "Editing existing goals isn't supported yet. You can archive this goal and create a new one with the updated targets.",
+        [{ text: "OK" }],
+      );
+      return;
+    }
+
     try {
-      if (isEditMode) {
-        // In edit mode, create a new goal since the backend has no general update mutation
-        // A full update would require backend support; for now we create with the corrected values
-        await createGoal({
-          title,
-          description,
-          category: categoryMap[category],
-          targetValue,
-          targetUnit,
-          targetDirection,
-          startValue,
-          timeframe: "open_ended",
-          targetDate: targetDate || null,
-        });
-      } else {
-        await createGoal({
-          title,
-          description,
-          category: categoryMap[category],
-          targetValue,
-          targetUnit,
-          targetDirection,
-          startValue,
-          timeframe: "open_ended",
-          targetDate: targetDate || null,
-        });
-      }
+      await createGoal({
+        title,
+        description,
+        category: categoryMap[category],
+        targetValue,
+        targetUnit,
+        targetDirection,
+        startValue,
+        timeframe: "open_ended",
+        targetDate: targetDate || null,
+      });
 
       Alert.alert(
-        isEditMode ? "Goal Updated" : "Goal Created",
-        isEditMode
-          ? "Your goal has been updated successfully."
-          : "Your new goal has been created successfully.",
+        "Goal Created",
+        "Your new goal has been created successfully.",
         [{ text: "OK", onPress: () => router.back() }]
       );
     } catch (err) {
@@ -780,12 +774,24 @@ export default function CreateGoalScreen() {
             </FormField>
           </Card>
 
+          {/* ─── Edit-mode note ──────────────────────────────── */}
+          {isEditMode && (
+            <Card style={styles.formCard}>
+              <Text style={styles.editNote}>
+                Editing existing goals isn't supported yet. To change this
+                goal, archive it from the goal detail screen and create a new
+                one with your updated targets.
+              </Text>
+            </Card>
+          )}
+
           {/* ─── Submit ──────────────────────────────────────── */}
           <Button
-            title={isCreating ? "Saving..." : isEditMode ? "Save Changes" : "Create Goal"}
+            title={isCreating ? "Saving..." : isEditMode ? "Editing Not Available" : "Create Goal"}
             variant="primary"
             size="lg"
             onPress={handleSave}
+            disabled={isEditMode || isCreating}
             style={styles.submitButton}
           />
 
@@ -848,6 +854,13 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 100,
     paddingTop: 12,
+  },
+
+  // Edit-mode note
+  editNote: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
   },
 
   // Submit

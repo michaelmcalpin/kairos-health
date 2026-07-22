@@ -16,9 +16,10 @@ export default function Page() {
   const [activeTab, setActiveTab] = useState<FilterTab>("All");
   const utils = trpc.useUtils();
 
-  // Fetch active alerts (follow-ups) from tRPC
+  // Fetch alerts in all statuses so acknowledged/resolved items stay visible
+  // in the "Completed" section instead of vanishing after acknowledgement.
   const { data: alertsData = { alerts: [], total: 0, hasMore: false }, isLoading: alertsLoading } =
-    trpc.coach.alerts.list.useQuery({ status: "active", limit: 50 });
+    trpc.coach.alerts.list.useQuery({ status: "all", limit: 100 });
 
   const { mutate: acknowledgeAlert } = trpc.coach.alerts.acknowledge.useMutation({
     onSuccess: () => {
@@ -26,32 +27,40 @@ export default function Page() {
     },
   });
 
-  const followUps = alertsData.alerts || [];
+  // Open = active; Completed = acknowledged or resolved; dismissed alerts are hidden.
+  const followUps = (alertsData.alerts || []).filter((a) => a.status !== "dismissed");
+  const isCompletedAlert = (a: { status: string }) =>
+    a.status === "acknowledged" || a.status === "resolved";
+
   const todayStr = new Date().toISOString().split("T")[0];
 
   // Calculate stats from the data
   // Note: alerts only have createdAt (no dueDate), so we filter by creation date
-  const weekAgoStr = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const weekAgoStr = weekAgo.toISOString().split("T")[0];
   const stats = {
     total: followUps.length,
-    pending: followUps.filter((a) => !a.acknowledgedAt).length,
-    older: followUps.filter((a) => !a.acknowledgedAt && new Date(a.createdAt).toISOString().split("T")[0] < todayStr).length,
-    createdToday: followUps.filter((a) => !a.acknowledgedAt && new Date(a.createdAt).toISOString().split("T")[0] === todayStr).length,
-    completedThisWeek: followUps.filter((a) => a.acknowledgedAt).length,
+    pending: followUps.filter((a) => !isCompletedAlert(a)).length,
+    older: followUps.filter((a) => !isCompletedAlert(a) && new Date(a.createdAt).toISOString().split("T")[0] < todayStr).length,
+    createdToday: followUps.filter((a) => !isCompletedAlert(a) && new Date(a.createdAt).toISOString().split("T")[0] === todayStr).length,
+    completedThisWeek: followUps.filter(
+      (a) => isCompletedAlert(a) && new Date(a.acknowledgedAt ?? a.createdAt) >= weekAgo
+    ).length,
   };
 
   const getFilteredFollowUps = () => {
     return followUps.filter((item) => {
+      const completed = isCompletedAlert(item);
       const dateStr = new Date(item.createdAt).toISOString().split("T")[0];
       switch (activeTab) {
         case "Created Today":
-          return !item.acknowledgedAt && dateStr === todayStr;
+          return !completed && dateStr === todayStr;
         case "Older":
-          return !item.acknowledgedAt && dateStr < todayStr;
+          return !completed && dateStr < todayStr;
         case "Recent":
-          return !item.acknowledgedAt && dateStr >= weekAgoStr;
+          return !completed && dateStr >= weekAgoStr;
         case "Completed":
-          return item.acknowledgedAt;
+          return completed;
         case "All":
         default:
           return true;
@@ -59,8 +68,10 @@ export default function Page() {
     });
   };
 
-  const handleToggle = (id: string) => {
-    acknowledgeAlert({ alertId: id });
+  const handleToggle = (id: string, completed: boolean) => {
+    // Acknowledging moves the item to the Completed section.
+    // There's no un-acknowledge procedure, so completed items stay completed.
+    if (!completed) acknowledgeAlert({ alertId: id });
   };
 
   const isOlderAlert = (createdAt: string | Date, completed: boolean) => {
@@ -157,7 +168,7 @@ export default function Page() {
                 <div className="flex gap-4">
                   {/* Checkbox */}
                   <button
-                    onClick={() => handleToggle(item.id)}
+                    onClick={() => handleToggle(item.id, isCompleted)}
                     className="flex-shrink-0 mt-1"
                   >
                     <div

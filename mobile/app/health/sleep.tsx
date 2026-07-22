@@ -1,62 +1,55 @@
 /**
  * Sleep tracking detail screen.
  *
- * Displays sleep score, last night summary, sleep stage breakdown,
- * 7-day trend, and AI-generated sleep insights.
+ * Displays sleep score, last night summary, sleep stage breakdown, and
+ * 7-day trend — all from real backend data. Shows an honest empty state
+ * when no sleep sessions have been recorded yet.
+ *
+ * tRPC paths used (under `clientPortal`):
+ *   - sleep.list -> sleep sessions within a date range
  */
 
 import React from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Moon, Clock, Sunrise, Bed, Watch } from "lucide-react-native";
+import { useRouter } from "expo-router";
+import { Moon, Bed, Watch } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorView } from "@/components/ui/ErrorView";
+import type { StatusVariant } from "@/lib/types";
 import { StackedBar, BarChart } from "@/components/health";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample / Fallback Data
+// Helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const SAMPLE_SLEEP_SCORE = 88;
-const SAMPLE_SLEEP_QUALITY = "Excellent";
+function formatSource(source?: string | null): string | null {
+  if (!source) return null;
+  if (source === "apple_health") return "Apple Health";
+  if (source === "oura") return "Oura Ring";
+  if (source === "manual") return "Manual Entry";
+  return source;
+}
 
-const SAMPLE_LAST_NIGHT = {
-  bedtime: "10:45 PM",
-  wakeTime: "6:12 AM",
-  totalHours: 7.4,
-  timeInBed: 7.8,
-};
-
-const SAMPLE_SLEEP_STAGES = [
-  { label: "Deep", value: 1.2, color: "#4A90D9" },
-  { label: "REM", value: 1.8, color: "#8B5CF6" },
-  { label: "Light", value: 3.4, color: "#60A5FA" },
-  { label: "Awake", value: 0.3, color: "#C65D5D" },
-];
-
-const SAMPLE_WEEKLY_TREND = [
-  { label: "Mon", value: 6.8 },
-  { label: "Tue", value: 7.1 },
-  { label: "Wed", value: 7.5 },
-  { label: "Thu", value: 6.9 },
-  { label: "Fri", value: 7.2 },
-  { label: "Sat", value: 7.8 },
-  { label: "Sun", value: 7.4 },
-];
-
-const SAMPLE_INSIGHT =
-  "Your deep sleep is 15% above average this week. Consistent bedtime routine and reduced screen time before bed are contributing factors.";
-
-const SAMPLE_SOURCE = "Apple Watch Ultra";
+function qualityForScore(score: number): { label: string; variant: StatusVariant } {
+  if (score >= 85) return { label: "Excellent", variant: "success" };
+  if (score >= 70) return { label: "Good", variant: "success" };
+  if (score >= 50) return { label: "Fair", variant: "warning" };
+  return { label: "Poor", variant: "danger" };
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Screen
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function SleepScreen() {
+  const router = useRouter();
+
   // ── tRPC: fetch sleep sessions from the dedicated sleep endpoint ──
   const endDate = new Date().toISOString().split("T")[0];
   const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
@@ -66,77 +59,93 @@ export default function SleepScreen() {
     DEFAULT_QUERY_OPTIONS,
   );
 
+  // ── Loading state ────────────────────────────────────────
+  if (sleepQuery.isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Error state ──────────────────────────────────────────
+  if (sleepQuery.error) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <ErrorView
+          title="Couldn't load sleep data"
+          message="We couldn't reach the server. Please try again."
+          onRetry={() => sleepQuery.refetch()}
+        />
+      </SafeAreaView>
+    );
+  }
+
   // Backend returns: Array<{ id, date, totalMinutes, deepMinutes, remMinutes, lightMinutes, awakeMinutes, score, source }>
-  const sleepSessions = sleepQuery.data as any[] | undefined;
+  const sleepData = ((sleepQuery.data ?? []) as any[])
+    .filter((s: any) => s.totalMinutes != null)
+    .map((s: any) => ({
+      date: s.date as string,
+      hours: Math.round((s.totalMinutes / 60) * 10) / 10,
+      score: (s.score ?? null) as number | null,
+      deepMinutes: (s.deepMinutes ?? null) as number | null,
+      remMinutes: (s.remMinutes ?? null) as number | null,
+      lightMinutes: (s.lightMinutes ?? null) as number | null,
+      awakeMinutes: (s.awakeMinutes ?? null) as number | null,
+      source: (s.source ?? null) as string | null,
+    }));
 
-  const sleepData = sleepSessions
-    ? sleepSessions
-        .filter((s: any) => s.totalMinutes != null)
-        .map((s: any) => ({
-          date: s.date,
-          hours: Math.round((s.totalMinutes / 60) * 10) / 10,
-          score: s.score,
-          deepMinutes: s.deepMinutes,
-          remMinutes: s.remMinutes,
-          lightMinutes: s.lightMinutes,
-          awakeMinutes: s.awakeMinutes,
-          source: s.source,
-        }))
-    : null;
+  // ── Empty state — no sleep data at all ───────────────────
+  if (sleepData.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.center}>
+          <EmptyState
+            icon={<Moon size={40} color={Colors.gold} strokeWidth={1.5} />}
+            title="No sleep data yet"
+            message="Connect a wearable or sync Apple Health to see your sleep trends here."
+            actionLabel="Connect a device"
+            onAction={() => router.push("/devices/connect" as any)}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-  const hasSleepData = sleepData && sleepData.length > 0;
-
-  // Build weekly trend from API data when available
+  // ── Real data mapping (no fabricated fallbacks) ──────────
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const weeklyTrend = hasSleepData
-    ? sleepData.slice(0, 7).reverse().map((d) => ({
-        label: weekDays[new Date(d.date).getDay()] ?? "",
-        value: d.hours,
-      }))
-    : SAMPLE_WEEKLY_TREND;
+  const weeklyTrend = sleepData.slice(0, 7).reverse().map((d) => ({
+    label: weekDays[new Date(d.date + "T12:00:00").getDay()] ?? "",
+    value: d.hours,
+  }));
 
-  // Use the latest sleep session's score / quality when available
-  const latestSleep = hasSleepData ? sleepData[0] : null;
-  const sleepScore = latestSleep?.score ?? SAMPLE_SLEEP_SCORE;
-  const sleepQuality =
-    sleepScore >= 85 ? "Excellent" : sleepScore >= 70 ? "Good" : sleepScore >= 50 ? "Fair" : "Poor";
+  const latestSleep = sleepData[0];
+  const quality = latestSleep.score != null ? qualityForScore(latestSleep.score) : null;
 
-  // Last night summary — build from real data when available
-  const lastNight = latestSleep
-    ? {
-        bedtime: SAMPLE_LAST_NIGHT.bedtime, // bedtime/wakeTime not stored in sleep sessions table
-        wakeTime: SAMPLE_LAST_NIGHT.wakeTime,
-        totalHours: latestSleep.hours,
-        timeInBed: Math.round((latestSleep.hours + (latestSleep.awakeMinutes ?? 0) / 60) * 10) / 10,
-      }
-    : SAMPLE_LAST_NIGHT;
+  const timeInBed =
+    latestSleep.awakeMinutes != null
+      ? Math.round((latestSleep.hours + latestSleep.awakeMinutes / 60) * 10) / 10
+      : null;
 
-  // Sleep stages — use real data when available from backend
-  const sleepStages = latestSleep && latestSleep.deepMinutes != null
-    ? [
-        { label: "Deep", value: Math.round((latestSleep.deepMinutes / 60) * 10) / 10, color: "#4A90D9" },
-        { label: "REM", value: Math.round((latestSleep.remMinutes ?? 0) / 60 * 10) / 10, color: "#8B5CF6" },
-        { label: "Light", value: Math.round((latestSleep.lightMinutes ?? 0) / 60 * 10) / 10, color: "#60A5FA" },
-        { label: "Awake", value: Math.round((latestSleep.awakeMinutes ?? 0) / 60 * 10) / 10, color: "#C65D5D" },
-      ]
-    : SAMPLE_SLEEP_STAGES;
+  const sleepStages =
+    latestSleep.deepMinutes != null
+      ? [
+          { label: "Deep", value: Math.round((latestSleep.deepMinutes / 60) * 10) / 10, color: "#4A90D9" },
+          { label: "REM", value: Math.round(((latestSleep.remMinutes ?? 0) / 60) * 10) / 10, color: "#8B5CF6" },
+          { label: "Light", value: Math.round(((latestSleep.lightMinutes ?? 0) / 60) * 10) / 10, color: "#60A5FA" },
+          { label: "Awake", value: Math.round(((latestSleep.awakeMinutes ?? 0) / 60) * 10) / 10, color: "#C65D5D" },
+        ]
+      : null;
 
-  // Insight text — generate from data when available
-  const insight = hasSleepData
-    ? latestSleep?.score != null && latestSleep.score >= 80
-      ? `Your sleep score of ${latestSleep.score} indicates good recovery. You averaged ${latestSleep.hours} hours of sleep.`
-      : latestSleep?.score != null
-        ? `Your sleep score of ${latestSleep.score} has room for improvement. You averaged ${latestSleep.hours} hours of sleep. Try maintaining a consistent bedtime.`
-        : `You averaged ${latestSleep?.hours ?? 0} hours of sleep recently.`
-    : SAMPLE_INSIGHT;
+  const source = formatSource(latestSleep.source);
 
-  // Source — use actual source from data
-  const source = latestSleep?.source
-    ? latestSleep.source === "apple_health" ? "Apple Health"
-      : latestSleep.source === "oura" ? "Oura Ring"
-      : latestSleep.source === "manual" ? "Manual Entry"
-      : latestSleep.source
-    : SAMPLE_SOURCE;
+  const lastNightDate = new Date(latestSleep.date + "T12:00:00").toLocaleDateString([], {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -145,85 +154,98 @@ export default function SleepScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ─── Sleep Score Card ──────────────────────────────── */}
-        <Card style={styles.scoreCard}>
-          <View style={styles.scoreHeader}>
-            <View style={styles.scoreIconWrap}>
-              <Moon size={24} color="#60A5FA" />
+        {latestSleep.score != null && quality ? (
+          <Card style={styles.scoreCard}>
+            <View style={styles.scoreHeader}>
+              <View style={styles.scoreIconWrap}>
+                <Moon size={24} color="#60A5FA" />
+              </View>
+              <View style={styles.scoreTextWrap}>
+                <Text style={styles.scoreLabel}>Sleep Score</Text>
+                <Badge label={quality.label} variant={quality.variant} />
+              </View>
             </View>
-            <View style={styles.scoreTextWrap}>
-              <Text style={styles.scoreLabel}>Sleep Score</Text>
-              <Badge label={sleepQuality} variant="success" />
+            <View style={styles.scoreValueRow}>
+              <Text style={styles.scoreValue}>{latestSleep.score}</Text>
+              <Text style={styles.scoreMax}>/100</Text>
             </View>
-          </View>
-          <View style={styles.scoreValueRow}>
-            <Text style={styles.scoreValue}>{sleepScore}</Text>
-            <Text style={styles.scoreMax}>/100</Text>
-          </View>
-          <View style={styles.scoreBar}>
-            <View
-              style={[
-                styles.scoreBarFill,
-                { width: `${sleepScore}%` },
-              ]}
-            />
-          </View>
-        </Card>
+            <View style={styles.scoreBar}>
+              <View
+                style={[
+                  styles.scoreBarFill,
+                  { width: `${Math.min(latestSleep.score, 100)}%` },
+                ]}
+              />
+            </View>
+          </Card>
+        ) : (
+          <Card style={styles.scoreCard}>
+            <View style={styles.scoreHeader}>
+              <View style={styles.scoreIconWrap}>
+                <Moon size={24} color="#60A5FA" />
+              </View>
+              <View style={styles.scoreTextWrap}>
+                <Text style={styles.scoreLabel}>Sleep</Text>
+                <Text style={styles.scoreSubLabel}>
+                  No sleep score available from your data source
+                </Text>
+              </View>
+            </View>
+          </Card>
+        )}
 
         {/* ─── Last Night Summary ───────────────────────────── */}
-        <Text style={styles.sectionTitle}>Last Night</Text>
+        <Text style={styles.sectionTitle}>Most Recent Night</Text>
         <Card>
+          <Text style={styles.nightDate}>{lastNightDate}</Text>
           <View style={styles.summaryGrid}>
-            <SummaryItem
-              icon={<Clock size={16} color={Colors.silver} />}
-              label="Bedtime"
-              value={lastNight.bedtime}
-            />
-            <SummaryItem
-              icon={<Sunrise size={16} color={Colors.gold} />}
-              label="Wake Time"
-              value={lastNight.wakeTime}
-            />
             <SummaryItem
               icon={<Moon size={16} color="#60A5FA" />}
               label="Total Sleep"
-              value={`${lastNight.totalHours}h`}
+              value={`${latestSleep.hours}h`}
             />
-            <SummaryItem
-              icon={<Bed size={16} color={Colors.silver} />}
-              label="Time in Bed"
-              value={`${lastNight.timeInBed}h`}
-            />
+            {timeInBed != null && (
+              <SummaryItem
+                icon={<Bed size={16} color={Colors.silver} />}
+                label="Time in Bed"
+                value={`${timeInBed}h`}
+              />
+            )}
           </View>
         </Card>
 
         {/* ─── Sleep Stages ─────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Sleep Stages</Text>
-        <Card>
-          <StackedBar segments={sleepStages} height={28} />
-        </Card>
+        {sleepStages && (
+          <>
+            <Text style={styles.sectionTitle}>Sleep Stages</Text>
+            <Card>
+              <StackedBar segments={sleepStages} height={28} />
+            </Card>
+          </>
+        )}
 
         {/* ─── 7-Day Trend ──────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>7-Day Trend</Text>
-        <Card>
-          <BarChart
-            data={weeklyTrend}
-            color="#60A5FA"
-            height={120}
-            unit="h"
-          />
-        </Card>
-
-        {/* ─── Insights ─────────────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Insights</Text>
-        <Card>
-          <Text style={styles.insightText}>{insight}</Text>
-        </Card>
+        {weeklyTrend.length > 1 && (
+          <>
+            <Text style={styles.sectionTitle}>7-Day Trend</Text>
+            <Card>
+              <BarChart
+                data={weeklyTrend}
+                color="#60A5FA"
+                height={120}
+                unit="h"
+              />
+            </Card>
+          </>
+        )}
 
         {/* ─── Source ───────────────────────────────────────── */}
-        <View style={styles.sourceRow}>
-          <Watch size={14} color={Colors.silver} />
-          <Text style={styles.sourceText}>Source: {source}</Text>
-        </View>
+        {source && (
+          <View style={styles.sourceRow}>
+            <Watch size={14} color={Colors.silver} />
+            <Text style={styles.sourceText}>Source: {source}</Text>
+          </View>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -265,6 +287,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.md,
   },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+  },
 
   // Score card
   scoreCard: {
@@ -288,11 +314,16 @@ const styles = StyleSheet.create({
   scoreTextWrap: {
     alignItems: "flex-start",
     gap: 4,
+    flexShrink: 1,
   },
   scoreLabel: {
     color: Colors.white,
     fontSize: FontSizes.lg,
     fontWeight: "700",
+  },
+  scoreSubLabel: {
+    color: Colors.silver,
+    fontSize: FontSizes.xs,
   },
   scoreValueRow: {
     flexDirection: "row",
@@ -332,6 +363,14 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
 
+  // Night summary
+  nightDate: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
+    fontWeight: "500",
+    marginBottom: Spacing.sm,
+  },
+
   // Summary grid
   summaryGrid: {
     flexDirection: "row",
@@ -352,13 +391,6 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: FontSizes.lg,
     fontWeight: "700",
-  },
-
-  // Insights
-  insightText: {
-    color: Colors.silverLight,
-    fontSize: FontSizes.sm,
-    lineHeight: 20,
   },
 
   // Source

@@ -2,7 +2,9 @@
  * Billing & Subscription screen.
  *
  * Displays the client's current subscription details, plan status,
- * and full billing history with pull-to-refresh.
+ * and subscription history with pull-to-refresh — all from real
+ * backend data (clientPortal.payments). Pricing amounts are not
+ * stored in the backend, so none are shown.
  */
 
 import React, { useState, useCallback } from "react";
@@ -14,15 +16,14 @@ import {
   Pressable,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import {
-  CreditCard,
   Calendar,
-  CheckCircle,
   Clock,
   Crown,
+  CreditCard,
   DollarSign,
   Receipt,
   Settings,
@@ -31,72 +32,72 @@ import {
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
+import { ErrorView } from "@/components/ui/ErrorView";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Types
+// Helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-interface Subscription {
-  plan: string;
-  status: string;
-  amount: number;
-  interval: string;
-  nextBillingDate: string;
-  startDate: string;
+function formatDate(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
-interface BillingRecord {
-  id: string;
-  date: string;
-  amount: number;
-  status: string;
-  description: string;
+function formatTier(tier: string | null | undefined): string {
+  if (!tier) return "Subscription";
+  return tier
+    .split(/[_-]/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample / Fallback Data
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function getStatusColor(status: string): string {
+  switch (status) {
+    case "active":
+    case "paid":
+      return Colors.success;
+    case "pending":
+    case "trialing":
+      return Colors.warning;
+    case "failed":
+    case "cancelled":
+    case "canceled":
+    case "past_due":
+      return Colors.danger;
+    default:
+      return Colors.silver;
+  }
+}
 
-const SAMPLE_SUBSCRIPTION: Subscription = {
-  plan: "Everist Premium",
-  status: "active",
-  amount: 299,
-  interval: "month",
-  nextBillingDate: "2026-08-01",
-  startDate: "2026-01-15",
-};
-
-const SAMPLE_BILLING_HISTORY: BillingRecord[] = [
-  { id: "pay-1", date: "2026-07-01", amount: 299, status: "paid", description: "Monthly subscription" },
-  { id: "pay-2", date: "2026-06-01", amount: 299, status: "paid", description: "Monthly subscription" },
-  { id: "pay-3", date: "2026-05-01", amount: 299, status: "paid", description: "Monthly subscription" },
-  { id: "pay-4", date: "2026-04-01", amount: 299, status: "paid", description: "Monthly subscription" },
-  { id: "pay-5", date: "2026-03-01", amount: 299, status: "paid", description: "Monthly subscription" },
-  { id: "pay-6", date: "2026-02-01", amount: 299, status: "paid", description: "Monthly subscription" },
-];
+function getStatusLabel(status: string): string {
+  return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ");
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Screen
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function PaymentsScreen() {
-  const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
 
   // ── tRPC: fetch subscription and billing history ──
+  // getSubscription returns: { subscription: { id, tier, status, currentPeriodEnd, createdAt } | null, tier }
   const subscriptionQuery = trpc.clientPortal.payments.getSubscription.useQuery(
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
 
+  // billingHistory returns: Array<{ id, tier, status, currentPeriodEnd, createdAt }>
   const billingQuery = trpc.clientPortal.payments.billingHistory.useQuery(
-    { limit: 10 },
+    undefined,
     DEFAULT_QUERY_OPTIONS,
   );
-
-  // ── Map API data with sample fallbacks ──
-  const subscription = (subscriptionQuery.data as Subscription | undefined) ?? SAMPLE_SUBSCRIPTION;
-  const billingHistory = (billingQuery.data as BillingRecord[] | undefined) ?? SAMPLE_BILLING_HISTORY;
 
   // ── Pull to refresh ──
   const onRefresh = useCallback(async () => {
@@ -114,38 +115,37 @@ export default function PaymentsScreen() {
     );
   };
 
-  // ── Helpers ──
-  function formatDate(dateStr: string): string {
-    const date = new Date(dateStr + "T00:00:00");
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+  // ── Loading state ──
+  if (subscriptionQuery.isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
   }
 
-  function formatCurrency(amount: number): string {
-    return `$${amount.toFixed(0)}`;
+  // ── Error state ──
+  if (subscriptionQuery.error) {
+    return (
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <ErrorView
+          title="Couldn't load billing info"
+          message="We couldn't reach the server. Please try again."
+          onRetry={() => {
+            subscriptionQuery.refetch();
+            billingQuery.refetch();
+          }}
+        />
+      </SafeAreaView>
+    );
   }
 
-  function getStatusColor(status: string): string {
-    switch (status) {
-      case "active":
-      case "paid":
-        return Colors.success;
-      case "pending":
-        return Colors.warning;
-      case "failed":
-      case "cancelled":
-        return Colors.danger;
-      default:
-        return Colors.silver;
-    }
-  }
-
-  function getStatusLabel(status: string): string {
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  }
+  const data = subscriptionQuery.data as any;
+  const subscription = data?.subscription ?? null;
+  const profileTier: string | null = data?.tier ?? null;
+  const billingHistory = ((billingQuery.data ?? []) as any[]);
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -162,80 +162,101 @@ export default function PaymentsScreen() {
         }
       >
         {/* ─── Subscription Card ───────────────────────────── */}
-        <Card style={styles.subscriptionCard}>
-          {/* Plan header */}
-          <View style={styles.planHeader}>
-            <View style={styles.planIconWrap}>
-              <Crown size={22} color={Colors.gold} />
-            </View>
-            <View style={styles.planInfo}>
-              <Text style={styles.planName}>{subscription.plan}</Text>
-              <View style={styles.statusRow}>
-                <View
-                  style={[
-                    styles.statusDot,
-                    { backgroundColor: getStatusColor(subscription.status) },
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    { color: getStatusColor(subscription.status) },
-                  ]}
-                >
-                  {getStatusLabel(subscription.status)}
-                </Text>
+        {subscription ? (
+          <Card style={styles.subscriptionCard}>
+            {/* Plan header */}
+            <View style={styles.planHeader}>
+              <View style={styles.planIconWrap}>
+                <Crown size={22} color={Colors.gold} />
+              </View>
+              <View style={styles.planInfo}>
+                <Text style={styles.planName}>{formatTier(subscription.tier)}</Text>
+                <View style={styles.statusRow}>
+                  <View
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: getStatusColor(subscription.status) },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.statusText,
+                      { color: getStatusColor(subscription.status) },
+                    ]}
+                  >
+                    {getStatusLabel(subscription.status)}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* Price */}
-          <View style={styles.priceSection}>
-            <Text style={styles.priceAmount}>
-              {formatCurrency(subscription.amount)}
-            </Text>
-            <Text style={styles.priceInterval}>
-              /{subscription.interval}
-            </Text>
-          </View>
+            {/* Details grid */}
+            <View style={styles.detailsGrid}>
+              {formatDate(subscription.currentPeriodEnd) && (
+                <View style={styles.detailItem}>
+                  <View style={styles.detailIconRow}>
+                    <Calendar size={14} color={Colors.silver} />
+                    <Text style={styles.detailLabel}>Current Period Ends</Text>
+                  </View>
+                  <Text style={styles.detailValue}>
+                    {formatDate(subscription.currentPeriodEnd)}
+                  </Text>
+                </View>
+              )}
+              {formatDate(subscription.createdAt) && (
+                <View style={styles.detailItem}>
+                  <View style={styles.detailIconRow}>
+                    <Clock size={14} color={Colors.silver} />
+                    <Text style={styles.detailLabel}>Member Since</Text>
+                  </View>
+                  <Text style={styles.detailValue}>
+                    {formatDate(subscription.createdAt)}
+                  </Text>
+                </View>
+              )}
+            </View>
 
-          {/* Details grid */}
-          <View style={styles.detailsGrid}>
-            <View style={styles.detailItem}>
-              <View style={styles.detailIconRow}>
-                <Calendar size={14} color={Colors.silver} />
-                <Text style={styles.detailLabel}>Next Billing</Text>
+            {/* Manage button */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.manageButton,
+                pressed && styles.manageButtonPressed,
+              ]}
+              onPress={handleManageSubscription}
+            >
+              <Settings size={16} color={Colors.gold} />
+              <Text style={styles.manageButtonText}>Manage Subscription</Text>
+            </Pressable>
+          </Card>
+        ) : (
+          <Card style={styles.subscriptionCard}>
+            <View style={styles.emptyContent}>
+              <View style={styles.emptyIconWrap}>
+                <Crown size={32} color={Colors.silver} />
               </View>
-              <Text style={styles.detailValue}>
-                {formatDate(subscription.nextBillingDate)}
+              <Text style={styles.emptyTitle}>No subscription on file</Text>
+              <Text style={styles.emptySubtitle}>
+                {profileTier
+                  ? `Your profile is on the ${formatTier(profileTier)} tier, but no billing subscription is set up yet.`
+                  : "You don't have an active subscription. Contact your care team or visit the web portal to get started."}
               </Text>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.manageButton,
+                  styles.emptyManageButton,
+                  pressed && styles.manageButtonPressed,
+                ]}
+                onPress={handleManageSubscription}
+              >
+                <Settings size={16} color={Colors.gold} />
+                <Text style={styles.manageButtonText}>Contact Support</Text>
+              </Pressable>
             </View>
-            <View style={styles.detailItem}>
-              <View style={styles.detailIconRow}>
-                <Clock size={14} color={Colors.silver} />
-                <Text style={styles.detailLabel}>Member Since</Text>
-              </View>
-              <Text style={styles.detailValue}>
-                {formatDate(subscription.startDate)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Manage button */}
-          <Pressable
-            style={({ pressed }) => [
-              styles.manageButton,
-              pressed && styles.manageButtonPressed,
-            ]}
-            onPress={handleManageSubscription}
-          >
-            <Settings size={16} color={Colors.gold} />
-            <Text style={styles.manageButtonText}>Manage Subscription</Text>
-          </Pressable>
-        </Card>
+          </Card>
+        )}
 
         {/* ─── Billing History ─────────────────────────────── */}
-        <Text style={styles.sectionTitle}>Billing History</Text>
+        <Text style={styles.sectionTitle}>Subscription History</Text>
 
         {billingHistory.length === 0 ? (
           <Card style={styles.emptyCard}>
@@ -245,8 +266,8 @@ export default function PaymentsScreen() {
               </View>
               <Text style={styles.emptyTitle}>No Billing History</Text>
               <Text style={styles.emptySubtitle}>
-                Your payment history will appear here once your first billing
-                cycle completes.
+                Your subscription history will appear here once your first
+                billing cycle completes.
               </Text>
             </View>
           </Card>
@@ -267,19 +288,16 @@ export default function PaymentsScreen() {
                   </View>
                   <View>
                     <Text style={styles.historyDescription}>
-                      {record.description}
+                      {formatTier(record.tier)}
                     </Text>
                     <Text style={styles.historyDate}>
-                      {formatDate(record.date)}
+                      {formatDate(record.createdAt) ?? ""}
                     </Text>
                   </View>
                 </View>
 
-                {/* Right: amount + status */}
+                {/* Right: status */}
                 <View style={styles.historyRight}>
-                  <Text style={styles.historyAmount}>
-                    {formatCurrency(record.amount)}
-                  </Text>
                   <View style={styles.historyStatusRow}>
                     <View
                       style={[
@@ -306,7 +324,7 @@ export default function PaymentsScreen() {
         <View style={styles.noteRow}>
           <DollarSign size={14} color={Colors.silver} />
           <Text style={styles.noteText}>
-            Payment methods can be updated from the web portal
+            Payment methods and invoices can be managed from the web portal
           </Text>
         </View>
 
@@ -327,6 +345,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.md,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
   },
 
   // Subscription card
@@ -369,28 +391,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: FontSizes.sm,
     fontWeight: "600",
-  },
-
-  // Price
-  priceSection: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    marginBottom: Spacing.lg,
-    paddingBottom: Spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  priceAmount: {
-    color: Colors.gold,
-    fontSize: 42,
-    fontWeight: "800",
-    lineHeight: 46,
-  },
-  priceInterval: {
-    color: Colors.silver,
-    fontSize: FontSizes.lg,
-    fontWeight: "500",
-    marginLeft: 2,
   },
 
   // Details grid
@@ -438,6 +438,10 @@ const styles = StyleSheet.create({
     color: Colors.gold,
     fontSize: FontSizes.md,
     fontWeight: "600",
+  },
+  emptyManageButton: {
+    alignSelf: "stretch",
+    marginTop: Spacing.md,
   },
 
   // Section title
@@ -491,11 +495,6 @@ const styles = StyleSheet.create({
   },
   historyRight: {
     alignItems: "flex-end",
-  },
-  historyAmount: {
-    color: Colors.white,
-    fontSize: FontSizes.md,
-    fontWeight: "700",
   },
   historyStatusRow: {
     flexDirection: "row",

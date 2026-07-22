@@ -510,6 +510,15 @@ export const coachDashboardRouter = router({
     ).slice(0, 100);
     if (clientIds.length === 0) return [];
 
+    // Health-data visibility: primary-roster clients are always visible;
+    // shared-access clients only if their grant's healthDataAccess != "none".
+    // Alerts, HRV deviations, and no-data checks are all health-derived,
+    // so items for non-permitted shared clients are excluded below.
+    const healthVisibleIds = new Set<string>(rels.map((r) => r.clientId));
+    for (const g of accessGrants) {
+      if (g.healthDataAccess !== "none") healthVisibleIds.add(g.clientId);
+    }
+
     const now = Date.now();
     const cutoff48h = new Date(now - 48 * 60 * 60 * 1000);
     const cutoff14d = new Date(now - 14 * 24 * 60 * 60 * 1000);
@@ -657,6 +666,7 @@ export const coachDashboardRouter = router({
     // ── kind: alert ──
     const alertSeverity: Record<string, Severity> = { urgent: "high", action: "medium", info: "low" };
     for (const a of activeAlerts) {
+      if (!healthVisibleIds.has(a.clientId)) continue;
       items.push({
         clientId: a.clientId,
         clientName: nameOf(a.clientId),
@@ -670,6 +680,7 @@ export const coachDashboardRouter = router({
 
     // ── kind: hrv ──
     for (const row of latestHrvRows) {
+      if (!healthVisibleIds.has(row.client_id)) continue;
       const avg = hrvAvgMap.get(row.client_id);
       if (!avg || avg <= 0) continue;
       const latest = Number(row.rmssd);
@@ -689,6 +700,7 @@ export const coachDashboardRouter = router({
 
     // ── kind: no_data ──
     for (const clientId of clientIds) {
+      if (!healthVisibleIds.has(clientId)) continue;
       const clientDevices = devicesByClient.get(clientId);
       if (!clientDevices || clientDevices.length === 0) continue;
       const hasRecentReadings = recentDataClientIds.has(clientId);

@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/sync-devices",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/daily-feedback",
+      "schedule": "0 12 * * *"
     }
   ],
   "headers": [

@@ -4,6 +4,7 @@ import { Sidebar, trainerNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { CompanyBrandProvider, useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 function TrainerShell({ children }: { children: React.ReactNode }) {
   const { brand, cssVars } = useCompanyBrand();
@@ -27,6 +28,7 @@ function TrainerShell({ children }: { children: React.ReactNode }) {
         />
         <main className="p-6">{children}</main>
       </div>
+      <FeedbackButton />
     </div>
   );
 }

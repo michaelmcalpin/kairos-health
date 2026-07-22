@@ -113,6 +113,25 @@ export const coachAlertsRouter = router({
       return { success: true };
     }),
 
+  // Lightweight count of active alerts across this trainer's roster
+  // (used by the TopBar bell badge)
+  activeCount: trainerProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({ count: sql<number>`count(*)` })
+      .from(alerts)
+      .innerJoin(
+        trainerClientRelationships,
+        and(
+          eq(alerts.clientId, trainerClientRelationships.clientId),
+          eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+          eq(trainerClientRelationships.status, "active")
+        )
+      )
+      .where(eq(alerts.status, "active"));
+
+    return { count: Number(rows[0]?.count ?? 0) };
+  }),
+
   // Summary counts by priority
   summary: trainerProcedure.query(async ({ ctx }) => {
     const relationships = await ctx.db.query.trainerClientRelationships.findMany({

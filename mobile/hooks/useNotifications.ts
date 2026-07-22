@@ -1,21 +1,19 @@
 /**
  * useNotifications — Custom hooks for the Notification Center.
  *
- * Tries to fetch notifications from the tRPC backend.
- * Falls back to sample data when the API is unreachable.
+ * Fetches notifications from the tRPC backend. When the backend has no
+ * notifications (or is unreachable) the list is simply empty so screens
+ * can render an honest "No notifications" state — no sample data.
  *
  * tRPC paths used (under `clientPortal`):
  *   - notifications.list          -> all notifications with optional filter
- *   - notifications.unreadCount   -> count of unread
- *   - notifications.markAsRead    -> mark single notification read
+ *   - notifications.markRead      -> mark single notification read
  *   - notifications.markAllRead   -> mark all notifications read
- *   - notifications.dismiss       -> dismiss / delete a notification
+ *   - notifications.archive       -> dismiss / archive a notification
  */
 
 import { trpc, DEFAULT_QUERY_OPTIONS, REALTIME_QUERY_OPTIONS } from "@/lib/api";
-import { isDevFallbackMode } from "@/lib/api";
 import {
-  SAMPLE_NOTIFICATIONS,
   type Notification,
   type FilterTab,
 } from "@/components/notifications/notification-data";
@@ -32,12 +30,9 @@ export function useNotifications(filter: FilterTab = "all") {
 
   const allNotifications: Notification[] = query.data
     ? (query.data as any[]).map(mapApiNotification)
-    : SAMPLE_NOTIFICATIONS;
+    : [];
 
-  // Apply client-side filter on sample data (backend would filter server-side)
-  const notifications = isDevFallbackMode()
-    ? filterNotifications(allNotifications, filter)
-    : allNotifications;
+  const notifications = filterNotifications(allNotifications, filter);
 
   return {
     notifications,
@@ -60,7 +55,7 @@ export function useUnreadCount() {
 
   const allNotifications: Notification[] = query.data
     ? (query.data as any[]).map(mapApiNotification)
-    : SAMPLE_NOTIFICATIONS;
+    : [];
 
   const count = allNotifications.filter((n) => !n.read).length;
 

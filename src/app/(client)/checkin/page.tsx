@@ -38,6 +38,7 @@ export default function CheckinPage() {
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const dateStr = selectedDate.toISOString().split("T")[0];
 
@@ -51,6 +52,23 @@ export default function CheckinPage() {
   const submitMutation = trpc.clientPortal.checkin.submit.useMutation({
     onSuccess: () => {
       void utils.clientPortal.checkin.getByDate.invalidate();
+    },
+  });
+  const bloodSugarAddMutation = trpc.clientPortal.bloodSugar.add.useMutation({
+    onSuccess: () => {
+      void utils.clientPortal.bloodSugar.getByDate.invalidate();
+      void utils.clientPortal.bloodSugar.getLatest.invalidate();
+    },
+  });
+  const measurementsCreateMutation = trpc.clientPortal.measurements.create.useMutation({
+    onSuccess: () => {
+      void utils.clientPortal.measurements.list.invalidate();
+      void utils.clientPortal.measurements.latest.invalidate();
+    },
+  });
+  const mealsAddMutation = trpc.clientPortal.meals.add.useMutation({
+    onSuccess: () => {
+      void utils.clientPortal.meals.getByDate.invalidate();
     },
   });
 
@@ -73,17 +91,131 @@ export default function CheckinPage() {
     setIsDirty(true);
   }, []);
 
-  // Handle save — spread formData fields directly (router expects flat fields, not nested)
+  // Handle save — each tab's data goes to the router that actually stores it:
+  // vitals/activity/wellness → checkin.submit; blood sugar → bloodSugar.add;
+  // measurements → measurements.create; meals → meals.add.
   const handleSave = async () => {
     setIsSaving(true);
+    setSaveError(null);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { id, clientId, submittedAt, ...rest } = formData;
+      const date = selectedDate.toISOString().split("T")[0];
+      const num = (v: unknown): number | undefined =>
+        typeof v === "number" && Number.isFinite(v) ? v : undefined;
+      const pos = (v: unknown): number | undefined => {
+        const n = num(v);
+        return n !== undefined && n > 0 ? n : undefined;
+      };
+      const str = (v: unknown): string | undefined =>
+        typeof v === "string" && v.trim().length > 0 ? v : undefined;
+
+      // Meals entered on the Meals tab (per-meal notes have no home in the
+      // meals router schema, so they're appended to the check-in notes below)
+      const meals = (Array.isArray(formData.meals) ? formData.meals : []) as {
+        mealType: "breakfast" | "lunch" | "dinner" | "snack";
+        items?: { name: string; quantity: number; unit: string; calories: number; protein: number; carbs: number; fat: number }[];
+        photoUrl?: string;
+        notes?: string;
+        totalCalories: number;
+        totalProtein: number;
+        totalCarbs: number;
+        totalFat: number;
+      }[];
+      const mealNotes = meals
+        .filter((m) => m.notes && m.notes.trim().length > 0)
+        .map((m) => `${m.mealType}: ${m.notes!.trim()}`)
+        .join("; ");
+      const combinedNotes = [str(formData.notes), mealNotes ? `Meals: ${mealNotes}` : undefined]
+        .filter(Boolean)
+        .join("\n");
+
+      // 1) Core daily check-in fields (keys match the checkin router schema)
       await submitMutation.mutateAsync({
-        date: selectedDate.toISOString().split("T")[0],
-        ...(rest as Record<string, unknown>),
-      } as Parameters<typeof submitMutation.mutateAsync>[0]);
+        date,
+        weight: num(formData.weight),
+        sleepHours: num(formData.sleepHours),
+        sleepQuality: num(formData.sleepQuality),
+        hrvScore: num(formData.hrvScore),
+        readinessScore: num(formData.readinessScore),
+        steps: num(formData.steps),
+        cardioMinutes: num(formData.cardioMinutes),
+        trainingType: str(formData.trainingType),
+        trainingDescription: str(formData.trainingDescription),
+        stress: num(formData.stress),
+        hunger: num(formData.hunger),
+        energy: num(formData.energy),
+        mood: num(formData.mood),
+        bmCount: num(formData.bmCount),
+        deviations: str(formData.deviations),
+        notes: combinedNotes.length > 0 ? combinedNotes : undefined,
+      });
+
+      // 2) Blood sugar readings → bloodSugar router (new entries have no id yet)
+      const TIMINGS = ["fasted", "1hr", "2hr", "3hr", "4hr"] as const;
+      const readings = (Array.isArray(formData.bloodSugarReadings) ? formData.bloodSugarReadings : []) as {
+        id?: string;
+        timing: string;
+        valueMgdl: number;
+        mealDescription?: string;
+        notes?: string;
+      }[];
+      for (const reading of readings) {
+        if (reading.id) continue; // already persisted server-side
+        const timing = reading.timing?.toLowerCase() as (typeof TIMINGS)[number];
+        if (!TIMINGS.includes(timing)) continue;
+        await bloodSugarAddMutation.mutateAsync({
+          date,
+          timing,
+          valueMgdl: reading.valueMgdl,
+          mealDescription: str(reading.mealDescription),
+          notes: str(reading.notes),
+        });
+      }
+
+      // 3) Body measurements → measurements router
+      const circumferences = {
+        chestInches: pos(formData.chest),
+        waistInches: pos(formData.waist),
+        hipsInches: pos(formData.hips),
+        rightThighInches: pos(formData.rightThigh),
+        rightBicepInches: pos(formData.rightBicep),
+      };
+      if (Object.values(circumferences).some((v) => v !== undefined)) {
+        await measurementsCreateMutation.mutateAsync({
+          date,
+          weightLbs: pos(formData.weight),
+          ...circumferences,
+        });
+      }
+
+      // 4) Meals → meals router
+      for (const meal of meals) {
+        await mealsAddMutation.mutateAsync({
+          date,
+          mealType: meal.mealType,
+          items: (meal.items ?? []).map((i) => ({
+            name: i.name,
+            quantity: i.quantity,
+            unit: i.unit,
+            calories: i.calories,
+            protein: i.protein,
+            carbs: i.carbs,
+            fat: i.fat,
+          })),
+          photoUrl: meal.photoUrl && meal.photoUrl !== "pending-upload" ? meal.photoUrl : undefined,
+          totalCalories: meal.totalCalories,
+          totalProtein: meal.totalProtein,
+          totalCarbs: meal.totalCarbs,
+          totalFat: meal.totalFat,
+        });
+      }
+
       setIsDirty(false);
+    } catch (err) {
+      setSaveError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to save your check-in. Please try again."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -256,11 +388,19 @@ export default function CheckinPage() {
         )}
       </div>
 
+      {/* Save error */}
+      {saveError && (
+        <div className="flex items-start gap-2 p-3 rounded-kairos-sm border border-red-500/30 bg-red-500/10">
+          <AlertTriangle size={16} className="text-red-400 mt-0.5 flex-shrink-0" />
+          <p className="text-sm font-body text-red-400">{saveError}</p>
+        </div>
+      )}
+
       {/* Save Button */}
       {isDirty && (
         <div className="flex gap-3 sticky bottom-6 justify-end">
           <button
-            onClick={() => { setFormData(checkinData || {}); setIsDirty(false); }}
+            onClick={() => { setFormData(checkinData || {}); setIsDirty(false); setSaveError(null); }}
             className="px-4 py-2 rounded-kairos-sm border border-kairos-border text-kairos-silver hover:border-kairos-gold/50 hover:text-white transition-colors font-body text-sm"
           >
             Cancel

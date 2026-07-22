@@ -92,8 +92,12 @@ export default function WorkoutsPage() {
   const heartRateZones = getHeartRateZones();
 
   // tRPC mutation for saving workouts
+  const utils = trpc.useUtils();
   const saveWorkoutMutation = trpc.clientPortal.workouts.quickLog.useMutation({
     onSuccess: () => {
+      // Refresh the workout list and stats so the new log appears immediately
+      void utils.clientPortal.workouts.list.invalidate();
+      void utils.clientPortal.workouts.stats.invalidate();
       // Reset form and close modal
       setFormData({
         type: "",

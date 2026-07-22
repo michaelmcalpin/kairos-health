@@ -1,10 +1,13 @@
 /**
- * Book Appointment — multi-step booking flow.
+ * Book Appointment — multi-step booking flow wired to real backend data.
  *
- * Step 0: Select Provider
- * Step 1: Select Session Type
- * Step 2: Select Date & Time
- * Step 3: Confirm & Notes
+ * Step 0: Your Coach (from clientPortal.settings.getMyCoach)
+ * Step 1: Session Type (from clientPortal.scheduling.getSessionTypes)
+ * Step 2: Date & Time  (from clientPortal.scheduling.getAvailableSlots)
+ * Step 3: Confirm & Notes (books via clientPortal.scheduling.bookAppointment)
+ *
+ * If no coach is assigned, an honest "You need an assigned coach" state
+ * is shown instead of a hardcoded provider list.
  */
 
 import React, { useState, useRef } from "react";
@@ -16,6 +19,7 @@ import {
   Animated,
   StyleSheet,
   Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
@@ -23,134 +27,69 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Stethoscope,
-  Utensils,
-  Dumbbell,
-  Heart,
   FlaskConical,
   ClipboardList,
-  UserCheck,
-  Salad,
+  FileText,
+  Target,
+  MessageCircle,
   Video,
   MapPin,
 } from "lucide-react-native";
 
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorView } from "@/components/ui/ErrorView";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
-import { trpc } from "@/lib/api";
+import { trpc, DEFAULT_QUERY_OPTIONS, STATIC_QUERY_OPTIONS } from "@/lib/api";
 
 import { StepIndicator } from "@/components/appointments/StepIndicator";
-import {
-  ProviderCard,
-  Provider,
-} from "@/components/appointments/ProviderCard";
 import {
   SessionTypeCard,
   SessionType,
 } from "@/components/appointments/SessionTypeCard";
 import { CalendarStrip } from "@/components/appointments/CalendarStrip";
-import { TimeSlotGrid } from "@/components/appointments/TimeSlotGrid";
+import { TimeSlotGrid, TimeSlot } from "@/components/appointments/TimeSlotGrid";
 import { BookingSummary } from "@/components/appointments/BookingSummary";
 
 /* ------------------------------------------------------------------ */
-/* Data                                                               */
+/* Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-const PROVIDERS: Provider[] = [
-  {
-    id: "prov-1",
-    name: "Dr. Sarah Chen",
-    specialty: "Internal Medicine",
-    rating: 4.9,
-    nextAvailable: "Next: Mon 10 AM",
-    initials: "SC",
-    avatarColor: "#2563EB",
-  },
-  {
-    id: "prov-2",
-    name: "Dr. Rachel Kim",
-    specialty: "Nutrition",
-    rating: 4.8,
-    nextAvailable: "Next: Tue 2 PM",
-    initials: "RK",
-    avatarColor: "#16A34A",
-  },
-  {
-    id: "prov-3",
-    name: "Coach Walid",
-    specialty: "Strength & Conditioning",
-    rating: 5.0,
-    nextAvailable: "Next: Wed 9 AM",
-    initials: "CW",
-    avatarColor: "#D97706",
-  },
-  {
-    id: "prov-4",
-    name: "Dr. James Park",
-    specialty: "Cardiology",
-    rating: 4.7,
-    nextAvailable: "Next: Thu 11 AM",
-    initials: "JP",
-    avatarColor: "#DC2626",
-  },
-];
+const SESSION_TYPE_ICONS: Record<string, React.ComponentType<any>> = {
+  initial_consultation: Stethoscope,
+  follow_up: ClipboardList,
+  protocol_review: FileText,
+  lab_review: FlaskConical,
+  goal_setting: Target,
+  ad_hoc: MessageCircle,
+};
 
-const SESSION_TYPES: SessionType[] = [
-  {
-    id: "type-1",
-    name: "Consultation",
-    duration: "30 min",
-    price: "$150",
-    description: "General health consultation with your provider",
-    icon: Stethoscope,
-  },
-  {
-    id: "type-2",
-    name: "Lab Review",
-    duration: "30 min",
-    price: "$100",
-    description: "Review and discuss recent lab results",
-    icon: FlaskConical,
-  },
-  {
-    id: "type-3",
-    name: "Workout Assessment",
-    duration: "60 min",
-    price: "$200",
-    description: "Comprehensive fitness evaluation and plan",
-    icon: Dumbbell,
-  },
-  {
-    id: "type-4",
-    name: "Nutrition Plan",
-    duration: "45 min",
-    price: "$175",
-    description: "Personalized dietary planning session",
-    icon: Salad,
-  },
-  {
-    id: "type-5",
-    name: "Follow-up",
-    duration: "15 min",
-    price: "$75",
-    description: "Quick check-in on treatment progress",
-    icon: ClipboardList,
-  },
-];
+/** Local (device-timezone) YYYY-MM-DD, avoiding UTC day-shift. */
+function toDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+function formatHHMM(raw: string): string {
+  try {
+    const [h, m] = raw.split(":").map(Number);
+    const period = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+  } catch {
+    return raw;
+  }
+}
+
+function formatLongDate(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* Component                                                          */
@@ -161,9 +100,6 @@ export default function BookAppointmentScreen() {
 
   // Step tracking
   const [currentStep, setCurrentStep] = useState(0);
-
-  // Step 0 — Provider
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
 
   // Step 1 — Session type + method
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -178,7 +114,62 @@ export default function BookAppointmentScreen() {
   // Step 3 — Notes
   const [notes, setNotes] = useState("");
 
-  // Booking mutation
+  /* ---- Queries ---- */
+  const coachQuery = trpc.clientPortal.settings.getMyCoach.useQuery(
+    undefined,
+    STATIC_QUERY_OPTIONS,
+  );
+  const sessionTypesQuery = trpc.clientPortal.scheduling.getSessionTypes.useQuery(
+    undefined,
+    STATIC_QUERY_OPTIONS,
+  );
+
+  const coach = coachQuery.data as any;
+  const rawSessionTypes = (sessionTypesQuery.data ?? []) as any[];
+
+  // Map backend session types → SessionTypeCard shape (no fabricated prices)
+  const sessionTypes: SessionType[] = rawSessionTypes.map((t) => ({
+    id: t.id,
+    name: t.label,
+    duration: `${t.duration} min`,
+    description: t.description ?? "",
+    icon: SESSION_TYPE_ICONS[t.id] ?? Stethoscope,
+  }));
+
+  const sessionType = sessionTypes.find((t) => t.id === selectedType);
+  const selectedTypeRaw = rawSessionTypes.find((t) => t.id === selectedType);
+  const durationMinutes: number = selectedTypeRaw?.duration ?? 60;
+
+  const dateString = toDateString(selectedDate);
+
+  const slotsQuery = trpc.clientPortal.scheduling.getAvailableSlots.useQuery(
+    {
+      coachId: coach?.id ?? "",
+      date: dateString,
+      durationMinutes,
+    },
+    {
+      ...DEFAULT_QUERY_OPTIONS,
+      staleTime: 30_000,
+      enabled: DEFAULT_QUERY_OPTIONS.enabled && !!coach?.id && !!selectedType,
+    } as any,
+  );
+
+  // Backend returns: Array<{ start, end, startUtc?, endUtc?, coachTimezone? }>
+  const slots: TimeSlot[] = ((slotsQuery.data ?? []) as any[]).map((s) => ({
+    value: s.start,
+    label: s.startUtc
+      ? new Date(s.startUtc).toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      : formatHHMM(s.start),
+  }));
+  const selectedSlotLabel =
+    slots.find((s) => s.value === selectedTime)?.label ??
+    (selectedTime ? formatHHMM(selectedTime) : "");
+
+  /* ---- Booking mutation ---- */
   const bookMutation = trpc.clientPortal.scheduling.bookAppointment.useMutation({
     onSuccess: () => {
       Alert.alert(
@@ -210,11 +201,57 @@ export default function BookAppointmentScreen() {
     });
   };
 
+  /* ---- Loading / error / no-coach gates ---- */
+  if (coachQuery.isLoading || sessionTypesQuery.isLoading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={["bottom"]}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (coachQuery.error) {
+    return (
+      <SafeAreaView style={styles.safe} edges={["bottom"]}>
+        <ErrorView
+          title="Couldn't load booking info"
+          message="We couldn't reach the server. Please try again."
+          onRetry={() => {
+            coachQuery.refetch();
+            sessionTypesQuery.refetch();
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (!coach) {
+    return (
+      <SafeAreaView style={styles.safe} edges={["bottom"]}>
+        <View style={styles.center}>
+          <EmptyState
+            icon="clipboard"
+            title="You need an assigned coach to book"
+            message="Once your care team assigns you a coach, you'll be able to book sessions with them here."
+            actionLabel="Go Back"
+            onAction={() => router.back()}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const coachName = [coach.firstName, coach.lastName].filter(Boolean).join(" ") || coach.email;
+  const coachInitials =
+    `${(coach.firstName ?? "")[0] ?? ""}${(coach.lastName ?? "")[0] ?? ""}`.toUpperCase() || "?";
+
   // Navigation
   const canGoNext = (): boolean => {
     switch (currentStep) {
       case 0:
-        return selectedProvider !== null;
+        return true; // coach is always the assigned coach
       case 1:
         return selectedType !== null;
       case 2:
@@ -242,23 +279,16 @@ export default function BookAppointmentScreen() {
   };
 
   const handleConfirm = () => {
+    if (!selectedType || !selectedTime) return;
     bookMutation.mutate({
-      coachId: selectedProvider ?? "",
-      coachName: provider?.name ?? "",
-      sessionType: sessionType?.name ?? "",
-      meetingType: method,
-      date: selectedDate.toISOString().split("T")[0],
-      startTime: selectedTime ?? "",
-      notes: notes || undefined,
+      coachId: coach.id,
+      coachName,
+      sessionType: selectedType,
+      meetingType: method === "Video Call" ? "video" : "in_person",
+      date: dateString,
+      startTime: selectedTime,
+      notes: notes || "",
     });
-  };
-
-  // Helpers
-  const provider = PROVIDERS.find((p) => p.id === selectedProvider);
-  const sessionType = SESSION_TYPES.find((t) => t.id === selectedType);
-
-  const formatDate = (date: Date): string => {
-    return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
   /* ---------------------------------------------------------------- */
@@ -270,18 +300,24 @@ export default function BookAppointmentScreen() {
       case 0:
         return (
           <View>
-            <Text style={styles.stepTitle}>Select Provider</Text>
+            <Text style={styles.stepTitle}>Your Coach</Text>
             <Text style={styles.stepSubtitle}>
-              Choose a health provider for your appointment
+              Sessions are booked with your assigned coach
             </Text>
-            {PROVIDERS.map((p) => (
-              <ProviderCard
-                key={p.id}
-                provider={p}
-                selected={selectedProvider === p.id}
-                onSelect={() => setSelectedProvider(p.id)}
-              />
-            ))}
+
+            <View style={styles.coachCard}>
+              <View style={styles.coachAvatar}>
+                <Text style={styles.coachAvatarText}>{coachInitials}</Text>
+              </View>
+              <View style={styles.coachInfo}>
+                <Text style={styles.coachName}>{coachName}</Text>
+                {Array.isArray(coach.specialties) && coach.specialties.length > 0 && (
+                  <Text style={styles.coachSpecialty}>
+                    {coach.specialties.join(" · ")}
+                  </Text>
+                )}
+              </View>
+            </View>
           </View>
         );
 
@@ -293,12 +329,15 @@ export default function BookAppointmentScreen() {
               What type of appointment do you need?
             </Text>
 
-            {SESSION_TYPES.map((t) => (
+            {sessionTypes.map((t) => (
               <SessionTypeCard
                 key={t.id}
                 sessionType={t}
                 selected={selectedType === t.id}
-                onSelect={() => setSelectedType(t.id)}
+                onSelect={() => {
+                  setSelectedType(t.id);
+                  setSelectedTime(null); // duration change invalidates slots
+                }}
               />
             ))}
 
@@ -372,7 +411,8 @@ export default function BookAppointmentScreen() {
             />
 
             <TimeSlotGrid
-              selectedDate={selectedDate}
+              slots={slots}
+              loading={slotsQuery.isLoading || slotsQuery.isFetching}
               selectedTime={selectedTime}
               onSelectTime={setSelectedTime}
             />
@@ -388,12 +428,11 @@ export default function BookAppointmentScreen() {
             </Text>
 
             <BookingSummary
-              providerName={provider?.name ?? ""}
+              providerName={coachName}
               sessionName={sessionType?.name ?? ""}
-              date={formatDate(selectedDate)}
-              time={selectedTime ?? ""}
+              date={formatLongDate(selectedDate)}
+              time={selectedSlotLabel}
               duration={sessionType?.duration ?? ""}
-              price={sessionType?.price ?? ""}
               method={method}
               notes={notes}
               onNotesChange={setNotes}
@@ -450,8 +489,9 @@ export default function BookAppointmentScreen() {
             />
           ) : (
             <Button
-              title="Confirm Booking"
+              title={bookMutation.isPending ? "Booking..." : "Confirm Booking"}
               onPress={handleConfirm}
+              disabled={bookMutation.isPending}
               size="lg"
               style={styles.confirmButton}
             />
@@ -481,6 +521,10 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingBottom: Spacing.lg,
   },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+  },
 
   /* Step content */
   stepTitle: {
@@ -493,6 +537,46 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.silver,
     marginBottom: Spacing.lg,
+  },
+
+  /* Coach card */
+  coachCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.navy,
+    borderRadius: Radii.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.gold,
+    padding: Spacing.md,
+  },
+  coachAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.navyLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.gold,
+  },
+  coachAvatarText: {
+    fontSize: FontSizes.md,
+    fontWeight: "700",
+    color: Colors.gold,
+  },
+  coachInfo: {
+    flex: 1,
+  },
+  coachName: {
+    fontSize: FontSizes.md,
+    fontWeight: "600",
+    color: Colors.white,
+    marginBottom: 2,
+  },
+  coachSpecialty: {
+    fontSize: FontSizes.sm,
+    color: Colors.silver,
   },
 
   /* Method toggle */

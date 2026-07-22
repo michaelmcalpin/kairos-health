@@ -1,8 +1,13 @@
 /**
- * Lab Results screen — most recent panel, key markers with status, and historical trends.
+ * Lab Results screen — most recent panel and key markers with status.
  *
  * tRPC paths used (under `clientPortal`):
- *   - labs.listBiomarkers  -> latest biomarker values across all markers
+ *   - labs.listBiomarkers -> latest biomarker values across all markers
+ *   - labs.listOrders     -> recent lab orders (panel metadata)
+ *
+ * Renders only real data from the backend. When no results exist yet
+ * (or the query fails) an honest empty/error state is shown instead of
+ * fabricated values.
  */
 
 import React, { useState } from "react";
@@ -22,20 +27,15 @@ import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorView } from "@/components/ui/ErrorView";
 import type { StatusVariant } from "@/lib/types";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { showImagePickerOptions } from "@/lib/image-picker";
 
 /* ------------------------------------------------------------------ */
-/* Sample data (fallback when API is unreachable)                      */
+/* Types                                                               */
 /* ------------------------------------------------------------------ */
-
-const SAMPLE_PANEL = {
-  name: "Comprehensive Metabolic Panel",
-  date: "May 28, 2026",
-  lab: "Quest Diagnostics",
-  orderedBy: "Dr. Sarah Chen",
-};
 
 interface LabMarker {
   name: string;
@@ -43,7 +43,6 @@ interface LabMarker {
   unit: string;
   range: string;
   status: "optimal" | "normal" | "borderline" | "critical";
-  history: { date: string; value: number }[];
 }
 
 const statusToVariant: Record<LabMarker["status"], StatusVariant> = {
@@ -53,156 +52,50 @@ const statusToVariant: Record<LabMarker["status"], StatusVariant> = {
   critical: "danger",
 };
 
-const SAMPLE_MARKERS: LabMarker[] = [
-  {
-    name: "LDL-P",
-    value: "980",
-    unit: "nmol/L",
-    range: "< 1,000",
-    status: "optimal",
-    history: [
-      { date: "Nov 2025", value: 1340 },
-      { date: "Jan 2026", value: 1180 },
-      { date: "Mar 2026", value: 1050 },
-      { date: "May 2026", value: 980 },
-    ],
-  },
-  {
-    name: "ApoB",
-    value: "78",
-    unit: "mg/dL",
-    range: "< 90",
-    status: "optimal",
-    history: [
-      { date: "Nov 2025", value: 112 },
-      { date: "Jan 2026", value: 98 },
-      { date: "Mar 2026", value: 86 },
-      { date: "May 2026", value: 78 },
-    ],
-  },
-  {
-    name: "HbA1c",
-    value: "5.2",
-    unit: "%",
-    range: "< 5.7",
-    status: "optimal",
-    history: [
-      { date: "Nov 2025", value: 5.6 },
-      { date: "Jan 2026", value: 5.4 },
-      { date: "Mar 2026", value: 5.3 },
-      { date: "May 2026", value: 5.2 },
-    ],
-  },
-  {
-    name: "Fasting Glucose",
-    value: "92",
-    unit: "mg/dL",
-    range: "70-100",
-    status: "normal",
-    history: [
-      { date: "Nov 2025", value: 98 },
-      { date: "Jan 2026", value: 95 },
-      { date: "Mar 2026", value: 93 },
-      { date: "May 2026", value: 92 },
-    ],
-  },
-  {
-    name: "hs-CRP",
-    value: "1.8",
-    unit: "mg/L",
-    range: "< 1.0",
-    status: "borderline",
-    history: [
-      { date: "Nov 2025", value: 3.2 },
-      { date: "Jan 2026", value: 2.6 },
-      { date: "Mar 2026", value: 2.1 },
-      { date: "May 2026", value: 1.8 },
-    ],
-  },
-  {
-    name: "Vitamin D",
-    value: "58",
-    unit: "ng/mL",
-    range: "40-80",
-    status: "optimal",
-    history: [
-      { date: "Nov 2025", value: 32 },
-      { date: "Jan 2026", value: 41 },
-      { date: "Mar 2026", value: 50 },
-      { date: "May 2026", value: 58 },
-    ],
-  },
-];
-
-/* ------------------------------------------------------------------ */
-/* Mini Trend Chart                                                    */
-/* ------------------------------------------------------------------ */
-
-function TrendChart({ data, color }: { data: { date: string; value: number }[]; color: string }) {
-  const values = data.map((d) => d.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const chartHeight = 60;
-
-  return (
-    <View style={trendStyles.container}>
-      <View style={trendStyles.chart}>
-        {data.map((point, idx) => {
-          const height = ((point.value - min) / range) * chartHeight + 8;
-          return (
-            <View key={idx} style={trendStyles.barCol}>
-              <View
-                style={[
-                  trendStyles.bar,
-                  {
-                    height,
-                    backgroundColor: idx === data.length - 1 ? color : `${color}66`,
-                  },
-                ]}
-              />
-              <Text style={trendStyles.barValue}>{point.value}</Text>
-              <Text style={trendStyles.barDate}>{point.date}</Text>
-            </View>
-          );
-        })}
-      </View>
-    </View>
-  );
+function formatDate(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-const trendStyles = StyleSheet.create({
-  container: {
-    marginTop: Spacing.sm,
-    padding: Spacing.sm,
-    backgroundColor: Colors.navyLight,
-    borderRadius: Radii.md,
-  },
-  chart: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "flex-end",
-    height: 100,
-  },
-  barCol: {
-    alignItems: "center",
-    gap: 4,
-    flex: 1,
-  },
-  bar: {
-    width: 20,
-    borderRadius: Radii.sm,
-  },
-  barValue: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: Colors.white,
-  },
-  barDate: {
-    fontSize: 9,
-    color: Colors.silver,
-  },
-});
+/* ------------------------------------------------------------------ */
+/* Upload flow (shared by empty state CTA and bottom button)           */
+/* ------------------------------------------------------------------ */
+
+function useUploadLabs() {
+  const createDoc = trpc.clientPortal.clinicalDocs.create.useMutation();
+
+  return async () => {
+    const image = await showImagePickerOptions();
+    if (!image) return;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        createDoc.mutate(
+          {
+            docType: "medical_record",
+            title: `Lab Results - ${new Date().toLocaleDateString()}`,
+            sourceFileName: image.fileName ?? `lab_${Date.now()}.jpg`,
+            notes: `Captured via mobile app. Image URI: ${image.uri}`,
+          },
+          {
+            onSuccess: () => resolve(),
+            onError: (err: any) => reject(err),
+          },
+        );
+      });
+      Alert.alert(
+        "Document Uploaded",
+        "Your lab results have been submitted. They will be reviewed by your care team within 24-48 hours.",
+      );
+    } catch (err: any) {
+      Alert.alert(
+        "Upload Failed",
+        err?.message ?? "Your lab results could not be uploaded. Please try again later.",
+      );
+    }
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
@@ -210,52 +103,78 @@ const trendStyles = StyleSheet.create({
 
 export default function LabsScreen() {
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
+  const uploadLabs = useUploadLabs();
 
   // ── tRPC queries ─────────────────────────────────────────────────
   const query = trpc.clientPortal.labs.listBiomarkers.useQuery(
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
-  const labsQuery = trpc.clientPortal.labs.listOrders.useQuery(
+  const ordersQuery = trpc.clientPortal.labs.listOrders.useQuery(
     { limit: 10 },
     DEFAULT_QUERY_OPTIONS,
   );
-  const summaryQuery = trpc.clientPortal.labs.summary.useQuery(
-    undefined,
-    DEFAULT_QUERY_OPTIONS,
-  );
+
+  // ── Loading state ───────────────────────────────────────────────
+  if (query.isLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: "Lab Results" }} />
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.gold} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Error state ─────────────────────────────────────────────────
+  if (query.error) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: "Lab Results" }} />
+        <ErrorView
+          title="Couldn't load lab results"
+          message="We couldn't reach the server. Please try again."
+          onRetry={() => query.refetch()}
+        />
+      </SafeAreaView>
+    );
+  }
 
   // Backend returns: Array<{ code, name, category, value, unit, refLow, refHigh, status, lastMeasured }>
   const biomarkers = (query.data ?? []) as any[];
 
-  // Build panel info from lab orders or most recent measurement date
-  const labOrders = (labsQuery.data ?? []) as any[];
+  // ── Empty state ─────────────────────────────────────────────────
+  if (biomarkers.length === 0) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Stack.Screen options={{ title: "Lab Results" }} />
+        <View style={styles.center}>
+          <EmptyState
+            icon="document"
+            title="No lab results yet"
+            message="Upload a lab report and your care team will review it and add your biomarker results here."
+            actionLabel="Upload a report"
+            onAction={uploadLabs}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Real data mapping (no fabricated fallbacks) ─────────────────
+  const labOrders = (ordersQuery.data ?? []) as any[];
   const latestOrder = labOrders[0];
 
-  const latestDate = biomarkers.length > 0
-    ? biomarkers.reduce((latest: any, b: any) => {
-        const d = b.lastMeasured ? new Date(b.lastMeasured) : null;
-        return d && (!latest || d > latest) ? d : latest;
-      }, null as Date | null)
-    : null;
+  const latestMeasured = biomarkers.reduce((latest: Date | null, b: any) => {
+    const d = b.lastMeasured ? new Date(b.lastMeasured) : null;
+    return d && !isNaN(d.getTime()) && (!latest || d > latest) ? d : latest;
+  }, null as Date | null);
 
-  const PANEL = latestOrder
-    ? {
-        name: latestOrder.panelName ?? latestOrder.name ?? SAMPLE_PANEL.name,
-        date: latestOrder.date
-          ? new Date(latestOrder.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-          : SAMPLE_PANEL.date,
-        lab: latestOrder.lab ?? SAMPLE_PANEL.lab,
-        orderedBy: latestOrder.orderedBy ?? SAMPLE_PANEL.orderedBy,
-      }
-    : latestDate
-      ? {
-          name: SAMPLE_PANEL.name,
-          date: latestDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-          lab: SAMPLE_PANEL.lab,
-          orderedBy: SAMPLE_PANEL.orderedBy,
-        }
-      : SAMPLE_PANEL;
+  const panelName: string | null = latestOrder?.panelName ?? null;
+  const panelDate: string | null =
+    formatDate(latestOrder?.testDate) ?? (latestMeasured ? formatDate(latestMeasured) : null);
+  const panelProvider: string | null = latestOrder?.provider ?? null;
 
   const mapStatus = (s?: string): LabMarker["status"] => {
     if (s === "optimal" || s === "normal" || s === "borderline" || s === "critical") return s;
@@ -263,22 +182,19 @@ export default function LabsScreen() {
     return "normal";
   };
 
-  const MARKERS: LabMarker[] = biomarkers.length > 0
-    ? biomarkers.map((b: any) => ({
-        name: b.name ?? b.code ?? "",
-        value: String(b.value ?? ""),
-        unit: b.unit ?? "",
-        range: b.refLow != null && b.refHigh != null
-          ? `${b.refLow}-${b.refHigh}`
-          : b.refHigh != null
-            ? `< ${b.refHigh}`
-            : b.refLow != null
-              ? `> ${b.refLow}`
-              : "",
-        status: mapStatus(b.status),
-        history: [], // history requires a separate getBiomarkerHistory call per code
-      }))
-    : SAMPLE_MARKERS;
+  const MARKERS: LabMarker[] = biomarkers.map((b: any) => ({
+    name: b.name ?? b.code ?? "",
+    value: String(b.value ?? ""),
+    unit: b.unit ?? "",
+    range: b.refLow != null && b.refHigh != null
+      ? `${b.refLow}-${b.refHigh}`
+      : b.refHigh != null
+        ? `< ${b.refHigh}`
+        : b.refLow != null
+          ? `> ${b.refLow}`
+          : "—",
+    status: mapStatus(b.status),
+  }));
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -289,14 +205,13 @@ export default function LabsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Most Recent Panel */}
+        {/* Most Recent Panel — only real metadata */}
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Most Recent Panel</Text>
-          <Text style={styles.panelName}>{PANEL.name}</Text>
+          <Text style={styles.panelName}>{panelName ?? "Lab Results"}</Text>
           <View style={styles.panelMeta}>
-            <Text style={styles.panelDetail}>{PANEL.date}</Text>
-            <Text style={styles.panelDetail}>{PANEL.lab}</Text>
-            <Text style={styles.panelDetail}>Ordered by {PANEL.orderedBy}</Text>
+            {panelDate && <Text style={styles.panelDetail}>{panelDate}</Text>}
+            {panelProvider && <Text style={styles.panelDetail}>{panelProvider}</Text>}
           </View>
         </Card>
 
@@ -340,79 +255,21 @@ export default function LabsScreen() {
                     </View>
                   </View>
                 </View>
-
-                {/* Trend chart (expanded) */}
-                {isSelected && (
-                  <TrendChart
-                    data={marker.history}
-                    color={
-                      variantColor === "success"
-                        ? Colors.success
-                        : variantColor === "warning"
-                          ? Colors.warning
-                          : variantColor === "danger"
-                            ? Colors.danger
-                            : Colors.info
-                    }
-                  />
-                )}
               </Pressable>
             );
           })}
         </Card>
 
         {/* Upload Button */}
-        <UploadLabButton />
+        <Button
+          title="Upload Lab Results"
+          variant="secondary"
+          size="lg"
+          style={styles.uploadButton}
+          onPress={uploadLabs}
+        />
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Upload Button with backend integration                              */
-/* ------------------------------------------------------------------ */
-
-function UploadLabButton() {
-  const createDoc = trpc.clientPortal.clinicalDocs.create.useMutation();
-
-  return (
-    <Button
-      title="Upload Lab Results"
-      variant="secondary"
-      size="lg"
-      style={styles.uploadButton}
-      onPress={async () => {
-        const image = await showImagePickerOptions();
-        if (image) {
-          try {
-            await new Promise<void>((resolve, reject) => {
-              createDoc.mutate(
-                {
-                  docType: "medical_record",
-                  title: `Lab Results - ${new Date().toLocaleDateString()}`,
-                  sourceFileName: image.fileName ?? `lab_${Date.now()}.jpg`,
-                  notes: `Captured via mobile app. Image URI: ${image.uri}`,
-                },
-                {
-                  onSuccess: () => resolve(),
-                  onError: (err: any) => reject(err),
-                },
-              );
-            });
-            Alert.alert(
-              "Document Uploaded",
-              "Your lab results have been submitted. They will be reviewed by your care team within 24-48 hours.",
-            );
-          } catch (err: any) {
-            // If backend fails, still acknowledge capture
-            Alert.alert(
-              "Document Captured",
-              "Your lab results image was captured but could not be uploaded to the server. The image is saved locally. Please try again later.",
-            );
-          }
-        }
-      }}
-    />
   );
 }
 
@@ -432,6 +289,10 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingBottom: Spacing.xxl,
     gap: Spacing.md,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
   },
 
   /* Sections */

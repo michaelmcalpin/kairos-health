@@ -43,6 +43,7 @@ import {
   Fingerprint,
   Eye,
   MessageCircle,
+  MessageSquarePlus,
   BookOpen,
   Info,
   Plus,
@@ -55,7 +56,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii, APP_VERSION } from "@/lib/constants";
-import { trpc, DEFAULT_QUERY_OPTIONS, SAMPLE_DATA } from "@/lib/api";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -64,14 +65,6 @@ import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SummitGlyph } from "@/components/brand";
 import { useConnectedDevices } from "@/hooks/useDevices";
-
-/* ------------------------------------------------------------------ */
-/* Fallback sample data                                                */
-/* ------------------------------------------------------------------ */
-
-const FALLBACK_USER = SAMPLE_DATA.userProfile;
-
-/* FALLBACK_DEVICES removed — devices now come from useConnectedDevices hook */
 
 /* ------------------------------------------------------------------ */
 /* Screen                                                              */
@@ -97,12 +90,22 @@ export default function ProfileScreen() {
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
+  const coachQuery = trpc.clientPortal.settings.getMyCoach.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
 
   /* -- Map API response → local shape -- */
-  /* getSettings returns a NESTED shape: { user, clientProfile, contactInfo, ... } */
+  /* getSettings returns a NESTED shape: { user, clientProfile, contactInfo, notificationPreferences } */
   const profileData = profileQuery.data as any;
   const apiUser = profileData?.user;
   const apiProfile = profileData?.clientProfile;
+  const apiContact = profileData?.contactInfo;
+
+  const coachData = coachQuery.data as any;
+  const coachName = coachData
+    ? [coachData.firstName, coachData.lastName].filter(Boolean).join(" ") || coachData.email
+    : null;
 
   // Derived display values
   const computeAge = (dob?: string | null): number | null => {
@@ -144,7 +147,7 @@ export default function ProfileScreen() {
       : "—",
     bloodType: apiProfile?.bloodType ?? "—",
     healthScore: (healthScoreQuery.data as any)?.score ?? "—",
-    tier: apiProfile?.tier ?? FALLBACK_USER.tier,
+    tier: (apiProfile?.tier ?? null) as string | null,
   };
 
   /* -- Connected devices from hook -- */
@@ -244,7 +247,7 @@ export default function ProfileScreen() {
                 <Text style={styles.scoreMax}>/100</Text>
               </View>
             </View>
-            <Badge label={USER.tier} variant="warning" />
+            {USER.tier && <Badge label={USER.tier} variant="warning" />}
           </View>
 
           {/* Stat grid */}
@@ -401,21 +404,14 @@ export default function ProfileScreen() {
             type="value"
             icon={<Globe size={18} color={Colors.silver} />}
             label="Timezone"
-            value={(profileData as any)?.timezone ?? "Not set"}
-            onPress={noop}
-          />
-          <SettingsRow
-            type="value"
-            icon={<Stethoscope size={18} color={Colors.silver} />}
-            label="Primary Doctor"
-            value={(profileData as any)?.primaryDoctor ?? "Not assigned"}
-            onPress={noop}
+            value={apiContact?.timezone ?? "Not set"}
+            onPress={() => router.push("/settings/edit-profile")}
           />
           <SettingsRow
             type="value"
             icon={<Dumbbell size={18} color={Colors.silver} />}
             label="Your Coach"
-            value={(profileData as any)?.coachName ?? "Not assigned"}
+            value={coachName ?? "Not assigned"}
             onPress={() => router.push("/coach")}
           />
           <SettingsRow
@@ -428,8 +424,8 @@ export default function ProfileScreen() {
             type="value"
             icon={<Phone size={18} color={Colors.silver} />}
             label="Emergency Contact"
-            value={(profileData as any)?.emergencyContact ?? "Not set"}
-            onPress={noop}
+            value={apiContact?.emergencyContact ?? "Not set"}
+            onPress={() => router.push("/settings/edit-profile")}
             last
           />
         </SettingsSection>
@@ -468,9 +464,10 @@ export default function ProfileScreen() {
             label="Delete Account"
             danger
             onPress={() =>
-              confirmAction(
+              Alert.alert(
                 "Delete Account",
-                "This will permanently delete your account and all associated data. This action cannot be undone."
+                "Account deletion isn't available in the app yet. Please contact support@everist.ai and our team will delete your account and all associated data.",
+                [{ text: "OK" }],
               )
             }
             last
@@ -509,6 +506,12 @@ export default function ProfileScreen() {
             icon={<MessageCircle size={18} color={Colors.silver} />}
             label="Contact Support"
             onPress={() => router.push("/settings/help")}
+          />
+          <SettingsRow
+            icon={<MessageSquarePlus size={18} color={Colors.silver} />}
+            label="Send Feedback"
+            subtitle="Report a bug or request a feature"
+            onPress={() => router.push("/settings/feedback" as any)}
           />
           <SettingsRow
             icon={<FileText size={18} color={Colors.silver} />}

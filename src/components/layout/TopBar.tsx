@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useClerk, UserButton } from "@clerk/nextjs";
 import { Bell, Search, LogOut } from "lucide-react";
 import { cn } from "@/utils/cn";
@@ -18,15 +18,38 @@ interface TopBarProps {
 
 export function TopBar({ title, subtitle, alertCount, showSearch = true, className, brandColor }: TopBarProps) {
   const router = useRouter();
+  const pathname = usePathname() ?? "";
   const { signOut } = useClerk();
 
-  // Fetch unread alert count for the badge
+  // Infer which portal we're rendered in from the route.
+  const portal: "trainer" | "admin" | "client" = pathname.startsWith("/trainer")
+    ? "trainer"
+    : pathname.startsWith("/admin") || pathname.startsWith("/super-admin") || pathname.startsWith("/company")
+      ? "admin"
+      : "client";
+
+  // Client portal: unread alert count (clientProcedure — 403s for other roles,
+  // so only enabled on the client portal)
   const { data: unreadData } = trpc.clientPortal.alerts.unreadCount.useQuery(undefined, {
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     retry: 1,
+    enabled: portal === "client",
   });
-  const badgeCount = alertCount ?? unreadData?.count ?? 0;
+
+  // Trainer portal: active alert count across the coach's roster
+  const { data: coachActiveData } = trpc.coach.alerts.activeCount.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+    enabled: portal === "trainer",
+  });
+
+  const badgeCount =
+    alertCount ??
+    (portal === "trainer" ? coachActiveData?.count : portal === "client" ? unreadData?.count : 0) ??
+    0;
+  const alertsHref = portal === "trainer" ? "/trainer/alerts" : "/alerts";
 
   function handleSignOut() {
     // Clear saved role on sign-out
@@ -63,19 +86,21 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
           </button>
         )}
 
-        {/* Alert Bell — navigates to /alerts */}
-        <button
-          onClick={() => router.push("/alerts")}
-          className="relative text-kairos-silver-dark hover:text-white transition-colors p-2"
-          aria-label={`Notifications${badgeCount > 0 ? ` (${badgeCount} unread)` : ""}`}
-        >
-          <Bell size={18} />
-          {badgeCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-[9px] font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
-              {badgeCount > 99 ? "99+" : badgeCount}
-            </span>
-          )}
-        </button>
+        {/* Alert Bell — hidden on admin/company portals (no alerts feed there) */}
+        {portal !== "admin" && (
+          <button
+            onClick={() => router.push(alertsHref)}
+            className="relative text-kairos-silver-dark hover:text-white transition-colors p-2"
+            aria-label={`Notifications${badgeCount > 0 ? ` (${badgeCount} unread)` : ""}`}
+          >
+            <Bell size={18} />
+            {badgeCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-[9px] font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
+                {badgeCount > 99 ? "99+" : badgeCount}
+              </span>
+            )}
+          </button>
+        )}
 
         {/* Sign Out */}
         <button

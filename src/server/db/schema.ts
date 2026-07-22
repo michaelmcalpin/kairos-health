@@ -1175,3 +1175,23 @@ export const coachThreadMessages = pgTable("coach_thread_messages", {
 }, (t) => [
   index("coach_thread_msg_idx").on(t.threadId, t.createdAt),
 ]);
+
+// ======================== USER FEEDBACK ========================
+export const feedbackTypeEnum = pgEnum("feedback_type", ["bug", "feature", "redesign"]);
+
+export const feedback = pgTable("feedback", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  role: varchar("role", { length: 20 }),
+  platform: varchar("platform", { length: 10 }), // "web" | "mobile"
+  page: varchar("page", { length: 300 }),
+  type: feedbackTypeEnum("type").notNull(),
+  message: text("message").notNull(),
+  aiSummary: text("ai_summary"),
+  aiTags: jsonb("ai_tags").$type<string[]>(),
+  status: varchar("status", { length: 20 }).default("new"), // new | reviewed | resolved
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("feedback_created_idx").on(t.createdAt),
+  index("feedback_status_idx").on(t.status),
+]);
