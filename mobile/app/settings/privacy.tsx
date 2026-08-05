@@ -5,7 +5,7 @@
  * data export / deletion, active sessions, and legal links.
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -50,17 +50,28 @@ export default function PrivacyScreen() {
   const [biometricLock, setBiometricLock] = useState(true);
   const [twoFactor, setTwoFactor] = useState(false);
 
-  /* -- tRPC query for initial toggle values -- */
-  const settingsQuery = trpc.clientPortal.settings.getSettings.useQuery(undefined, {
+  /* -- data sharing toggles -- */
+  const [shareCareTeam, setShareCareTeam] = useState(true);
+  const [shareResearchers, setShareResearchers] = useState(false);
+  const [anonymousAnalytics, setAnonymousAnalytics] = useState(true);
+
+  /* -- tRPC query for initial toggle values. getSettings does NOT return a
+     `toggles` field — feature toggles live in settings.getFeatureToggles. -- */
+  const featureTogglesQuery = trpc.clientPortal.settings.getFeatureToggles.useQuery(undefined, {
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
-  const savedToggles = (settingsQuery.data as any)?.toggles as Record<string, boolean> | undefined;
 
-  /* -- data sharing toggles -- */
-  const [shareCareTeam, setShareCareTeam] = useState(savedToggles?.share_care_team ?? true);
-  const [shareResearchers, setShareResearchers] = useState(savedToggles?.share_researchers ?? false);
-  const [anonymousAnalytics, setAnonymousAnalytics] = useState(savedToggles?.anonymous_analytics ?? true);
+  /* -- Hydrate toggle state once the real values load -- */
+  useEffect(() => {
+    const t = featureTogglesQuery.data as Record<string, boolean> | undefined;
+    if (!t) return;
+    if (typeof t.biometric_login === "boolean") setBiometricLock(t.biometric_login);
+    if (typeof t.two_factor_auth === "boolean") setTwoFactor(t.two_factor_auth);
+    if (typeof t.share_care_team === "boolean") setShareCareTeam(t.share_care_team);
+    if (typeof t.share_researchers === "boolean") setShareResearchers(t.share_researchers);
+    if (typeof t.anonymous_analytics === "boolean") setAnonymousAnalytics(t.anonymous_analytics);
+  }, [featureTogglesQuery.data]);
 
   /* -- export format -- */
   const [showFormatPicker, setShowFormatPicker] = useState(false);
@@ -249,6 +260,8 @@ export default function PrivacyScreen() {
           title="Active Sessions"
           icon={<Smartphone size={16} color={Colors.gold} />}
         >
+          {/* TODO(QA): hardcoded fake session — no backend/Clerk sessions list
+              procedure is wired yet. Replace with real active-session data. */}
           <View style={styles.sessionItem}>
             <View style={styles.sessionInfo}>
               <View style={styles.sessionIconWrap}>

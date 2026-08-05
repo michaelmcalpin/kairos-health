@@ -1,9 +1,10 @@
 /**
- * useProtocols — Custom hook for protocol / supplement tracker data.
+ * useProtocols — Custom hooks for protocol / supplement tracker data.
  *
- * Tries to fetch the active supplement protocol and today's adherence
- * from the tRPC backend.  Falls back to sample data when the API is
- * unreachable.
+ * Fetches the active supplement protocol and today's adherence from the
+ * tRPC backend. These hooks return honest values: real data when it exists,
+ * and empty / null (never fabricated sample data) when it doesn't, so the
+ * protocol UIs can render real empty states.
  *
  * tRPC paths used (under `clientPortal`):
  *   - protocol.getActive      → active protocol with items
@@ -12,7 +13,7 @@
  *   - dashboard.getActiveProtocol → dashboard summary variant
  */
 
-import { trpc, SAMPLE_DATA, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import type { SampleProtocolItem } from "@/lib/sample-data";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -25,7 +26,8 @@ export function useActiveProtocol() {
     DEFAULT_QUERY_OPTIONS,
   );
 
-  // Map backend items to the shape the Protocols screen expects
+  // Map backend items to the shape the Protocols screen expects.
+  // Empty array (not sample data) when there is no active protocol.
   const items: SampleProtocolItem[] = query.data?.items
     ? query.data.items.map((item: any) => ({
         id: item.id,
@@ -38,7 +40,7 @@ export function useActiveProtocol() {
         timeSlot: mapTimeOfDay(item.timeOfDay),
         hasNotes: !!item.coachNotes,
       }))
-    : SAMPLE_DATA.protocolItems;
+    : [];
 
   return {
     protocolId: query.data?.id ?? null,
@@ -61,14 +63,15 @@ export function useProtocolAdherence() {
     DEFAULT_QUERY_OPTIONS,
   );
 
-  // Build a Set of completed item IDs from the adherence logs
+  // Build a Set of completed item IDs from the adherence logs.
+  // Empty set (not sample data) when there is nothing logged yet.
   const completedIds: Set<string> = query.data
     ? new Set(
         (query.data as any[])
           .filter((log: any) => log.takenAt && !log.skipped)
           .map((log: any) => log.protocolItemId),
       )
-    : SAMPLE_DATA.protocolInitialCompleted;
+    : new Set<string>();
 
   return {
     completedIds,
@@ -112,6 +115,7 @@ export function useDashboardProtocol() {
     DEFAULT_QUERY_OPTIONS,
   );
 
+  // Empty array (not sample data) when there is no active protocol.
   const protocols = query.data?.items
     ? (query.data.items as any[]).map((item: any, idx: number) => ({
         id: item.id,
@@ -123,11 +127,11 @@ export function useDashboardProtocol() {
         category: mapCategory(item.category),
         completed: idx < (query.data?.todayAdherence?.completed ?? 0),
       }))
-    : SAMPLE_DATA.dashboardProtocols;
+    : [];
 
   const adherence = query.data?.todayAdherence ?? {
-    total: SAMPLE_DATA.dashboardProtocols.length,
-    completed: SAMPLE_DATA.dashboardProtocols.filter((p) => p.completed).length,
+    total: 0,
+    completed: 0,
   };
 
   return {
@@ -162,13 +166,14 @@ export function useWeeklyAdherence() {
     DEFAULT_QUERY_OPTIONS,
   );
 
+  // Empty array (not sample data) when there is no adherence history.
   const weeklyData = query.data
     ? (query.data as any[]).map((d: any) => ({
         day: d.dateLabel ?? "",
         percent: d.adherence ?? 0,
         isToday: d.date === now.toISOString().split("T")[0],
       }))
-    : SAMPLE_DATA.weeklyAdherence;
+    : [];
 
   return {
     weeklyData,

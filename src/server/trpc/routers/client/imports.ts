@@ -1,10 +1,11 @@
 import { z } from "zod";
 import crypto from "crypto";
+import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import {
   glucoseReadings,
   sleepSessions,
-  activitySummaries,
+  workoutLogs,
   bodyMeasurements,
   biomarkerValues,
   labResults,
@@ -38,6 +39,16 @@ export const clientImportsRouter = router({
       const { category, rows } = input;
       let importedCount = 0;
 
+      // Honest guard: nutrition & supplement imports have no destination table
+      // wired up yet. Rather than report a fake success, refuse them clearly so
+      // the UI can tell the user to log these manually.
+      if (category === "nutrition" || category === "supplements") {
+        throw new TRPCError({
+          code: "NOT_IMPLEMENTED",
+          message: `${category === "nutrition" ? "Nutrition" : "Supplement"} imports aren't supported yet — this data can't be saved automatically. Please log these entries manually in the app.`,
+        });
+      }
+
       if (category === "glucose") {
         const values = rows.map((r) => ({
           clientId: ctx.dbUserId,
@@ -70,16 +81,33 @@ export const clientImportsRouter = router({
       }
 
       if (category === "workouts") {
-        const values = rows.map((r) => ({
-          clientId: ctx.dbUserId,
-          date: r.date,
-          exerciseMinutes: r.duration_minutes ? parseInt(r.duration_minutes) : null,
-          caloriesActive: r.calories ? parseInt(r.calories) : null,
-          steps: r.steps ? parseInt(r.steps) : null,
-          source: r.source || "import",
-        }));
+        // Insert into workoutLogs — the table the workouts page reads. We use the
+        // same "quick_log" shape the in-app quick-logger produces (metadata stored
+        // as JSON in notes) so imported sessions render with type/duration/calories.
+        const values = rows
+          .filter((r) => r.date)
+          .map((r) => {
+            const type = (r.type || "other").toString();
+            return {
+              clientId: ctx.dbUserId,
+              sessionId: null,
+              date: r.date,
+              exercisesCompleted: [
+                { exerciseId: `quick_log:${type}`, sets: [{ weight: 0, reps: 0, rpe: 0 }] },
+              ] as typeof workoutLogs.$inferInsert["exercisesCompleted"],
+              notes: JSON.stringify({
+                type,
+                durationMinutes: r.duration_minutes ? parseInt(r.duration_minutes) : null,
+                caloriesBurned: r.calories ? parseInt(r.calories) : null,
+                avgHeartRate: r.avg_heart_rate ? parseInt(r.avg_heart_rate) : null,
+                maxHeartRate: r.max_heart_rate ? parseInt(r.max_heart_rate) : null,
+                userNotes: r.notes || null,
+                source: r.source || "import",
+              }),
+            };
+          });
         if (values.length > 0) {
-          await ctx.db.insert(activitySummaries).values(values);
+          await ctx.db.insert(workoutLogs).values(values);
           importedCount = values.length;
         }
       }
@@ -120,12 +148,6 @@ export const clientImportsRouter = router({
           await ctx.db.insert(biomarkerValues).values(values);
           importedCount = values.length;
         }
-      }
-
-      // For nutrition and supplements, we don't have a direct table match
-      // so we log the import but skip actual insert for now
-      if (category === "nutrition" || category === "supplements") {
-        importedCount = rows.length; // tracked but stored in-memory only
       }
 
       // Log the import

@@ -120,9 +120,13 @@ export default function HomeScreen() {
     day: "numeric",
   });
 
-  const completedProtocols = PROTOCOL_DATA.filter((p) => p.completed).length;
+  const completedProtocols = PROTOCOL_DATA.filter((p: any) => p.completed).length;
   const totalProtocols = PROTOCOL_DATA.length;
-  const adherencePercent = Math.round((completedProtocols / totalProtocols) * 100);
+  // Guard against 0/0 → NaN when there is no active protocol.
+  const adherencePercent =
+    totalProtocols > 0
+      ? Math.round((completedProtocols / totalProtocols) * 100)
+      : 0;
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -159,24 +163,38 @@ export default function HomeScreen() {
         {/* ─── 1. Health Score Hero ────────────────────────── */}
         <Pressable onPress={() => router.push("/insights")}>
           <Card style={styles.heroCard}>
-            <HealthScoreRing score={HEALTH_SCORE} size={160} strokeWidth={12} />
-            <Text style={styles.heroLabel}>Overall Health Score</Text>
-            <View style={styles.heroStatsRow}>
-              <View style={styles.heroStat}>
-                <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[0]?.value ?? KPI_DATA.sleep.quality}</Text>
-                <Text style={styles.heroStatLabel}>Sleep</Text>
+            {HEALTH_SCORE != null ? (
+              <>
+                <HealthScoreRing score={HEALTH_SCORE} size={160} strokeWidth={12} />
+                <Text style={styles.heroLabel}>Overall Health Score</Text>
+                <View style={styles.heroStatsRow}>
+                  {["Sleep", "Glucose", "HRV"].map((label, i) => {
+                    const sub = healthScoreDetail?.subScores.find(
+                      (s) => s.label === label,
+                    );
+                    return (
+                      <React.Fragment key={label}>
+                        {i > 0 && <View style={styles.heroDivider} />}
+                        <View style={styles.heroStat}>
+                          <Text style={styles.heroStatValue}>
+                            {sub ? sub.value : "—"}
+                          </Text>
+                          <Text style={styles.heroStatLabel}>{label}</Text>
+                        </View>
+                      </React.Fragment>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <View style={styles.heroEmpty}>
+                <Activity size={36} color={Colors.silver} strokeWidth={1.5} />
+                <Text style={styles.heroEmptyTitle}>No health score yet</Text>
+                <Text style={styles.heroEmptyText}>
+                  Connect a device or log data to see your score
+                </Text>
               </View>
-              <View style={styles.heroDivider} />
-              <View style={styles.heroStat}>
-                <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[1]?.value ?? BIOMETRICS_DATA.glucose.value}</Text>
-                <Text style={styles.heroStatLabel}>Glucose</Text>
-              </View>
-              <View style={styles.heroDivider} />
-              <View style={styles.heroStat}>
-                <Text style={styles.heroStatValue}>{healthScoreDetail.subScores[2]?.value ?? BIOMETRICS_DATA.hrv.value}</Text>
-                <Text style={styles.heroStatLabel}>HRV</Text>
-              </View>
-            </View>
+            )}
           </Card>
         </Pressable>
 
@@ -191,10 +209,13 @@ export default function HomeScreen() {
           <KPICard
             icon={<Moon size={16} color="#60A5FA" />}
             label="Sleep"
-            value={KPI_DATA.sleep.hours}
-            unit="hrs"
-            subtitle={`Quality: ${KPI_DATA.sleep.quality}/100`}
-            trend="up"
+            value={KPI_DATA.sleep.hours ?? "—"}
+            unit={KPI_DATA.sleep.hours != null ? "hrs" : ""}
+            subtitle={
+              KPI_DATA.sleep.quality != null
+                ? `Quality: ${KPI_DATA.sleep.quality}/100`
+                : "No data"
+            }
             iconBgColor="rgba(96, 165, 250, 0.12)"
             sparkData={KPI_DATA.sleep.sparkData}
             sparkColor="#60A5FA"
@@ -203,10 +224,9 @@ export default function HomeScreen() {
           <KPICard
             icon={<Heart size={16} color={Colors.danger} />}
             label="Heart Rate"
-            value={KPI_DATA.heartRate.bpm}
-            unit="bpm"
-            subtitle={`Resting: ${KPI_DATA.heartRate.resting} bpm`}
-            trend="down"
+            value={KPI_DATA.heartRate.bpm ?? "—"}
+            unit={KPI_DATA.heartRate.bpm != null ? "bpm" : ""}
+            subtitle={KPI_DATA.heartRate.bpm != null ? undefined : "No data"}
             iconBgColor="rgba(198, 93, 93, 0.12)"
             sparkData={KPI_DATA.heartRate.sparkData}
             sparkColor={Colors.danger}
@@ -215,11 +235,13 @@ export default function HomeScreen() {
           <KPICard
             icon={<Footprints size={16} color={Colors.success} />}
             label="Steps"
-            value={KPI_DATA.steps.count.toLocaleString()}
+            value={
+              KPI_DATA.steps.count != null
+                ? Number(KPI_DATA.steps.count).toLocaleString()
+                : "—"
+            }
             unit=""
-            subtitle={`Goal: ${KPI_DATA.steps.goal.toLocaleString()}`}
-            trend="up"
-            trendValue={`${Math.round((KPI_DATA.steps.count / KPI_DATA.steps.goal) * 100)}%`}
+            subtitle={KPI_DATA.steps.count != null ? "Today" : "No data"}
             iconBgColor="rgba(74, 157, 91, 0.12)"
             sparkData={KPI_DATA.steps.sparkData}
             sparkColor={Colors.success}
@@ -228,10 +250,9 @@ export default function HomeScreen() {
           <KPICard
             icon={<Scale size={16} color={Colors.gold} />}
             label="Weight"
-            value={KPI_DATA.weight.lbs}
-            unit="lbs"
-            subtitle={KPI_DATA.weight.trendValue}
-            trend={KPI_DATA.weight.trend}
+            value={KPI_DATA.weight.lbs ?? "—"}
+            unit={KPI_DATA.weight.lbs != null ? "lbs" : ""}
+            subtitle={KPI_DATA.weight.lbs != null ? undefined : "No data"}
             iconBgColor="rgba(74, 144, 217, 0.12)"
             sparkData={KPI_DATA.weight.sparkData}
             sparkColor={Colors.gold}
@@ -259,8 +280,8 @@ export default function HomeScreen() {
             <BiometricCard
               icon={<Heart size={14} color={Colors.danger} />}
               label="Blood Pressure"
-              value={BIOMETRICS_DATA.bloodPressure.value}
-              unit={BIOMETRICS_DATA.bloodPressure.unit}
+              value={BIOMETRICS_DATA.bloodPressure.value ?? "—"}
+              unit={BIOMETRICS_DATA.bloodPressure.value != null ? BIOMETRICS_DATA.bloodPressure.unit : ""}
               status={BIOMETRICS_DATA.bloodPressure.status}
               sparkData={BIOMETRICS_DATA.bloodPressure.sparkData}
               sparkColor={BIOMETRICS_DATA.bloodPressure.sparkColor}
@@ -270,8 +291,8 @@ export default function HomeScreen() {
             <BiometricCard
               icon={<Droplets size={14} color="#F59E0B" />}
               label="Glucose"
-              value={BIOMETRICS_DATA.glucose.value}
-              unit={BIOMETRICS_DATA.glucose.unit}
+              value={BIOMETRICS_DATA.glucose.value ?? "—"}
+              unit={BIOMETRICS_DATA.glucose.value != null ? BIOMETRICS_DATA.glucose.unit : ""}
               status={BIOMETRICS_DATA.glucose.status}
               sparkData={BIOMETRICS_DATA.glucose.sparkData}
               sparkColor={BIOMETRICS_DATA.glucose.sparkColor}
@@ -284,8 +305,8 @@ export default function HomeScreen() {
             <BiometricCard
               icon={<Moon size={14} color="#60A5FA" />}
               label="Sleep Score"
-              value={BIOMETRICS_DATA.sleepScore.value}
-              unit={BIOMETRICS_DATA.sleepScore.unit}
+              value={BIOMETRICS_DATA.sleepScore.value ?? "—"}
+              unit={BIOMETRICS_DATA.sleepScore.value != null ? BIOMETRICS_DATA.sleepScore.unit : ""}
               status={BIOMETRICS_DATA.sleepScore.status}
               sparkData={BIOMETRICS_DATA.sleepScore.sparkData}
               sparkColor={BIOMETRICS_DATA.sleepScore.sparkColor}
@@ -295,8 +316,8 @@ export default function HomeScreen() {
             <BiometricCard
               icon={<Brain size={14} color="#A78BFA" />}
               label="HRV"
-              value={BIOMETRICS_DATA.hrv.value}
-              unit={BIOMETRICS_DATA.hrv.unit}
+              value={BIOMETRICS_DATA.hrv.value ?? "—"}
+              unit={BIOMETRICS_DATA.hrv.value != null ? BIOMETRICS_DATA.hrv.unit : ""}
               status={BIOMETRICS_DATA.hrv.status}
               sparkData={BIOMETRICS_DATA.hrv.sparkData}
               sparkColor={BIOMETRICS_DATA.hrv.sparkColor}
@@ -309,8 +330,8 @@ export default function HomeScreen() {
             <BiometricCard
               icon={<Scale size={14} color={Colors.gold} />}
               label="Body Weight"
-              value={BIOMETRICS_DATA.bodyWeight.value}
-              unit={BIOMETRICS_DATA.bodyWeight.unit}
+              value={BIOMETRICS_DATA.bodyWeight.value ?? "—"}
+              unit={BIOMETRICS_DATA.bodyWeight.value != null ? BIOMETRICS_DATA.bodyWeight.unit : ""}
               status={BIOMETRICS_DATA.bodyWeight.status}
               sparkData={BIOMETRICS_DATA.bodyWeight.sparkData}
               sparkColor={BIOMETRICS_DATA.bodyWeight.sparkColor}
@@ -320,8 +341,8 @@ export default function HomeScreen() {
             <BiometricCard
               icon={<Footprints size={14} color={Colors.success} />}
               label="Steps"
-              value={BIOMETRICS_DATA.dailySteps.value}
-              unit={BIOMETRICS_DATA.dailySteps.unit}
+              value={BIOMETRICS_DATA.dailySteps.value ?? "—"}
+              unit={BIOMETRICS_DATA.dailySteps.value != null ? BIOMETRICS_DATA.dailySteps.unit : ""}
               status={BIOMETRICS_DATA.dailySteps.status}
               sparkData={BIOMETRICS_DATA.dailySteps.sparkData}
               sparkColor={BIOMETRICS_DATA.dailySteps.sparkColor}
@@ -333,29 +354,43 @@ export default function HomeScreen() {
 
         {/* ─── 5. Active Protocols ─────────────────────────── */}
         <SectionHeader title="Active Protocols" actionLabel="View all" onAction={() => router.push("/(tabs)/protocols")} />
-        <View style={styles.protocolProgress}>
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${adherencePercent}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.progressText}>
-            {completedProtocols}/{totalProtocols} completed today
-          </Text>
-        </View>
-        {PROTOCOL_DATA.map((item) => (
-          <ProtocolItem
-            key={item.id}
-            title={item.title}
-            dosage={item.dosage}
-            time={item.time}
-            category={item.category}
-            completed={item.completed}
-          />
-        ))}
+        {totalProtocols === 0 ? (
+          <Card style={styles.emptyScheduleCard}>
+            <Text style={styles.emptyScheduleText}>No active protocol yet</Text>
+            <Text
+              style={styles.emptyScheduleLink}
+              onPress={() => router.push("/(tabs)/protocols")}
+            >
+              Set up your protocol
+            </Text>
+          </Card>
+        ) : (
+          <>
+            <View style={styles.protocolProgress}>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${adherencePercent}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.progressText}>
+                {completedProtocols}/{totalProtocols} completed today
+              </Text>
+            </View>
+            {PROTOCOL_DATA.map((item: any) => (
+              <ProtocolItem
+                key={item.id}
+                title={item.title}
+                dosage={item.dosage}
+                time={item.time}
+                category={item.category}
+                completed={item.completed}
+              />
+            ))}
+          </>
+        )}
 
         {/* ─── 6. Recent Alerts ────────────────────────────── */}
         <SectionHeader title="Alerts" actionLabel="View all" onAction={() => router.push("/insights")} />
@@ -367,16 +402,22 @@ export default function HomeScreen() {
             </Text>
           </View>
         </View>
-        {ALERTS_DATA.map((alert: any) => (
-          <AlertItem
-            key={alert.id}
-            icon={getAlertIcon(alert.type)}
-            title={alert.title}
-            message={alert.message}
-            timestamp={alert.timestamp}
-            priority={alert.priority}
-          />
-        ))}
+        {ALERTS_DATA.length === 0 ? (
+          <Card style={styles.emptyScheduleCard}>
+            <Text style={styles.emptyScheduleText}>No active alerts</Text>
+          </Card>
+        ) : (
+          ALERTS_DATA.map((alert: any) => (
+            <AlertItem
+              key={alert.id}
+              icon={getAlertIcon(alert.type)}
+              title={alert.title}
+              message={alert.message}
+              timestamp={alert.timestamp}
+              priority={alert.priority}
+            />
+          ))
+        )}
 
         {/* Bottom spacer for tab bar */}
         <View style={styles.bottomSpacer} />
@@ -478,6 +519,25 @@ const styles = StyleSheet.create({
     width: StyleSheet.hairlineWidth,
     height: 28,
     backgroundColor: Colors.border,
+  },
+
+  // Hero empty state
+  heroEmpty: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  heroEmptyTitle: {
+    color: Colors.white,
+    fontSize: FontSizes.md,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  heroEmptyText: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
+    textAlign: "center",
+    maxWidth: 240,
   },
 
   // KPI scroll

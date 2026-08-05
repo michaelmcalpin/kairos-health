@@ -6,7 +6,7 @@
  * privacy & security, support links, and sign-out.
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -94,6 +94,11 @@ export default function ProfileScreen() {
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
+  /* -- feature toggles live in their own procedure, NOT in getSettings -- */
+  const featureTogglesQuery = trpc.clientPortal.settings.getFeatureToggles.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
 
   /* -- Map API response → local shape -- */
   /* getSettings returns a NESTED shape: { user, clientProfile, contactInfo, notificationPreferences } */
@@ -164,22 +169,33 @@ export default function ProfileScreen() {
   /* -- tRPC mutation for persisting toggle changes -- */
   const toggleMutation = trpc.clientPortal.settings.updateFeatureToggle.useMutation();
 
-  /* -- Derive initial toggle values from profile data -- */
-  const toggles = profileData?.toggles as Record<string, boolean> | undefined;
-
   /* -- notification toggles -- */
-  const [pushNotifs, setPushNotifs] = useState(toggles?.push_notifications ?? true);
-  const [emailNotifs, setEmailNotifs] = useState(toggles?.email_notifications ?? true);
-  const [appointmentReminders, setAppointmentReminders] = useState(toggles?.appointment_reminders ?? true);
-  const [labAlerts, setLabAlerts] = useState(toggles?.lab_alerts ?? true);
-  const [protocolReminders, setProtocolReminders] = useState(toggles?.protocol_reminders ?? false);
+  const [pushNotifs, setPushNotifs] = useState(true);
+  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [appointmentReminders, setAppointmentReminders] = useState(true);
+  const [labAlerts, setLabAlerts] = useState(true);
+  const [protocolReminders, setProtocolReminders] = useState(false);
 
   /* -- health preferences -- */
-  const [useMetric, setUseMetric] = useState(toggles?.metric_units ?? false);
+  const [useMetric, setUseMetric] = useState(false);
 
   /* -- privacy & security -- */
-  const [biometricLogin, setBiometricLogin] = useState(toggles?.biometric_login ?? true);
-  const [dataSharing, setDataSharing] = useState(toggles?.data_sharing ?? false);
+  const [biometricLogin, setBiometricLogin] = useState(true);
+  const [dataSharing, setDataSharing] = useState(false);
+
+  /* -- Hydrate toggle state from the real feature-toggles source once loaded -- */
+  useEffect(() => {
+    const t = featureTogglesQuery.data as Record<string, boolean> | undefined;
+    if (!t) return;
+    if (typeof t.push_notifications === "boolean") setPushNotifs(t.push_notifications);
+    if (typeof t.email_notifications === "boolean") setEmailNotifs(t.email_notifications);
+    if (typeof t.appointment_reminders === "boolean") setAppointmentReminders(t.appointment_reminders);
+    if (typeof t.lab_alerts === "boolean") setLabAlerts(t.lab_alerts);
+    if (typeof t.protocol_reminders === "boolean") setProtocolReminders(t.protocol_reminders);
+    if (typeof t.metric_units === "boolean") setUseMetric(t.metric_units);
+    if (typeof t.biometric_login === "boolean") setBiometricLogin(t.biometric_login);
+    if (typeof t.data_sharing === "boolean") setDataSharing(t.data_sharing);
+  }, [featureTogglesQuery.data]);
 
   /* -- Wrap toggle setters to also persist via mutation -- */
   const handleToggle = (key: string, setter: (v: boolean) => void) => (value: boolean) => {

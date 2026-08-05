@@ -58,12 +58,25 @@ const SAMPLE_RECENT_HISTORY = [
 export default function WorkoutsScreen() {
   const router = useRouter();
 
+  /* ---- Date range for time-series queries (last 180 days) ---- */
+  const rangeEnd = new Date().toISOString().split("T")[0];
+  const rangeStart = new Date(Date.now() - 180 * 86400000).toISOString().split("T")[0];
+
   /* ---- tRPC queries & mutations ---- */
   const programQuery = trpc.clientPortal.workouts.getActiveProgram.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
-  const workoutsQuery = trpc.clientPortal.workouts.list.useQuery({ limit: 20 }, DEFAULT_QUERY_OPTIONS);
-  const statsQuery = trpc.clientPortal.workouts.stats.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+  const workoutsQuery = trpc.clientPortal.workouts.list.useQuery(
+    { startDate: rangeStart, endDate: rangeEnd },
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const statsQuery = trpc.clientPortal.workouts.stats.useQuery(
+    { startDate: rangeStart, endDate: rangeEnd },
+    DEFAULT_QUERY_OPTIONS,
+  );
   const quickLogMutation = trpc.clientPortal.workouts.quickLog.useMutation({
     onSuccess: () => { workoutsQuery.refetch(); statsQuery.refetch(); },
+    onError: (err: any) => {
+      Alert.alert("Error", err?.message ?? "Could not log workout.");
+    },
   });
 
   /* ---- Map API data with sample fallback ---- */
@@ -223,18 +236,18 @@ export default function WorkoutsScreen() {
                   text: "Log 30 min",
                   onPress: () =>
                     quickLogMutation.mutate({
-                      type: todayWorkout.name,
+                      workoutType: "strength",
                       durationMinutes: 30,
-                      notes: "Quick logged from mobile",
+                      notes: `${todayWorkout.name} — quick logged from mobile`,
                     }),
                 },
                 {
                   text: "Log 60 min",
                   onPress: () =>
                     quickLogMutation.mutate({
-                      type: todayWorkout.name,
+                      workoutType: "strength",
                       durationMinutes: 60,
-                      notes: "Quick logged from mobile",
+                      notes: `${todayWorkout.name} — quick logged from mobile`,
                     }),
                 },
               ]

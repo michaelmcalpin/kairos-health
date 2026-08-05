@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Activity, UtensilsCrossed, Dumbbell, Smile, Droplet, Ruler, Save, Loader2, AlertTriangle } from "lucide-react";
 import { VitalsTab } from "@/components/checkin/VitalsTab";
 import { MealsTab } from "@/components/checkin/MealsTab";
@@ -40,14 +40,38 @@ export default function CheckinPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Track dirty state in a ref so background refetches don't clobber edits in progress
+  const isDirtyRef = useRef(false);
+  const setDirty = useCallback((v: boolean) => {
+    isDirtyRef.current = v;
+    setIsDirty(v);
+  }, []);
+
   const dateStr = selectedDate.toISOString().split("T")[0];
 
-  // tRPC queries — use getByDate which works for any date
+  // tRPC queries — use getByDate which works for any date.
+  // We seed each split-out store (blood sugar, meals, measurements) in addition
+  // to the core dailyCheckins record so existing rows render and aren't re-created.
   const checkinQuery = trpc.clientPortal.checkin.getByDate.useQuery(
     { date: dateStr },
     { enabled: !!dateStr }
   );
   const { data: checkinData, isLoading: isLoadingCheckin } = checkinQuery;
+  const bloodSugarQuery = trpc.clientPortal.bloodSugar.getByDate.useQuery(
+    { date: dateStr },
+    { enabled: !!dateStr, staleTime: 60_000 }
+  );
+  const mealsQuery = trpc.clientPortal.meals.getByDate.useQuery(
+    { date: dateStr },
+    { enabled: !!dateStr, staleTime: 60_000 }
+  );
+  const measurementsQuery = trpc.clientPortal.measurements.list.useQuery(
+    { startDate: dateStr, endDate: dateStr },
+    { enabled: !!dateStr, staleTime: 60_000 }
+  );
+  const bloodSugarData = bloodSugarQuery.data;
+  const mealsData = mealsQuery.data;
+  const measurementsData = measurementsQuery.data;
   const utils = trpc.useUtils();
   const submitMutation = trpc.clientPortal.checkin.submit.useMutation({
     onSuccess: () => {
@@ -72,15 +96,77 @@ export default function CheckinPage() {
     },
   });
 
-  // Load check-in data when query returns or date changes
-  useEffect(() => {
-    if (checkinData) {
-      setFormData(checkinData);
-    } else {
-      setFormData({});
+  // Build a fresh form-state snapshot by merging the daily check-in with the
+  // split-out stores (blood sugar, meals, measurements) for the selected date.
+  const buildSeededForm = useCallback((): Record<string, unknown> => {
+    const base: Record<string, unknown> = checkinData ? { ...checkinData } : {};
+
+    // Blood sugar readings already stored server-side (carry their id → skipped on save)
+    base.bloodSugarReadings = (bloodSugarData ?? []).map((r) => ({
+      id: r.id,
+      timing: r.timing,
+      valueMgdl: r.valueMgdl,
+      mealDescription: r.mealDescription ?? undefined,
+      notes: r.notes ?? undefined,
+      createdAt: r.createdAt,
+    }));
+
+    // Meals already stored server-side (carry serverId → skipped on save)
+    base.meals = (mealsData ?? []).map((m) => ({
+      id: m.id,
+      serverId: m.id,
+      mealType: m.mealType,
+      items: (Array.isArray(m.items) ? m.items : []).map((i, idx) => ({
+        id: `${m.id}_${idx}`,
+        name: i.name,
+        quantity: i.quantity,
+        unit: i.unit,
+        calories: i.calories,
+        protein: i.protein,
+        carbs: i.carbs,
+        fat: i.fat,
+      })),
+      photoUrl: m.photoUrl ?? undefined,
+      totalCalories: m.totalCalories ?? 0,
+      totalProtein: m.totalProtein ?? 0,
+      totalCarbs: m.totalCarbs ?? 0,
+      totalFat: m.totalFat ?? 0,
+    }));
+
+    // Existing body-measurement row for this date (list returns newest first).
+    // Seed the circumference fields and remember the id so we don't insert a
+    // duplicate row on every save. Weight is intentionally NOT seeded here — it
+    // lives in the daily check-in (single source of truth).
+    const measRow = (measurementsData ?? [])[0];
+    if (measRow) {
+      base.existingMeasurementId = measRow.id;
+      if (measRow.chestInches != null) base.chest = measRow.chestInches;
+      if (measRow.waistInches != null) base.waist = measRow.waistInches;
+      if (measRow.hipsInches != null) base.hips = measRow.hipsInches;
+      if (measRow.rightThighInches != null) base.rightThigh = measRow.rightThighInches;
+      if (measRow.rightBicepInches != null) base.rightBicep = measRow.rightBicepInches;
     }
+
+    return base;
+  }, [checkinData, bloodSugarData, mealsData, measurementsData]);
+
+  // When the selected date changes, drop any unsaved-edit guard so the new day
+  // always re-seeds from its own data (mirrors the prior per-date reset behavior).
+  useEffect(() => {
+    isDirtyRef.current = false;
     setIsDirty(false);
-  }, [checkinData]);
+  }, [dateStr]);
+
+  // Load & merge check-in data when queries return or the date changes.
+  // Skip re-seeding while the user has unsaved edits so a background refetch
+  // doesn't discard their work. After a save we clear the dirty flag, so the
+  // invalidation-triggered refetch re-seeds with the freshly persisted rows
+  // (now carrying server ids), which is what prevents duplicate inserts.
+  useEffect(() => {
+    if (isDirtyRef.current) return;
+    setFormData(buildSeededForm());
+    setDirty(false);
+  }, [buildSeededForm, setDirty]);
 
   // Handle field changes
   const handleFieldChange = useCallback((field: string, value: unknown) => {
@@ -88,8 +174,8 @@ export default function CheckinPage() {
       ...prev,
       [field]: value,
     }));
-    setIsDirty(true);
-  }, []);
+    setDirty(true);
+  }, [setDirty]);
 
   // Handle save — each tab's data goes to the router that actually stores it:
   // vitals/activity/wellness → checkin.submit; blood sugar → bloodSugar.add;
@@ -111,6 +197,7 @@ export default function CheckinPage() {
       // Meals entered on the Meals tab (per-meal notes have no home in the
       // meals router schema, so they're appended to the check-in notes below)
       const meals = (Array.isArray(formData.meals) ? formData.meals : []) as {
+        serverId?: string;
         mealType: "breakfast" | "lunch" | "dinner" | "snack";
         items?: { name: string; quantity: number; unit: string; calories: number; protein: number; carbs: number; fat: number }[];
         photoUrl?: string;
@@ -171,7 +258,11 @@ export default function CheckinPage() {
         });
       }
 
-      // 3) Body measurements → measurements router
+      // 3) Body measurements → measurements router.
+      // Only create a row when none exists yet for this date; the router has no
+      // update/upsert, so creating on every save would duplicate rows. Weight is
+      // written to the daily check-in above (single source of truth), NOT here,
+      // to avoid a double-write into bodyMeasurements.
       const circumferences = {
         chestInches: pos(formData.chest),
         waistInches: pos(formData.waist),
@@ -179,16 +270,17 @@ export default function CheckinPage() {
         rightThighInches: pos(formData.rightThigh),
         rightBicepInches: pos(formData.rightBicep),
       };
-      if (Object.values(circumferences).some((v) => v !== undefined)) {
+      const hasExistingMeasurement = typeof formData.existingMeasurementId === "string";
+      if (!hasExistingMeasurement && Object.values(circumferences).some((v) => v !== undefined)) {
         await measurementsCreateMutation.mutateAsync({
           date,
-          weightLbs: pos(formData.weight),
           ...circumferences,
         });
       }
 
-      // 4) Meals → meals router
+      // 4) Meals → meals router (skip meals already persisted server-side)
       for (const meal of meals) {
+        if (meal.serverId) continue;
         await mealsAddMutation.mutateAsync({
           date,
           mealType: meal.mealType,
@@ -209,7 +301,7 @@ export default function CheckinPage() {
         });
       }
 
-      setIsDirty(false);
+      setDirty(false);
     } catch (err) {
       setSaveError(
         err instanceof Error && err.message
@@ -400,7 +492,7 @@ export default function CheckinPage() {
       {isDirty && (
         <div className="flex gap-3 sticky bottom-6 justify-end">
           <button
-            onClick={() => { setFormData(checkinData || {}); setIsDirty(false); setSaveError(null); }}
+            onClick={() => { setDirty(false); setFormData(buildSeededForm()); setSaveError(null); }}
             className="px-4 py-2 rounded-kairos-sm border border-kairos-border text-kairos-silver hover:border-kairos-gold/50 hover:text-white transition-colors font-body text-sm"
           >
             Cancel

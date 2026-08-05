@@ -26,8 +26,19 @@ export function ImportWizard() {
 
   const bulkInsert = trpc.clientPortal.imports.bulkInsert.useMutation();
 
+  // Categories that don't yet have a destination table wired up. We block these
+  // up front instead of walking the user through a mapping flow that can't save.
+  const UNSUPPORTED_CATEGORIES: ImportCategory[] = ["nutrition", "supplements"];
+
   async function handleFileSelect(file: File, category: ImportCategory) {
     setError(null);
+
+    if (UNSUPPORTED_CATEGORIES.includes(category)) {
+      setError(
+        `${category === "nutrition" ? "Nutrition" : "Supplement"} imports aren't supported yet — this data can't be saved automatically. Please log these entries manually in the app.`
+      );
+      return;
+    }
 
     // Size check
     if (file.size > 10 * 1024 * 1024) {
@@ -95,7 +106,13 @@ export function ImportWizard() {
       setSession(updatedSession);
       setStep("result");
     } catch (err) {
-      setError("Failed to save imported data. Please try again.");
+      // Surface the server's message (e.g. an unsupported-category refusal) so
+      // the user gets an honest reason rather than a generic failure.
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to save imported data. Please try again."
+      );
       console.error("[Import Error]", err);
     } finally {
       setImporting(false);

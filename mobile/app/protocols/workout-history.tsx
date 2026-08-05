@@ -295,8 +295,11 @@ function formatMonthYear(year: number, month: number) {
 /* ------------------------------------------------------------------ */
 
 export default function WorkoutHistoryScreen() {
+  // workouts.list requires a { startDate, endDate } range (last 180 days).
+  const rangeEnd = new Date().toISOString().split("T")[0];
+  const rangeStart = new Date(Date.now() - 180 * 86400000).toISOString().split("T")[0];
   const query = trpc.clientPortal.workouts.list.useQuery(
-    { limit: 50 },
+    { startDate: rangeStart, endDate: rangeEnd },
     DEFAULT_QUERY_OPTIONS,
   );
 

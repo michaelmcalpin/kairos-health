@@ -167,13 +167,22 @@ export default function HealthScreen() {
         <DateRangeSelector selected={dateRange} onChange={setDateRange} />
 
         {/* ─── 2. Health Score Summary ─────────────────────── */}
-        <HealthScoreSummary
-          score={healthScoreDetail.overall}
-          trend={healthScoreDetail.trend}
-          trendDelta={healthScoreDetail.trendDelta}
-          trendLabel={healthScoreDetail.trendLabel}
-          subScores={healthScoreDetail.subScores}
-        />
+        {healthScoreDetail ? (
+          <HealthScoreSummary
+            score={healthScoreDetail.overall}
+            trend={healthScoreDetail.trend}
+            trendDelta={healthScoreDetail.trendDelta}
+            trendLabel={healthScoreDetail.trendLabel}
+            subScores={healthScoreDetail.subScores}
+          />
+        ) : (
+          <Card style={styles.emptyScoreCard}>
+            <Text style={styles.emptyScoreTitle}>No health score yet</Text>
+            <Text style={styles.emptyScoreText}>
+              Connect a device or log data to see your score
+            </Text>
+          </Card>
+        )}
 
         {/* ─── 3. Biometric Categories Grid ────────────────── */}
         <SectionHeader title="Biometrics" />
@@ -199,14 +208,18 @@ export default function HealthScreen() {
         </View>
 
         {/* ─── Last Updated Timestamps ─────────────────────── */}
-        <View style={styles.timestampsCard}>
-          {categories.map((item) => (
-            <View key={item.id} style={styles.timestampRow}>
-              <Text style={styles.timestampLabel}>{item.label}</Text>
-              <Text style={styles.timestampValue}>{item.lastUpdated}</Text>
-            </View>
-          ))}
-        </View>
+        {categories.some((item) => item.hasData) && (
+          <View style={styles.timestampsCard}>
+            {categories
+              .filter((item) => item.hasData)
+              .map((item) => (
+                <View key={item.id} style={styles.timestampRow}>
+                  <Text style={styles.timestampLabel}>{item.label}</Text>
+                  <Text style={styles.timestampValue}>{item.lastUpdated}</Text>
+                </View>
+              ))}
+          </View>
+        )}
 
         {/* ─── 4. Recent Readings ──────────────────────────── */}
         <SectionHeader
@@ -273,6 +286,26 @@ const styles = StyleSheet.create({
     color: Colors.silver,
     fontSize: FontSizes.sm,
     marginTop: 2,
+  },
+
+  // Empty health score
+  emptyScoreCard: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  emptyScoreTitle: {
+    color: Colors.white,
+    fontSize: FontSizes.md,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  emptyScoreText: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
+    textAlign: "center",
+    maxWidth: 240,
   },
 
   // Biometrics grid

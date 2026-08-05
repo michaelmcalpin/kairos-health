@@ -314,30 +314,39 @@ const zoneStyles = StyleSheet.create({
 
 export default function FastingScreen() {
   /* ---- tRPC queries & mutations ---- */
+  /* ---- Date range for time-series queries (last 180 days) ---- */
+  const rangeEnd = new Date().toISOString().split("T")[0];
+  const rangeStart = new Date(Date.now() - 180 * 86400000).toISOString().split("T")[0];
+
   const protocolQuery = trpc.clientPortal.fasting.getProtocol.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
   const activeFastQuery = trpc.clientPortal.fasting.getActiveFast.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
-  const logsQuery = trpc.clientPortal.fasting.listLogs.useQuery({ limit: 10 }, DEFAULT_QUERY_OPTIONS);
-  const statsQuery = trpc.clientPortal.fasting.stats.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+  const logsQuery = trpc.clientPortal.fasting.listLogs.useQuery(
+    { startDate: rangeStart, endDate: rangeEnd },
+    DEFAULT_QUERY_OPTIONS,
+  );
+  const statsQuery = trpc.clientPortal.fasting.stats.useQuery(
+    { startDate: rangeStart, endDate: rangeEnd },
+    DEFAULT_QUERY_OPTIONS,
+  );
 
   const startFastMutation = trpc.clientPortal.fasting.startFast.useMutation({
     onSuccess: () => { activeFastQuery.refetch(); },
+    onError: (err: any) => { Alert.alert("Error", err?.message ?? "Could not start fast."); },
   });
   const endFastMutation = trpc.clientPortal.fasting.endFast.useMutation({
     onSuccess: () => { activeFastQuery.refetch(); logsQuery.refetch(); statsQuery.refetch(); },
+    onError: (err: any) => { Alert.alert("Error", err?.message ?? "Could not end fast."); },
   });
 
   /* ---- Map API data with sample fallback ---- */
   const protocol = protocolQuery.data
-    ? (protocolQuery.data as any).name ?? (protocolQuery.data as any).protocol ?? SAMPLE_CURRENT_FAST.protocol
-    : SAMPLE_CURRENT_FAST.protocol;
+    ? (protocolQuery.data as any).name ?? (protocolQuery.data as any).type ?? "Fasting Protocol"
+    : "No active protocol";
 
   const activeFast = activeFastQuery.data as any | null;
 
-  const isFasting = activeFast
-    ? true
-    : activeFastQuery.isSuccess
-      ? false
-      : SAMPLE_CURRENT_FAST.active;
+  // Gate on real data — only show an active fast when the backend returns one.
+  const isFasting = !!activeFast;
 
   const currentFast = useMemo(() => {
     if (activeFast) {
@@ -360,7 +369,15 @@ export default function FastingScreen() {
         remaining: { hours: remH, minutes: remM },
       };
     }
-    return { ...SAMPLE_CURRENT_FAST, protocol };
+    // No active fast — render an empty/zeroed state rather than sample data.
+    const goalHours = (protocolQuery.data as any)?.targetHours ?? SAMPLE_CURRENT_FAST.goal;
+    return {
+      protocol,
+      startTime: "—",
+      elapsed: { hours: 0, minutes: 0 },
+      goal: goalHours,
+      remaining: { hours: goalHours, minutes: 0 },
+    };
   }, [activeFast, protocol, protocolQuery.data]);
 
   const weeklyLog: WeeklyLogEntry[] = useMemo(() => {
@@ -449,7 +466,12 @@ export default function FastingScreen() {
                     {
                       text: "End Fast",
                       style: "destructive",
-                      onPress: () => endFastMutation.mutate({}),
+                      onPress: () => {
+                        // Backend requires { logId, completed }.
+                        if (activeFast?.id) {
+                          endFastMutation.mutate({ logId: activeFast.id, completed: true });
+                        }
+                      },
                     },
                   ]
                 );

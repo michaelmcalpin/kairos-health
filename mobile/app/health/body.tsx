@@ -70,8 +70,11 @@ export default function BodyScreen() {
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
+  // measurements.list requires a { startDate, endDate } range (last 180 days).
+  const rangeEnd = new Date().toISOString().split("T")[0];
+  const rangeStart = new Date(Date.now() - 180 * 86400000).toISOString().split("T")[0];
   const historyQuery = trpc.clientPortal.measurements.list.useQuery(
-    { limit: 30 },
+    { startDate: rangeStart, endDate: rangeEnd },
     DEFAULT_QUERY_OPTIONS,
   );
 

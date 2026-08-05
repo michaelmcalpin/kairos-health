@@ -172,15 +172,16 @@ export default function PeptidesScreen() {
         const cDiffMs = now.getTime() - cStart.getTime();
         const cDay = Math.max(1, Math.ceil(cDiffMs / 86400000));
         const cTotal = cEnd ? Math.ceil((cEnd.getTime() - cStart.getTime()) / 86400000) : 30;
-        const freqText = c.frequencyPerWeek
-          ? c.frequencyPerWeek === 7
-            ? "Daily"
-            : `${c.frequencyPerWeek}x/week`
-          : "Daily";
+        // Backend peptideCycles rows use `dosage`/`unit`/`frequency` (all
+        // strings); there is no doseMcg/frequencyPerWeek/timing column.
+        const freqText = c.frequency ?? "Daily";
+        const dosageText = c.dosage
+          ? `${c.dosage}${c.unit ?? ""}`
+          : "—";
         return {
           id: c.id,
           name: c.peptideName ?? c.name ?? `Peptide ${idx + 1}`,
-          dosage: c.doseMcg ? `${c.doseMcg}mcg` : "—",
+          dosage: dosageText,
           route: c.route ?? "—",
           frequency: freqText,
           timing: c.timing ?? "—",

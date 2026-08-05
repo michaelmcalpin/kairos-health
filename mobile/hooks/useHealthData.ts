@@ -1,18 +1,19 @@
 /**
- * useHealthData — Custom hook for dashboard and health screen data.
+ * useHealthData — Custom hooks for dashboard and health screen data.
  *
- * Tries to fetch real data via tRPC from the Everist backend.
- * Falls back to sample data when the API is unreachable (demo mode).
+ * Fetches real data via tRPC from the Everist backend. These hooks return
+ * honest values: real data when the backend has it, and null / empty
+ * (never fabricated sample data) when it doesn't. Screens are responsible
+ * for rendering empty states from these null/empty values.
  *
  * tRPC paths used (under `clientPortal`):
  *   - dashboard.getOverview       → KPIs, latest biometrics
  *   - dashboard.getHealthScore    → computed health score
  *   - dashboard.getSparklines     → 7-day sparkline arrays
- *   - dashboard.getRecentActivity → alerts / activity feed
- *   - alerts.list                 → full alert list
+ *   - alerts.list                 → alert list
  */
 
-import { trpc, SAMPLE_DATA, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Date range support
@@ -50,6 +51,19 @@ export function rangeToDates(range: HealthDateRange): DateRangeDates {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Types
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export interface HealthScoreDetail {
+  overall: number;
+  trend: "up" | "down" | "flat";
+  trendDelta: number;
+  trendLabel: string;
+  /** Only sub-scores that have real backing data are included. */
+  subScores: { label: string; value: number }[];
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // useHealthScore
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -59,24 +73,33 @@ export function useHealthScore(range?: DateRangeDates) {
     DEFAULT_QUERY_OPTIONS,
   );
 
-  // Map backend shape → sample shape for seamless fallback
-  const data = query.data
+  const data = query.data as any;
+  const hasScore = data?.score != null;
+
+  // Build a detail object only from real, present values. When the backend
+  // reports no data (`{ score: null, hasData: false }`) we return null so
+  // the screen can show an honest empty state.
+  const healthScoreDetail: HealthScoreDetail | null = hasScore
     ? {
-        overall: query.data.score,
-        trend: "up" as const,
+        overall: Number(data.score),
+        trend: "flat",
         trendDelta: 0,
         trendLabel: "",
         subScores: [
-          { label: "Sleep", value: query.data.avgSleep ?? 0 },
-          { label: "Glucose", value: query.data.avgGlucose ?? 0 },
-          { label: "HRV", value: query.data.hrv ?? 0 },
-        ],
+          data.avgSleep != null
+            ? { label: "Sleep", value: Number(data.avgSleep) }
+            : null,
+          data.avgGlucose != null
+            ? { label: "Glucose", value: Number(data.avgGlucose) }
+            : null,
+          data.hrv != null ? { label: "HRV", value: Number(data.hrv) } : null,
+        ].filter(Boolean) as { label: string; value: number }[],
       }
-    : SAMPLE_DATA.healthScoreDetail;
+    : null;
 
   return {
-    healthScore: query.data?.score ?? SAMPLE_DATA.healthScore,
-    healthScoreDetail: data,
+    healthScore: hasScore ? (Number(data.score) as number) : null,
+    healthScoreDetail,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
@@ -93,100 +116,101 @@ export function useDashboardOverview() {
     DEFAULT_QUERY_OPTIONS,
   );
 
-  // Translate API KPIs into the shape the dashboard screen currently expects
-  const kpis = query.data?.kpis;
+  const kpis = (query.data as any)?.kpis ?? null;
 
-  const kpiData = kpis
-    ? {
-        sleep: {
-          hours: kpis.sleep?.duration
-            ? +(kpis.sleep.duration / 60).toFixed(1)
-            : SAMPLE_DATA.kpiData.sleep.hours,
-          quality: kpis.sleep?.quality ?? SAMPLE_DATA.kpiData.sleep.quality,
-          sparkData: SAMPLE_DATA.kpiData.sleep.sparkData, // sparklines come from a separate query
-        },
-        heartRate: {
-          bpm: kpis.heartRate?.value ?? SAMPLE_DATA.kpiData.heartRate.bpm,
-          resting: SAMPLE_DATA.kpiData.heartRate.resting,
-          sparkData: SAMPLE_DATA.kpiData.heartRate.sparkData,
-        },
-        steps: {
-          count: kpis.steps?.value ?? SAMPLE_DATA.kpiData.steps.count,
-          goal: SAMPLE_DATA.kpiData.steps.goal,
-          sparkData: SAMPLE_DATA.kpiData.steps.sparkData,
-        },
-        weight: {
-          lbs: kpis.weight?.value ?? SAMPLE_DATA.kpiData.weight.lbs,
-          trend: SAMPLE_DATA.kpiData.weight.trend,
-          trendValue: SAMPLE_DATA.kpiData.weight.trendValue,
-          sparkData: SAMPLE_DATA.kpiData.weight.sparkData,
-        },
-      }
-    : SAMPLE_DATA.kpiData;
+  // KPI values are real or null. Sparklines are not part of this endpoint,
+  // so they are empty here (the Health tab pulls real sparklines separately).
+  const kpiData = {
+    sleep: {
+      hours:
+        kpis?.sleep?.duration != null
+          ? +(Number(kpis.sleep.duration) / 60).toFixed(1)
+          : null,
+      quality: kpis?.sleep?.quality ?? null,
+      sparkData: [] as number[],
+    },
+    heartRate: {
+      bpm: kpis?.heartRate?.value ?? null,
+      resting: null as number | null,
+      sparkData: [] as number[],
+    },
+    steps: {
+      count: kpis?.steps?.value ?? null,
+      goal: null as number | null,
+      sparkData: [] as number[],
+    },
+    weight: {
+      lbs: kpis?.weight?.value ?? null,
+      trend: null as "up" | "down" | "flat" | null,
+      trendValue: null as string | null,
+      sparkData: [] as number[],
+    },
+  };
 
-  const biometricsData = kpis
-    ? {
-        bloodPressure: {
-          value: kpis.bloodPressure
-            ? `${kpis.bloodPressure.systolic}/${kpis.bloodPressure.diastolic}`
-            : SAMPLE_DATA.biometricsData.bloodPressure.value,
-          unit: SAMPLE_DATA.biometricsData.bloodPressure.unit,
-          status: SAMPLE_DATA.biometricsData.bloodPressure.status,
-          sparkData: SAMPLE_DATA.biometricsData.bloodPressure.sparkData,
-          sparkColor: SAMPLE_DATA.biometricsData.bloodPressure.sparkColor,
-          iconBg: SAMPLE_DATA.biometricsData.bloodPressure.iconBg,
-        },
-        glucose: {
-          value: kpis.glucose?.value ?? SAMPLE_DATA.biometricsData.glucose.value,
-          unit: SAMPLE_DATA.biometricsData.glucose.unit,
-          status: SAMPLE_DATA.biometricsData.glucose.status,
-          sparkData: SAMPLE_DATA.biometricsData.glucose.sparkData,
-          sparkColor: SAMPLE_DATA.biometricsData.glucose.sparkColor,
-          iconBg: SAMPLE_DATA.biometricsData.glucose.iconBg,
-        },
-        sleepScore: {
-          value: kpis.sleep?.quality ?? SAMPLE_DATA.biometricsData.sleepScore.value,
-          unit: SAMPLE_DATA.biometricsData.sleepScore.unit,
-          status: SAMPLE_DATA.biometricsData.sleepScore.status,
-          sparkData: SAMPLE_DATA.biometricsData.sleepScore.sparkData,
-          sparkColor: SAMPLE_DATA.biometricsData.sleepScore.sparkColor,
-          iconBg: SAMPLE_DATA.biometricsData.sleepScore.iconBg,
-        },
-        hrv: {
-          value: kpis.hrv?.value ?? SAMPLE_DATA.biometricsData.hrv.value,
-          unit: SAMPLE_DATA.biometricsData.hrv.unit,
-          status: SAMPLE_DATA.biometricsData.hrv.status,
-          sparkData: SAMPLE_DATA.biometricsData.hrv.sparkData,
-          sparkColor: SAMPLE_DATA.biometricsData.hrv.sparkColor,
-          iconBg: SAMPLE_DATA.biometricsData.hrv.iconBg,
-        },
-        bodyWeight: {
-          value: kpis.weight?.value ?? SAMPLE_DATA.biometricsData.bodyWeight.value,
-          unit: SAMPLE_DATA.biometricsData.bodyWeight.unit,
-          status: SAMPLE_DATA.biometricsData.bodyWeight.status,
-          sparkData: SAMPLE_DATA.biometricsData.bodyWeight.sparkData,
-          sparkColor: SAMPLE_DATA.biometricsData.bodyWeight.sparkColor,
-          iconBg: SAMPLE_DATA.biometricsData.bodyWeight.iconBg,
-        },
-        dailySteps: {
-          value: kpis.steps?.value
-            ? kpis.steps.value.toLocaleString()
-            : SAMPLE_DATA.biometricsData.dailySteps.value,
-          unit: SAMPLE_DATA.biometricsData.dailySteps.unit,
-          status: SAMPLE_DATA.biometricsData.dailySteps.status,
-          sparkData: SAMPLE_DATA.biometricsData.dailySteps.sparkData,
-          sparkColor: SAMPLE_DATA.biometricsData.dailySteps.sparkColor,
-          iconBg: SAMPLE_DATA.biometricsData.dailySteps.iconBg,
-        },
-      }
-    : SAMPLE_DATA.biometricsData;
+  const biometricsData = {
+    bloodPressure: {
+      value: kpis?.bloodPressure
+        ? `${kpis.bloodPressure.systolic}/${kpis.bloodPressure.diastolic}`
+        : null,
+      unit: "mmHg",
+      status: undefined as undefined,
+      sparkData: [] as number[],
+      sparkColor: "#C65D5D",
+      iconBg: "rgba(198, 93, 93, 0.12)",
+    },
+    glucose: {
+      value: kpis?.glucose?.value ?? null,
+      unit: "mg/dL",
+      status: undefined as undefined,
+      sparkData: [] as number[],
+      sparkColor: "#F59E0B",
+      iconBg: "rgba(245, 158, 11, 0.12)",
+    },
+    sleepScore: {
+      value: kpis?.sleep?.quality ?? null,
+      unit: "/100",
+      status: undefined as undefined,
+      sparkData: [] as number[],
+      sparkColor: "#60A5FA",
+      iconBg: "rgba(96, 165, 250, 0.12)",
+    },
+    hrv: {
+      value: kpis?.hrv?.value ?? null,
+      unit: "ms",
+      status: undefined as undefined,
+      sparkData: [] as number[],
+      sparkColor: "#A78BFA",
+      iconBg: "rgba(167, 139, 250, 0.12)",
+    },
+    bodyWeight: {
+      value: kpis?.weight?.value ?? null,
+      unit: "lbs",
+      status: undefined as undefined,
+      sparkData: [] as number[],
+      sparkColor: "#4A90D9",
+      iconBg: "rgba(74, 144, 217, 0.12)",
+    },
+    dailySteps: {
+      value:
+        kpis?.steps?.value != null
+          ? Number(kpis.steps.value).toLocaleString()
+          : null,
+      unit: "steps",
+      status: undefined as undefined,
+      sparkData: [] as number[],
+      sparkColor: "#4A9D5B",
+      iconBg: "rgba(74, 157, 91, 0.12)",
+    },
+  };
 
   return {
     kpiData,
     biometricsData,
-    unreadAlerts: kpis?.unreadAlerts ?? SAMPLE_DATA.alerts.length,
+    /** Raw KPI payload (with timestamps) for consumers that need it. */
+    kpis,
+    unreadAlerts: kpis?.unreadAlerts ?? 0,
     checkedInToday: kpis?.checkedInToday ?? false,
-    profile: query.data?.profile ?? null,
+    profile: (query.data as any)?.profile ?? null,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
@@ -203,14 +227,23 @@ export function useSparklines(range?: DateRangeDates) {
     DEFAULT_QUERY_OPTIONS,
   );
 
-  const sparklines = query.data
-    ? {
-        sleep: query.data.sleep.map((s: any) => s.hours ?? 0),
-        sleepScores: query.data.sleep.map((s: any) => s.score ?? 0),
-        glucose: query.data.glucose.map((g: any) => g.avg),
-        bpSystolic: query.data.bp.map((b: any) => b.sys),
-      }
-    : null;
+  const data = query.data as any;
+
+  // Real arrays when present, empty arrays otherwise — never sample data.
+  const sparklines = {
+    sleep: (data?.sleep ?? [])
+      .map((s: any) => s.hours)
+      .filter((n: any): n is number => n != null),
+    sleepScores: (data?.sleep ?? [])
+      .map((s: any) => s.score)
+      .filter((n: any): n is number => n != null),
+    glucose: (data?.glucose ?? [])
+      .map((g: any) => g.avg)
+      .filter((n: any): n is number => n != null),
+    bpSystolic: (data?.bp ?? [])
+      .map((b: any) => b.sys)
+      .filter((n: any): n is number => n != null),
+  };
 
   return {
     sparklines,
@@ -230,22 +263,19 @@ export function useAlerts(status: "active" | "all" = "all") {
     DEFAULT_QUERY_OPTIONS,
   );
 
-  const alerts = query.data?.alerts
-    ? query.data.alerts.map((a: any) => ({
-        id: a.id,
-        title: a.title,
-        message: a.message,
-        timestamp: a.createdAt
-          ? formatRelativeTime(new Date(a.createdAt))
-          : "",
-        priority: a.priority === "high" || a.priority === "critical" ? "action" : "info",
-        type: a.type ?? "general",
-      }))
-    : SAMPLE_DATA.alerts;
+  const alerts = ((query.data as any)?.alerts ?? []).map((a: any) => ({
+    id: a.id,
+    title: a.title,
+    message: a.message,
+    timestamp: a.createdAt ? formatRelativeTime(new Date(a.createdAt)) : "",
+    priority:
+      a.priority === "high" || a.priority === "critical" ? "action" : "info",
+    type: a.type ?? "general",
+  }));
 
   return {
     alerts,
-    total: query.data?.total ?? SAMPLE_DATA.alerts.length,
+    total: (query.data as any)?.total ?? 0,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
@@ -256,71 +286,100 @@ export function useAlerts(status: "active" | "all" = "all") {
 // useBiometricCategories  (Health tab grid)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/** Presentational config for the biometric grid — no fabricated values. */
+const CATEGORY_CONFIG = [
+  { id: "sleep", label: "Sleep", unit: "hrs", sparkColor: "#60A5FA", iconBgColor: "rgba(96, 165, 250, 0.12)" },
+  { id: "heartRate", label: "Heart Rate", unit: "bpm", sparkColor: "#C65D5D", iconBgColor: "rgba(198, 93, 93, 0.12)" },
+  { id: "bloodPressure", label: "Blood Pressure", unit: "mmHg", sparkColor: "#C65D5D", iconBgColor: "rgba(198, 93, 93, 0.12)" },
+  { id: "glucose", label: "Blood Glucose", unit: "mg/dL", sparkColor: "#F59E0B", iconBgColor: "rgba(245, 158, 11, 0.12)" },
+  { id: "hrv", label: "HRV", unit: "ms", sparkColor: "#A78BFA", iconBgColor: "rgba(167, 139, 250, 0.12)" },
+  { id: "weight", label: "Body Weight", unit: "lbs", sparkColor: "#4A90D9", iconBgColor: "rgba(74, 144, 217, 0.12)" },
+  { id: "steps", label: "Steps", unit: "steps", sparkColor: "#4A9D5B", iconBgColor: "rgba(74, 157, 91, 0.12)" },
+] as const;
+
+/** Resolve the "last updated" timestamp for a category from raw KPI data. */
+function timestampFor(id: string, kpis: any): string | number | Date | null {
+  if (!kpis) return null;
+  switch (id) {
+    case "sleep":
+      return kpis.sleep?.timestamp ?? null;
+    case "heartRate":
+      return kpis.heartRate?.timestamp ?? null;
+    case "glucose":
+      return kpis.glucose?.timestamp ?? null;
+    case "hrv":
+      return kpis.hrv?.timestamp ?? null;
+    case "weight":
+      return kpis.weight?.date ?? null;
+    case "steps":
+      return kpis.steps?.date ?? null;
+    case "bloodPressure":
+      return kpis.bloodPressure?.date ?? null;
+    default:
+      return null;
+  }
+}
+
 export function useBiometricCategories(range?: DateRangeDates) {
-  // We rely on the dashboard overview for latest values and
-  // sparklines for trend data — both already fetched above.
-  // This hook assembles the Health-screen grid shape.
   const overview = useDashboardOverview();
   const sparks = useSparklines(range);
 
-  // When API data is available, overlay real values and sparklines onto biometric categories
-  const bio = overview.isLoading ? null : overview.biometricsData;
-  const kpi = overview.isLoading ? null : overview.kpiData;
+  const bio = overview.biometricsData;
+  const kpi = overview.kpiData;
+  const rawKpis = overview.kpis;
 
-  const categories = SAMPLE_DATA.biometricCategories.map((cat) => {
-    let updated = { ...cat };
-
-    // Overlay real KPI / biometric values when the API returned data
-    if (bio && kpi) {
-      switch (cat.id) {
-        case "sleep":
-          updated = { ...updated, value: String(kpi.sleep.hours), unit: "hrs" };
-          break;
-        case "heartRate":
-          updated = { ...updated, value: String(kpi.heartRate.bpm), unit: "bpm" };
-          break;
-        case "bloodPressure":
-          updated = { ...updated, value: bio.bloodPressure.value };
-          break;
-        case "glucose":
-          updated = { ...updated, value: String(bio.glucose.value) };
-          break;
-        case "hrv":
-          updated = { ...updated, value: String(bio.hrv.value) };
-          break;
-        case "weight":
-          updated = { ...updated, value: String(kpi.weight.lbs) };
-          break;
-        case "steps":
-          updated = {
-            ...updated,
-            value: typeof kpi.steps.count === "number"
-              ? kpi.steps.count.toLocaleString()
-              : String(kpi.steps.count),
-          };
-          break;
-      }
+  const categories = CATEGORY_CONFIG.map((cfg) => {
+    // ── Real value (or null → "—") ──────────────────────────
+    let value: string | number | null = null;
+    switch (cfg.id) {
+      case "sleep":
+        value = kpi.sleep.hours;
+        break;
+      case "heartRate":
+        value = kpi.heartRate.bpm;
+        break;
+      case "bloodPressure":
+        value = bio.bloodPressure.value;
+        break;
+      case "glucose":
+        value = bio.glucose.value;
+        break;
+      case "hrv":
+        value = bio.hrv.value;
+        break;
+      case "weight":
+        value = kpi.weight.lbs;
+        break;
+      case "steps":
+        value = bio.dailySteps.value;
+        break;
     }
 
-    // Overlay real sparkline data when available
-    if (sparks.sparklines) {
-      switch (cat.id) {
-        case "sleep":
-          if (sparks.sparklines.sleep.length)
-            updated = { ...updated, sparkData: sparks.sparklines.sleep };
-          break;
-        case "glucose":
-          if (sparks.sparklines.glucose.length)
-            updated = { ...updated, sparkData: sparks.sparklines.glucose };
-          break;
-        case "bloodPressure":
-          if (sparks.sparklines.bpSystolic.length)
-            updated = { ...updated, sparkData: sparks.sparklines.bpSystolic };
-          break;
-      }
+    // ── Real sparkline data (or empty → no trend line) ──────
+    let sparkData: number[] = [];
+    if (cfg.id === "sleep" && sparks.sparklines.sleep.length) {
+      sparkData = sparks.sparklines.sleep;
+    } else if (cfg.id === "glucose" && sparks.sparklines.glucose.length) {
+      sparkData = sparks.sparklines.glucose;
+    } else if (cfg.id === "bloodPressure" && sparks.sparklines.bpSystolic.length) {
+      sparkData = sparks.sparklines.bpSystolic;
     }
 
-    return updated;
+    const ts = timestampFor(cfg.id, rawKpis);
+    const lastUpdated = ts ? formatRelativeTime(new Date(ts as any)) : "—";
+
+    return {
+      id: cfg.id,
+      label: cfg.label,
+      unit: cfg.unit,
+      value: value ?? "—",
+      status: undefined as undefined,
+      lastUpdated,
+      hasData: value != null,
+      sparkData,
+      sparkColor: cfg.sparkColor,
+      iconBgColor: cfg.iconBgColor,
+    };
   });
 
   return {

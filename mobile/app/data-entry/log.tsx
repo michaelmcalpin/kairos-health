@@ -176,12 +176,19 @@ export default function LogEntryScreen() {
 
     try {
       if (type === "glucose") {
+        // Backend glucose.create expects a lowercase timingContext enum and a
+        // `timestamp` field (there is no `date` field on this procedure).
+        const glucoseTimingMap: Record<string, "fasting" | "pre_meal" | "post_meal"> = {
+          Fasting: "fasting",
+          "Before Meal": "pre_meal",
+          "After Meal": "post_meal",
+        };
         await glucoseMutation.mutateAsync({
           valueMgdl: Number(glucoseValue),
-          timingContext: mealContext,
+          timingContext: glucoseTimingMap[mealContext] ?? "other",
           notes: glucoseNotes || undefined,
           source: "manual",
-          date: entryDate,
+          timestamp: entryDate,
         });
       } else if (type === "blood-pressure") {
         await bpMutation.mutateAsync({

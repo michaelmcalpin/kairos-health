@@ -1215,17 +1215,27 @@ export default function SettingsPage() {
 
               <p className="font-body text-gray-300 mb-4">
                 Permanently delete your account and all associated data. This action
-                cannot be undone.
+                cannot be undone. Because your record includes clinical and coaching
+                data, deletions are processed by our support team to verify your
+                identity first.
               </p>
               <button onClick={() => setShowDeleteConfirm(!showDeleteConfirm)} className="px-6 py-3 bg-transparent border-2 border-red-500 text-red-400 rounded-kairos-sm font-body font-medium hover:bg-red-900 transition-colors">
-                Delete Account
+                Request Account Deletion
               </button>
               {showDeleteConfirm && (
                 <div className="mt-4 p-4 rounded-kairos-sm border border-red-500/30 bg-red-950/50">
-                  <p className="text-sm text-red-300 mb-3">Are you sure? This will permanently delete your account and all data. This cannot be undone.</p>
+                  <p className="text-sm text-red-300 mb-3">
+                    To permanently delete your account and all data, send us a deletion
+                    request and our team will confirm and complete it. This cannot be undone.
+                  </p>
                   <div className="flex gap-3">
                     <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 bg-gray-700 text-white rounded-kairos-sm text-sm font-medium hover:bg-gray-600 transition-colors">Cancel</button>
-                    <button className="px-4 py-2 bg-red-600 text-white rounded-kairos-sm text-sm font-medium hover:bg-red-700 transition-colors">Confirm Delete</button>
+                    <a
+                      href="mailto:support@everist.ai?subject=Account%20deletion%20request&body=I%20would%20like%20to%20permanently%20delete%20my%20Everist.ai%20account%20and%20all%20associated%20data."
+                      className="px-4 py-2 bg-red-600 text-white rounded-kairos-sm text-sm font-medium hover:bg-red-700 transition-colors inline-flex items-center"
+                    >
+                      Email Deletion Request
+                    </a>
                   </div>
                 </div>
               )}

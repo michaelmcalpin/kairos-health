@@ -112,15 +112,19 @@ const MEAL_TYPE_LABELS: Record<string, string> = {
 
 function mapApiMeal(raw: any): MealDisplay {
   const mealType = (raw.mealType ?? "snack").toLowerCase();
+  // getByDate returns items as an array of food items plus total* macro fields.
+  const itemsText = Array.isArray(raw.items)
+    ? raw.items.map((i: any) => i?.name).filter(Boolean).join(", ")
+    : (raw.items ?? raw.description ?? "");
   return {
     id: raw.id ?? raw._id ?? undefined,
     name: MEAL_TYPE_LABELS[mealType] ?? mealType.charAt(0).toUpperCase() + mealType.slice(1),
-    time: raw.time ?? raw.loggedAt ?? "",
-    calories: raw.calories ?? 0,
-    protein: raw.proteinG ?? raw.protein ?? 0,
-    carbs: raw.carbsG ?? raw.carbs ?? 0,
-    fat: raw.fatG ?? raw.fat ?? 0,
-    items: raw.description ?? raw.items ?? "",
+    time: raw.time ?? raw.loggedAt ?? (raw.createdAt ? new Date(raw.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""),
+    calories: raw.totalCalories ?? raw.calories ?? 0,
+    protein: raw.totalProtein ?? raw.proteinG ?? raw.protein ?? 0,
+    carbs: raw.totalCarbs ?? raw.carbsG ?? raw.carbs ?? 0,
+    fat: raw.totalFat ?? raw.fatG ?? raw.fat ?? 0,
+    items: itemsText,
     mealType: mealType as MealDisplay["mealType"],
   };
 }
@@ -250,6 +254,18 @@ export default function MealsScreen() {
       ...( ["breakfast", "lunch", "dinner", "snack"] as const ).map((mealType) => ({
         text: MEAL_TYPE_LABELS[mealType],
         onPress: () => {
+          // meals.add does not accept a `description` field — it expects
+          // structured items[]. Store the free-text entry as a single item so
+          // the text is preserved instead of being stripped by the schema.
+          const buildItem = (text: string) => ({
+            name: text,
+            quantity: 1,
+            unit: "serving",
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+          });
           Alert.prompt
             ? Alert.prompt(
                 `Log ${MEAL_TYPE_LABELS[mealType]}`,
@@ -259,7 +275,7 @@ export default function MealsScreen() {
                     addMealMutation.mutate({
                       date: today,
                       mealType,
-                      description,
+                      items: [buildItem(description)],
                     });
                   }
                 },
@@ -267,7 +283,7 @@ export default function MealsScreen() {
             : addMealMutation.mutate({
                 date: today,
                 mealType,
-                description: `${MEAL_TYPE_LABELS[mealType]} logged`,
+                items: [buildItem(`${MEAL_TYPE_LABELS[mealType]} logged`)],
               });
         },
       })),
