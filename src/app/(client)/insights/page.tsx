@@ -689,7 +689,6 @@ export default function InsightsPage() {
   const score = insights.length > 0
     ? Math.min(10, Math.round(insights.filter((i) => i.severity === "positive").length / Math.max(insights.length, 1) * 10))
     : 0;
-  const trend = insights.length > 0 ? "+0.5" : "0";
 
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
   const generateReport = useCallback(async (reportType: string) => {
@@ -1024,15 +1023,7 @@ export default function InsightsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-kairos-card/50 rounded-kairos-sm p-4 border border-kairos-border">
-                <div className="flex items-center gap-2 mb-2">
-                  <TrendingUp className="w-4 h-4 text-kairos-gold" />
-                  <span className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Score Trend</span>
-                </div>
-                <p className="text-lg font-bold text-kairos-gold">{trend}</p>
-                <p className="text-xs text-kairos-silver-dark">vs previous {period}</p>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="bg-kairos-card/50 rounded-kairos-sm p-4 border border-kairos-border">
                 <div className="flex items-center gap-2 mb-2">
                   <Lightbulb className="w-4 h-4 text-kairos-gold" />

@@ -4,8 +4,20 @@ import { bloodPressureReadings } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
+// Only swallow "relation/table does not exist" errors (e.g. a table that has
+// not been migrated yet); rethrow everything else so tRPC surfaces a real DB
+// error and the UI can show its error state instead of a false "no data".
 async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
-  try { return await fn(); } catch { return fallback; }
+  try {
+    return await fn();
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    const message = err instanceof Error ? err.message : String(err);
+    if (code === "42P01" || message.includes("does not exist")) {
+      return fallback;
+    }
+    throw err;
+  }
 }
 
 export const clientBloodPressureRouter = router({

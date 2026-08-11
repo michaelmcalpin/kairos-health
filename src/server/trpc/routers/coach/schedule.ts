@@ -50,6 +50,7 @@ export const coachScheduleRouter = router({
           capacity: profile.capacity,
           acceptingClients: profile.acceptingClients,
           packages: profile.packages,
+          specialties: profile.specialties ?? [],
         }
       : null;
   }),

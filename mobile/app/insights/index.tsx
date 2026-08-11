@@ -25,7 +25,6 @@ import {
   Moon,
   Heart,
   ArrowRight,
-  Lightbulb,
 } from "lucide-react-native";
 
 import { Card } from "@/components/ui/Card";
@@ -173,17 +172,6 @@ export default function InsightsScreen() {
             style={styles.generateBtn}
           />
         </Card>
-
-        {/* ---- AI Insight Banner ---- */}
-        <View style={styles.insightBanner}>
-          <View style={styles.insightIconWrap}>
-            <Lightbulb size={18} color={Colors.gold} />
-          </View>
-          <Text style={styles.insightText}>
-            Based on your recent labs, your LDL-P trend has improved 12% over 3
-            months
-          </Text>
-        </View>
 
         {/* ---- Recent Reports ---- */}
         <Text style={styles.sectionTitle}>Recent Reports</Text>

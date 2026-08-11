@@ -26,7 +26,6 @@ export const coachRevenueRouter = router({
       return {
         totalMonthlyRevenue: 0,
         coachingFees: 0,
-        supplementMarkup: 0,
         clientCount: 0,
         byTier: [],
       };
@@ -64,13 +63,9 @@ export const coachRevenueRouter = router({
       tierCounts[client.tier].revenue += pricing.coaching;
     }
 
-    // Estimate supplement markup at ~25% of coaching fees
-    const supplementMarkup = Math.round(totalCoaching * 0.25);
-
     return {
-      totalMonthlyRevenue: totalCoaching + supplementMarkup,
+      totalMonthlyRevenue: totalCoaching,
       coachingFees: totalCoaching,
-      supplementMarkup,
       clientCount: clients.length,
       byTier: Object.entries(tierCounts).map(([tier, data]) => ({
         tier,
@@ -111,8 +106,7 @@ export const coachRevenueRouter = router({
           tier,
           tierLabel: pricing.label,
           coachingFee: pricing.coaching,
-          supplementMarkup: Math.round(pricing.coaching * 0.25),
-          totalMonthly: pricing.coaching + Math.round(pricing.coaching * 0.25),
+          totalMonthly: pricing.coaching,
         };
       })
     );

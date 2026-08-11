@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { DollarSign, TrendingUp, PieChart, Info } from "lucide-react";
+import { DollarSign, TrendingUp, Info } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
@@ -27,7 +27,6 @@ export default function RevenueCoachPage() {
       return {
         totalMonthlyRevenue: 0,
         totalCoachingFees: 0,
-        totalSupplementMarkup: 0,
         clientRevenue: [],
         tierSummaries: [],
       };
@@ -39,13 +38,12 @@ export default function RevenueCoachPage() {
     // Client revenue with calculated totals
     const clientRevenue = (clientRevenueData || []).map((c) => ({
       ...c,
-      totalMonthly: (c.coachingFee || 0) + (c.supplementMarkup || 0),
+      totalMonthly: c.coachingFee || 0,
     }));
 
     return {
       totalMonthlyRevenue: summaryData.totalMonthlyRevenue || 0,
       totalCoachingFees: summaryData.coachingFees || 0,
-      totalSupplementMarkup: summaryData.supplementMarkup || 0,
       clientRevenue,
       tierSummaries,
     };
@@ -56,7 +54,7 @@ export default function RevenueCoachPage() {
       {/* Header */}
       <div>
         <h1 className="font-heading font-bold text-3xl text-white mb-2">Revenue Dashboard</h1>
-        <p className="font-body text-kairos-silver-dark">Track your coaching and supplement revenue</p>
+        <p className="font-body text-kairos-silver-dark">Track your coaching revenue</p>
       </div>
 
       <DateRangeNavigator
@@ -80,7 +78,7 @@ export default function RevenueCoachPage() {
       </div>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {summaryLoading ? (
           <div className="col-span-full">
             <div className="kairos-card p-6 border border-kairos-border text-center">
@@ -107,19 +105,6 @@ export default function RevenueCoachPage() {
               <p className="text-xs text-kairos-silver-dark font-body">
                 {data.totalMonthlyRevenue > 0
                   ? ((data.totalCoachingFees / data.totalMonthlyRevenue) * 100).toFixed(0)
-                  : 0}% of total
-              </p>
-            </div>
-
-            <div className="kairos-card p-6 border border-kairos-border">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-kairos-silver-dark text-sm font-body">Supplement Markup</span>
-                <PieChart className="w-5 h-5 text-kairos-gold" />
-              </div>
-              <div className="text-3xl font-heading font-bold text-white mb-1">${data.totalSupplementMarkup.toLocaleString()}</div>
-              <p className="text-xs text-kairos-silver-dark font-body">
-                {data.totalMonthlyRevenue > 0
-                  ? ((data.totalSupplementMarkup / data.totalMonthlyRevenue) * 100).toFixed(0)
                   : 0}% of total
               </p>
             </div>
@@ -154,7 +139,6 @@ export default function RevenueCoachPage() {
                   <th className="text-left py-3 px-4 text-xs font-heading text-kairos-silver-dark font-semibold">Client</th>
                   <th className="text-left py-3 px-4 text-xs font-heading text-kairos-silver-dark font-semibold">Tier</th>
                   <th className="text-right py-3 px-4 text-xs font-heading text-kairos-silver-dark font-semibold">Coaching Fee</th>
-                  <th className="text-right py-3 px-4 text-xs font-heading text-kairos-silver-dark font-semibold">Supplement Markup</th>
                   <th className="text-right py-3 px-4 text-xs font-heading text-kairos-silver-dark font-semibold">Total Monthly</th>
                 </tr>
               </thead>
@@ -168,7 +152,6 @@ export default function RevenueCoachPage() {
                       </span>
                     </td>
                     <td className="py-4 px-4 font-body text-white text-right">${(client.coachingFee || 0).toLocaleString()}</td>
-                    <td className="py-4 px-4 font-body text-kairos-gold text-right">${(client.supplementMarkup || 0).toLocaleString()}</td>
                     <td className="py-4 px-4 font-heading font-bold text-white text-right">${client.totalMonthly.toLocaleString()}</td>
                   </tr>
                 ))}

@@ -54,9 +54,6 @@ export const HEALTHKIT_READ_TYPES = [
   "HKQuantityTypeIdentifierBloodGlucose",
   "HKQuantityTypeIdentifierBloodPressureSystolic",
   "HKQuantityTypeIdentifierBloodPressureDiastolic",
-  "HKQuantityTypeIdentifierOxygenSaturation",
-  "HKQuantityTypeIdentifierBodyTemperature",
-  "HKQuantityTypeIdentifierRespiratoryRate",
   "HKCategoryTypeIdentifierSleepAnalysis",
 ] as const;
 
@@ -103,9 +100,6 @@ const permissions: HealthKitPermissions = {
       "BloodPressureSystolic",
       "BloodPressureDiastolic",
       "SleepAnalysis",
-      "OxygenSaturation",
-      "BodyTemperature",
-      "RespiratoryRate",
     ] as any,
     write: [],
   },
@@ -280,15 +274,6 @@ export async function readHealthData(
             );
           });
           return;
-        case "HKQuantityTypeIdentifierOxygenSaturation":
-          AppleHealthKit.getOxygenSaturationSamples(options, callback as any);
-          break;
-        case "HKQuantityTypeIdentifierBodyTemperature":
-          AppleHealthKit.getBodyTemperatureSamples(options, callback as any);
-          break;
-        case "HKQuantityTypeIdentifierRespiratoryRate":
-          AppleHealthKit.getRespiratoryRateSamples(options, callback as any);
-          break;
         case "HKCategoryTypeIdentifierSleepAnalysis":
           AppleHealthKit.getSleepSamples(options, callback as any);
           break;

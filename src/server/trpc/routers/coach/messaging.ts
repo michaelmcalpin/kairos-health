@@ -23,6 +23,10 @@ export const coachMessagingRouter = router({
 
       if (filter === "unread") {
         conditions.push(sql`${conversations.unreadCountTrainer} > 0`);
+      } else if (filter === "ai_coach") {
+        conditions.push(eq(conversations.isAiTrainer, true));
+      } else if (filter === "human_coach") {
+        conditions.push(sql`(${conversations.isAiTrainer} = false OR ${conversations.isAiTrainer} IS NULL)`);
       }
 
       const convs = await ctx.db.query.conversations.findMany({

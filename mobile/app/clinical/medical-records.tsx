@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/Button";
 import { showImagePickerOptions } from "@/lib/image-picker";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Types & mapping                                                     */
 /* ------------------------------------------------------------------ */
 
 interface MedicalRecord {
@@ -41,110 +41,6 @@ interface RecordGroup {
   icon: string;
   records: MedicalRecord[];
 }
-
-const SAMPLE_RECORD_GROUPS: RecordGroup[] = [
-  {
-    type: "Lab Reports",
-    icon: "🧪",
-    records: [
-      {
-        id: "1",
-        title: "Comprehensive Metabolic Panel",
-        date: "May 28, 2026",
-        provider: "Quest Diagnostics",
-        fileType: "pdf",
-      },
-      {
-        id: "2",
-        title: "Lipid Panel + ApoB",
-        date: "May 28, 2026",
-        provider: "Quest Diagnostics",
-        fileType: "pdf",
-      },
-      {
-        id: "3",
-        title: "Hormone Panel (Testosterone, DHEA, Cortisol)",
-        date: "Apr 15, 2026",
-        provider: "LabCorp",
-        fileType: "pdf",
-      },
-    ],
-  },
-  {
-    type: "Imaging",
-    icon: "📷",
-    records: [
-      {
-        id: "4",
-        title: "Chest X-Ray",
-        date: "Mar 10, 2026",
-        provider: "Radiology Associates",
-        fileType: "image",
-      },
-      {
-        id: "5",
-        title: "DEXA Scan Report",
-        date: "May 15, 2026",
-        provider: "Longevity Medical Center",
-        fileType: "pdf",
-      },
-      {
-        id: "6",
-        title: "Coronary Artery Calcium Score",
-        date: "Jan 20, 2026",
-        provider: "Heart Imaging Center",
-        fileType: "pdf",
-      },
-    ],
-  },
-  {
-    type: "Visit Notes",
-    icon: "📋",
-    records: [
-      {
-        id: "7",
-        title: "Annual Physical - Dr. Chen",
-        date: "May 2, 2026",
-        provider: "Dr. Sarah Chen, MD",
-        fileType: "doc",
-      },
-      {
-        id: "8",
-        title: "Cardiology Follow-up",
-        date: "Feb 18, 2026",
-        provider: "Dr. James Park, MD",
-        fileType: "doc",
-      },
-      {
-        id: "9",
-        title: "Dermatology Screening",
-        date: "Jan 8, 2026",
-        provider: "Dr. Lisa Wong, MD",
-        fileType: "doc",
-      },
-    ],
-  },
-  {
-    type: "Prescriptions",
-    icon: "💊",
-    records: [
-      {
-        id: "10",
-        title: "Rosuvastatin 10mg",
-        date: "May 2, 2026",
-        provider: "Dr. Sarah Chen, MD",
-        fileType: "pdf",
-      },
-      {
-        id: "11",
-        title: "Metformin 500mg (off-label)",
-        date: "May 2, 2026",
-        provider: "Dr. Sarah Chen, MD",
-        fileType: "pdf",
-      },
-    ],
-  },
-];
 
 function mapApiToRecordGroups(docs: any[]): RecordGroup[] {
   const groupMap: Record<string, MedicalRecord[]> = {};
@@ -208,8 +104,10 @@ export default function MedicalRecordsScreen() {
     setRefreshing(false);
   }, [query]);
 
-  const apiGroups = query.data ? mapApiToRecordGroups(query.data as any[]) : null;
-  const RECORD_GROUPS = apiGroups ?? SAMPLE_RECORD_GROUPS;
+  // Only render real records. During loading we show a spinner; when the
+  // query resolves with no documents we show an honest empty state — never
+  // sample data.
+  const RECORD_GROUPS = query.data ? mapApiToRecordGroups(query.data as any[]) : [];
 
   const filteredGroups = RECORD_GROUPS.map((group) => ({
     ...group,
@@ -266,21 +164,24 @@ export default function MedicalRecordsScreen() {
         )}
 
         {/* Summary */}
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryText}>
-            {totalRecords} documents
-          </Text>
-          {searchQuery.length > 0 && (
-            <Text style={styles.filterText}>
-              Showing{" "}
-              {filteredGroups.reduce((s, g) => s + g.records.length, 0)}{" "}
-              results
+        {!query.isLoading && (
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>
+              {totalRecords} documents
             </Text>
-          )}
-        </View>
+            {searchQuery.length > 0 && (
+              <Text style={styles.filterText}>
+                Showing{" "}
+                {filteredGroups.reduce((s, g) => s + g.records.length, 0)}{" "}
+                results
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Record Groups */}
-        {filteredGroups.map((group) => (
+        {!query.isLoading &&
+          filteredGroups.map((group) => (
           <Card key={group.type} style={styles.section}>
             <View style={styles.groupHeader}>
               <Text style={styles.groupIcon}>{group.icon}</Text>
@@ -340,12 +241,23 @@ export default function MedicalRecordsScreen() {
         ))}
 
         {/* Empty state for no search results */}
-        {filteredGroups.length === 0 && searchQuery.length > 0 && (
+        {!query.isLoading && filteredGroups.length === 0 && searchQuery.length > 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>{"🔍"}</Text>
             <Text style={styles.emptyTitle}>No Records Found</Text>
             <Text style={styles.emptyMessage}>
               No documents matching "{searchQuery}"
+            </Text>
+          </View>
+        )}
+
+        {/* Empty state when there are no records at all */}
+        {!query.isLoading && totalRecords === 0 && searchQuery.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>{"📄"}</Text>
+            <Text style={styles.emptyTitle}>No Records Yet</Text>
+            <Text style={styles.emptyMessage}>
+              Upload your first medical record to get started.
             </Text>
           </View>
         )}

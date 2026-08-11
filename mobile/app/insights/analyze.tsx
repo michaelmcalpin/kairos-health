@@ -2,7 +2,9 @@
  * Health Analysis -- interactive AI-driven health analysis screen.
  *
  * Users pick an analysis type and data scope, then tap "Analyze"
- * to see a pre-populated set of findings, risk factors, and recommendations.
+ * to see findings and recommendations derived from their real health
+ * data. When the backend has no analysis to return, an honest empty
+ * state is shown instead of fabricated results.
  */
 
 import React, { useState, useCallback } from "react";
@@ -31,12 +33,8 @@ import {
   TrendingUp,
   Droplets,
   Flame,
-  ChevronDown,
-  ChevronUp,
   Send,
   MessageCircle,
-  Database,
-  Shield,
   Target,
   Zap,
 } from "lucide-react-native";
@@ -47,11 +45,9 @@ import { Badge } from "@/components/ui/Badge";
 import { AnalysisChips } from "@/components/insights/AnalysisChips";
 import { ScoreGauge } from "@/components/insights/ScoreGauge";
 import { FindingCard } from "@/components/insights/FindingCard";
-import { RiskBar } from "@/components/insights/RiskBar";
 import { RecommendationItem } from "@/components/insights/RecommendationItem";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 
-import type { RiskLevel } from "@/components/insights/RiskBar";
 import type { StatusVariant } from "@/lib/types";
 
 /* ------------------------------------------------------------------ */
@@ -84,7 +80,7 @@ const ANALYSIS_TYPE_MAP: Record<string, string> = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Sample results for "Full Analysis / Last 30 days"                   */
+/* UI shapes                                                           */
 /* ------------------------------------------------------------------ */
 
 interface Finding {
@@ -96,13 +92,6 @@ interface Finding {
   explanation: string;
 }
 
-interface RiskFactor {
-  id: string;
-  label: string;
-  level: RiskLevel;
-  description: string;
-}
-
 interface Recommendation {
   id: string;
   title: string;
@@ -110,118 +99,6 @@ interface Recommendation {
   urgency: string;
   urgencyVariant: StatusVariant;
 }
-
-const SAMPLE_FINDINGS: Finding[] = [
-  {
-    id: "f1",
-    icon: <TrendingUp size={18} color={Colors.gold} />,
-    title: "LDL-P Improving",
-    status: "Improving",
-    statusVariant: "success",
-    explanation:
-      "LDL particle count has decreased 12% over the past 30 days, from 1,180 to 1,038 nmol/L. Your current statin protocol appears to be driving meaningful progress toward the optimal range (<1,000).",
-  },
-  {
-    id: "f2",
-    icon: <Moon size={18} color={Colors.gold} />,
-    title: "Sleep Consistency Excellent",
-    status: "Optimal",
-    statusVariant: "success",
-    explanation:
-      "Sleep onset variance has dropped to 18 minutes (target <30min). Your average deep sleep is 1h 42m, up 18% since starting magnesium glycinate. REM latency also improved.",
-  },
-  {
-    id: "f3",
-    icon: <Heart size={18} color={Colors.gold} />,
-    title: "HRV Indicating Good Recovery",
-    status: "On Track",
-    statusVariant: "info",
-    explanation:
-      "Resting HRV averaged 52ms over the past 30 days, an increase from 47ms the prior period. This suggests your cardiovascular fitness and autonomic balance are improving.",
-  },
-  {
-    id: "f4",
-    icon: <Droplets size={18} color={Colors.gold} />,
-    title: "Glucose Variability Slightly Elevated",
-    status: "Watch",
-    statusVariant: "warning",
-    explanation:
-      "Post-prandial glucose spikes averaged 162 mg/dL with a standard deviation of 28 mg/dL. While fasting glucose (92 mg/dL) remains normal, meal-time variability warrants attention.",
-  },
-  {
-    id: "f5",
-    icon: <Dumbbell size={18} color={Colors.gold} />,
-    title: "Body Composition On Track",
-    status: "Good",
-    statusVariant: "success",
-    explanation:
-      "Body fat percentage estimated at 18.2%, down from 19.1% last quarter. Lean mass has remained stable, indicating fat loss without muscle wasting on your current protocol.",
-  },
-];
-
-const SAMPLE_RISKS: RiskFactor[] = [
-  {
-    id: "r1",
-    label: "Cardiovascular",
-    level: "low",
-    description: "Framingham risk score 6.7%. ApoB trending favorably.",
-  },
-  {
-    id: "r2",
-    label: "Metabolic",
-    level: "moderate",
-    description: "Glucose variability elevated. A1C 5.4% (normal). Monitor post-prandial spikes.",
-  },
-  {
-    id: "r3",
-    label: "Inflammatory",
-    level: "low",
-    description: "hs-CRP at 0.8 mg/L (optimal <1.0). No systemic inflammation detected.",
-  },
-];
-
-const SAMPLE_RECOMMENDATIONS: Recommendation[] = [
-  {
-    id: "rec1",
-    title: "Continue statin protocol",
-    description:
-      "Your LDL-P is responding well to the current rosuvastatin 10mg dose. Maintain for another 60 days and retest. Target: <1,000 nmol/L.",
-    urgency: "Maintain",
-    urgencyVariant: "success",
-  },
-  {
-    id: "rec2",
-    title: "Increase Zone 2 cardio",
-    description:
-      "Add 30 minutes of Zone 2 training (HR 120-135 bpm) twice per week to further improve HRV and metabolic flexibility.",
-    urgency: "Recommended",
-    urgencyVariant: "info",
-  },
-  {
-    id: "rec3",
-    title: "Consider berberine for glucose",
-    description:
-      "Given elevated post-prandial glucose spikes, discuss 500mg berberine before meals with your physician as an adjunct to dietary modifications.",
-    urgency: "Discuss",
-    urgencyVariant: "warning",
-  },
-  {
-    id: "rec4",
-    title: "Maintain sleep schedule",
-    description:
-      "Your sleep consistency is excellent. Continue the 10:30 PM target bedtime and magnesium glycinate 400mg protocol. Avoid screens after 9:30 PM.",
-    urgency: "Maintain",
-    urgencyVariant: "success",
-  },
-];
-
-const DATA_SOURCES = [
-  "Apple Health -- Heart rate, HRV, sleep stages (30 days)",
-  "Lab Results -- Lipid panel, metabolic panel (Jun 2, 2026)",
-  "CGM Readings -- Dexcom G7 glucose data (30 days)",
-  "Fitness Tracker -- Workout sessions, body composition",
-  "Supplement Log -- Protocol adherence data",
-];
 
 /* ------------------------------------------------------------------ */
 /* Mapping helpers: hook data -> UI shapes                             */
@@ -263,7 +140,6 @@ export default function AnalyzeScreen() {
   const [selectedScope, setSelectedScope] = useState("30d");
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [dataSourcesExpanded, setDataSourcesExpanded] = useState(false);
   const [followUpVisible, setFollowUpVisible] = useState(false);
   const [followUpText, setFollowUpText] = useState("");
 
@@ -272,40 +148,43 @@ export default function AnalyzeScreen() {
   const hookRange = selectedScope as any;
   const { analysis, isLoading: analysisLoading, refetch } = useHealthAnalysis(hookType, hookRange);
 
-  /* ---- Derive UI data from hook or fall back to sample data ---- */
-  const findings: Finding[] = analysis?.insights
-    ? analysis.insights.map((ins) => {
-        const { status, statusVariant } = mapSeverityToStatus(ins.severity);
-        return {
-          id: ins.id,
-          icon: mapInsightIcon(ins.severity),
-          title: ins.title,
-          status,
-          statusVariant,
-          explanation: ins.description,
-        };
-      })
-    : SAMPLE_FINDINGS;
+  /* ---- Derive UI data from real hook output only (no fabrication) ---- */
+  const findings: Finding[] = (analysis?.insights ?? []).map((ins) => {
+    const { status, statusVariant } = mapSeverityToStatus(ins.severity);
+    return {
+      id: ins.id,
+      icon: mapInsightIcon(ins.severity),
+      title: ins.title,
+      status,
+      statusVariant,
+      explanation: ins.description,
+    };
+  });
 
-  const recommendations: Recommendation[] = analysis?.recommendations
-    ? analysis.recommendations.map((rec) => {
-        const { urgency, urgencyVariant } = mapPriorityToUrgency(rec.priority);
-        return {
-          id: rec.id,
-          title: rec.title,
-          description: rec.description,
-          urgency,
-          urgencyVariant,
-        };
-      })
-    : SAMPLE_RECOMMENDATIONS;
+  const recommendations: Recommendation[] = (analysis?.recommendations ?? []).map(
+    (rec) => {
+      const { urgency, urgencyVariant } = mapPriorityToUrgency(rec.priority);
+      return {
+        id: rec.id,
+        title: rec.title,
+        description: rec.description,
+        urgency,
+        urgencyVariant,
+      };
+    },
+  );
 
-  const risks = SAMPLE_RISKS; // No direct mapping from hook data
+  // Score / trend are only shown when the backend actually provides them.
+  const overallScore = analysis?.score ?? null;
+  const scoreTrend = analysis?.scoreChange ?? 0;
+  const summaryText = analysis?.summary ?? "";
 
-  const overallScore = analysis?.score ?? 82;
-  const scoreTrend = analysis?.scoreChange ?? 3;
-  const summaryText = analysis?.summary ??
-    "Your overall health trajectory is positive. Cardiovascular markers are responding well to treatment, sleep quality is excellent, and body composition continues to improve. Primary area of focus: managing post-prandial glucose variability.";
+  // Whether we have any real analysis content to render.
+  const hasResults =
+    !!analysis &&
+    (findings.length > 0 ||
+      recommendations.length > 0 ||
+      summaryText.trim().length > 0);
 
   const handleAnalyze = useCallback(() => {
     setIsAnalyzing(true);
@@ -415,100 +294,80 @@ export default function AnalyzeScreen() {
           )}
 
           {/* ---- Results ---- */}
-          {hasAnalyzed && (
+          {hasAnalyzed && !hasResults && !analysisLoading && (
+            <View style={styles.emptyState}>
+              <Sparkles size={28} color={Colors.silver} />
+              <Text style={styles.emptyTitle}>No analysis available yet</Text>
+              <Text style={styles.emptyText}>
+                We don't have enough data to generate this analysis. Keep
+                logging your health data and check back soon.
+              </Text>
+            </View>
+          )}
+
+          {hasAnalyzed && hasResults && (
             <View style={styles.results}>
               {/* Overall Assessment */}
-              <Card style={styles.assessmentCard}>
-                <View style={styles.assessmentHeader}>
-                  <Target size={18} color={Colors.gold} />
-                  <Text style={styles.assessmentTitle}>
-                    Overall Assessment
-                  </Text>
-                </View>
-                <ScoreGauge score={overallScore} trend={scoreTrend} label="Health Score" />
-                <Text style={styles.assessmentSummary}>
-                  {summaryText}
-                </Text>
-              </Card>
-
-              {/* Key Findings */}
-              <View style={styles.sectionBlock}>
-                <View style={styles.sectionHeaderRow}>
-                  <Zap size={18} color={Colors.gold} />
-                  <Text style={styles.sectionTitle}>Key Findings</Text>
-                </View>
-                {findings.map((finding) => (
-                  <FindingCard
-                    key={finding.id}
-                    icon={finding.icon}
-                    title={finding.title}
-                    status={finding.status}
-                    statusVariant={finding.statusVariant}
-                    explanation={finding.explanation}
-                  />
-                ))}
-              </View>
-
-              {/* Risk Factors */}
-              <Card style={styles.riskCard}>
-                <View style={styles.sectionHeaderRow}>
-                  <Shield size={18} color={Colors.gold} />
-                  <Text style={styles.sectionTitle}>Risk Factors</Text>
-                </View>
-                {risks.map((risk) => (
-                  <RiskBar
-                    key={risk.id}
-                    label={risk.label}
-                    level={risk.level}
-                    description={risk.description}
-                  />
-                ))}
-              </Card>
-
-              {/* Recommendations */}
-              <View style={styles.sectionBlock}>
-                <View style={styles.sectionHeaderRow}>
-                  <Sparkles size={18} color={Colors.gold} />
-                  <Text style={styles.sectionTitle}>Recommendations</Text>
-                </View>
-                {recommendations.map((rec, idx) => (
-                  <RecommendationItem
-                    key={rec.id}
-                    number={idx + 1}
-                    title={rec.title}
-                    description={rec.description}
-                    urgency={rec.urgency}
-                    urgencyVariant={rec.urgencyVariant}
-                  />
-                ))}
-              </View>
-
-              {/* Data Sources */}
-              <Card style={styles.dataSourcesCard}>
-                <Pressable
-                  style={styles.dataSourcesHeader}
-                  onPress={() => setDataSourcesExpanded((p) => !p)}
-                >
-                  <View style={styles.dataSourcesLeft}>
-                    <Database size={16} color={Colors.silver} />
-                    <Text style={styles.dataSourcesTitle}>
-                      Data Sources ({DATA_SOURCES.length})
+              {(overallScore != null || summaryText.trim().length > 0) && (
+                <Card style={styles.assessmentCard}>
+                  <View style={styles.assessmentHeader}>
+                    <Target size={18} color={Colors.gold} />
+                    <Text style={styles.assessmentTitle}>
+                      Overall Assessment
                     </Text>
                   </View>
-                  {dataSourcesExpanded ? (
-                    <ChevronUp size={18} color={Colors.silver} />
-                  ) : (
-                    <ChevronDown size={18} color={Colors.silver} />
+                  {overallScore != null && (
+                    <ScoreGauge
+                      score={overallScore}
+                      trend={scoreTrend}
+                      label="Health Score"
+                    />
                   )}
-                </Pressable>
-                {dataSourcesExpanded &&
-                  DATA_SOURCES.map((src, i) => (
-                    <View key={i} style={styles.dataSourceItem}>
-                      <View style={styles.dataSourceDot} />
-                      <Text style={styles.dataSourceText}>{src}</Text>
-                    </View>
+                  {summaryText.trim().length > 0 && (
+                    <Text style={styles.assessmentSummary}>{summaryText}</Text>
+                  )}
+                </Card>
+              )}
+
+              {/* Key Findings */}
+              {findings.length > 0 && (
+                <View style={styles.sectionBlock}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Zap size={18} color={Colors.gold} />
+                    <Text style={styles.sectionTitle}>Key Findings</Text>
+                  </View>
+                  {findings.map((finding) => (
+                    <FindingCard
+                      key={finding.id}
+                      icon={finding.icon}
+                      title={finding.title}
+                      status={finding.status}
+                      statusVariant={finding.statusVariant}
+                      explanation={finding.explanation}
+                    />
                   ))}
-              </Card>
+                </View>
+              )}
+
+              {/* Recommendations */}
+              {recommendations.length > 0 && (
+                <View style={styles.sectionBlock}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Sparkles size={18} color={Colors.gold} />
+                    <Text style={styles.sectionTitle}>Recommendations</Text>
+                  </View>
+                  {recommendations.map((rec, idx) => (
+                    <RecommendationItem
+                      key={rec.id}
+                      number={idx + 1}
+                      title={rec.title}
+                      description={rec.description}
+                      urgency={rec.urgency}
+                      urgencyVariant={rec.urgencyVariant}
+                    />
+                  ))}
+                </View>
+              )}
 
               {/* Ask a Question */}
               {!followUpVisible ? (
@@ -654,6 +513,26 @@ const styles = StyleSheet.create({
   /* Results area */
   results: {
     marginTop: Spacing.sm,
+  },
+
+  /* Empty state */
+  emptyState: {
+    marginTop: Spacing.xl,
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: "700",
+    color: Colors.white,
+    marginTop: Spacing.sm,
+  },
+  emptyText: {
+    fontSize: FontSizes.sm,
+    color: Colors.silver,
+    textAlign: "center",
+    lineHeight: 20,
   },
 
   /* Assessment card */

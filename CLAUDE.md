@@ -124,14 +124,44 @@ Set: `TOKEN_ENCRYPTION_KEY`, `RESEND_API_KEY` (regenerated), Clerk, Neon,
 
 ## QA
 `qa-agents/` holds 3 reusable audit prompts (ios / client-web / coach-web) +
-README. Re-run after each sprint and diff against `../QA_Findings_July2026.md`
-(last full audit 2026-07-21). ~100 findings; sprint 30200db fixed the top tier.
-Remaining backlog lives in that findings file (mediums/lows across all three
-surfaces).
+README. Re-run after each sprint and diff against the findings files:
+`../QA_Findings_July2026.md` (full audit 2026-07-21) and
+`../QA_Findings_Round2_July31.md` (re-audit after sprint). Fix-sprint d5c22f8
+cleared the round-2 launch-blockers; the medium cleanup followed. Re-run the
+agents and diff before each release.
 
-## Current state (end of last session)
-All work pushed & deployed. Latest EAS iOS build submitted to TestFlight
-(includes Apple Health pipeline, sample-data purge, real booking, Care Team,
-feedback). Open threads: (1) automatic daily Apple Health sync — requested, not
-built; (2) register third-party OAuth apps; (3) build shared-access data views
-for exercise/labs/health; (4) remaining QA mediums/lows.
+## Production go-live checklist (as of Aug 2026)
+- **Vercel: Pro plan ✓.** `app.everist.ai` added to project (Production). DNS
+  pending: add CNAME `app` → `02b21393509874c4.vercel-dns-017.com` at GoDaddy
+  (registrar for everist.ai). Keep `kairos-health.vercel.app` attached (mobile
+  API + OAuth callbacks baked to it). After DNS: set NEXT_PUBLIC_APP_URL to the
+  new domain.
+- **Clerk: still on DEVELOPMENT instance** (`pk_test_`/`sk_test_`) — the real
+  blocker. Create production instance (Clone development), set production domain,
+  register OWN Google/LinkedIn OAuth apps, swap pk_live/sk_live into Vercel +
+  mobile eas.json + new webhook secret. Dev users do NOT migrate.
+- **Neon: Free plan**, single `main` branch (good), US-East-2, 6h PITR,
+  scale-to-zero. Recommend Launch (~$19/mo) before real users for 7-day backups
+  + no cold starts. Confirm DATABASE_URL uses the `-pooler` host.
+
+## Deferred backlog (bigger builds — not yet done)
+1. **Automatic daily Apple Health sync** (owner requested): opt-in toggle +
+   background task (expo-background-task/BGTaskScheduler) running healthkitSync.
+   Currently manual "Sync Now" only.
+2. **Heart-rate & HRV history views**: both web + mobile only show a latest-value
+   KPI — no history chart/page. Same for activity history.
+3. **Finish multi-coach shared access**: only diet/protocol + coach discussion
+   are built. Shared exercise/labs/healthData grants render nothing; the coach
+   client-detail "locked tab" gating code is unreachable (shared coaches always
+   hit SharedClientView; getClientHealthData is primary-only). Needs an
+   access-aware health-data procedure + the granted-category views.
+4. **Missing backend procedures** (screens honestly disclose): goal update,
+   appointment reschedule, data export, account deletion, active-sessions list.
+5. **Register third-party device OAuth apps** (Oura/Dexcom/WHOOP/Fitbit/Withings)
+   + add creds to Vercel; Garmin still OAuth-1.0a "coming soon".
+6. Remaining QA lows across all three surfaces (see Round2 findings file).
+
+## Current state
+All sprints committed. Latest = the round-2 launch-blocker fix (d5c22f8) +
+medium cleanup. Both codebases tsc-clean. Owner needs to: push, new EAS build,
+add GoDaddy CNAME, create Clerk prod instance.

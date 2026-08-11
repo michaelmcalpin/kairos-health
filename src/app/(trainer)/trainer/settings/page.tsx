@@ -64,8 +64,16 @@ export default function TrainerSettingsPage() {
     }
   }, [authUser]);
 
-  // Note: profile from getProfile does not include specialties/timezone fields.
-  // If those are added to the profile query in the future, sync them here.
+  // Hydrate the specialization field from the trainer profile's specialties array.
+  // Stored as a string[]; shown/edited as a comma-separated list.
+  useEffect(() => {
+    if (profile?.specialties) {
+      setFormData((prev) => ({
+        ...prev,
+        specialization: profile.specialties.join(", "),
+      }));
+    }
+  }, [profile]);
 
   useEffect(() => {
     if (notificationPrefs?.categories) {
@@ -89,12 +97,13 @@ export default function TrainerSettingsPage() {
   const handleSaveChanges = async () => {
     setIsSaving(true);
     try {
-      // Update profile
-      if (formData.specialization) {
-        await updateProfileMutation.mutateAsync({
-          specialties: formData.specialization ? [formData.specialization] : [],
-        });
-      }
+      // Update profile — save the full comma-separated list as an array
+      // rather than clobbering existing specialties with a single value.
+      const specialties = formData.specialization
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      await updateProfileMutation.mutateAsync({ specialties });
 
       // Update notifications
       await updateNotificationsMutation.mutateAsync({
@@ -201,7 +210,7 @@ export default function TrainerSettingsPage() {
           {[
             { label: "Display Name", name: "displayName", type: "text", disabled: true, hint: "Managed by your login provider." },
             { label: "Email", name: "email", type: "email", disabled: true, hint: "Contact support to update your email address." },
-            { label: "Specialization", name: "specialization", type: "text", disabled: false, hint: "" },
+            { label: "Specialization", name: "specialization", type: "text", disabled: false, hint: "Separate multiple specialties with commas." },
           ].map((field) => (
             <div key={field.name}>
               <label className="block font-body text-kairos-silver-dark text-sm mb-2">{field.label}</label>
