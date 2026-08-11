@@ -20,10 +20,16 @@ import {
 
 import { Colors } from "@/lib/constants";
 import { SummitGlyph } from "@/components/brand";
+import { useAutoHealthSync } from "@/hooks/useAutoHealthSync";
 
 const ICON_SIZE = 24;
 
 export default function TabLayout() {
+  // Opt-in automatic daily Apple Health sync. Mounted here so it runs
+  // app-wide for authenticated users; it is inert unless the user has
+  // enabled the toggle and HealthKit is authorized. Runs silently.
+  useAutoHealthSync();
+
   return (
     <Tabs
       screenOptions={{

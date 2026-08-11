@@ -10,7 +10,7 @@
  * for pushing data to the Everist backend.
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -77,6 +77,33 @@ export default function AppleHealthScreen() {
   const syncMutation = trpc.clientPortal.devices.syncNow.useMutation();
   const disconnectMutation = trpc.clientPortal.devices.disconnect.useMutation();
   const connectMutation = trpc.clientPortal.devices.initiateConnect.useMutation();
+
+  /* -- Automatic daily sync feature toggle -- */
+  const featureTogglesQuery = trpc.clientPortal.settings.getFeatureToggles.useQuery(
+    undefined,
+    { retry: false, staleTime: 5 * 60 * 1000 },
+  );
+  const toggleMutation = trpc.clientPortal.settings.updateFeatureToggle.useMutation();
+  const [autoSync, setAutoSync] = useState(false);
+
+  // Hydrate the auto-sync switch from the real feature-toggles source.
+  useEffect(() => {
+    const t = featureTogglesQuery.data as Record<string, boolean> | undefined;
+    if (!t) return;
+    setAutoSync(t.auto_health_sync ?? false);
+  }, [featureTogglesQuery.data]);
+
+  const handleAutoSyncToggle = (value: boolean) => {
+    // Optimistic UI; persist via the feature-toggle mutation.
+    setAutoSync(value);
+    toggleMutation.mutate(
+      { key: "auto_health_sync", value },
+      {
+        // Revert on failure so the switch reflects the real persisted state.
+        onError: () => setAutoSync((prev) => !prev),
+      },
+    );
+  };
 
   /* -- Connection state -- */
   const connectionData = connectionQuery.data as any;
@@ -445,6 +472,34 @@ export default function AppleHealthScreen() {
               <Text style={styles.frequencySelectorLabel}>Manual sync</Text>
             </View>
           </View>
+
+          {/* -- Automatic daily sync (opt-in) --
+               Only meaningful once the user is connected + HealthKit is
+               available/authorized on this device. */}
+          {isConnected && (
+            <>
+              <View style={styles.autoSyncRow}>
+                <View style={styles.frequencySelectorLeft}>
+                  <RefreshCw size={18} color={Colors.silver} />
+                  <Text style={styles.frequencySelectorLabel}>
+                    Automatic daily sync
+                  </Text>
+                </View>
+                <Switch
+                  value={autoSync}
+                  onValueChange={handleAutoSyncToggle}
+                  disabled={!hkStatus.isAvailable}
+                  trackColor={{ false: Colors.navyLight, true: Colors.goldDark }}
+                  thumbColor={autoSync ? Colors.gold : Colors.silver}
+                  ios_backgroundColor={Colors.navyLight}
+                />
+              </View>
+              <Text style={styles.autoSyncCaption}>
+                Everist will sync your Apple Health data automatically when you
+                open the app, about once a day.
+              </Text>
+            </>
+          )}
         </Card>
 
         {/* ═══════════════════════════════════════════════════════════ */}
@@ -714,6 +769,23 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: FontSizes.md,
     fontWeight: "600",
+  },
+  autoSyncRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.navyLight,
+    borderRadius: Radii.md,
+    marginTop: Spacing.sm,
+  },
+  autoSyncCaption: {
+    color: Colors.silver,
+    fontSize: FontSizes.xs,
+    lineHeight: 18,
+    marginTop: Spacing.sm,
+    paddingHorizontal: 4,
   },
   frequencyOptions: {
     marginTop: Spacing.sm,

@@ -113,15 +113,24 @@ export function useHealthSync() {
    * the Everist backend in one bulk `healthkitSync` call. The backend
    * dedups by source + timestamp window / date, so re-syncing the same
    * window is safe.
+   *
+   * Pass `{ silent: true }` to suppress ALL user-facing Alert popups —
+   * used by the automatic daily sync (`useAutoHealthSync`) which runs in
+   * the background on app open / foreground. The manual "Sync Now" button
+   * calls this with no argument, so it keeps showing its alerts.
    */
-  const syncFromHealthKit = useCallback(async () => {
+  const syncFromHealthKit = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+
     if (!HealthKit.isHealthKitAvailable()) {
-      Alert.alert(
-        "Not Available",
-        Platform.OS !== "ios"
-          ? "Apple Health is only available on iOS devices."
-          : "HealthKit module is not installed. Please rebuild the app with EAS Build.",
-      );
+      if (!silent) {
+        Alert.alert(
+          "Not Available",
+          Platform.OS !== "ios"
+            ? "Apple Health is only available on iOS devices."
+            : "HealthKit module is not installed. Please rebuild the app with EAS Build.",
+        );
+      }
       return;
     }
 
@@ -320,10 +329,12 @@ export function useHealthSync() {
       if (activityPayload.length > 0) payload.activity = activityPayload.slice(0, 2000);
 
       if (Object.keys(payload).length === 0) {
-        Alert.alert(
-          "No New Data",
-          "No health data was found in the last 7 days. Make sure Apple Health has data from your devices.",
-        );
+        if (!silent) {
+          Alert.alert(
+            "No New Data",
+            "No health data was found in the last 7 days. Make sure Apple Health has data from your devices.",
+          );
+        }
         return;
       }
 
@@ -349,17 +360,21 @@ export function useHealthSync() {
         .join(", ");
       const total = Number(result?.total ?? 0);
 
-      Alert.alert(
-        "Sync Complete",
-        summary.length > 0
-          ? `Synced ${total} records from Apple Health (${summary}).`
-          : "Sync finished, but no records were stored.",
-      );
+      if (!silent) {
+        Alert.alert(
+          "Sync Complete",
+          summary.length > 0
+            ? `Synced ${total} records from Apple Health (${summary}).`
+            : "Sync finished, but no records were stored.",
+        );
+      }
     } catch (error: any) {
-      Alert.alert(
-        "Sync Error",
-        error?.message ?? "Failed to sync health data. Please try again.",
-      );
+      if (!silent) {
+        Alert.alert(
+          "Sync Error",
+          error?.message ?? "Failed to sync health data. Please try again.",
+        );
+      }
     } finally {
       setIsSyncing(false);
     }
