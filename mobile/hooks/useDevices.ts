@@ -21,6 +21,8 @@ export type DeviceSyncStatus = "synced" | "syncing" | "error" | "pending";
 
 export interface ConnectedDevice {
   id: string;
+  /** Backend provider key (e.g. "apple_health", "oura"). Drives sync routing. */
+  provider?: string;
   name: string;
   type: "wearable" | "scale" | "cgm" | "bp_monitor" | "ring" | "other";
   manufacturer: string;
@@ -312,6 +314,7 @@ function mapApiConnectedDevice(raw: any): ConnectedDevice {
 
   return {
     id: raw.id,
+    provider: providerKey,
     name: display?.name ?? raw.provider ?? "Unknown Device",
     type: display?.type ?? "other",
     manufacturer: display?.manufacturer ?? "",

@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/Button";
 import { DeviceCard, ConnectedDevice } from "@/components/devices/DeviceCard";
 import { AddDeviceCard, SupportedDevice } from "@/components/devices/AddDeviceCard";
 import { useConnectedDevices, ConnectedDevice as HookConnectedDevice } from "@/hooks/useDevices";
+import { useHealthSync } from "@/hooks/useHealthSync";
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -64,6 +65,7 @@ const SYNC_STATUS_TO_STATUS: Record<string, ConnectedDevice["status"]> = {
 function mapHookDeviceToCard(device: HookConnectedDevice): ConnectedDevice {
   return {
     id: device.id,
+    provider: device.provider,
     name: device.name,
     model: device.model,
     status: SYNC_STATUS_TO_STATUS[device.syncStatus] ?? "connected",
@@ -119,6 +121,12 @@ export default function DevicesScreen() {
   const syncMutation = trpc.clientPortal.devices.syncNow.useMutation();
   const disconnectMutation = trpc.clientPortal.devices.disconnect.useMutation();
 
+  /* -- On-device Apple Health sync (HealthKit can only be read on-device) -- */
+  const { syncFromHealthKit } = useHealthSync();
+
+  // Which device row is currently syncing (drives its Sync Now spinner).
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -127,8 +135,24 @@ export default function DevicesScreen() {
   }, [refetchDevices]);
 
   const handleSync = (device: ConnectedDevice) => {
+    // Apple Health data lives on-device and can only be read via HealthKit,
+    // so route it to the real on-device sync instead of the backend-only
+    // `syncNow` (which cannot read HealthKit). Its own Alerts report result.
+    if (device.provider === "apple_health") {
+      setSyncingId(device.id);
+      syncFromHealthKit()
+        .catch(() => {})
+        .finally(() => {
+          setSyncingId(null);
+          refetchDevices();
+        });
+      return;
+    }
+
+    // All other providers (Oura, Whoop, Dexcom, ...) use the backend sync.
+    setSyncingId(device.id);
     syncMutation.mutate(
-      { provider: (device as any).provider ?? device.id },
+      { provider: device.provider ?? device.id },
       {
         onSuccess: () => {
           Alert.alert("Sync Started", `Syncing data from ${device.name}...`, [{ text: "OK" }]);
@@ -137,6 +161,7 @@ export default function DevicesScreen() {
         onError: () => {
           Alert.alert("Sync Failed", `Could not sync ${device.name}. Please try again.`, [{ text: "OK" }]);
         },
+        onSettled: () => setSyncingId(null),
       }
     );
   };
@@ -152,7 +177,7 @@ export default function DevicesScreen() {
           style: "destructive",
           onPress: () => {
             disconnectMutation.mutate(
-              { provider: (device as any).provider ?? device.id },
+              { provider: device.provider ?? device.id },
               {
                 onSuccess: () => {
                   Alert.alert("Disconnected", `${device.name} has been disconnected.`, [{ text: "OK" }]);
@@ -229,6 +254,7 @@ export default function DevicesScreen() {
             <DeviceCard
               key={device.id}
               device={device}
+              isSyncing={syncingId === device.id}
               onSync={() => handleSync(device)}
               onDisconnect={() => handleDisconnect(device)}
             />

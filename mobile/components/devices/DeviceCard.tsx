@@ -4,7 +4,7 @@
  */
 
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
 import {
   Watch,
   Smartphone,
@@ -24,6 +24,8 @@ import type { StatusVariant } from "@/lib/types";
 
 export interface ConnectedDevice {
   id: string;
+  /** Backend provider key (e.g. "apple_health"). Used to route the sync action. */
+  provider?: string;
   name: string;
   model: string;
   status: "connected" | "disconnected" | "syncing";
@@ -38,6 +40,8 @@ interface DeviceCardProps {
   device: ConnectedDevice;
   onSync?: () => void;
   onDisconnect?: () => void;
+  /** When true, the "Sync Now" button shows a spinner and is disabled. */
+  isSyncing?: boolean;
 }
 
 const iconMap = {
@@ -58,7 +62,7 @@ const statusBadgeMap: Record<
   syncing: { label: "Syncing", variant: "info" },
 };
 
-export function DeviceCard({ device, onSync, onDisconnect }: DeviceCardProps) {
+export function DeviceCard({ device, onSync, onDisconnect, isSyncing = false }: DeviceCardProps) {
   const IconComponent = iconMap[device.iconType] ?? Bluetooth;
   const badge = statusBadgeMap[device.status];
 
@@ -99,11 +103,21 @@ export function DeviceCard({ device, onSync, onDisconnect }: DeviceCardProps) {
       {/* Action buttons */}
       <View style={styles.actions}>
         <Pressable
-          style={({ pressed }) => [styles.actionBtn, styles.syncBtn, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            styles.syncBtn,
+            pressed && styles.pressed,
+            isSyncing && styles.pressed,
+          ]}
           onPress={onSync}
+          disabled={isSyncing}
         >
-          <RefreshCw size={14} color={Colors.gold} />
-          <Text style={styles.syncBtnText}>Sync Now</Text>
+          {isSyncing ? (
+            <ActivityIndicator size="small" color={Colors.gold} />
+          ) : (
+            <RefreshCw size={14} color={Colors.gold} />
+          )}
+          <Text style={styles.syncBtnText}>{isSyncing ? "Syncing..." : "Sync Now"}</Text>
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.actionBtn, styles.disconnectBtn, pressed && styles.pressed]}

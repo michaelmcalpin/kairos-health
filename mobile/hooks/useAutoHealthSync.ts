@@ -1,10 +1,13 @@
 /**
- * useAutoHealthSync — opt-in "automatic daily" Apple Health sync.
+ * useAutoHealthSync — "automatic daily" Apple Health sync (on by default).
  *
- * When the user has enabled the `auto_health_sync` feature toggle AND
- * HealthKit is available + authorized, this hook silently runs the
- * existing HealthKit sync automatically on app open and whenever the app
- * returns to the foreground — but at most once per ~20 hours.
+ * Once Apple Health is connected AND HealthKit is available + authorized,
+ * this hook silently runs the existing HealthKit sync automatically on app
+ * open and whenever the app returns to the foreground — but at most once
+ * per ~20 hours. Auto-sync is ENABLED BY DEFAULT for connected users: the
+ * `auto_health_sync` feature toggle only needs to be flipped to turn it
+ * OFF (an unset toggle is treated as enabled). Manual "Sync Now" is always
+ * available regardless of this toggle.
  *
  * DESIGN (v1 — no new native modules, no background entitlements):
  * "automatic daily sync" here means an on-foreground opportunistic sync,
@@ -66,18 +69,29 @@ export function useAutoHealthSync() {
       // In-session gate: never attempt more than once per ~20h per app run.
       if (now - lastRunRef.current < TWENTY_HOURS_MS) return;
 
-      // Opt-in check.
+      // Enablement check. Auto-sync is ON BY DEFAULT once Apple Health is
+      // connected: if the user has never explicitly set the toggle it is
+      // treated as enabled, so a freshly-connected user gets automatic daily
+      // sync without flipping a switch. Only an explicit `false` disables it
+      // (manual "Sync Now" always remains available regardless).
       const toggles = togglesQuery.data as Record<string, boolean> | undefined;
-      const enabled = toggles?.[AUTO_HEALTH_SYNC_KEY] ?? false;
+      const enabled = toggles?.[AUTO_HEALTH_SYNC_KEY] ?? true;
       if (!enabled) return;
 
       // Native availability (iOS + module linked).
       if (!HealthKit.isHealthKitAvailable()) return;
 
+      // Only auto-sync for users who have actually connected Apple Health.
+      // This gate runs BEFORE any HealthKit permission call so a user who has
+      // never connected is never surprised by a permission prompt on
+      // foreground (the default-on behavior stays inert until they connect).
+      const conn = connectionQuery.data as any;
+      const isConnected = !!(conn?.connected || conn?.status === "connected");
+      if (!isConnected) return;
+
       // Server-side staleness gate: sync only if we've never synced or the
       // last sync is older than 20 hours. `lastSyncAt` is the durable source
       // of truth across app restarts.
-      const conn = connectionQuery.data as any;
       const lastSyncAt = conn?.lastSyncAt;
       const lastMs = lastSyncAt ? new Date(lastSyncAt).getTime() : NaN;
       const isStale = Number.isNaN(lastMs) || now - lastMs >= TWENTY_HOURS_MS;

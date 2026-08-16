@@ -196,6 +196,10 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     return myAccess![cat] !== "none";
   };
 
+  // Primary coach → full write access. Shared coach → only categories granted at "write".
+  const canEditCategory = (cat: AccessCategory): boolean =>
+    !isSharedOnly || myAccess?.[cat] === "write";
+
   const notesQuery = trpc.coach.clients.getNotes.useQuery(
     { clientId: params.id },
     { staleTime: 10_000, refetchOnWindowFocus: false }
@@ -528,7 +532,28 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               <p className="text-sm text-gray-500">Loading health data...</p>
             </div>
           ) : (
-            <TabContent tab={activeTab} client={client as unknown as ClientDetail} health={health as unknown as HealthData | undefined} tc={tc} />
+            <div className="space-y-6">
+              {/* Coach write panels (Add / Upload / Create) shown above the read-only data. */}
+              {activeTab === "workouts" && (
+                <TrainingProgramManager clientId={params.id} canEdit={canEditCategory("exercise")} />
+              )}
+              {activeTab === "nutrition" && (
+                <MealPlanManager clientId={params.id} canEdit={canEditCategory("diet")} />
+              )}
+              {activeTab === "sleep" && (
+                <SleepEntryManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+              )}
+              {activeTab === "labs" && (
+                <LabResultManager clientId={params.id} canEdit={canEditCategory("labs")} />
+              )}
+              {activeTab === "clinical" && (
+                <ClinicalDocManager clientId={params.id} canEdit={canEditCategory("labs")} />
+              )}
+              {activeTab === "genetics" && (
+                <GeneticsManager clientId={params.id} canEdit={canEditCategory("labs")} />
+              )}
+              <TabContent tab={activeTab} client={client as unknown as ClientDetail} health={health as unknown as HealthData | undefined} tc={tc} />
+            </div>
           )}
         </div>
 
@@ -2178,4 +2203,933 @@ function TabContent({
     default:
       return null;
   }
+}
+
+// ─── Coach write panels (Add / Upload / Create) ─────────────────
+
+/** Upload a file via the shared /api/upload endpoint and return its URL + name. */
+async function uploadCoachFile(
+  file: File,
+  category: "clinical" | "lab" | "document",
+): Promise<{ url: string; fileName: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("category", category);
+  const res = await fetch("/api/upload", { method: "POST", body: formData });
+  const result = await res.json();
+  if (!res.ok || !result.url) {
+    throw new Error(result.error || "Upload failed");
+  }
+  return { url: result.url as string, fileName: (result.fileName as string) ?? file.name };
+}
+
+const ASSIGNMENT_STATUS_BADGES: Record<string, string> = {
+  active: "bg-green-500/10 text-green-400 border-green-500/30",
+  paused: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+  completed: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+  cancelled: "bg-gray-700/50 text-gray-400 border-gray-600",
+};
+
+/** Small error banner reused across the coach write panels. */
+function PanelError({ message, onClose }: { message: string | null; onClose: () => void }) {
+  if (!message) return null;
+  return (
+    <div className="flex items-start justify-between gap-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 mb-3">
+      <p className="text-xs text-red-400">{message}</p>
+      <button onClick={onClose} className="text-red-400/60 hover:text-red-400 shrink-0"><X size={12} /></button>
+    </div>
+  );
+}
+
+function todayISO(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+// ─── Training Programs (coach.plans) ────────────────────────────
+
+type ExerciseDraft = { name: string; sets: string; reps: string; restSeconds: string };
+type SessionDraft = { name: string; exercises: ExerciseDraft[] };
+
+function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const listQuery = trpc.coach.plans.listTrainingPrograms.useQuery(
+    { clientId },
+    { staleTime: 10_000, refetchOnWindowFocus: false, retry: false },
+  );
+  const invalidate = () => utils.coach.plans.listTrainingPrograms.invalidate({ clientId });
+
+  const createMutation = trpc.coach.plans.createTrainingProgram.useMutation({
+    onSuccess: () => { invalidate(); setShowModal(false); setErrorMsg(null); },
+    onError: (e) => setErrorMsg(e.message),
+  });
+  const statusMutation = trpc.coach.plans.updateAssignmentStatus.useMutation({
+    onSuccess: () => invalidate(),
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  const programs = listQuery.data ?? [];
+
+  return (
+    <div className="kairos-card">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2">
+          <Dumbbell size={16} /> Training Programs
+        </h2>
+        {canEdit && (
+          <button
+            onClick={() => { setErrorMsg(null); setShowModal(true); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+          >
+            <Plus size={12} /> Create / Assign Program
+          </button>
+        )}
+      </div>
+
+      {!canEdit && (
+        <p className="text-[11px] text-gray-500 mb-3 flex items-center gap-1">
+          <Lock size={10} /> Read-only — you don&apos;t have Exercise edit access for this client.
+        </p>
+      )}
+
+      <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
+
+      {listQuery.isLoading ? (
+        <p className="text-xs text-gray-500 text-center py-6">Loading programs...</p>
+      ) : programs.length === 0 ? (
+        <p className="text-sm text-gray-500 text-center py-6">No training programs assigned yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {programs.map((p) => (
+            <div key={p.assignmentId} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm text-white font-medium">{p.name ?? "Program"}</p>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase ${ASSIGNMENT_STATUS_BADGES[p.status ?? "cancelled"] ?? ASSIGNMENT_STATUS_BADGES.cancelled}`}>
+                      {p.status ?? "unknown"}
+                    </span>
+                    {p.isAiGenerated && <span className="text-[9px] px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 text-purple-400 font-semibold uppercase">AI</span>}
+                  </div>
+                  {p.description && <p className="text-[11px] text-gray-500 mt-0.5">{p.description}</p>}
+                  <p className="text-[10px] text-gray-500 mt-0.5">
+                    Start {p.startDate}
+                    {p.durationWeeks ? ` · ${p.durationWeeks} weeks` : ""}
+                    {` · ${p.sessions.length} session${p.sessions.length === 1 ? "" : "s"}`}
+                  </p>
+                </div>
+                {canEdit && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    {p.status !== "active" && (
+                      <button onClick={() => statusMutation.mutate({ assignmentId: p.assignmentId, clientId, status: "active" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 transition-colors disabled:opacity-50">Activate</button>
+                    )}
+                    {p.status === "active" && (
+                      <button onClick={() => statusMutation.mutate({ assignmentId: p.assignmentId, clientId, status: "paused" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition-colors disabled:opacity-50">Pause</button>
+                    )}
+                    {p.status !== "completed" && (
+                      <button onClick={() => statusMutation.mutate({ assignmentId: p.assignmentId, clientId, status: "completed" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors disabled:opacity-50">Complete</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showModal && (
+        <TrainingProgramModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </div>
+  );
+}
+
+function TrainingProgramModal({
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: {
+    name: string;
+    description?: string;
+    durationWeeks?: number;
+    startDate: string;
+    sessions?: Array<{ dayNumber: number; name?: string; exercises: Array<{ name: string; sets: number; reps: string; restSeconds?: number }> }>;
+    activate?: boolean;
+  }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [durationWeeks, setDurationWeeks] = useState("");
+  const [startDate, setStartDate] = useState(todayISO());
+  const [sessions, setSessions] = useState<SessionDraft[]>([
+    { name: "", exercises: [{ name: "", sets: "3", reps: "10", restSeconds: "" }] },
+  ]);
+
+  const addSession = () => setSessions((s) => [...s, { name: "", exercises: [{ name: "", sets: "3", reps: "10", restSeconds: "" }] }]);
+  const removeSession = (i: number) => setSessions((s) => s.filter((_, idx) => idx !== i));
+  const updateSession = (i: number, key: keyof SessionDraft, value: string) =>
+    setSessions((s) => s.map((sess, idx) => (idx === i ? { ...sess, [key]: value } : sess)));
+  const addExercise = (si: number) =>
+    setSessions((s) => s.map((sess, idx) => (idx === si ? { ...sess, exercises: [...sess.exercises, { name: "", sets: "3", reps: "10", restSeconds: "" }] } : sess)));
+  const removeExercise = (si: number, ei: number) =>
+    setSessions((s) => s.map((sess, idx) => (idx === si ? { ...sess, exercises: sess.exercises.filter((_, x) => x !== ei) } : sess)));
+  const updateExercise = (si: number, ei: number, key: keyof ExerciseDraft, value: string) =>
+    setSessions((s) => s.map((sess, idx) => (idx === si ? { ...sess, exercises: sess.exercises.map((ex, x) => (x === ei ? { ...ex, [key]: value } : ex)) } : sess)));
+
+  const handleSubmit = () => {
+    if (!name.trim() || !startDate) return;
+    const builtSessions = sessions
+      .map((sess, idx) => ({
+        dayNumber: idx + 1,
+        name: sess.name.trim() || undefined,
+        exercises: sess.exercises
+          .filter((ex) => ex.name.trim())
+          .map((ex) => ({
+            name: ex.name.trim(),
+            sets: Number(ex.sets) || 0,
+            reps: ex.reps.trim() || "0",
+            restSeconds: ex.restSeconds.trim() ? Number(ex.restSeconds) : undefined,
+          })),
+      }))
+      .filter((sess) => sess.exercises.length > 0);
+
+    onSubmit({
+      name: name.trim(),
+      description: description.trim() || undefined,
+      durationWeeks: durationWeeks.trim() ? Number(durationWeeks) : undefined,
+      startDate,
+      sessions: builtSessions.length > 0 ? builtSessions : undefined,
+      activate: true,
+    });
+  };
+
+  return (
+    <Modal title="Create / Assign Training Program" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Program Name *</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 12-Week Strength Base" className="kairos-input w-full" />
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Description</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Focus, goals, notes..." className="kairos-input w-full h-16 resize-none" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Duration (weeks)</label>
+            <input type="number" min={1} value={durationWeeks} onChange={(e) => setDurationWeeks(e.target.value)} placeholder="e.g. 12" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Start Date *</label>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="kairos-input w-full" />
+          </div>
+        </div>
+
+        {/* Sessions builder */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[10px] text-gray-500 uppercase">Sessions</label>
+            <button onClick={addSession} className="flex items-center gap-1 text-[10px] text-kairos-gold hover:underline"><Plus size={10} /> Add Day</button>
+          </div>
+          <div className="space-y-3">
+            {sessions.map((sess, si) => (
+              <div key={si} className="p-2.5 rounded-lg border border-gray-800 bg-gray-800/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] text-gray-500 shrink-0">Day {si + 1}</span>
+                  <input type="text" value={sess.name} onChange={(e) => updateSession(si, "name", e.target.value)} placeholder="Session name (e.g. Upper Body)" className="kairos-input flex-1 py-1 text-xs" />
+                  {sessions.length > 1 && (
+                    <button onClick={() => removeSession(si)} className="p-1 text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {sess.exercises.map((ex, ei) => (
+                    <div key={ei} className="flex items-center gap-1.5">
+                      <input type="text" value={ex.name} onChange={(e) => updateExercise(si, ei, "name", e.target.value)} placeholder="Exercise" className="kairos-input flex-1 py-1 text-xs" />
+                      <input type="number" min={1} value={ex.sets} onChange={(e) => updateExercise(si, ei, "sets", e.target.value)} placeholder="Sets" title="Sets" className="kairos-input w-14 py-1 text-xs" />
+                      <input type="text" value={ex.reps} onChange={(e) => updateExercise(si, ei, "reps", e.target.value)} placeholder="Reps" title="Reps" className="kairos-input w-16 py-1 text-xs" />
+                      {sess.exercises.length > 1 && (
+                        <button onClick={() => removeExercise(si, ei)} className="p-1 text-gray-500 hover:text-red-400"><X size={12} /></button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => addExercise(si)} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-kairos-gold"><Plus size={10} /> Add Exercise</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!name.trim() || !startDate || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Create & Assign"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Meal Plans (coach.plans) ───────────────────────────────────
+
+function MealPlanManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const listQuery = trpc.coach.plans.listMealPlans.useQuery(
+    { clientId },
+    { staleTime: 10_000, refetchOnWindowFocus: false, retry: false },
+  );
+  const invalidate = () => utils.coach.plans.listMealPlans.invalidate({ clientId });
+
+  const createMutation = trpc.coach.plans.createMealPlan.useMutation({
+    onSuccess: () => { invalidate(); setShowModal(false); setErrorMsg(null); },
+    onError: (e) => setErrorMsg(e.message),
+  });
+  const statusMutation = trpc.coach.plans.updateMealPlanStatus.useMutation({
+    onSuccess: () => invalidate(),
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const plans = (listQuery.data ?? []) as any[];
+
+  return (
+    <div className="kairos-card">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2">
+          <Apple size={16} /> Meal Plans
+        </h2>
+        {canEdit && (
+          <button
+            onClick={() => { setErrorMsg(null); setShowModal(true); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+          >
+            <Plus size={12} /> Create / Assign Meal Plan
+          </button>
+        )}
+      </div>
+
+      {!canEdit && (
+        <p className="text-[11px] text-gray-500 mb-3 flex items-center gap-1">
+          <Lock size={10} /> Read-only — you don&apos;t have Diet edit access for this client.
+        </p>
+      )}
+
+      <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
+
+      {listQuery.isLoading ? (
+        <p className="text-xs text-gray-500 text-center py-6">Loading meal plans...</p>
+      ) : plans.length === 0 ? (
+        <p className="text-sm text-gray-500 text-center py-6">No meal plans assigned yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {plans.map((p) => {
+            const mt = p.macroTargets as { calories?: number; protein?: number; carbs?: number; fat?: number; fiber?: number } | null;
+            const notes = (p.meals && typeof p.meals === "object" && "notes" in p.meals) ? String(p.meals.notes ?? "") : "";
+            return (
+              <div key={p.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm text-white font-medium">{p.name}</p>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase ${ASSIGNMENT_STATUS_BADGES[p.status] ?? ASSIGNMENT_STATUS_BADGES.cancelled}`}>
+                        {p.status}
+                      </span>
+                      {p.isAiGenerated && <span className="text-[9px] px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 text-purple-400 font-semibold uppercase">AI</span>}
+                    </div>
+                    {mt && (mt.calories != null) && (
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        {mt.calories} kcal · P {mt.protein ?? 0}g · C {mt.carbs ?? 0}g · F {mt.fat ?? 0}g{mt.fiber != null ? ` · Fiber ${mt.fiber}g` : ""}
+                      </p>
+                    )}
+                    {notes && <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{notes}</p>}
+                  </div>
+                  {canEdit && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      {p.status !== "active" && (
+                        <button onClick={() => statusMutation.mutate({ mealPlanId: p.id, clientId, status: "active" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 transition-colors disabled:opacity-50">Activate</button>
+                      )}
+                      {p.status === "active" && (
+                        <button onClick={() => statusMutation.mutate({ mealPlanId: p.id, clientId, status: "paused" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition-colors disabled:opacity-50">Pause</button>
+                      )}
+                      {p.status !== "completed" && (
+                        <button onClick={() => statusMutation.mutate({ mealPlanId: p.id, clientId, status: "completed" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors disabled:opacity-50">Complete</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showModal && (
+        <MealPlanModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </div>
+  );
+}
+
+function MealPlanModal({
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: {
+    name: string;
+    meals?: { notes: string };
+    macroTargets?: { calories: number; protein: number; carbs: number; fat: number; fiber: number };
+  }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [calories, setCalories] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
+  const [fiber, setFiber] = useState("");
+  const [mealsText, setMealsText] = useState("");
+
+  const handleSubmit = () => {
+    if (!name.trim()) return;
+    const anyMacro = [calories, protein, carbs, fat, fiber].some((v) => v.trim() !== "");
+    onSubmit({
+      name: name.trim(),
+      meals: mealsText.trim() ? { notes: mealsText.trim() } : undefined,
+      macroTargets: anyMacro
+        ? {
+            calories: Number(calories) || 0,
+            protein: Number(protein) || 0,
+            carbs: Number(carbs) || 0,
+            fat: Number(fat) || 0,
+            fiber: Number(fiber) || 0,
+          }
+        : undefined,
+    });
+  };
+
+  return (
+    <Modal title="Create / Assign Meal Plan" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Plan Name *</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High-Protein Cut" className="kairos-input w-full" />
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Macro Targets (optional)</label>
+          <div className="grid grid-cols-5 gap-2">
+            <input type="number" min={0} value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="kcal" title="Calories" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" min={0} value={protein} onChange={(e) => setProtein(e.target.value)} placeholder="P (g)" title="Protein" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" min={0} value={carbs} onChange={(e) => setCarbs(e.target.value)} placeholder="C (g)" title="Carbs" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" min={0} value={fat} onChange={(e) => setFat(e.target.value)} placeholder="F (g)" title="Fat" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" min={0} value={fiber} onChange={(e) => setFiber(e.target.value)} placeholder="Fiber" title="Fiber" className="kairos-input w-full py-1 text-xs" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Meals / Notes</label>
+          <textarea value={mealsText} onChange={(e) => setMealsText(e.target.value)} placeholder="Describe the plan's meals, timing, and guidance..." className="kairos-input w-full h-32 resize-none" />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!name.trim() || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Create & Assign"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Sleep manual entry (coach.plans) ───────────────────────────
+
+function SleepEntryManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.plans.createSleepEntry.useMutation({
+    onSuccess: () => { utils.coach.clients.getClientHealthData.invalidate(); setShowModal(false); setErrorMsg(null); },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <div className="kairos-card">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+        <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2">
+          <Moon size={16} /> Add Sleep Entry
+        </h2>
+        {canEdit && (
+          <button
+            onClick={() => { setErrorMsg(null); setShowModal(true); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+          >
+            <Plus size={12} /> Add Sleep Entry
+          </button>
+        )}
+      </div>
+      {canEdit ? (
+        <p className="text-[11px] text-gray-500">Manually log a sleep session for this client.</p>
+      ) : (
+        <p className="text-[11px] text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Health Data edit access.</p>
+      )}
+      <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
+
+      {showModal && (
+        <SleepEntryModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </div>
+  );
+}
+
+function SleepEntryModal({
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: {
+    date: string; bedtime?: string; wakeTime?: string;
+    totalMinutes?: number; deepMinutes?: number; remMinutes?: number; lightMinutes?: number; awakeMinutes?: number;
+    score?: number; notes?: string;
+  }) => void;
+}) {
+  const [date, setDate] = useState(todayISO());
+  const [bedtime, setBedtime] = useState("");
+  const [wakeTime, setWakeTime] = useState("");
+  const [totalHours, setTotalHours] = useState("");
+  const [deepHours, setDeepHours] = useState("");
+  const [remHours, setRemHours] = useState("");
+  const [lightHours, setLightHours] = useState("");
+  const [awakeMin, setAwakeMin] = useState("");
+  const [score, setScore] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const hoursToMin = (v: string): number | undefined => (v.trim() ? Math.round(Number(v) * 60) : undefined);
+
+  const handleSubmit = () => {
+    if (!date) return;
+    onSubmit({
+      date,
+      bedtime: bedtime.trim() || undefined,
+      wakeTime: wakeTime.trim() || undefined,
+      totalMinutes: hoursToMin(totalHours),
+      deepMinutes: hoursToMin(deepHours),
+      remMinutes: hoursToMin(remHours),
+      lightMinutes: hoursToMin(lightHours),
+      awakeMinutes: awakeMin.trim() ? Number(awakeMin) : undefined,
+      score: score.trim() ? Number(score) : undefined,
+      notes: notes.trim() || undefined,
+    });
+  };
+
+  return (
+    <Modal title="Add Sleep Entry" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Sleep Score</label>
+            <input type="number" min={0} max={100} value={score} onChange={(e) => setScore(e.target.value)} placeholder="0-100" className="kairos-input w-full" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Bedtime</label>
+            <input type="time" value={bedtime} onChange={(e) => setBedtime(e.target.value)} className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Wake Time</label>
+            <input type="time" value={wakeTime} onChange={(e) => setWakeTime(e.target.value)} className="kairos-input w-full" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Total Sleep (hours)</label>
+          <input type="number" min={0} step="0.1" value={totalHours} onChange={(e) => setTotalHours(e.target.value)} placeholder="e.g. 7.5" className="kairos-input w-full" />
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Stages (optional)</label>
+          <div className="grid grid-cols-4 gap-2">
+            <input type="number" min={0} step="0.1" value={deepHours} onChange={(e) => setDeepHours(e.target.value)} placeholder="Deep h" title="Deep (hours)" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" min={0} step="0.1" value={remHours} onChange={(e) => setRemHours(e.target.value)} placeholder="REM h" title="REM (hours)" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" min={0} step="0.1" value={lightHours} onChange={(e) => setLightHours(e.target.value)} placeholder="Light h" title="Light (hours)" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" min={0} value={awakeMin} onChange={(e) => setAwakeMin(e.target.value)} placeholder="Awake m" title="Awake (minutes)" className="kairos-input w-full py-1 text-xs" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context, quality, disturbances..." className="kairos-input w-full h-16 resize-none" />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!date || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Entry"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Lab Results (coach.data) ───────────────────────────────────
+
+type BiomarkerDraft = { code: string; value: string; unit: string; refLow: string; refHigh: string; status: string };
+
+function LabResultManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.data.createLabResult.useMutation({
+    onSuccess: () => { utils.coach.clients.getClientHealthData.invalidate(); setShowModal(false); setErrorMsg(null); },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <div className="kairos-card">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+        <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2">
+          <FlaskConical size={16} /> Add Lab Result
+        </h2>
+        {canEdit && (
+          <button
+            onClick={() => { setErrorMsg(null); setShowModal(true); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+          >
+            <Plus size={12} /> Add Lab Result
+          </button>
+        )}
+      </div>
+      {canEdit ? (
+        <p className="text-[11px] text-gray-500">Manually enter a lab panel and its biomarker values.</p>
+      ) : (
+        <p className="text-[11px] text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Labs edit access.</p>
+      )}
+      <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
+
+      {showModal && (
+        <LabResultModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </div>
+  );
+}
+
+function LabResultModal({
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: {
+    receivedAt: string;
+    biomarkers: Array<{ code: string; value: number; unit?: string | null; refLow?: number | null; refHigh?: number | null; status?: string | null }>;
+  }) => void;
+}) {
+  const [receivedAt, setReceivedAt] = useState(todayISO());
+  const [markers, setMarkers] = useState<BiomarkerDraft[]>([
+    { code: "", value: "", unit: "", refLow: "", refHigh: "", status: "" },
+  ]);
+
+  const addMarker = () => setMarkers((m) => [...m, { code: "", value: "", unit: "", refLow: "", refHigh: "", status: "" }]);
+  const removeMarker = (i: number) => setMarkers((m) => m.filter((_, idx) => idx !== i));
+  const updateMarker = (i: number, key: keyof BiomarkerDraft, value: string) =>
+    setMarkers((m) => m.map((mk, idx) => (idx === i ? { ...mk, [key]: value } : mk)));
+
+  const validMarkers = markers.filter((m) => m.code.trim() && m.value.trim() !== "");
+  const canSave = !!receivedAt && validMarkers.length > 0;
+
+  const handleSubmit = () => {
+    if (!canSave) return;
+    onSubmit({
+      receivedAt,
+      biomarkers: validMarkers.map((m) => ({
+        code: m.code.trim(),
+        value: Number(m.value),
+        unit: m.unit.trim() || null,
+        refLow: m.refLow.trim() ? Number(m.refLow) : null,
+        refHigh: m.refHigh.trim() ? Number(m.refHigh) : null,
+        status: m.status.trim() || null,
+      })),
+    });
+  };
+
+  return (
+    <Modal title="Add Lab Result" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Received Date *</label>
+          <input type="date" value={receivedAt} onChange={(e) => setReceivedAt(e.target.value)} className="kairos-input w-full" />
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[10px] text-gray-500 uppercase">Biomarkers *</label>
+            <button onClick={addMarker} className="flex items-center gap-1 text-[10px] text-kairos-gold hover:underline"><Plus size={10} /> Add Marker</button>
+          </div>
+          <div className="space-y-1.5">
+            {markers.map((m, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <input type="text" value={m.code} onChange={(e) => updateMarker(i, "code", e.target.value)} placeholder="Code (e.g. LDL)" className="kairos-input flex-1 py-1 text-xs" />
+                <input type="number" step="any" value={m.value} onChange={(e) => updateMarker(i, "value", e.target.value)} placeholder="Value" title="Value" className="kairos-input w-16 py-1 text-xs" />
+                <input type="text" value={m.unit} onChange={(e) => updateMarker(i, "unit", e.target.value)} placeholder="Unit" title="Unit" className="kairos-input w-16 py-1 text-xs" />
+                <input type="number" step="any" value={m.refLow} onChange={(e) => updateMarker(i, "refLow", e.target.value)} placeholder="Low" title="Ref Low" className="kairos-input w-14 py-1 text-xs" />
+                <input type="number" step="any" value={m.refHigh} onChange={(e) => updateMarker(i, "refHigh", e.target.value)} placeholder="High" title="Ref High" className="kairos-input w-14 py-1 text-xs" />
+                {markers.length > 1 && (
+                  <button onClick={() => removeMarker(i)} className="p-1 text-gray-500 hover:text-red-400"><X size={12} /></button>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-600 mt-1">Provide at least one marker with a code and value.</p>
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!canSave || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Lab Result"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Clinical Docs & Genetics (coach.data.createClinicalDoc) ────
+
+type ClinicalDocType = "dexa_scan" | "gut_biome" | "medical_record";
+
+function ClinicalDocManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.data.createClinicalDoc.useMutation({
+    onSuccess: () => { utils.coach.clients.getClientHealthData.invalidate(); setShowModal(false); setErrorMsg(null); },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <div className="kairos-card">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+        <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2">
+          <FileText size={16} /> Add / Upload Health Record
+        </h2>
+        {canEdit && (
+          <button
+            onClick={() => { setErrorMsg(null); setShowModal(true); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+          >
+            <Plus size={12} /> Add / Upload
+          </button>
+        )}
+      </div>
+      {canEdit ? (
+        <p className="text-[11px] text-gray-500">Upload a DEXA scan, gut biome, or medical record (PDF, image, or document).</p>
+      ) : (
+        <p className="text-[11px] text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Labs edit access.</p>
+      )}
+      <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
+
+      {showModal && (
+        <ClinicalDocModal
+          title="Add / Upload Health Record"
+          uploadCategory="clinical"
+          onClose={() => setShowModal(false)}
+          saving={createMutation.isPending}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </div>
+  );
+}
+
+function GeneticsManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.data.createClinicalDoc.useMutation({
+    onSuccess: () => { utils.coach.clients.getClientHealthData.invalidate(); setShowModal(false); setErrorMsg(null); },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <div className="kairos-card">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+        <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2">
+          <Dna size={16} /> Add / Upload Genetic Report
+        </h2>
+        {canEdit && (
+          <button
+            onClick={() => { setErrorMsg(null); setShowModal(true); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+          >
+            <Plus size={12} /> Add / Upload
+          </button>
+        )}
+      </div>
+      {canEdit ? (
+        <p className="text-[11px] text-gray-500">Upload a genetic report (e.g. 23andMe, DNA panel). Stored with the client&apos;s clinical records.</p>
+      ) : (
+        <p className="text-[11px] text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Labs edit access.</p>
+      )}
+      <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
+
+      {showModal && (
+        <ClinicalDocModal
+          title="Add / Upload Genetic Report"
+          uploadCategory="document"
+          lockedDocType="medical_record"
+          defaultTitle="Genetic Report"
+          onClose={() => setShowModal(false)}
+          saving={createMutation.isPending}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </div>
+  );
+}
+
+function ClinicalDocModal({
+  title,
+  uploadCategory,
+  lockedDocType,
+  defaultTitle,
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  title: string;
+  uploadCategory: "clinical" | "document";
+  lockedDocType?: ClinicalDocType;
+  defaultTitle?: string;
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: {
+    docType: ClinicalDocType;
+    title: string;
+    sourceFileName?: string | null;
+    notes?: string | null;
+    reportDate?: string | null;
+    providerName?: string | null;
+    parsedData?: Record<string, unknown> | null;
+  }) => void;
+}) {
+  const [docType, setDocType] = useState<ClinicalDocType>(lockedDocType ?? "medical_record");
+  const [docTitle, setDocTitle] = useState(defaultTitle ?? "");
+  const [providerName, setProviderName] = useState("");
+  const [reportDate, setReportDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const busy = saving || uploading;
+
+  const handleSubmit = async () => {
+    if (!docTitle.trim()) return;
+    setLocalError(null);
+    let sourceFileName: string | null = null;
+    let parsedData: Record<string, unknown> | null = null;
+    if (file) {
+      try {
+        setUploading(true);
+        const { url, fileName } = await uploadCoachFile(file, uploadCategory);
+        sourceFileName = fileName;
+        parsedData = { fileUrl: url };
+      } catch (e) {
+        setUploading(false);
+        setLocalError(e instanceof Error ? e.message : "Upload failed");
+        return;
+      }
+      setUploading(false);
+    }
+    onSubmit({
+      docType,
+      title: docTitle.trim(),
+      sourceFileName,
+      notes: notes.trim() || null,
+      reportDate: reportDate.trim() || null,
+      providerName: providerName.trim() || null,
+      parsedData,
+    });
+  };
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        {!lockedDocType && (
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Document Type</label>
+            <select value={docType} onChange={(e) => setDocType(e.target.value as ClinicalDocType)} className="kairos-input w-full">
+              <option value="medical_record">Medical Record</option>
+              <option value="dexa_scan">DEXA Scan</option>
+              <option value="gut_biome">Gut Biome</option>
+            </select>
+          </div>
+        )}
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Title *</label>
+          <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} placeholder="e.g. Annual Physical Results" className="kairos-input w-full" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Provider</label>
+            <input type="text" value={providerName} onChange={(e) => setProviderName(e.target.value)} placeholder="e.g. Quest" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Report Date</label>
+            <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className="kairos-input w-full" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">File (PDF, image, or document)</label>
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,.csv,.xls,.xlsx,.txt,image/*"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="block w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-kairos-gold/30 file:bg-kairos-gold/10 file:text-kairos-gold file:text-xs file:font-medium hover:file:bg-kairos-gold/20"
+          />
+          {file && <p className="text-[10px] text-gray-500 mt-1">Selected: {file.name}</p>}
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context or summary..." className="kairos-input w-full h-16 resize-none" />
+        </div>
+        {localError && <p className="text-xs text-red-400">{localError}</p>}
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!docTitle.trim() || busy} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {uploading ? "Uploading..." : saving ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </Modal>
+  );
 }

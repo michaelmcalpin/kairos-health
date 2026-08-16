@@ -87,10 +87,14 @@ export default function AppleHealthScreen() {
   const [autoSync, setAutoSync] = useState(false);
 
   // Hydrate the auto-sync switch from the real feature-toggles source.
+  // Default ON for connected users: an unset toggle is treated as enabled
+  // (matches useAutoHealthSync), so the switch reflects that auto-sync is
+  // already active once Apple Health is connected. Only an explicit false
+  // turns it off.
   useEffect(() => {
     const t = featureTogglesQuery.data as Record<string, boolean> | undefined;
     if (!t) return;
-    setAutoSync(t.auto_health_sync ?? false);
+    setAutoSync(t.auto_health_sync ?? true);
   }, [featureTogglesQuery.data]);
 
   const handleAutoSyncToggle = (value: boolean) => {
