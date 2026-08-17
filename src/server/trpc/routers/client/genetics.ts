@@ -31,7 +31,8 @@ export const clientGeneticsRouter = router({
     return {
       id: profile.id,
       uploadType: profile.uploadType,
-      sourceUrl: profile.sourceUrl,
+      // Never expose the raw storage URL — link through the authorized proxy.
+      sourceUrl: profile.sourceUrl ? `/api/phi-file?type=genetics&id=${profile.id}` : null,
       sourceFileName: profile.sourceFileName,
       status: profile.status,
       createdAt: profile.createdAt,

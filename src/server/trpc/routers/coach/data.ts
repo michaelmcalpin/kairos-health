@@ -16,6 +16,24 @@ import {
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
+// ─── PHI sanitization ───────────────────────────────────────
+/**
+ * Strip the raw storage URL out of a clinical document's parsedData. The file
+ * is only reachable through the authorized /api/phi-file proxy; readers use the
+ * returned `hasFile` flag plus the doc id to build a proxy link.
+ */
+function sanitizeClinicalDoc<
+  T extends { parsedData: Record<string, unknown> | null },
+>(doc: T): T & { hasFile: boolean } {
+  const pd = doc.parsedData;
+  const hasFile = !!(pd?.fileUrl ?? pd?.url);
+  if (pd && (pd.fileUrl !== undefined || pd.url !== undefined)) {
+    const { fileUrl: _fileUrl, url: _url, ...rest } = pd;
+    return { ...doc, parsedData: rest, hasFile };
+  }
+  return { ...doc, hasFile };
+}
+
 // ─── Relationship guard ─────────────────────────────────────
 async function verifyCoachClientRelationship(
   db: typeof import("@/server/db").db,
@@ -54,10 +72,11 @@ export const coachDataRouter = router({
         conditions.push(eq(clinicalDocuments.docType, input.docType));
       }
 
-      return ctx.db.query.clinicalDocuments.findMany({
+      const docs = await ctx.db.query.clinicalDocuments.findMany({
         where: and(...conditions),
         orderBy: desc(clinicalDocuments.createdAt),
       });
+      return docs.map(sanitizeClinicalDoc);
     }),
 
   /**
@@ -72,7 +91,7 @@ export const coachDataRouter = router({
       if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
 
       await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, doc.clientId, ctx.userRole);
-      return doc;
+      return sanitizeClinicalDoc(doc);
     }),
 
   /**
@@ -228,8 +247,12 @@ export const coachDataRouter = router({
         const markers = await ctx.db.query.biomarkerValues.findMany({
           where: eq(biomarkerValues.resultId, lab.id),
         });
+        // Never expose the raw storage URL — route file access through the
+        // authorized proxy instead.
+        const { pdfUrl: _pdfUrl, ...labRest } = lab;
         results.push({
-          ...lab,
+          ...labRest,
+          pdfUrl: lab.pdfUrl ? `/api/phi-file?type=lab&id=${lab.id}` : null,
           receivedAt: lab.receivedAt?.toISOString() ?? new Date().toISOString(),
           biomarkers: markers.map((b) => ({
             id: b.id,

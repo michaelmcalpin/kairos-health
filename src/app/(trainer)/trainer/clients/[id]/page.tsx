@@ -1537,7 +1537,7 @@ type HealthData = {
     markers: Array<{ gene: string; rsId: string | null; mutation: string | null; pathway: string | null; function: string | null; clinicalPriority: string | null; symptoms: string | null; supplementProtocol: string | null; dietStrategy: string | null; lifestyleStrategy: string | null }>;
     pathways: Array<{ pathway: string; genesAffected: number; genesInPathway: number; homozygousCount: number; heterozygousCount: number; priorityLevel: string | null }>;
   };
-  clinicalDocs?: Array<{ id: string; docType: string; title: string; providerName: string | null; reportDate: Date | null; status: string; parsedData: Record<string, unknown> | null; sourceFileName?: string | null; createdAt: string }>;
+  clinicalDocs?: Array<{ id: string; docType: string; title: string; providerName: string | null; reportDate: Date | null; status: string; parsedData: Record<string, unknown> | null; hasFile?: boolean; sourceFileName?: string | null; createdAt: string }>;
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -2065,7 +2065,6 @@ function TabContent({
                 </h2>
                 <div className="space-y-3">
                   {geneticsDocs.map((doc) => {
-                    const pd = doc.parsedData as Record<string, unknown> | null;
                     return (
                       <div key={doc.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
                         <div className="flex justify-between items-center mb-2">
@@ -2073,7 +2072,7 @@ function TabContent({
                           <span className="text-[10px] text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
                         </div>
                         {doc.providerName && <p className="text-[10px] text-gray-400 mb-1">Provider: {doc.providerName}</p>}
-                        <DocFileLink parsedData={pd} sourceFileName={doc.sourceFileName} />
+                        <DocFileLink docId={doc.id} hasFile={doc.hasFile} sourceFileName={doc.sourceFileName} />
                       </div>
                     );
                   })}
@@ -2135,7 +2134,7 @@ function TabContent({
                               <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
                             )}
                             {doc.providerName && <p className="text-[10px] text-gray-500 mt-2">Provider: {doc.providerName}</p>}
-                            <DocFileLink parsedData={pd} sourceFileName={doc.sourceFileName} />
+                            <DocFileLink docId={doc.id} hasFile={doc.hasFile} sourceFileName={doc.sourceFileName} />
                           </div>
                         );
                       })}
@@ -2183,7 +2182,7 @@ function TabContent({
                             ) : (
                               <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
                             )}
-                            <DocFileLink parsedData={pd} sourceFileName={doc.sourceFileName} />
+                            <DocFileLink docId={doc.id} hasFile={doc.hasFile} sourceFileName={doc.sourceFileName} />
                           </div>
                         );
                       })}
@@ -2229,7 +2228,7 @@ function TabContent({
                             ) : (
                               <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
                             )}
-                            <DocFileLink parsedData={pd} sourceFileName={doc.sourceFileName} />
+                            <DocFileLink docId={doc.id} hasFile={doc.hasFile} sourceFileName={doc.sourceFileName} />
                           </div>
                         );
                       })}
@@ -2272,30 +2271,25 @@ const ASSIGNMENT_STATUS_BADGES: Record<string, string> = {
   cancelled: "bg-gray-700/50 text-gray-400 border-gray-600",
 };
 
-/** Renders an "Open file" link for an uploaded clinical/lab/genetics document. */
+/**
+ * Renders an "Open file" link for an uploaded clinical/lab/genetics document.
+ * The raw storage URL is never sent to the browser — access is routed through
+ * the authorized /api/phi-file proxy using the document id.
+ */
 function DocFileLink({
-  parsedData,
+  docId,
+  hasFile,
   sourceFileName,
 }: {
-  parsedData: Record<string, unknown> | null | undefined;
+  docId: string;
+  hasFile?: boolean;
   sourceFileName?: string | null;
 }) {
-  const raw = parsedData?.fileUrl ?? parsedData?.url;
-  const url = typeof raw === "string" ? raw : null;
-  // Only link to real, fetchable URLs (http/https or inline data URLs).
-  const openable = !!url && (url.startsWith("http") || url.startsWith("data:"));
-  if (!url) return null;
+  if (!hasFile) return null;
   const label = sourceFileName || "Uploaded file";
-  if (!openable) {
-    return (
-      <p className="text-[10px] text-yellow-500/80 mt-1.5 flex items-center gap-1">
-        <FileText size={10} /> {label} — file not available
-      </p>
-    );
-  }
   return (
     <a
-      href={url}
+      href={`/api/phi-file?type=clinical&id=${docId}`}
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1 mt-1.5 text-[11px] text-kairos-gold hover:underline"

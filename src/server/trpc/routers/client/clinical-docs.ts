@@ -8,17 +8,35 @@ async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
 }
 
+/**
+ * Strip the raw storage URL out of a clinical document's parsedData. The file
+ * is only reachable through the authorized /api/phi-file proxy; readers use the
+ * returned `hasFile` flag plus the doc id to build a proxy link.
+ */
+function sanitizeDoc<
+  T extends { parsedData: Record<string, unknown> | null },
+>(doc: T): T & { hasFile: boolean } {
+  const pd = doc.parsedData;
+  const hasFile = !!(pd?.fileUrl ?? pd?.url);
+  if (pd && (pd.fileUrl !== undefined || pd.url !== undefined)) {
+    const { fileUrl: _fileUrl, url: _url, ...rest } = pd;
+    return { ...doc, parsedData: rest, hasFile };
+  }
+  return { ...doc, hasFile };
+}
+
 export const clientClinicalDocsRouter = router({
   // List ALL clinical documents for the user (document repository)
   listAll: clientProcedure
     .query(async ({ ctx }) => {
-      return safeQ(
+      const docs = await safeQ(
         () => ctx.db.query.clinicalDocuments.findMany({
           where: eq(clinicalDocuments.clientId, ctx.dbUserId),
           orderBy: desc(clinicalDocuments.createdAt),
         }),
         [],
       );
+      return docs.map(sanitizeDoc);
     }),
 
   // List all clinical documents of a given type
@@ -29,7 +47,7 @@ export const clientClinicalDocsRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      return safeQ(
+      const docs = await safeQ(
         () => ctx.db.query.clinicalDocuments.findMany({
           where: and(
             eq(clinicalDocuments.clientId, ctx.dbUserId),
@@ -39,6 +57,7 @@ export const clientClinicalDocsRouter = router({
         }),
         [],
       );
+      return docs.map(sanitizeDoc);
     }),
 
   // Get a single clinical document
@@ -55,7 +74,7 @@ export const clientClinicalDocsRouter = router({
         undefined,
       );
       if (!doc) throw new TRPCError({ code: "NOT_FOUND" });
-      return doc;
+      return sanitizeDoc(doc);
     }),
 
   // Upload / create a new clinical document

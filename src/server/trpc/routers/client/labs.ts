@@ -75,7 +75,9 @@ export const clientLabsRouter = router({
         result: {
           id: result.id,
           receivedAt: result.receivedAt,
-          pdfUrl: result.pdfUrl,
+          // Route file access through the authorized proxy — never expose the
+          // raw storage URL to the browser.
+          pdfUrl: result.pdfUrl ? `/api/phi-file?type=lab&id=${result.id}` : null,
           ocrStatus: result.ocrStatus,
         },
         biomarkers: values.map((v) => ({
@@ -276,7 +278,7 @@ export const clientLabsRouter = router({
           id: resultId,
           orderId: orderId,
           receivedAt: receivedAt,
-          pdfUrl: input.pdfUrl,
+          pdfUrl: `/api/phi-file?type=lab&id=${resultId}`,
           ocrStatus: "pending",
         },
       };
@@ -332,7 +334,7 @@ export const clientLabsRouter = router({
           id: resultId,
           orderId: orderId,
           receivedAt: receivedAt,
-          pdfUrl: input.sourceUrl,
+          pdfUrl: `/api/phi-file?type=lab&id=${resultId}`,
           ocrStatus: "url_imported",
         },
       };

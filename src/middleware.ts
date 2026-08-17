@@ -18,6 +18,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/trpc(.*)",
   "/api/chat(.*)",
   "/api/upload(.*)",
+  "/api/phi-file(.*)",
   "/api/callbacks(.*)",
   "/api/reports(.*)",
   "/api/exercise(.*)",

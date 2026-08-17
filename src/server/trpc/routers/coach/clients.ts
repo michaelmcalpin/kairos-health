@@ -1103,17 +1103,30 @@ export const coachClientsRouter = router({
             priorityLevel: p.priorityLevel,
           })),
         },
-        clinicalDocs: clinicalDocsData.map((d) => ({
-          id: d.id,
-          docType: d.docType,
-          title: d.title,
-          providerName: d.providerName,
-          reportDate: d.reportDate,
-          status: d.status,
-          parsedData: d.parsedData,
-          sourceFileName: d.sourceFileName,
-          createdAt: d.createdAt.toISOString(),
-        })),
+        clinicalDocs: clinicalDocsData.map((d) => {
+          // Strip the raw storage URL out of parsedData — the file is only
+          // reachable through the authorized /api/phi-file proxy. Expose a
+          // boolean so readers know whether a downloadable file exists.
+          const pd = d.parsedData as Record<string, unknown> | null;
+          const hasFile = !!(pd?.fileUrl ?? pd?.url);
+          let sanitized = pd;
+          if (pd && (pd.fileUrl !== undefined || pd.url !== undefined)) {
+            const { fileUrl: _fileUrl, url: _url, ...rest } = pd;
+            sanitized = rest;
+          }
+          return {
+            id: d.id,
+            docType: d.docType,
+            title: d.title,
+            providerName: d.providerName,
+            reportDate: d.reportDate,
+            status: d.status,
+            parsedData: sanitized,
+            hasFile,
+            sourceFileName: d.sourceFileName,
+            createdAt: d.createdAt.toISOString(),
+          };
+        }),
         conversationId: conversation?.id ?? null,
       };
     }),
