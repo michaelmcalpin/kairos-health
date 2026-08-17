@@ -136,23 +136,28 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
   const initials = getInitials(user.firstName, user.lastName, user.email);
   const tier = (profile?.tier ?? "tier3") as "tier1" | "tier2" | "tier3";
 
-  // Compute health score from biometrics
-  let healthScore = 75;
+  // Compute health score from biometrics.
+  // When no biometric inputs exist we cannot fabricate a score — return null.
   const latestSleep = recentSleep[0];
   const latestGlucose = recentGlucose[0];
   const latestHrv = recentHrv[0];
-  if (latestSleep?.score) healthScore += Math.min(10, Math.round((Number(latestSleep.score) - 50) / 5));
-  if (latestGlucose?.valueMgdl) {
-    const gv = Number(latestGlucose.valueMgdl);
-    if (gv >= 70 && gv <= 100) healthScore += 10;
-    else if (gv > 100 && gv <= 120) healthScore += 5;
+  const hasBiometricData = recentSleep.length > 0 || recentGlucose.length > 0 || recentHrv.length > 0;
+  let healthScore: number | null = null;
+  if (hasBiometricData) {
+    let score = 75;
+    if (latestSleep?.score) score += Math.min(10, Math.round((Number(latestSleep.score) - 50) / 5));
+    if (latestGlucose?.valueMgdl) {
+      const gv = Number(latestGlucose.valueMgdl);
+      if (gv >= 70 && gv <= 100) score += 10;
+      else if (gv > 100 && gv <= 120) score += 5;
+    }
+    if (latestHrv?.rmssd) {
+      const hv = Number(latestHrv.rmssd);
+      if (hv > 50) score += 5;
+      else if (hv > 30) score += 2;
+    }
+    healthScore = Math.max(0, Math.min(100, score));
   }
-  if (latestHrv?.rmssd) {
-    const hv = Number(latestHrv.rmssd);
-    if (hv > 50) healthScore += 5;
-    else if (hv > 30) healthScore += 2;
-  }
-  healthScore = Math.max(0, Math.min(100, healthScore));
 
   // Glucose trend
   const glucoseValues = recentGlucose.map((g) => Number(g.valueMgdl)).reverse();
@@ -199,7 +204,8 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
   const scoreTrend: ScoreTrend = glucoseTrend === "down" ? "up" : glucoseTrend === "up" ? "down" : "flat";
 
   // Status
-  const status = deriveStatus(healthScore, activeAlerts);
+  const status: ClientStatus | "insufficient_data" =
+    healthScore === null ? "insufficient_data" : deriveStatus(healthScore, activeAlerts);
 
   // Last active
   const lastActiveDate = recentCheckins[0]?.submittedAt ?? user.updatedAt ?? user.createdAt;
@@ -243,8 +249,6 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
           id: protocol.id,
           name: `Protocol v${protocol.version}`,
           startDate: protocol.createdAt.toISOString().split("T")[0],
-          duration: "12 weeks",
-          progress: Math.min(100, Math.round((Date.now() - protocol.createdAt.getTime()) / (12 * 7 * 86400000) * 100)),
           goals: [] as string[],
           status: protocol.status as "active" | "paused" | "completed",
         }
@@ -252,9 +256,7 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
           id: "none",
           name: "No Active Protocol",
           startDate: new Date().toISOString().split("T")[0],
-          duration: "—",
-          progress: 0,
-          goals: [],
+          goals: [] as string[],
           status: "paused" as const,
         },
   };
@@ -476,8 +478,6 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
             id: protocol.id,
             name: `Protocol v${protocol.version}`,
             startDate: protocol.createdAt.toISOString().split("T")[0],
-            duration: "12 weeks",
-            progress: Math.min(100, Math.round((Date.now() - protocol.createdAt.getTime()) / (12 * 7 * 86400000) * 100)),
             goals: [] as string[],
             status: protocol.status as "active" | "paused" | "completed",
           }
@@ -485,9 +485,7 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
             id: "none",
             name: "No Active Protocol",
             startDate: new Date().toISOString().split("T")[0],
-            duration: "—",
-            progress: 0,
-            goals: [],
+            goals: [] as string[],
             status: "paused" as const,
           },
     };
@@ -820,7 +818,7 @@ export const coachClientsRouter = router({
       ] = await Promise.all([
         // Glucose
         safe(() => ctx.db.query.glucoseReadings.findMany({
-          where: and(eq(glucoseReadings.clientId, input.clientId), gte(glucoseReadings.timestamp, new Date(start))),
+          where: and(eq(glucoseReadings.clientId, input.clientId), gte(glucoseReadings.timestamp, new Date(start)), lte(glucoseReadings.timestamp, new Date(end + "T23:59:59"))),
           orderBy: desc(glucoseReadings.timestamp),
           limit: 200,
         }), []),
@@ -831,7 +829,7 @@ export const coachClientsRouter = router({
         }), []),
         // HRV
         safe(() => ctx.db.query.hrvReadings.findMany({
-          where: and(eq(hrvReadings.clientId, input.clientId), gte(hrvReadings.timestamp, new Date(start))),
+          where: and(eq(hrvReadings.clientId, input.clientId), gte(hrvReadings.timestamp, new Date(start)), lte(hrvReadings.timestamp, new Date(end + "T23:59:59"))),
           orderBy: desc(hrvReadings.timestamp),
           limit: 100,
         }), []),
@@ -868,7 +866,7 @@ export const coachClientsRouter = router({
         }), []),
         // Fasting logs
         safe(() => ctx.db.query.fastingLogs.findMany({
-          where: and(eq(fastingLogs.clientId, input.clientId), gte(fastingLogs.startedAt, new Date(start))),
+          where: and(eq(fastingLogs.clientId, input.clientId), gte(fastingLogs.startedAt, new Date(start)), lte(fastingLogs.startedAt, new Date(end + "T23:59:59"))),
           orderBy: desc(fastingLogs.startedAt),
         }), []),
         // Meal logs

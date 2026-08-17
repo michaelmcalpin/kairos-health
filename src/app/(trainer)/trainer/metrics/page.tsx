@@ -11,8 +11,6 @@ import {
   Award,
   AlertTriangle,
 } from "lucide-react";
-import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
-import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
 
 const KPI_ICONS: Record<string, React.ReactNode> = {
@@ -25,13 +23,10 @@ const KPI_ICONS: Record<string, React.ReactNode> = {
 
 export default function CoachMetricsPage() {
   const [viewMode, setViewMode] = useState<"overview" | "detailed">("overview");
-  const { period, setPeriod, formattedRange, dateRange, isCurrent, canForward, goBack, goForward, goToToday } =
-    useDateRange({ initialPeriod: "month" });
 
-  // TODO: Backend endpoints (coach.clients.getStats, coach.clients.list,
-  // coach.revenue.getSummary, coach.alerts.summary) need date filtering support
-  // (startDate/endDate params) so the DateRangeNavigator can scope metrics to the
-  // selected period. Currently the DateRangeNavigator is cosmetic on this page.
+  // Metrics reflect current, live figures. Period-scoped filtering isn't supported
+  // by the backend yet, so no date navigator is shown (it would imply filtering
+  // that doesn't happen).
   const clientStatsQuery = trpc.coach.clients.getStats.useQuery();
   const clientsListQuery = trpc.coach.clients.list.useQuery();
   const revenueSummaryQuery = trpc.coach.revenue.getSummary.useQuery();
@@ -48,6 +43,7 @@ export default function CoachMetricsPage() {
     const revenue = revenueSummaryQuery.data;
 
     const urgentAlerts = alertsSummaryQuery.data?.urgent || 0;
+    const activeAlerts = alertsSummaryQuery.data?.total || 0;
 
     return [
       {
@@ -80,7 +76,7 @@ export default function CoachMetricsPage() {
       },
       {
         label: "Active Alerts",
-        value: urgentAlerts.toString(),
+        value: activeAlerts.toString(),
         icon: "trending",
         trend: urgentAlerts > 0 ? ("down" as const) : ("up" as const),
         trendValue: urgentAlerts > 0 ? `${urgentAlerts} urgent` : "all clear",
@@ -107,7 +103,7 @@ export default function CoachMetricsPage() {
   const topClients = useMemo(() => {
     if (!clientsListQuery.data) return [];
 
-    return clientsListQuery.data
+    return [...clientsListQuery.data]
       .sort((a, b) => (b.healthScore || 0) - (a.healthScore || 0))
       .slice(0, 5)
       .map((client) => ({
@@ -208,18 +204,6 @@ export default function CoachMetricsPage() {
           </button>
         </div>
       </div>
-
-      <DateRangeNavigator
-        availablePeriods={["month", "quarter", "year"]}
-        selectedPeriod={period}
-        onPeriodChange={setPeriod}
-        formattedRange={formattedRange}
-        isCurrent={isCurrent}
-        canForward={canForward}
-        onBack={goBack}
-        onForward={goForward}
-        onToday={goToToday}
-      />
 
       {/* KPI Row */}
       {isLoading ? (

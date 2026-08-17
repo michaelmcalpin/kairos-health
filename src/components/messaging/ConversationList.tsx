@@ -11,6 +11,14 @@ interface ConversationListProps {
   onNewConversation: () => void;
   filter: ConversationFilter;
   onFilterChange: (filter: ConversationFilter) => void;
+  /** Viewer role — determines which party's name/initial to show for each row. */
+  role: "client" | "coach";
+}
+
+/** The other party's display name from the viewer's perspective. */
+function otherPartyName(conv: Conversation, role: "client" | "coach"): string {
+  if (conv.isAiCoach) return "AI Health Coach";
+  return role === "coach" ? conv.clientName : conv.coachName;
 }
 
 const FILTERS: { value: ConversationFilter; label: string }[] = [
@@ -27,6 +35,7 @@ export function ConversationList({
   onNewConversation,
   filter,
   onFilterChange,
+  role,
 }: ConversationListProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -103,7 +112,9 @@ export function ConversationList({
             {searchQuery ? "No conversations match your search." : "No conversations yet."}
           </div>
         ) : (
-          filtered.map((conv) => (
+          filtered.map((conv) => {
+            const displayName = otherPartyName(conv, role);
+            return (
             <button
               key={conv.id}
               onClick={() => onSelect(conv)}
@@ -129,7 +140,7 @@ export function ConversationList({
                     </svg>
                   ) : (
                     <span className="text-sm font-semibold">
-                      {conv.coachName.charAt(0).toUpperCase()}
+                      {displayName.charAt(0).toUpperCase()}
                     </span>
                   )}
                 </div>
@@ -137,7 +148,7 @@ export function ConversationList({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-white truncate">
-                      {conv.isAiCoach ? "AI Health Coach" : conv.coachName}
+                      {displayName}
                     </span>
                     {conv.lastMessage && (
                       <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
@@ -165,7 +176,8 @@ export function ConversationList({
                 )}
               </div>
             </button>
-          ))
+            );
+          })
         )}
       </div>
     </div>

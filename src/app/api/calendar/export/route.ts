@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
-import { appointments } from "@/server/db/schema";
+import { appointments, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { generateIcsContent, generateIcsFilename, addMinutesToTime } from "@/lib/calendar/ics";
 
@@ -23,11 +23,24 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "appointmentId is required" }, { status: 400 });
     }
 
+    // Resolve the Clerk user id to the internal db user id
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.clerkId, clerkId),
+    });
+    if (!dbUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const appt = await db.query.appointments.findFirst({
       where: eq(appointments.id, appointmentId),
     });
 
     if (!appt) {
+      return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+    }
+
+    // Ownership check: only the coach or the client on the appointment may export it
+    if (appt.coachId !== dbUser.id && appt.clientId !== dbUser.id) {
       return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
     }
 

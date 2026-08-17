@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure as coachProcedure } from "@/server/trpc";
 import { conversations, messages, users, trainerClientRelationships } from "@/server/db/schema";
-import { eq, and, desc, sql, isNull, ilike, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, ilike, inArray, gte } from "drizzle-orm";
 import { eventBus, createRealtimeEvent } from "@/lib/realtime/events";
 import type { CoachMessagePayload } from "@/lib/realtime/events";
 
@@ -314,23 +314,59 @@ export const coachMessagingRouter = router({
 
   // Messaging stats
   getStats: coachProcedure.query(async ({ ctx }) => {
-    const statsWhere = ctx.userRole === "super_admin"
-      ? sql`1=1`
-      : eq(conversations.trainerId, ctx.dbUserId);
-    const convCount = await ctx.db
-      .select({ count: sql<number>`count(*)` })
-      .from(conversations)
-      .where(statsWhere);
+    // Load the coach's conversations so we can derive unread (per-conversation
+    // counters, matching the badges) and scope message counts to real data.
+    const coachConvs = await ctx.db.query.conversations.findMany({
+      where: ctx.userRole === "super_admin"
+        ? undefined
+        : eq(conversations.trainerId, ctx.dbUserId),
+    });
 
-    const msgCount = await ctx.db
-      .select({ count: sql<number>`count(*)` })
-      .from(messages)
-      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-      .where(statsWhere);
+    const totalConversations = coachConvs.length;
+    const convIds = coachConvs.map((c) => c.id);
+    // Unread = sum of the coach-side unread counters (same source as getUnreadCount)
+    const unreadMessages = coachConvs.reduce(
+      (sum, c) => sum + (c.unreadCountTrainer ?? 0),
+      0,
+    );
+
+    if (convIds.length === 0) {
+      return {
+        totalConversations: 0,
+        totalMessages: 0,
+        unreadMessages: 0,
+        messagesThisWeek: 0,
+        activeConversations: 0,
+        // Not computed reliably yet — null so the UI shows "—" instead of a fake 0.
+        avgResponseTimeMinutes: null as number | null,
+      };
+    }
+
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const [totalMsgRows, weekMsgRows, activeRows] = await Promise.all([
+      ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(messages)
+        .where(inArray(messages.conversationId, convIds)),
+      ctx.db
+        .select({ count: sql<number>`count(*)` })
+        .from(messages)
+        .where(and(inArray(messages.conversationId, convIds), gte(messages.createdAt, weekAgo))),
+      // Active = conversations that have at least one message
+      ctx.db
+        .select({ count: sql<number>`count(distinct ${messages.conversationId})` })
+        .from(messages)
+        .where(inArray(messages.conversationId, convIds)),
+    ]);
 
     return {
-      totalConversations: Number(convCount[0]?.count ?? 0),
-      totalMessages: Number(msgCount[0]?.count ?? 0),
+      totalConversations,
+      totalMessages: Number(totalMsgRows[0]?.count ?? 0),
+      unreadMessages,
+      messagesThisWeek: Number(weekMsgRows[0]?.count ?? 0),
+      activeConversations: Number(activeRows[0]?.count ?? 0),
+      // Response-time tracking isn't available yet; return null rather than 0.
+      avgResponseTimeMinutes: null as number | null,
     };
   }),
 });

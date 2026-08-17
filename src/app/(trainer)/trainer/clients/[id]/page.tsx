@@ -410,8 +410,17 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               </div>
               <div className="flex items-center gap-3 text-sm flex-wrap">
                 <div className="flex items-center gap-1.5">
-                  <div className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[client.status]}`} />
-                  <span className={STATUS_COLORS[client.status]}>{STATUS_LABELS[client.status]}</span>
+                  {client.status === "insufficient_data" ? (
+                    <>
+                      <div className="w-2 h-2 rounded-full bg-gray-500" />
+                      <span className="text-gray-400">Insufficient data</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className={`w-2 h-2 rounded-full ${STATUS_DOT_COLORS[client.status]}`} />
+                      <span className={STATUS_COLORS[client.status]}>{STATUS_LABELS[client.status]}</span>
+                    </>
+                  )}
                 </div>
                 <span className="text-gray-600">&bull;</span>
                 <span className="text-gray-500">{client.email}</span>
@@ -421,8 +430,12 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             </div>
           </div>
           <div className="text-right">
-            <p className="text-4xl font-heading font-bold text-kairos-gold">{client.healthScore}</p>
-            <p className={`text-sm font-medium ${trendColor}`}>{trendIcon} Health Score</p>
+            <p className="text-4xl font-heading font-bold text-kairos-gold">{client.healthScore ?? "—"}</p>
+            {client.healthScore == null ? (
+              <p className="text-sm font-medium text-gray-500">Insufficient data</p>
+            ) : (
+              <p className={`text-sm font-medium ${trendColor}`}>{trendIcon} Health Score</p>
+            )}
           </div>
         </div>
 
@@ -1485,8 +1498,7 @@ type ClientDetail = {
     bodyFat: number | null; adherence: number; checkInStreak: number;
   };
   protocol: {
-    id: string; name: string; startDate: string; duration: string;
-    progress: number; goals: string[]; status: string;
+    id: string; name: string; startDate: string; goals: string[]; status: string;
   };
   alerts: Array<{
     id: string; clientId: string; priority: string; category: string;
@@ -1554,22 +1566,15 @@ function TabContent({
               <TrendingUp size={16} /> Current Protocol
             </h2>
             <h3 className="font-heading font-semibold text-white mb-2">{client.protocol.name}</h3>
-            <div className="grid grid-cols-3 gap-4 mb-3 text-sm">
+            <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-[10px] text-gray-500 uppercase">Start</p>
                 <p className="text-gray-300">{client.protocol.startDate}</p>
               </div>
               <div>
-                <p className="text-[10px] text-gray-500 uppercase">Duration</p>
-                <p className="text-gray-300">{client.protocol.duration}</p>
+                <p className="text-[10px] text-gray-500 uppercase">Status</p>
+                <p className="text-gray-300 capitalize">{client.protocol.status}</p>
               </div>
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase">Progress</p>
-                <p className="text-kairos-gold font-bold">{client.protocol.progress}%</p>
-              </div>
-            </div>
-            <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{ backgroundColor: tc.accent, width: `${client.protocol.progress}%` }} />
             </div>
           </div>
 
@@ -1694,7 +1699,7 @@ function TabContent({
             headers={["Date", "RMSSD (ms)", "Source"]}
             rows={health.hrv.map((h) => {
               const d = new Date(h.date);
-              return [d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }), h.rmssd, h.source];
+              return [d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }), h.rmssd, h.source];
             })}
           />
         </div>
@@ -2047,7 +2052,39 @@ function TabContent({
             </div>
           )}
 
-          {!health.genetics?.profile && !health.genetics?.markers?.length && (
+          {/* Uploaded Genetic Reports (stored as clinical docs tagged kind=genetics) */}
+          {(() => {
+            const geneticsDocs = (health.clinicalDocs ?? []).filter(
+              (d) => (d.parsedData as Record<string, unknown> | null)?.kind === "genetics",
+            );
+            if (geneticsDocs.length === 0) return null;
+            return (
+              <div className="kairos-card">
+                <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+                  <FileText size={16} /> Uploaded Genetic Reports ({geneticsDocs.length})
+                </h2>
+                <div className="space-y-3">
+                  {geneticsDocs.map((doc) => {
+                    const pd = doc.parsedData as Record<string, unknown> | null;
+                    return (
+                      <div key={doc.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
+                        <div className="flex justify-between items-center mb-2">
+                          <p className="text-sm text-white font-medium">{doc.title ?? "Genetic Report"}</p>
+                          <span className="text-[10px] text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
+                        </div>
+                        {doc.providerName && <p className="text-[10px] text-gray-400 mb-1">Provider: {doc.providerName}</p>}
+                        <DocFileLink parsedData={pd} sourceFileName={doc.sourceFileName} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {!health.genetics?.profile
+            && !health.genetics?.markers?.length
+            && !(health.clinicalDocs ?? []).some((d) => (d.parsedData as Record<string, unknown> | null)?.kind === "genetics") && (
             <div className="kairos-card p-6 text-center">
               <p className="text-sm text-gray-500">No genetic data available for this client</p>
             </div>
@@ -2157,7 +2194,9 @@ function TabContent({
 
               {/* Medical Records */}
               {(() => {
-                const medDocs = health.clinicalDocs.filter((d) => d.docType === "medical_record");
+                const medDocs = health.clinicalDocs.filter(
+                  (d) => d.docType === "medical_record" && (d.parsedData as Record<string, unknown> | null)?.kind !== "genetics",
+                );
                 if (medDocs.length === 0) return null;
                 return (
                   <div className="kairos-card">
@@ -3043,6 +3082,7 @@ function GeneticsManager({ clientId, canEdit }: { clientId: string; canEdit: boo
           uploadCategory="document"
           lockedDocType="medical_record"
           defaultTitle="Genetic Report"
+          docKind="genetics"
           onClose={() => setShowModal(false)}
           saving={createMutation.isPending}
           onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
@@ -3057,6 +3097,7 @@ function ClinicalDocModal({
   uploadCategory,
   lockedDocType,
   defaultTitle,
+  docKind,
   saving,
   onClose,
   onSubmit,
@@ -3065,6 +3106,7 @@ function ClinicalDocModal({
   uploadCategory: "clinical" | "document";
   lockedDocType?: ClinicalDocType;
   defaultTitle?: string;
+  docKind?: string;
   saving: boolean;
   onClose: () => void;
   onSubmit: (payload: {
@@ -3092,13 +3134,15 @@ function ClinicalDocModal({
     if (!docTitle.trim()) return;
     setLocalError(null);
     let sourceFileName: string | null = null;
-    let parsedData: Record<string, unknown> | null = null;
+    // Tag the document with its kind (e.g. "genetics") so it can be surfaced
+    // in the right tab even though it's stored in clinical_documents.
+    let parsedData: Record<string, unknown> | null = docKind ? { kind: docKind } : null;
     if (file) {
       try {
         setUploading(true);
         const { url, fileName } = await uploadCoachFile(file, uploadCategory);
         sourceFileName = fileName;
-        parsedData = { fileUrl: url };
+        parsedData = { ...(parsedData ?? {}), fileUrl: url };
       } catch (e) {
         setUploading(false);
         setLocalError(e instanceof Error ? e.message : "Upload failed");

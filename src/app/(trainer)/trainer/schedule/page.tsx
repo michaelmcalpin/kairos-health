@@ -39,6 +39,14 @@ interface AppointmentLike {
 
 type ScheduleTab = "calendar" | "availability";
 
+/** Local YYYY-MM-DD (avoids UTC shift from toISOString). */
+function toDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function CoachSchedulePage() {
   const [activeTab, setActiveTab] = useState<ScheduleTab>("calendar");
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
@@ -53,15 +61,33 @@ export default function CoachSchedulePage() {
   const rangeStart = dateRange.startDate;
   const monday = new Date(rangeStart);
   monday.setDate(rangeStart.getDate() - ((rangeStart.getDay() + 6) % 7));
-  const weekStart = monday.toISOString().split("T")[0];
+  const weekStart = toDateStr(monday);
 
   // Fetch calendar, stats, and clients data
   const { data: calendarData, isLoading: isCalendarLoading } = trpc.coach.schedule.getCalendarWeek.useQuery({ weekStart });
   const { data: statsData, isLoading: isStatsLoading } = trpc.coach.schedule.getStats.useQuery();
   const { data: clientsList, isLoading: isClientsLoading } = trpc.coach.clients.list.useQuery();
 
+  // Fetch saved session notes for the selected appointment (disabled until one is selected)
+  const { data: sessionNotesData } = trpc.coach.schedule.getSessionNotes.useQuery(
+    { appointmentId: selectedAppointment?.id ?? "" },
+    { enabled: !!selectedAppointment }
+  );
+  const selectedSessionNotes = useMemo(() => {
+    if (!sessionNotesData) return null;
+    return {
+      summary: sessionNotesData.summary ?? "",
+      keyFindings: sessionNotesData.keyFindings ?? [],
+      actionItems: sessionNotesData.actionItems ?? [],
+      nextSessionFocus: sessionNotesData.nextSessionFocus ?? "",
+      privateNotes: sessionNotesData.privateNotes ?? "",
+    };
+  }, [sessionNotesData]);
+
   // Error state for user feedback
   const [mutationError, setMutationError] = useState<string | null>(null);
+  // Non-blocking notice, e.g. a video appointment created without a Zoom link
+  const [zoomNotice, setZoomNotice] = useState<string | null>(null);
 
   // Mutations
   const createMutation = trpc.coach.schedule.createAppointment.useMutation();
@@ -73,14 +99,14 @@ export default function CoachSchedulePage() {
   // Transform tRPC calendar data { weekStart, weekEnd, days: Record<string, appt[]> } into CalendarDay[]
   const calendarDays = useMemo(() => {
     if (!calendarData || !calendarData.days) return [];
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = toDateStr(new Date());
     // Generate 7 days starting from weekStart
     const days = [];
     const start = new Date(calendarData.weekStart + "T00:00:00");
     for (let i = 0; i < 7; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
-      const dateStr = d.toISOString().split("T")[0];
+      const dateStr = toDateStr(d);
       days.push({
         date: dateStr,
         dayOfWeek: d.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6,
@@ -204,12 +230,29 @@ export default function CoachSchedulePage() {
         onToday={goToToday}
       />
 
+      {/* Non-blocking Zoom notice */}
+      {zoomNotice && (
+        <div className="mb-6 flex items-start justify-between gap-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+          <p className="text-amber-400 text-sm">
+            Appointment created, but no video link was attached. {zoomNotice}
+          </p>
+          <button
+            onClick={() => setZoomNotice(null)}
+            className="text-amber-400 hover:text-white shrink-0"
+            aria-label="Dismiss notice"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Appointment Detail */}
       {selectedAppointment && (
         <div className="mb-6">
           <AppointmentDetail
+            key={`${selectedAppointment.id}-${selectedSessionNotes ? "notes" : "none"}`}
             appointment={selectedAppointment}
-            sessionNotes={null}
+            sessionNotes={selectedSessionNotes}
             role="coach"
             onReschedule={(newDate, newTime) => {
               setRescheduleError(null);
@@ -252,7 +295,12 @@ export default function CoachSchedulePage() {
                     nextSessionFocus: notes.nextSessionFocus,
                     privateNotes: notes.privateNotes,
                   },
-                  { onSuccess: () => setSelectedAppointment(null) }
+                  {
+                    onSuccess: () => {
+                      void utils.coach.schedule.getSessionNotes.invalidate({ appointmentId: selectedAppointment.id });
+                      setSelectedAppointment(null);
+                    },
+                  }
                 );
               }
             }}
@@ -368,9 +416,12 @@ export default function CoachSchedulePage() {
                         notes: "",
                       },
                       {
-                        onSuccess: () => {
+                        onSuccess: (created) => {
                           setShowNewAppt(false);
                           setMutationError(null);
+                          // Surface non-blocking Zoom warning if no meeting link was attached
+                          const zoomError = (created as { zoomError?: string }).zoomError;
+                          setZoomNotice(zoomError ?? null);
                           setNewAppt({ clientId: "", clientName: "", date: "", time: "09:00", type: "follow_up", meeting: "video" });
                           void utils.coach.schedule.getCalendarWeek.invalidate();
                           void utils.coach.schedule.getStats.invalidate();

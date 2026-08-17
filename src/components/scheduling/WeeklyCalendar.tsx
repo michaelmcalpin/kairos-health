@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+
 // ─── Local types (previously from @/lib/scheduling/types) ───────────
 
 interface AppointmentLike {
@@ -50,12 +52,34 @@ interface WeeklyCalendarProps {
   onSlotClick?: (date: string, time: string) => void;
 }
 
-const HOURS = Array.from({ length: 11 }, (_, i) => i + 8); // 8 AM to 6 PM
+function formatHourLabel(hour: number): string {
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${displayHour} ${period}`;
+}
 
 export function WeeklyCalendar({
   days,
   onAppointmentClick,
 }: WeeklyCalendarProps) {
+  // Compute the visible hour range so appointments outside 8–18 still get a row.
+  // Default 8 AM–6 PM, extended to include the earliest start and latest end.
+  const HOURS = useMemo(() => {
+    let minHour = 8;
+    let maxHour = 18;
+    for (const day of days) {
+      for (const appt of day.appointments) {
+        const startHour = parseInt(appt.startTime.split(":")[0], 10);
+        if (!Number.isNaN(startHour)) minHour = Math.min(minHour, startHour);
+
+        const endTime = typeof appt.endTime === "string" ? appt.endTime : "";
+        const endHour = endTime ? parseInt(endTime.split(":")[0], 10) : startHour;
+        if (!Number.isNaN(endHour)) maxHour = Math.max(maxHour, endHour);
+      }
+    }
+    return Array.from({ length: maxHour - minHour + 1 }, (_, i) => i + minHour);
+  }, [days]);
+
   return (
     <div className="kairos-card overflow-hidden">
       {/* Header row with day names */}
@@ -93,7 +117,7 @@ export function WeeklyCalendar({
           <div key={hour} className="grid grid-cols-8 border-b border-gray-800/50 min-h-[60px]">
             {/* Time label */}
             <div className="p-2 text-xs text-gray-500 text-right pr-3 border-r border-gray-800">
-              {hour === 0 ? "12 AM" : hour <= 12 ? `${hour} AM` : `${hour - 12} PM`}
+              {formatHourLabel(hour)}
             </div>
 
             {/* Day columns */}

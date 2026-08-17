@@ -20,11 +20,15 @@ export default function CoachAlertsPage() {
 
   const utils = trpc.useUtils();
 
-  // TODO: Backend endpoints (coach.alerts.list and coach.alerts.summary) need date
-  // filtering support (startDate/endDate params) so the DateRangeNavigator can
-  // filter alerts to the selected period. For now, filter client-side.
+  // Alerts are filtered server-side by the selected date range so older alerts
+  // outside the current page window are still reachable via the navigator.
   const { data: alertsData = { alerts: [], total: 0, hasMore: false }, isLoading: alertsLoading } =
-    trpc.coach.alerts.list.useQuery({ status: filter === "all" ? "all" : filter, limit: 50 });
+    trpc.coach.alerts.list.useQuery({
+      status: filter === "all" ? "all" : filter,
+      startDate: dateRange.startDate.toISOString(),
+      endDate: dateRange.endDate.toISOString(),
+      limit: 100,
+    });
 
   const { data: summaryData, isLoading: summaryLoading } =
     trpc.coach.alerts.summary.useQuery();
@@ -36,16 +40,7 @@ export default function CoachAlertsPage() {
     },
   });
 
-  // Client-side date filtering until backend supports date params
-  const allAlerts = alertsData.alerts || [];
-  const alerts = useMemo(() => {
-    const start = dateRange.startDate.getTime();
-    const end = dateRange.endDate.getTime();
-    return allAlerts.filter((a) => {
-      const t = new Date(a.createdAt).getTime();
-      return t >= start && t <= end;
-    });
-  }, [allAlerts, dateRange]);
+  const alerts = alertsData.alerts || [];
 
   const stats = summaryData || { urgent: 0, action: 0, info: 0, total: 0 };
 
@@ -68,12 +63,12 @@ export default function CoachAlertsPage() {
         <div>
           <h2 className="font-heading font-bold text-xl text-white">Client Alerts</h2>
           <p className="text-sm font-body text-kairos-silver-dark">
-            {stats.action} active{stats.urgent > 0 && ` • ${stats.urgent} urgent`}
+            {stats.total} active{stats.urgent > 0 && ` • ${stats.urgent} urgent`}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Bell size={16} className={stats.urgent > 0 ? "text-red-400 animate-pulse" : "text-kairos-gold"} />
-          <span className="text-sm font-heading font-bold text-kairos-gold">{stats.action}</span>
+          <span className="text-sm font-heading font-bold text-kairos-gold">{stats.total}</span>
         </div>
       </div>
 
@@ -165,7 +160,7 @@ export default function CoachAlertsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                       <span className={`text-[10px] font-heading font-bold px-1.5 py-0.5 rounded-full ${config.bgColor} ${config.color}`}>{config.label}</span>
-                      <span className={`text-[10px] font-heading px-1.5 py-0.5 rounded-full ${alert.status === "active" ? "bg-kairos-gold/15 text-kairos-gold" : alert.status === "acknowledged" ? "bg-blue-500/15 text-blue-400" : "bg-green-500/15 text-green-400"}`}>{alert.status}</span>
+                      <span className={`text-[10px] font-heading px-1.5 py-0.5 rounded-full ${alert.status === "active" ? "bg-kairos-gold/15 text-kairos-gold" : alert.status === "acknowledged" ? "bg-blue-500/15 text-blue-400" : "bg-green-500/15 text-green-400"}`}>{alert.status.charAt(0).toUpperCase() + alert.status.slice(1)}</span>
                       <span className="text-[10px] font-body text-kairos-silver-dark">{alert.clientName}</span>
                     </div>
                     <p className="text-sm font-heading font-semibold text-white">{alert.title}</p>

@@ -153,7 +153,9 @@ export default function Page() {
         ) : (
           filteredItems.map((item) => {
             const pColors = (PRIORITY_COLORS as Record<string, { text: string; bg: string }>)[item.priority] ?? PRIORITY_COLORS.info;
-            const isCompleted = !!item.acknowledgedAt;
+            // Use the same completed predicate as the stats/tabs so a resolved-but-
+            // unacknowledged alert still renders as completed.
+            const isCompleted = isCompletedAlert(item);
             const itemDateStr = new Date(item.createdAt).toISOString().split("T")[0];
             const isOlderItem = !isCompleted && itemDateStr < todayStr;
             return (
@@ -205,7 +207,7 @@ export default function Page() {
                             {item.clientName}
                           </h3>
                           <p className="text-xs text-kairos-silver-dark font-body">
-                            {item.priority}
+                            {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
                           </p>
                         </div>
                       </div>

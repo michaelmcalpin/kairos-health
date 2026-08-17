@@ -80,7 +80,9 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
 
       {/* Right: Actions */}
       <div className="flex items-center gap-4">
-        {showSearch && (
+        {/* Search is hidden on the trainer portal — there is no search feature there,
+            so rendering the control would be a dead affordance. */}
+        {showSearch && portal !== "trainer" && (
           <button className="text-kairos-silver-dark hover:text-white transition-colors p-2" aria-label="Search">
             <Search size={18} />
           </button>

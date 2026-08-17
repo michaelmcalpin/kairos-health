@@ -174,7 +174,8 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
     activeConversations: number;
     totalMessages: number;
     unreadMessages: number;
-    avgResponseTimeMinutes: number;
+    // null when the metric can't be computed reliably yet (avoids implying a real 0)
+    avgResponseTimeMinutes: number | null;
     messagesThisWeek: number;
   }
   const defaultStats: MessagingStats = {
@@ -182,7 +183,7 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
     activeConversations: 0,
     totalMessages: 0,
     unreadMessages: 0,
-    avgResponseTimeMinutes: 0,
+    avgResponseTimeMinutes: null,
     messagesThisWeek: 0,
   };
   const stats: MessagingStats = { ...defaultStats, ...statsQuery.data };
@@ -267,7 +268,7 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
           </p>
           <p className="text-xl font-heading font-bold text-white">
             {role === "coach"
-              ? stats.avgResponseTimeMinutes > 0
+              ? stats.avgResponseTimeMinutes != null && stats.avgResponseTimeMinutes > 0
                 ? `${stats.avgResponseTimeMinutes}m`
                 : "—"
               : stats.activeConversations}
@@ -286,6 +287,7 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
             onNewConversation={handleNewConversation}
             filter={filter}
             onFilterChange={setFilter}
+            role={role}
           />
         </div>
 

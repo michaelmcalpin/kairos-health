@@ -2,18 +2,13 @@
 
 import { useMemo } from "react";
 import { DollarSign, TrendingUp, Info } from "lucide-react";
-import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
-import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
 import { TIER_LABELS } from "@/lib/coach-clients/types";
 
 export default function RevenueCoachPage() {
-  const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
-    useDateRange({ initialPeriod: "month" });
-
-  // TODO: Backend endpoints (coach.revenue.getSummary and coach.revenue.getClientRevenue)
-  // need date filtering support (startDate/endDate params) so the DateRangeNavigator
-  // can scope revenue data to the selected period. Currently the navigator is cosmetic.
+  // Figures reflect current estimates. Period-scoped filtering isn't supported by
+  // the backend yet, so no date navigator is shown (it would imply filtering that
+  // doesn't happen).
   const { data: summaryData, isLoading: summaryLoading } =
     trpc.coach.revenue.getSummary.useQuery();
 
@@ -56,18 +51,6 @@ export default function RevenueCoachPage() {
         <h1 className="font-heading font-bold text-3xl text-white mb-2">Revenue Dashboard</h1>
         <p className="font-body text-kairos-silver-dark">Track your coaching revenue</p>
       </div>
-
-      <DateRangeNavigator
-        availablePeriods={["month", "quarter", "year"]}
-        selectedPeriod={period}
-        onPeriodChange={setPeriod}
-        formattedRange={formattedRange}
-        isCurrent={isCurrent}
-        canForward={canForward}
-        onBack={goBack}
-        onForward={goForward}
-        onToday={goToToday}
-      />
 
       {/* Revenue disclaimer */}
       <div className="flex items-start gap-3 kairos-card p-4 border border-amber-500/30 bg-amber-500/5">
