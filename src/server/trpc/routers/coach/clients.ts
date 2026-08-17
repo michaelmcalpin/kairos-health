@@ -1113,6 +1113,7 @@ export const coachClientsRouter = router({
           reportDate: d.reportDate,
           status: d.status,
           parsedData: d.parsedData,
+          sourceFileName: d.sourceFileName,
           createdAt: d.createdAt.toISOString(),
         })),
         conversationId: conversation?.id ?? null,

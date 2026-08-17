@@ -1525,7 +1525,7 @@ type HealthData = {
     markers: Array<{ gene: string; rsId: string | null; mutation: string | null; pathway: string | null; function: string | null; clinicalPriority: string | null; symptoms: string | null; supplementProtocol: string | null; dietStrategy: string | null; lifestyleStrategy: string | null }>;
     pathways: Array<{ pathway: string; genesAffected: number; genesInPathway: number; homozygousCount: number; heterozygousCount: number; priorityLevel: string | null }>;
   };
-  clinicalDocs?: Array<{ id: string; docType: string; title: string; providerName: string | null; reportDate: Date | null; status: string; parsedData: Record<string, unknown> | null; createdAt: string }>;
+  clinicalDocs?: Array<{ id: string; docType: string; title: string; providerName: string | null; reportDate: Date | null; status: string; parsedData: Record<string, unknown> | null; sourceFileName?: string | null; createdAt: string }>;
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -2085,7 +2085,7 @@ function TabContent({
                             {pd && Object.keys(pd).length > 0 ? (
                               <div className="grid grid-cols-3 gap-2">
                                 {Object.entries(pd)
-                                  .filter(([, v]) => v != null && typeof v !== "object")
+                                  .filter(([k, v]) => v != null && typeof v !== "object" && k !== "fileUrl" && k !== "url")
                                   .slice(0, 12)
                                   .map(([k, v]) => (
                                     <div key={k} className="text-center p-1.5 rounded bg-gray-800/50">
@@ -2098,6 +2098,7 @@ function TabContent({
                               <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
                             )}
                             {doc.providerName && <p className="text-[10px] text-gray-500 mt-2">Provider: {doc.providerName}</p>}
+                            <DocFileLink parsedData={pd} sourceFileName={doc.sourceFileName} />
                           </div>
                         );
                       })}
@@ -2145,6 +2146,7 @@ function TabContent({
                             ) : (
                               <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
                             )}
+                            <DocFileLink parsedData={pd} sourceFileName={doc.sourceFileName} />
                           </div>
                         );
                       })}
@@ -2188,6 +2190,7 @@ function TabContent({
                             ) : (
                               <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
                             )}
+                            <DocFileLink parsedData={pd} sourceFileName={doc.sourceFileName} />
                           </div>
                         );
                       })}
@@ -2229,6 +2232,39 @@ const ASSIGNMENT_STATUS_BADGES: Record<string, string> = {
   completed: "bg-blue-500/10 text-blue-400 border-blue-500/30",
   cancelled: "bg-gray-700/50 text-gray-400 border-gray-600",
 };
+
+/** Renders an "Open file" link for an uploaded clinical/lab/genetics document. */
+function DocFileLink({
+  parsedData,
+  sourceFileName,
+}: {
+  parsedData: Record<string, unknown> | null | undefined;
+  sourceFileName?: string | null;
+}) {
+  const raw = parsedData?.fileUrl ?? parsedData?.url;
+  const url = typeof raw === "string" ? raw : null;
+  // Only link to real, fetchable URLs (http/https or inline data URLs).
+  const openable = !!url && (url.startsWith("http") || url.startsWith("data:"));
+  if (!url) return null;
+  const label = sourceFileName || "Uploaded file";
+  if (!openable) {
+    return (
+      <p className="text-[10px] text-yellow-500/80 mt-1.5 flex items-center gap-1">
+        <FileText size={10} /> {label} — file not available
+      </p>
+    );
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 mt-1.5 text-[11px] text-kairos-gold hover:underline"
+    >
+      <FileText size={11} /> Open {label}
+    </a>
+  );
+}
 
 /** Small error banner reused across the coach write panels. */
 function PanelError({ message, onClose }: { message: string | null; onClose: () => void }) {
