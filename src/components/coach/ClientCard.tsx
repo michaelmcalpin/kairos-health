@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { CoachClientSummary } from "@/lib/coach-clients/types";
+import type { CoachClientSummary, ClientStatus } from "@/lib/coach-clients/types";
 import {
   TIER_LABELS,
   TIER_BADGE_COLORS,
@@ -17,6 +17,7 @@ interface ClientCardProps {
 export const ClientCard = React.memo(function ClientCard({ client, onClick }: ClientCardProps) {
   const trendIcon = client.scoreTrend === "up" ? "↑" : client.scoreTrend === "down" ? "↓" : "→";
   const trendColor = client.scoreTrend === "up" ? "text-green-400" : client.scoreTrend === "down" ? "text-red-400" : "text-gray-400";
+  const noData = client.healthScore === null || client.status === "insufficient_data";
 
   return (
     <div
@@ -39,8 +40,17 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick }: Cl
               </span>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_COLORS[client.status]}`} />
-              <span className="text-xs text-gray-500">{STATUS_LABELS[client.status]}</span>
+              {noData ? (
+                <>
+                  <div className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                  <span className="text-xs text-gray-400">Insufficient data</span>
+                </>
+              ) : (
+                <>
+                  <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_COLORS[client.status as ClientStatus]}`} />
+                  <span className="text-xs text-gray-500">{STATUS_LABELS[client.status as ClientStatus]}</span>
+                </>
+              )}
               <span className="text-xs text-gray-600">•</span>
               <span className="text-xs text-gray-500">{client.lastActive}</span>
             </div>
@@ -51,8 +61,12 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick }: Cl
         <div className="flex items-center gap-5 shrink-0">
           {/* Health Score */}
           <div className="text-center">
-            <p className="text-lg font-heading font-bold text-kairos-gold">{client.healthScore}</p>
-            <p className={`text-[10px] ${trendColor}`}>{trendIcon}</p>
+            <p className="text-lg font-heading font-bold text-kairos-gold">{client.healthScore ?? "—"}</p>
+            {noData ? (
+              <p className="text-[10px] text-gray-500">No data</p>
+            ) : (
+              <p className={`text-[10px] ${trendColor}`}>{trendIcon}</p>
+            )}
           </div>
 
           {/* Adherence */}

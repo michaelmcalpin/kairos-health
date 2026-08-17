@@ -55,10 +55,11 @@ export default function CoachMetricsPage() {
       },
       {
         label: "Avg Health Score",
-        value: stats.avgHealthScore.toFixed(1),
+        // avgHealthScore excludes no-data clients; null means nobody has a score.
+        value: stats.avgHealthScore != null ? stats.avgHealthScore.toFixed(1) : "—",
         icon: "target",
-        trend: stats.avgHealthScore >= 70 ? ("up" as const) : ("down" as const),
-        trendValue: stats.avgHealthScore >= 70 ? "on track" : "needs focus",
+        trend: stats.avgHealthScore == null ? ("flat" as const) : stats.avgHealthScore >= 70 ? ("up" as const) : ("down" as const),
+        trendValue: stats.avgHealthScore == null ? "no data" : stats.avgHealthScore >= 70 ? "on track" : "needs focus",
       },
       {
         label: "Avg Adherence",
@@ -103,13 +104,16 @@ export default function CoachMetricsPage() {
   const topClients = useMemo(() => {
     if (!clientsListQuery.data) return [];
 
-    return [...clientsListQuery.data]
-      .sort((a, b) => (b.healthScore || 0) - (a.healthScore || 0))
+    // Only rank clients who actually have a score — a no-data client can't be
+    // "top performing".
+    return clientsListQuery.data
+      .filter((client) => client.healthScore != null)
+      .sort((a, b) => (b.healthScore ?? 0) - (a.healthScore ?? 0))
       .slice(0, 5)
       .map((client) => ({
         id: client.id,
         name: client.name || "Unknown",
-        score: (client.healthScore || 0).toFixed(1),
+        score: (client.healthScore ?? 0).toFixed(1),
         lastUpdate: "",
         trend: "stable" as "up" | "down" | "stable",
       }));
@@ -119,14 +123,16 @@ export default function CoachMetricsPage() {
   const atRiskClients = useMemo(() => {
     if (!clientsListQuery.data) return [];
 
+    // A no-data client (null score) is never flagged for "low health score" —
+    // only a real sub-60 score or low adherence counts as at-risk.
     return clientsListQuery.data
-      .filter((client) => (client.healthScore || 0) < 60 || (client.adherence || 0) < 50)
+      .filter((client) => (client.healthScore != null && client.healthScore < 60) || (client.adherence || 0) < 50)
       .slice(0, 5)
       .map((client) => ({
         id: client.id,
         name: client.name || "Unknown",
-        issue: (client.healthScore || 0) < 60 ? "Low health score" : "Low adherence",
-        healthScore: client.healthScore || 0,
+        issue: client.healthScore != null && client.healthScore < 60 ? "Low health score" : "Low adherence",
+        healthScore: client.healthScore,
       }));
   }, [clientsListQuery.data]);
 
@@ -137,8 +143,10 @@ export default function CoachMetricsPage() {
     const stats = clientStatsQuery.data;
     const list = clientsListQuery.data;
 
-    const onTrack = list.filter((c) => (c.healthScore || 0) >= 75).length;
-    const needsAttention = list.filter((c) => (c.healthScore || 0) < 60).length;
+    // Bucket only clients with a real score; no-data clients are excluded from
+    // both on-track and needs-attention counts (not treated as 0).
+    const onTrack = list.filter((c) => c.healthScore != null && c.healthScore >= 75).length;
+    const needsAttention = list.filter((c) => c.healthScore != null && c.healthScore < 60).length;
     const active = list.length - needsAttention;
 
     return {
@@ -444,7 +452,7 @@ export default function CoachMetricsPage() {
                         <p className="text-red-300 text-xs">{client.issue}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-red-400 text-sm font-bold">{client.healthScore}</p>
+                        <p className="text-red-400 text-sm font-bold">{client.healthScore ?? "—"}</p>
                         <p className="text-kairos-silver-dark text-xs">score</p>
                       </div>
                     </div>

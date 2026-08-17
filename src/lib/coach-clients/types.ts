@@ -22,13 +22,13 @@ export interface CoachClientSummary {
   initials: string;
   email: string;
   tier: ClientTier;
-  healthScore: number;
+  healthScore: number | null; // null when the client has no biometric data
   scoreTrend: ScoreTrend;
   activeAlerts: number;
   adherence: number; // 0-100
   lastActive: string; // relative time string
   lastActiveDate: string; // ISO date
-  status: ClientStatus;
+  status: ClientStatus | "insufficient_data"; // "insufficient_data" when healthScore is null
   nextSession: string | null;
   memberSince: string; // ISO date
 }
@@ -120,7 +120,7 @@ export interface CoachRosterStats {
   criticalCount: number;
   attentionCount: number;
   stableCount: number;
-  avgHealthScore: number;
+  avgHealthScore: number | null; // null when no client has a biometric-derived score
   avgAdherence: number;
   totalAlerts: number;
 }

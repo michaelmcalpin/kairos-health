@@ -169,6 +169,9 @@ export default function ProfileScreen() {
   /* -- tRPC mutation for persisting toggle changes -- */
   const toggleMutation = trpc.clientPortal.settings.updateFeatureToggle.useMutation();
 
+  /* -- tRPC mutation for in-app account deletion (Apple 5.1.1(v)) -- */
+  const deleteAccountMutation = trpc.clientPortal.settings.deleteAccount.useMutation();
+
   /* -- notification toggles -- */
   const [pushNotifs, setPushNotifs] = useState(true);
   const [emailNotifs, setEmailNotifs] = useState(true);
@@ -207,6 +210,40 @@ export default function ProfileScreen() {
   const noop = () => {};
   const confirmAction = (title: string, message: string) => {
     Alert.alert(title, message, [{ text: "Cancel" }, { text: "OK" }]);
+  };
+
+  /* -- Delete Account: confirm → deactivate on backend → sign out -- */
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "This permanently deactivates your Everist account, revokes access, and signs you out. This cannot be undone.\n\nAre you sure you want to delete your account?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete Account",
+          style: "destructive",
+          onPress: () => {
+            deleteAccountMutation.mutate(undefined, {
+              onSuccess: async () => {
+                try {
+                  await signOut();
+                } catch (e) {
+                  console.error("Sign out after delete error:", e);
+                }
+              },
+              onError: (err: any) => {
+                Alert.alert(
+                  "Could Not Delete Account",
+                  err?.message ??
+                    "Something went wrong. Please try again, or contact support@everist.ai.",
+                  [{ text: "OK" }],
+                );
+              },
+            });
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -479,13 +516,7 @@ export default function ProfileScreen() {
             icon={<Trash2 size={18} color={Colors.danger} />}
             label="Delete Account"
             danger
-            onPress={() =>
-              Alert.alert(
-                "Delete Account",
-                "Account deletion isn't available in the app yet. Please contact support@everist.ai and our team will delete your account and all associated data.",
-                [{ text: "OK" }],
-              )
-            }
+            onPress={handleDeleteAccount}
             last
           />
         </SettingsSection>

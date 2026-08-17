@@ -101,6 +101,64 @@ export const clientMeasurementsRouter = router({
       return result[0];
     }),
 
+  // Update an existing measurement row (verifies ownership by clientId).
+  // Only fields explicitly provided are written; undefined fields are left as-is.
+  update: clientProcedure
+    .input(
+      z.object({
+        measurementId: z.string().uuid(),
+        weightLbs: z.number().min(50).max(700).optional(),
+        bodyFatPct: z.number().min(1).max(60).optional(),
+        waistInches: z.number().min(15).max(80).optional(),
+        chestInches: z.number().min(20).max(80).optional(),
+        hipsInches: z.number().min(20).max(80).optional(),
+        rightBicepInches: z.number().min(5).max(30).optional(),
+        leftBicepInches: z.number().min(5).max(30).optional(),
+        rightThighInches: z.number().min(10).max(50).optional(),
+        leftThighInches: z.number().min(10).max(50).optional(),
+        rightCalfInches: z.number().min(5).max(30).optional(),
+        leftCalfInches: z.number().min(5).max(30).optional(),
+        neckInches: z.number().min(8).max(30).optional(),
+        shouldersInches: z.number().min(30).max(70).optional(),
+        notes: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { measurementId, ...fields } = input;
+
+      // Build a set object from only the provided (defined) fields so we never
+      // clobber existing values with nulls.
+      const updateData: Partial<typeof bodyMeasurements.$inferInsert> = {};
+      for (const [key, value] of Object.entries(fields)) {
+        if (value !== undefined) {
+          (updateData as Record<string, unknown>)[key] = value;
+        }
+      }
+
+      // Nothing to update — return the existing row so the caller can refetch.
+      if (Object.keys(updateData).length === 0) {
+        return await safeQ(() => ctx.db.query.bodyMeasurements.findFirst({
+          where: and(
+            eq(bodyMeasurements.id, measurementId),
+            eq(bodyMeasurements.clientId, ctx.dbUserId)
+          ),
+        }), undefined);
+      }
+
+      const result = await ctx.db
+        .update(bodyMeasurements)
+        .set(updateData)
+        .where(
+          and(
+            eq(bodyMeasurements.id, measurementId),
+            eq(bodyMeasurements.clientId, ctx.dbUserId)
+          )
+        )
+        .returning();
+
+      return result[0];
+    }),
+
   // Log measurements with vital signs (BP and heart rate)
   createWithVitals: clientProcedure
     .input(

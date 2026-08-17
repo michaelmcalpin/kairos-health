@@ -748,12 +748,24 @@ export default function LabsPage() {
                   <p className="text-sm font-body text-kairos-silver-dark">Panel Type</p>
                   <p className="font-heading font-bold text-white">{order.panelName ?? "Lab Panel"}</p>
                 </div>
-                <div className="md:text-right">
+                <div className="md:text-right space-y-2">
                   <span className={`inline-flex items-center px-3 py-1 rounded-kairos-sm text-xs font-body font-medium border ${getOrderStatusColor(order.status ?? "")}`}>
                     {order.status === "results_received" && <><CheckCircle className="w-3 h-3 mr-1" />Results Ready</>}
                     {order.status === "ordered" && <><Minus className="w-3 h-3 mr-1" />Ordered</>}
                     {!["results_received", "ordered"].includes(order.status ?? "") && (order.status ?? "Unknown")}
                   </span>
+                  {order.pdfUrl && (
+                    <div>
+                      <a
+                        href={order.pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-body text-kairos-gold hover:text-kairos-gold/80 transition-colors"
+                      >
+                        <FileText className="w-3 h-3" /> View original
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

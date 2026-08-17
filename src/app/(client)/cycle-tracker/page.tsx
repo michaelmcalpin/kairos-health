@@ -448,18 +448,55 @@ export default function CycleTrackerPage() {
           await updateMutation.mutateAsync(updatePayload as Parameters<typeof updateMutation.mutateAsync>[0]);
         }
       } else {
-        // No existing cycle for this date -- create a new cycle entry
-        const notesData: CycleNotes = {
-          dailyLogs: { [selectedDate]: dailyLog },
-        };
-        await addMutation.mutateAsync({
-          startDate: selectedDate,
-          cycleLength: averageCycleLength,
-          periodLength: averagePeriodLength,
-          flowIntensity: dailyLog.flow !== "none" ? dailyLog.flow : undefined,
-          symptoms: dailyLog.symptoms,
-          notes: serializeNotes(notesData),
-        });
+        // No cycle window covers this date. Daily notes (mood/energy/BBT/symptoms)
+        // must NOT fabricate a new cycle — that corrupts Cycle Day / Phase /
+        // Next-Period predictions. Only an explicit period start (a flow was
+        // logged) may begin a new cycle.
+        const isPeriodStart = dailyLog.flow !== "none";
+
+        // Most-recent cycle that begins on or before this date — the cycle this
+        // day logically belongs to.
+        const enclosingCycle = allHistory
+          .filter((c) => c.startDate <= selectedDate)
+          .sort((a, b) => b.startDate.localeCompare(a.startDate))[0];
+
+        if (isPeriodStart) {
+          // Explicit "log period start" → create a new cycle.
+          const notesData: CycleNotes = {
+            dailyLogs: { [selectedDate]: dailyLog },
+          };
+          await addMutation.mutateAsync({
+            startDate: selectedDate,
+            cycleLength: averageCycleLength,
+            periodLength: averagePeriodLength,
+            flowIntensity: dailyLog.flow !== "none" ? dailyLog.flow : undefined,
+            symptoms: dailyLog.symptoms,
+            notes: serializeNotes(notesData),
+          });
+        } else if (enclosingCycle) {
+          // Attach the daily note to the enclosing/most-recent cycle.
+          const notesData = parseNotesJson(enclosingCycle.notes);
+          if (!notesData.dailyLogs) notesData.dailyLogs = {};
+          notesData.dailyLogs[selectedDate] = dailyLog;
+          await updateMutation.mutateAsync({
+            id: enclosingCycle.id,
+            notes: serializeNotes(notesData),
+          });
+        } else {
+          // No cycle exists yet at all — bootstrap the very first cycle so the
+          // note is saved somewhere. (This is the initial "Start Tracking" case,
+          // not the phantom-cycle bug, which only occurs once cycles exist.)
+          const notesData: CycleNotes = {
+            dailyLogs: { [selectedDate]: dailyLog },
+          };
+          await addMutation.mutateAsync({
+            startDate: selectedDate,
+            cycleLength: averageCycleLength,
+            periodLength: averagePeriodLength,
+            symptoms: dailyLog.symptoms,
+            notes: serializeNotes(notesData),
+          });
+        }
       }
       setShowLogPanel(false);
     } catch (err) {

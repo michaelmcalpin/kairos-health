@@ -90,6 +90,12 @@ export default function CheckinPage() {
       void utils.clientPortal.measurements.latest.invalidate();
     },
   });
+  const measurementsUpdateMutation = trpc.clientPortal.measurements.update.useMutation({
+    onSuccess: () => {
+      void utils.clientPortal.measurements.list.invalidate();
+      void utils.clientPortal.measurements.latest.invalidate();
+    },
+  });
   const mealsAddMutation = trpc.clientPortal.meals.add.useMutation({
     onSuccess: () => {
       void utils.clientPortal.meals.getByDate.invalidate();
@@ -259,10 +265,10 @@ export default function CheckinPage() {
       }
 
       // 3) Body measurements → measurements router.
-      // Only create a row when none exists yet for this date; the router has no
-      // update/upsert, so creating on every save would duplicate rows. Weight is
-      // written to the daily check-in above (single source of truth), NOT here,
-      // to avoid a double-write into bodyMeasurements.
+      // When a row already exists for this date we update it (so edits persist);
+      // otherwise we create a new row. Weight is written to the daily check-in
+      // above (single source of truth), NOT here, to avoid a double-write into
+      // bodyMeasurements.
       const circumferences = {
         chestInches: pos(formData.chest),
         waistInches: pos(formData.waist),
@@ -270,8 +276,15 @@ export default function CheckinPage() {
         rightThighInches: pos(formData.rightThigh),
         rightBicepInches: pos(formData.rightBicep),
       };
-      const hasExistingMeasurement = typeof formData.existingMeasurementId === "string";
-      if (!hasExistingMeasurement && Object.values(circumferences).some((v) => v !== undefined)) {
+      const existingMeasurementId =
+        typeof formData.existingMeasurementId === "string" ? formData.existingMeasurementId : undefined;
+      if (existingMeasurementId) {
+        // Persist edits to the existing row (only provided fields are written).
+        await measurementsUpdateMutation.mutateAsync({
+          measurementId: existingMeasurementId,
+          ...circumferences,
+        });
+      } else if (Object.values(circumferences).some((v) => v !== undefined)) {
         await measurementsCreateMutation.mutateAsync({
           date,
           ...circumferences,

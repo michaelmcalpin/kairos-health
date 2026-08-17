@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   Pressable,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { History } from "lucide-react-native";
@@ -20,36 +21,7 @@ import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-
-/* ------------------------------------------------------------------ */
-/* Sample data                                                         */
-/* ------------------------------------------------------------------ */
-
-const SAMPLE_ACTIVE_PROGRAM = {
-  name: "Hypertrophy Phase 2",
-  week: 3,
-  totalWeeks: 8,
-  completedWorkouts: 10,
-  totalWorkouts: 32,
-};
-
-const SAMPLE_TODAY_WORKOUT = {
-  name: "Upper Body Push",
-  estimatedDuration: "55 min",
-  exercises: [
-    { name: "Bench Press", sets: 4, reps: 8, weight: "185 lbs", rest: "90s" },
-    { name: "Overhead Press", sets: 3, reps: 10, weight: "95 lbs", rest: "75s" },
-    { name: "Incline DB Press", sets: 3, reps: 12, weight: "55 lbs", rest: "60s" },
-    { name: "Cable Flyes", sets: 3, reps: 15, weight: null, rest: "45s" },
-    { name: "Tricep Pushdowns", sets: 3, reps: 12, weight: null, rest: "45s" },
-  ],
-};
-
-const SAMPLE_RECENT_HISTORY = [
-  { date: "Jun 12", name: "Lower Body", duration: "62 min" },
-  { date: "Jun 10", name: "Upper Body Pull", duration: "48 min" },
-  { date: "Jun 8", name: "Upper Body Push", duration: "54 min" },
-];
+import { EmptyState } from "@/components/ui/EmptyState";
 
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
@@ -79,44 +51,41 @@ export default function WorkoutsScreen() {
     },
   });
 
-  /* ---- Map API data with sample fallback ---- */
+  /* ---- Map real API data ONLY — no fabricated program ---- */
   const activeProgram = useMemo(() => {
-    if (programQuery.data) {
-      const p = programQuery.data as any;
-      return {
-        name: p.name ?? p.programName ?? SAMPLE_ACTIVE_PROGRAM.name,
-        week: p.currentWeek ?? p.week ?? SAMPLE_ACTIVE_PROGRAM.week,
-        totalWeeks: p.totalWeeks ?? p.durationWeeks ?? SAMPLE_ACTIVE_PROGRAM.totalWeeks,
-        completedWorkouts: p.completedWorkouts ?? p.workoutsCompleted ?? SAMPLE_ACTIVE_PROGRAM.completedWorkouts,
-        totalWorkouts: p.totalWorkouts ?? SAMPLE_ACTIVE_PROGRAM.totalWorkouts,
-      };
-    }
-    return SAMPLE_ACTIVE_PROGRAM;
+    if (!programQuery.data) return null;
+    const p = programQuery.data as any;
+    return {
+      name: p.name ?? p.programName ?? "Training Program",
+      week: p.currentWeek ?? p.week ?? null,
+      totalWeeks: p.totalWeeks ?? p.durationWeeks ?? null,
+      completedWorkouts: p.completedWorkouts ?? p.workoutsCompleted ?? 0,
+      totalWorkouts: p.totalWorkouts ?? 0,
+    };
   }, [programQuery.data]);
 
+  const hasProgram = !!activeProgram;
+
   const todayWorkout = useMemo(() => {
-    if (programQuery.data) {
-      const p = programQuery.data as any;
-      const todayW = p.todayWorkout ?? p.nextWorkout;
-      if (todayW) {
-        return {
-          name: todayW.name ?? todayW.title ?? SAMPLE_TODAY_WORKOUT.name,
-          estimatedDuration: todayW.estimatedDuration
-            ? `${todayW.estimatedDuration} min`
-            : todayW.durationMinutes
-              ? `${todayW.durationMinutes} min`
-              : SAMPLE_TODAY_WORKOUT.estimatedDuration,
-          exercises: (todayW.exercises ?? []).map((ex: any) => ({
-            name: ex.name,
-            sets: ex.sets ?? 3,
-            reps: ex.reps ?? 10,
-            weight: ex.weightLbs ? `${ex.weightLbs} lbs` : null,
-            rest: ex.restSeconds ? `${ex.restSeconds}s` : "60s",
-          })),
-        };
-      }
-    }
-    return SAMPLE_TODAY_WORKOUT;
+    if (!programQuery.data) return null;
+    const p = programQuery.data as any;
+    const todayW = p.todayWorkout ?? p.nextWorkout;
+    if (!todayW) return null;
+    return {
+      name: todayW.name ?? todayW.title ?? "Today's Workout",
+      estimatedDuration: todayW.estimatedDuration
+        ? `${todayW.estimatedDuration} min`
+        : todayW.durationMinutes
+          ? `${todayW.durationMinutes} min`
+          : null,
+      exercises: (todayW.exercises ?? []).map((ex: any) => ({
+        name: ex.name,
+        sets: ex.sets ?? 3,
+        reps: ex.reps ?? 10,
+        weight: ex.weightLbs ? `${ex.weightLbs} lbs` : null,
+        rest: ex.restSeconds ? `${ex.restSeconds}s` : "60s",
+      })),
+    };
   }, [programQuery.data]);
 
   const recentHistory = useMemo(() => {
@@ -131,10 +100,13 @@ export default function WorkoutsScreen() {
         };
       });
     }
-    return SAMPLE_RECENT_HISTORY;
+    return [];
   }, [workoutsQuery.data]);
 
-  const progress = activeProgram.completedWorkouts / activeProgram.totalWorkouts;
+  const progress =
+    activeProgram && activeProgram.totalWorkouts > 0
+      ? activeProgram.completedWorkouts / activeProgram.totalWorkouts
+      : 0;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -157,69 +129,91 @@ export default function WorkoutsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {programQuery.isLoading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+          </View>
+        ) : !hasProgram || !activeProgram ? (
+          <EmptyState
+            icon="activity"
+            title="No active training program"
+            message="Once your coach assigns a training program, your active plan and today's workout will appear here."
+          />
+        ) : (
+        <>
         {/* Active Program */}
         <Card style={styles.section}>
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>Active Program</Text>
-            <Badge label={programQuery.data ? "Active" : "Sample"} variant="success" />
+            <Badge label="Active" variant="success" />
           </View>
 
           <Text style={styles.programName}>{activeProgram.name}</Text>
-          <Text style={styles.programWeek}>
-            Week {activeProgram.week} of {activeProgram.totalWeeks}
-          </Text>
+          {activeProgram.week != null && activeProgram.totalWeeks != null && (
+            <Text style={styles.programWeek}>
+              Week {activeProgram.week} of {activeProgram.totalWeeks}
+            </Text>
+          )}
 
           {/* Progress bar */}
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-          </View>
-          <Text style={styles.progressLabel}>
-            {activeProgram.completedWorkouts}/{activeProgram.totalWorkouts} workouts
-            completed
-          </Text>
+          {activeProgram.totalWorkouts > 0 && (
+            <>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+              </View>
+              <Text style={styles.progressLabel}>
+                {activeProgram.completedWorkouts}/{activeProgram.totalWorkouts} workouts
+                completed
+              </Text>
+            </>
+          )}
         </Card>
 
         {/* Today's Workout */}
-        <Card style={styles.section}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>Today's Workout</Text>
-            <Text style={styles.duration}>{todayWorkout.estimatedDuration}</Text>
-          </View>
+        {todayWorkout && (
+          <Card style={styles.section}>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>Today's Workout</Text>
+              {todayWorkout.estimatedDuration && (
+                <Text style={styles.duration}>{todayWorkout.estimatedDuration}</Text>
+              )}
+            </View>
 
-          <Text style={styles.workoutName}>{todayWorkout.name}</Text>
+            <Text style={styles.workoutName}>{todayWorkout.name}</Text>
 
-          {/* Exercise list */}
-          <View style={styles.exerciseList}>
-            {todayWorkout.exercises.map((ex: any, idx: number) => (
-              <View
-                key={idx}
-                style={[
-                  styles.exerciseRow,
-                  idx < todayWorkout.exercises.length - 1 && styles.exerciseBorder,
-                ]}
-              >
-                <View style={styles.exerciseInfo}>
-                  <Text style={styles.exerciseName}>{ex.name}</Text>
-                  <Text style={styles.exerciseDetail}>
-                    {ex.sets}x{ex.reps}
-                    {ex.weight ? ` @ ${ex.weight}` : ""}
-                  </Text>
+            {/* Exercise list */}
+            <View style={styles.exerciseList}>
+              {todayWorkout.exercises.map((ex: any, idx: number) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.exerciseRow,
+                    idx < todayWorkout.exercises.length - 1 && styles.exerciseBorder,
+                  ]}
+                >
+                  <View style={styles.exerciseInfo}>
+                    <Text style={styles.exerciseName}>{ex.name}</Text>
+                    <Text style={styles.exerciseDetail}>
+                      {ex.sets}x{ex.reps}
+                      {ex.weight ? ` @ ${ex.weight}` : ""}
+                    </Text>
+                  </View>
+                  <View style={styles.restBadge}>
+                    <Text style={styles.restText}>Rest {ex.rest}</Text>
+                  </View>
                 </View>
-                <View style={styles.restBadge}>
-                  <Text style={styles.restText}>Rest {ex.rest}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
 
-          <Button
-            title="Start Workout"
-            variant="primary"
-            size="lg"
-            style={styles.startButton}
-            onPress={() => router.push({ pathname: "/protocols/workout-session", params: { workoutName: todayWorkout.name, exercises: JSON.stringify(todayWorkout.exercises) } })}
-          />
-        </Card>
+            <Button
+              title="Start Workout"
+              variant="primary"
+              size="lg"
+              style={styles.startButton}
+              onPress={() => router.push({ pathname: "/protocols/workout-session", params: { workoutName: todayWorkout.name, exercises: JSON.stringify(todayWorkout.exercises) } })}
+            />
+          </Card>
+        )}
 
         {/* Quick Log */}
         <Button
@@ -227,6 +221,7 @@ export default function WorkoutsScreen() {
           variant="secondary"
           size="md"
           onPress={() => {
+            const noteName = todayWorkout?.name ?? "Workout";
             Alert.alert(
               "Quick Log",
               "Log a quick workout session?",
@@ -238,7 +233,7 @@ export default function WorkoutsScreen() {
                     quickLogMutation.mutate({
                       workoutType: "strength",
                       durationMinutes: 30,
-                      notes: `${todayWorkout.name} — quick logged from mobile`,
+                      notes: `${noteName} — quick logged from mobile`,
                     }),
                 },
                 {
@@ -247,7 +242,7 @@ export default function WorkoutsScreen() {
                     quickLogMutation.mutate({
                       workoutType: "strength",
                       durationMinutes: 60,
-                      notes: `${todayWorkout.name} — quick logged from mobile`,
+                      notes: `${noteName} — quick logged from mobile`,
                     }),
                 },
               ]
@@ -259,22 +254,28 @@ export default function WorkoutsScreen() {
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Workouts</Text>
 
-          {recentHistory.map((session: any, idx: number) => (
-            <View
-              key={idx}
-              style={[
-                styles.historyRow,
-                idx < recentHistory.length - 1 && styles.historyBorder,
-              ]}
-            >
-              <View>
-                <Text style={styles.historyName}>{session.name}</Text>
-                <Text style={styles.historyDate}>{session.date}</Text>
+          {recentHistory.length === 0 ? (
+            <Text style={styles.emptyHistory}>No workouts logged yet.</Text>
+          ) : (
+            recentHistory.map((session: any, idx: number) => (
+              <View
+                key={idx}
+                style={[
+                  styles.historyRow,
+                  idx < recentHistory.length - 1 && styles.historyBorder,
+                ]}
+              >
+                <View>
+                  <Text style={styles.historyName}>{session.name}</Text>
+                  <Text style={styles.historyDate}>{session.date}</Text>
+                </View>
+                <Text style={styles.historyDuration}>{session.duration}</Text>
               </View>
-              <Text style={styles.historyDuration}>{session.duration}</Text>
-            </View>
-          ))}
+            ))
+          )}
         </Card>
+        </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -296,6 +297,17 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingBottom: Spacing.xxl,
     gap: Spacing.md,
+  },
+  loadingWrap: {
+    paddingVertical: Spacing.xxl,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyHistory: {
+    fontSize: FontSizes.sm,
+    color: Colors.silver,
+    fontStyle: "italic",
+    paddingVertical: Spacing.sm,
   },
 
   /* Sections */

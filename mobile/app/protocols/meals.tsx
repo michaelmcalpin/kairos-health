@@ -17,6 +17,7 @@ import {
   Alert,
   RefreshControl,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import Svg, { Circle } from "react-native-svg";
@@ -49,50 +50,6 @@ interface MacroSummary {
   unit: string;
   color: string;
 }
-
-/* ------------------------------------------------------------------ */
-/* Sample data — used as fallback when backend is unreachable          */
-/* ------------------------------------------------------------------ */
-
-const SAMPLE_MACROS: MacroSummary[] = [
-  { label: "Calories", current: 2150, target: 2400, unit: "kcal", color: Colors.gold },
-  { label: "Protein", current: 165, target: 180, unit: "g", color: Colors.info },
-  { label: "Carbs", current: 220, target: 240, unit: "g", color: Colors.success },
-  { label: "Fat", current: 72, target: 80, unit: "g", color: Colors.warning },
-];
-
-const SAMPLE_MEALS: MealDisplay[] = [
-  {
-    name: "Breakfast",
-    time: "7:30 AM",
-    calories: 620,
-    protein: 42,
-    carbs: 58,
-    fat: 24,
-    items: "Eggs, oats, blueberries, almond butter",
-    mealType: "breakfast",
-  },
-  {
-    name: "Lunch",
-    time: "12:15 PM",
-    calories: 780,
-    protein: 55,
-    carbs: 82,
-    fat: 26,
-    items: "Grilled chicken, brown rice, broccoli, olive oil",
-    mealType: "lunch",
-  },
-  {
-    name: "Snack",
-    time: "3:45 PM",
-    calories: 350,
-    protein: 30,
-    carbs: 38,
-    fat: 10,
-    items: "Greek yogurt, granola, honey",
-    mealType: "snack",
-  },
-];
 
 /* Water state is managed via useState inside the component */
 
@@ -227,14 +184,12 @@ export default function MealsScreen() {
     },
   });
 
-  /* ---- Derive display data (API with sample fallback) ---- */
+  /* ---- Derive display data (real API only — no sample fallback) ---- */
   const meals: MealDisplay[] = mealsQuery.data
     ? ((mealsQuery.data as any).meals ?? [mealsQuery.data].flat()).map(mapApiMeal)
-    : SAMPLE_MEALS;
+    : [];
 
-  const macros: MacroSummary[] = mealsQuery.data
-    ? buildMacros(meals)
-    : SAMPLE_MACROS;
+  const macros: MacroSummary[] = buildMacros(meals);
 
   /* ---- Water intake (local session state) ---- */
   const [waterCount, setWaterCount] = useState(0);
@@ -355,7 +310,11 @@ export default function MealsScreen() {
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Meals Logged Today</Text>
 
-          {meals.length === 0 && (
+          {mealsQuery.isLoading && (
+            <ActivityIndicator size="small" color={Colors.gold} style={{ paddingVertical: Spacing.md }} />
+          )}
+
+          {!mealsQuery.isLoading && meals.length === 0 && (
             <Text style={styles.emptyText}>No meals logged yet today.</Text>
           )}
 

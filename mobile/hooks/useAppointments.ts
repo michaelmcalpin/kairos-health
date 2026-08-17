@@ -11,7 +11,7 @@
  *   - scheduling.cancelAppointment → cancel
  */
 
-import { trpc, SAMPLE_DATA, DEFAULT_QUERY_OPTIONS, STATIC_QUERY_OPTIONS } from "@/lib/api";
+import { trpc, DEFAULT_QUERY_OPTIONS, STATIC_QUERY_OPTIONS } from "@/lib/api";
 import type { SampleAppointment } from "@/lib/sample-data";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -26,16 +26,10 @@ export function useAppointments(
     DEFAULT_QUERY_OPTIONS,
   );
 
+  // Real data only — no fabricated sample appointments rendered as real.
   const appointments: SampleAppointment[] = query.data
     ? (query.data as any[]).map(mapApiAppointment)
-    : filter === "upcoming"
-      ? SAMPLE_DATA.upcomingAppointments
-      : filter === "past"
-        ? SAMPLE_DATA.pastAppointments
-        : [
-            ...SAMPLE_DATA.upcomingAppointments,
-            ...SAMPLE_DATA.pastAppointments,
-          ];
+    : [];
 
   return {
     appointments,
@@ -157,7 +151,7 @@ export function useTodaySchedule() {
           coachName: a.provider,
           duration: "30 min", // default; backend could provide this
         }))
-    : SAMPLE_DATA.scheduleData;
+    : [];
 
   return {
     schedule,

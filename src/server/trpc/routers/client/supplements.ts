@@ -69,14 +69,38 @@ export const clientSupplementsRouter = router({
       }));
     }),
 
-  // Adherence stats: percentage taken vs total items per day
+  // Adherence stats: percentage of EXPECTED doses taken per day.
+  //
+  // The UI only ever writes "taken" rows (there are no skipped/missed rows), so
+  // dividing taken by the number of logged rows would always be ~100% and be
+  // misleading. Instead the denominator is the number of expected doses = the
+  // count of active protocol items (each item is a once-daily dose). Taking 1 of
+  // 10 items therefore honestly reads 10%, not 100%.
   adherenceStats: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
+      // Count of items in the active protocol = expected daily doses.
+      const activeProtocol = await safeQ(() => ctx.db.query.supplementProtocols.findFirst({
+        where: and(
+          eq(supplementProtocols.clientId, ctx.dbUserId),
+          eq(supplementProtocols.status, "active")
+        ),
+        orderBy: desc(supplementProtocols.createdAt),
+      }), undefined);
+
+      const expectedPerDay = activeProtocol
+        ? await safeQ(async () => {
+            const items = await ctx.db.query.protocolItems.findMany({
+              where: eq(protocolItems.protocolId, activeProtocol.id),
+            });
+            return items.length;
+          }, 0)
+        : 0;
+
       const result = await safeQ(() => ctx.db
         .select({
           date: adherenceLogs.date,
-          total: sql<number>`count(*)`,
+          logged: sql<number>`count(*)`,
           taken: sql<number>`count(*) filter (where ${adherenceLogs.skipped} = false)`,
         })
         .from(adherenceLogs)
@@ -90,14 +114,21 @@ export const clientSupplementsRouter = router({
         .groupBy(adherenceLogs.date)
         .orderBy(adherenceLogs.date), []);
 
-      return result.map((r) => ({
-        date: r.date,
-        total: Number(r.total),
-        taken: Number(r.taken),
-        percentage: Number(r.total) > 0
-          ? Math.round((Number(r.taken) / Number(r.total)) * 100)
-          : 0,
-      }));
+      return result.map((r) => {
+        const taken = Number(r.taken);
+        // Fall back to the logged-row count only when there is no active protocol
+        // to derive an expected count from (keeps the value non-null/sane).
+        const expected = expectedPerDay > 0 ? expectedPerDay : Number(r.logged);
+        const percentage = expected > 0
+          ? Math.min(100, Math.max(0, Math.round((taken / expected) * 100)))
+          : 0;
+        return {
+          date: r.date,
+          total: expected,
+          taken,
+          percentage,
+        };
+      });
     }),
 
   // Log adherence for a protocol item

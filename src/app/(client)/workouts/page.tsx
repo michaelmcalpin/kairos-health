@@ -72,8 +72,7 @@ export default function WorkoutsPage() {
     useDateRange({ initialPeriod: "week" });
 
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
-  const [workoutStarted, setWorkoutStarted] = useState(false);
-  const [workoutDeferred, setWorkoutDeferred] = useState(false);
+  const [workoutCompleted, setWorkoutCompleted] = useState(false);
   const [showLogForm, setShowLogForm] = useState(false);
   const [formData, setFormData] = useState({
     type: "",
@@ -141,6 +140,32 @@ export default function WorkoutsPage() {
       notes: "",
     });
     setShowLogForm(false);
+  };
+
+  // "Complete Workout" persists the scheduled workout via the real quickLog
+  // mutation (prefilled from today's scheduled workout) so it survives a refresh.
+  const completeWorkoutMutation = trpc.clientPortal.workouts.quickLog.useMutation({
+    onSuccess: () => {
+      void utils.clientPortal.workouts.list.invalidate();
+      void utils.clientPortal.workouts.stats.invalidate();
+      setWorkoutCompleted(true);
+    },
+  });
+
+  const handleCompleteWorkout = () => {
+    const name = todaysWorkout.name.toLowerCase();
+    const workoutType = (name.includes("strength") ? "strength" :
+      name.includes("hiit") ? "hiit" :
+      name.includes("cardio") || name.includes("zone 2") || name.includes("aerobic") ? "cardio" :
+      name.includes("yoga") || name.includes("mobility") ? "yoga" :
+      name.includes("rest") || name.includes("recovery") || name.includes("stretch") ? "stretching" : "other") as
+      "strength" | "cardio" | "hiit" | "yoga" | "stretching" | "sports" | "other";
+
+    completeWorkoutMutation.mutate({
+      workoutType,
+      durationMinutes: todaysWorkout.duration,
+      notes: `Completed: ${todaysWorkout.name}`,
+    });
   };
 
   // ── Saved Exercise Protocols ──────────────────────────────────
@@ -309,15 +334,18 @@ export default function WorkoutsPage() {
             <Zap className="w-6 h-6 text-kairos-gold" />
           </div>
           <div className="flex gap-3">
-            {workoutDeferred ? (
-              <span className="px-6 py-2 rounded-kairos-sm font-heading font-semibold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20">Deferred to Tomorrow</span>
-            ) : workoutStarted ? (
-              <button onClick={() => setWorkoutStarted(false)} className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all border-green-500/30 text-green-400 hover:bg-green-500/10">Complete Workout</button>
+            {workoutCompleted ? (
+              <span className="px-6 py-2 rounded-kairos-sm font-heading font-semibold text-green-400 bg-green-500/10 border border-green-500/20 inline-flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" /> Completed Today
+              </span>
             ) : (
-              <>
-                <button onClick={() => setWorkoutStarted(true)} className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50">Start Workout</button>
-                <button onClick={() => setWorkoutDeferred(true)} className="kairos-btn-outline px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all">Defer</button>
-              </>
+              <button
+                onClick={handleCompleteWorkout}
+                disabled={completeWorkoutMutation.isPending}
+                className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {completeWorkoutMutation.isPending ? "Saving..." : "Complete Workout"}
+              </button>
             )}
           </div>
         </div>

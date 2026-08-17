@@ -371,23 +371,28 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
     const initials = getInitials(user.firstName, user.lastName, user.email);
     const tier = (profile?.tier ?? "tier3") as "tier1" | "tier2" | "tier3";
 
-    // Compute health score from biometrics
-    let healthScore = 75;
+    // Compute health score from biometrics.
+    // When no biometric inputs exist we cannot fabricate a score — return null.
     const latestSleep = recentSleep[0];
     const latestGlucose = recentGlucose[0];
     const latestHrv = recentHrv[0];
-    if (latestSleep?.score) healthScore += Math.min(10, Math.round((Number(latestSleep.score) - 50) / 5));
-    if (latestGlucose?.valueMgdl) {
-      const gv = Number(latestGlucose.valueMgdl);
-      if (gv >= 70 && gv <= 100) healthScore += 10;
-      else if (gv > 100 && gv <= 120) healthScore += 5;
+    const hasBiometricData = recentSleep.length > 0 || recentGlucose.length > 0 || recentHrv.length > 0;
+    let healthScore: number | null = null;
+    if (hasBiometricData) {
+      let score = 75;
+      if (latestSleep?.score) score += Math.min(10, Math.round((Number(latestSleep.score) - 50) / 5));
+      if (latestGlucose?.valueMgdl) {
+        const gv = Number(latestGlucose.valueMgdl);
+        if (gv >= 70 && gv <= 100) score += 10;
+        else if (gv > 100 && gv <= 120) score += 5;
+      }
+      if (latestHrv?.rmssd) {
+        const hv = Number(latestHrv.rmssd);
+        if (hv > 50) score += 5;
+        else if (hv > 30) score += 2;
+      }
+      healthScore = Math.max(0, Math.min(100, score));
     }
-    if (latestHrv?.rmssd) {
-      const hv = Number(latestHrv.rmssd);
-      if (hv > 50) healthScore += 5;
-      else if (hv > 30) healthScore += 2;
-    }
-    healthScore = Math.max(0, Math.min(100, healthScore));
 
     // Glucose trend
     const glucoseValues = recentGlucose.map((g) => Number(g.valueMgdl)).reverse();
@@ -433,8 +438,9 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
     // Score trend from glucose (as proxy for overall health trend)
     const scoreTrend: ScoreTrend = glucoseTrend === "down" ? "up" : glucoseTrend === "up" ? "down" : "flat";
 
-    // Status
-    const status = deriveStatus(healthScore, activeAlerts);
+    // Status — a no-data client has no honest status, not "stable".
+    const status: ClientStatus | "insufficient_data" =
+      healthScore === null ? "insufficient_data" : deriveStatus(healthScore, activeAlerts);
 
     // Last active
     const lastActiveDate = recentCheckins[0]?.submittedAt ?? user.updatedAt ?? user.createdAt;
@@ -550,7 +556,13 @@ export const coachClientsRouter = router({
 
       clients.sort((a, b) => {
         switch (sortBy) {
-          case "healthScore": return (a.healthScore - b.healthScore) * mult;
+          // No-data clients (null score) sort to the bottom regardless of order.
+          case "healthScore": {
+            if (a.healthScore === null && b.healthScore === null) return 0;
+            if (a.healthScore === null) return 1;
+            if (b.healthScore === null) return -1;
+            return (a.healthScore - b.healthScore) * mult;
+          }
           case "alerts": return (a.activeAlerts - b.activeAlerts) * mult;
           case "adherence": return (a.adherence - b.adherence) * mult;
           case "lastActive": return a.lastActiveDate.localeCompare(b.lastActiveDate) * mult;
@@ -646,12 +658,16 @@ export const coachClientsRouter = router({
       return {
         totalClients: 0, tier1Count: 0, tier2Count: 0, tier3Count: 0,
         criticalCount: 0, attentionCount: 0, stableCount: 0,
-        avgHealthScore: 0, avgAdherence: 0, totalAlerts: 0,
+        avgHealthScore: null as number | null, avgAdherence: 0, totalAlerts: 0,
       };
     }
 
     const enrollmentDates = new Map(relationships.map((r) => [r.clientId, r.startedAt]));
     const clients = await fetchClientDataBatch(ctx.db, clientIds, enrollmentDates);
+
+    // Only clients with real biometric data contribute to the average — a
+    // no-data client has a null score and must not be counted as 0 or 75.
+    const scoredClients = clients.filter((c) => c.healthScore !== null);
 
     return {
       totalClients: clients.length,
@@ -661,9 +677,10 @@ export const coachClientsRouter = router({
       criticalCount: clients.filter((c) => c.status === "critical").length,
       attentionCount: clients.filter((c) => c.status === "attention").length,
       stableCount: clients.filter((c) => c.status === "stable").length,
-      avgHealthScore: clients.length > 0
-        ? Math.round(clients.reduce((s, c) => s + c.healthScore, 0) / clients.length)
-        : 0,
+      // null when no client has a score, so consumers can show "—".
+      avgHealthScore: scoredClients.length > 0
+        ? Math.round(scoredClients.reduce((s, c) => s + (c.healthScore as number), 0) / scoredClients.length)
+        : null,
       avgAdherence: clients.length > 0
         ? Math.round(clients.reduce((s, c) => s + c.adherence, 0) / clients.length)
         : 0,

@@ -17,6 +17,7 @@ import {
   Alert,
   RefreshControl,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 
@@ -25,6 +26,7 @@ import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -44,95 +46,6 @@ interface TimingGroup {
   time: string;
   supplements: Supplement[];
 }
-
-/* ------------------------------------------------------------------ */
-/* Sample data — used as fallback when backend is unreachable          */
-/* ------------------------------------------------------------------ */
-
-const SAMPLE_TIMING_GROUPS: TimingGroup[] = [
-  {
-    label: "Morning",
-    time: "7:00 AM",
-    supplements: [
-      {
-        name: "Vitamin D3",
-        dosage: "5,000 IU",
-        brand: "Thorne",
-        purpose: "Immune function, bone health",
-        taken: true,
-      },
-      {
-        name: "Omega-3 Fish Oil",
-        dosage: "2,000 mg EPA/DHA",
-        brand: "Nordic Naturals",
-        purpose: "Cardiovascular, anti-inflammatory",
-        taken: true,
-      },
-      {
-        name: "Methylated B-Complex",
-        dosage: "1 capsule",
-        brand: "Thorne",
-        purpose: "Methylation support (MTHFR)",
-        taken: true,
-      },
-    ],
-  },
-  {
-    label: "Afternoon",
-    time: "1:00 PM",
-    supplements: [
-      {
-        name: "Creatine Monohydrate",
-        dosage: "5 g",
-        brand: "Creapure",
-        purpose: "Muscle performance, cognitive",
-        taken: false,
-      },
-      {
-        name: "CoQ10 (Ubiquinol)",
-        dosage: "200 mg",
-        brand: "Jarrow",
-        purpose: "Mitochondrial energy",
-        taken: false,
-      },
-    ],
-  },
-  {
-    label: "Evening",
-    time: "6:00 PM",
-    supplements: [
-      {
-        name: "Curcumin",
-        dosage: "500 mg",
-        brand: "Meriva",
-        purpose: "Anti-inflammatory",
-        taken: false,
-      },
-    ],
-  },
-  {
-    label: "Bedtime",
-    time: "10:00 PM",
-    supplements: [
-      {
-        name: "Magnesium Glycinate",
-        dosage: "400 mg",
-        brand: "Pure Encapsulations",
-        purpose: "Sleep quality, muscle recovery",
-        taken: false,
-      },
-      {
-        name: "Apigenin",
-        dosage: "50 mg",
-        brand: "Swanson",
-        purpose: "Sleep onset, anxiolytic",
-        taken: false,
-      },
-    ],
-  },
-];
-
-const SAMPLE_ADHERENCE = { rate: 94, period: "this week" };
 
 /* ------------------------------------------------------------------ */
 /* API → UI mappers                                                    */
@@ -220,21 +133,24 @@ export default function SupplementsScreen() {
     },
   });
 
-  /* ---- Derive display data (API with sample fallback) ---- */
+  /* ---- Derive display data (real API only — no sample fallback) ---- */
   const timingGroups: TimingGroup[] = protocolQuery.data
     ? groupByTiming(
         (protocolQuery.data as any).items ?? (protocolQuery.data as any).supplements ?? [protocolQuery.data].flat(),
       )
-    : SAMPLE_TIMING_GROUPS;
+    : [];
 
-  // adherenceStats returns an array of per-day {date, total, taken, percentage}
-  const adherenceRate: number = (() => {
+  const hasProtocol = timingGroups.length > 0;
+
+  // adherenceStats returns an array of per-day {date, total, taken, percentage}.
+  // Null when there's no real adherence data — never a fabricated rate.
+  const adherenceRate: number | null = (() => {
     const days = adherenceQuery.data as any;
     if (Array.isArray(days) && days.length > 0) {
       const sum = days.reduce((s: number, d: any) => s + (d.percentage ?? 0), 0);
       return Math.round(sum / days.length);
     }
-    return SAMPLE_ADHERENCE.rate;
+    return null;
   })();
 
   const totalSupps = timingGroups.reduce((s, g) => s + g.supplements.length, 0);
@@ -277,20 +193,38 @@ export default function SupplementsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.gold} />
         }
       >
+        {protocolQuery.isLoading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+          </View>
+        ) : !hasProtocol ? (
+          <EmptyState
+            icon="clipboard"
+            title="No active supplement protocol"
+            message="Once your coach assigns a supplement protocol, your daily stack and adherence will appear here."
+            actionLabel="Add Supplement"
+            onAction={() => router.push("/protocols/add-item?category=supplement" as any)}
+          />
+        ) : (
+        <>
         {/* Adherence Card */}
         <Card style={styles.adherenceCard}>
           <View style={styles.rowBetween}>
             <View>
               <Text style={styles.adherenceLabel}>Weekly Adherence</Text>
-              <Text style={styles.adherenceRate}>{adherenceRate}%</Text>
+              <Text style={styles.adherenceRate}>
+                {adherenceRate != null ? `${adherenceRate}%` : "—"}
+              </Text>
             </View>
-            <Badge label={adherenceRate >= 80 ? "On Track" : "Needs Attention"} variant={adherenceRate >= 80 ? "success" : "warning"} />
+            {adherenceRate != null && (
+              <Badge label={adherenceRate >= 80 ? "On Track" : "Needs Attention"} variant={adherenceRate >= 80 ? "success" : "warning"} />
+            )}
           </View>
 
           {/* Progress bar */}
           <View style={styles.progressTrack}>
             <View
-              style={[styles.progressFill, { width: `${adherenceRate}%` }]}
+              style={[styles.progressFill, { width: `${adherenceRate ?? 0}%` }]}
             />
           </View>
           <Text style={styles.dailyCount}>
@@ -357,6 +291,8 @@ export default function SupplementsScreen() {
           style={styles.addButton}
           onPress={() => router.push("/protocols/add-item?category=supplement" as any)}
         />
+        </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -378,6 +314,11 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingBottom: Spacing.xxl,
     gap: Spacing.md,
+  },
+  loadingWrap: {
+    paddingVertical: Spacing.xxl,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   /* Adherence */

@@ -15,6 +15,7 @@ import {
   Pressable,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -26,7 +27,9 @@ import {
   ImageIcon,
 } from "lucide-react-native";
 
-import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { useAuth } from "@clerk/clerk-expo";
+
+import { Colors, Spacing, FontSizes, Radii, API_URL } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { showImagePickerOptions, PickedImage } from "@/lib/image-picker";
@@ -46,16 +49,33 @@ interface ProgressPhoto {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Sample / Fallback Data
+// API → UI mapper
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const SAMPLE_PHOTOS: ProgressPhoto[] = [
-  { id: "pp-1", date: "2026-06-01", photoUrl: "", angle: "front", notes: "Start of program" },
-  { id: "pp-2", date: "2026-06-15", photoUrl: "", angle: "side", notes: "2 weeks in" },
-  { id: "pp-3", date: "2026-07-01", photoUrl: "", angle: "front", notes: "1 month progress" },
-  { id: "pp-4", date: "2026-07-01", photoUrl: "", angle: "back", notes: "1 month — back view" },
-  { id: "pp-5", date: "2026-07-08", photoUrl: "", angle: "side", notes: "Latest check-in" },
-];
+/**
+ * Map a server progress-photo row to the screen's display model.
+ * The server returns { id, date, photoUrls: string[] (PHI-proxy paths),
+ * poseType } — we surface the first photo per row. Relative proxy paths are
+ * prefixed with the API base URL so <Image> can request them.
+ */
+function mapApiPhoto(row: any): ProgressPhoto {
+  const first = Array.isArray(row.photoUrls) ? row.photoUrls[0] : row.photoUrl;
+  const url = first
+    ? String(first).startsWith("http")
+      ? String(first)
+      : `${API_URL}${first}`
+    : "";
+  return {
+    id: String(row.id),
+    date:
+      typeof row.date === "string"
+        ? row.date.split("T")[0]
+        : new Date(row.date ?? Date.now()).toISOString().split("T")[0],
+    photoUrl: url,
+    angle: (row.poseType ?? row.angle ?? "front") as PhotoAngle,
+    notes: row.notes ?? undefined,
+  };
+}
 
 const ANGLE_TABS: Array<{ key: PhotoAngle | "all"; label: string }> = [
   { key: "all", label: "All" },
@@ -70,9 +90,11 @@ const ANGLE_TABS: Array<{ key: PhotoAngle | "all"; label: string }> = [
 
 export default function ProgressPhotosScreen() {
   const router = useRouter();
+  const { getToken } = useAuth();
   const [selectedAngle, setSelectedAngle] = useState<PhotoAngle | "all">("all");
   const [refreshing, setRefreshing] = useState(false);
   const [previewImage, setPreviewImage] = useState<PickedImage | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // ── tRPC: fetch recent progress photos ──
   const photosQuery = trpc.clientPortal.progressPhotos.getRecent.useQuery(
@@ -86,8 +108,17 @@ export default function ProgressPhotosScreen() {
     },
   });
 
-  // ── Map API data with sample fallbacks ──
-  const rawPhotos = (photosQuery.data as ProgressPhoto[] | undefined) ?? SAMPLE_PHOTOS;
+  // ── Add mutation: persists the uploaded photo URL to the backend ──
+  const addMutation = trpc.clientPortal.progressPhotos.add.useMutation({
+    onSuccess: () => {
+      photosQuery.refetch();
+    },
+  });
+
+  // ── Map real API data (no sample fallback) ──
+  const rawPhotos: ProgressPhoto[] = Array.isArray(photosQuery.data)
+    ? (photosQuery.data as any[]).map(mapApiPhoto)
+    : [];
 
   // ── Filter by selected angle ──
   const photos =
@@ -103,17 +134,70 @@ export default function ProgressPhotosScreen() {
   }, [photosQuery]);
 
   // ── Add Photo ──
+  // Upload the picked image to the web /api/upload endpoint (reusing the same
+  // Clerk bearer token the tRPC client uses), then persist the returned URL via
+  // progressPhotos.add and refetch. The pose type defaults to the currently
+  // selected angle filter (or "front" when viewing "All").
   const handleAddPhoto = async () => {
     const image = await showImagePickerOptions();
     if (!image) return;
 
-    // Show preview of the captured photo
+    // Show a local preview immediately while the upload runs.
     setPreviewImage(image);
-    Alert.alert(
-      "Photo Captured",
-      "Your progress photo has been saved locally. Cloud upload will be available in a future update when the file upload endpoint is ready.",
-      [{ text: "OK" }],
-    );
+    setUploading(true);
+
+    try {
+      const token = await getToken();
+
+      const formData = new FormData();
+      formData.append("file", {
+        uri: image.uri,
+        name: image.fileName ?? `photo_${Date.now()}.jpg`,
+        type: image.type ?? "image/jpeg",
+      } as any);
+      formData.append("category", "photo");
+
+      const res = await fetch(`${API_URL}/api/upload`, {
+        method: "POST",
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+          "x-trpc-source": "everist-mobile",
+          // NOTE: do not set Content-Type — RN sets the multipart boundary.
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.error ?? `Upload failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      const uploadedUrl: string | undefined = data?.url;
+      if (!uploadedUrl) {
+        throw new Error("Upload succeeded but no URL was returned.");
+      }
+
+      const poseType: PhotoAngle = selectedAngle === "all" ? "front" : selectedAngle;
+
+      await addMutation.mutateAsync({
+        date: new Date().toISOString().split("T")[0],
+        photoUrls: [uploadedUrl],
+        poseType,
+      });
+
+      await photosQuery.refetch();
+      setPreviewImage(null);
+      Alert.alert("Photo Saved", "Your progress photo has been uploaded.", [{ text: "OK" }]);
+    } catch (err: any) {
+      Alert.alert(
+        "Upload Failed",
+        err?.message ?? "Could not upload your photo. Please try again.",
+        [{ text: "OK" }],
+      );
+    } finally {
+      setUploading(false);
+    }
   };
 
   // ── Delete Photo ──
@@ -272,31 +356,45 @@ export default function ProgressPhotosScreen() {
           </View>
         )}
 
-        {/* ─── Photo Preview (if just captured) ──────────────── */}
+        {/* ─── Photo Preview (while uploading) ───────────────── */}
         {previewImage && (
           <Card style={styles.previewCard}>
-            <Text style={styles.previewTitle}>Captured Photo</Text>
+            <Text style={styles.previewTitle}>
+              {uploading ? "Uploading…" : "Captured Photo"}
+            </Text>
             <Image
               source={{ uri: previewImage.uri }}
               style={styles.previewImage}
               resizeMode="cover"
             />
+            {uploading && (
+              <ActivityIndicator size="small" color={Colors.gold} style={{ marginBottom: Spacing.sm }} />
+            )}
             <Text style={styles.previewNote}>
-              Pending cloud upload. The photo is saved on your device.
+              {uploading
+                ? "Uploading your progress photo…"
+                : "Photo saved on your device."}
             </Text>
           </Card>
         )}
 
         {/* ─── Add Photo Button ────────────────────────────── */}
         <Pressable
+          disabled={uploading}
           style={({ pressed }) => [
             styles.addButton,
-            pressed && styles.addButtonPressed,
+            (pressed || uploading) && styles.addButtonPressed,
           ]}
           onPress={handleAddPhoto}
         >
-          <Plus size={18} color={Colors.dark} />
-          <Text style={styles.addButtonText}>Add Progress Photo</Text>
+          {uploading ? (
+            <ActivityIndicator size="small" color={Colors.dark} />
+          ) : (
+            <Plus size={18} color={Colors.dark} />
+          )}
+          <Text style={styles.addButtonText}>
+            {uploading ? "Uploading…" : "Add Progress Photo"}
+          </Text>
         </Pressable>
 
         <View style={styles.bottomSpacer} />

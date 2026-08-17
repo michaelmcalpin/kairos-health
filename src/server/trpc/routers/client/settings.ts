@@ -9,8 +9,9 @@
 
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { users, notificationPreferences, clientProfiles, trainerClientRelationships, trainerProfiles, userContactInfo } from "@/server/db/schema";
+import { users, notificationPreferences, clientProfiles, trainerClientRelationships, trainerProfiles, userContactInfo, auditLogs } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
+import { clerkClient } from "@clerk/nextjs/server";
 
 export const clientSettingsRouter = router({
   /**
@@ -286,5 +287,48 @@ export const clientSettingsRouter = router({
       reviewCount: profile?.reviewCount ?? 0,
       since: relationship.startedAt,
     };
+  }),
+
+  /**
+   * Delete (deactivate) the caller's OWN account.
+   *
+   * Required for Apple App Review 5.1.1(v) — users must be able to initiate
+   * account deletion from within the app. We soft-delete for safety: the DB
+   * user record is marked `inactive` (so their data can still be handled per
+   * our retention policy / support requests) and their Clerk identity is
+   * deleted so they can no longer sign in. This only ever affects the
+   * authenticated caller — never another user's data.
+   */
+  deleteAccount: clientProcedure.mutation(async ({ ctx }) => {
+    // 1) Deactivate the caller's own DB record (soft-delete).
+    await ctx.db
+      .update(users)
+      .set({ status: "inactive", updatedAt: new Date() })
+      .where(eq(users.id, ctx.dbUserId));
+
+    // 2) Audit trail.
+    try {
+      await ctx.db.insert(auditLogs).values({
+        userId: ctx.dbUserId,
+        action: "user.self_deleted",
+        resourceType: "user",
+        resourceId: ctx.dbUserId,
+        metadata: { source: "mobile", initiatedBy: "self" },
+      });
+    } catch {
+      // audit_logs table may not exist yet — non-fatal
+    }
+
+    // 3) Revoke access by deleting the Clerk identity so the user cannot
+    //    sign back in. Non-fatal if Clerk is unreachable — the account is
+    //    already deactivated in our DB.
+    try {
+      const client = await clerkClient();
+      await client.users.deleteUser(ctx.userId);
+    } catch {
+      // Clerk deletion failed — account is still deactivated in our DB.
+    }
+
+    return { success: true };
   }),
 });

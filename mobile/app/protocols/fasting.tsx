@@ -21,17 +21,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Types & static config                                               */
 /* ------------------------------------------------------------------ */
-
-const SAMPLE_CURRENT_FAST = {
-  protocol: "Intermittent Fast 16:8",
-  active: true,
-  startTime: "8:00 PM",
-  elapsed: { hours: 14, minutes: 32 },
-  goal: 16, // hours
-  remaining: { hours: 1, minutes: 28 },
-};
 
 interface FastingZone {
   name: string;
@@ -66,22 +57,6 @@ interface WeeklyLogEntry {
   actual: number;
   completed: boolean;
 }
-
-const SAMPLE_WEEKLY_LOG: WeeklyLogEntry[] = [
-  { day: "Mon", date: "Jun 7", duration: "16h 12m", goal: 16, actual: 16.2, completed: true },
-  { day: "Tue", date: "Jun 8", duration: "16h 45m", goal: 16, actual: 16.75, completed: true },
-  { day: "Wed", date: "Jun 9", duration: "18h 03m", goal: 16, actual: 18.05, completed: true },
-  { day: "Thu", date: "Jun 10", duration: "15h 20m", goal: 16, actual: 15.33, completed: false },
-  { day: "Fri", date: "Jun 11", duration: "16h 08m", goal: 16, actual: 16.13, completed: true },
-  { day: "Sat", date: "Jun 12", duration: "17h 30m", goal: 16, actual: 17.5, completed: true },
-  { day: "Sun", date: "Jun 13", duration: "In progress", goal: 16, actual: 14.53, completed: false },
-];
-
-const SAMPLE_FAST_STATS = {
-  avgDuration: "15.8h",
-  longest: "22h",
-  streak: 12,
-};
 
 /* ------------------------------------------------------------------ */
 /* Circular Countdown Timer                                            */
@@ -370,7 +345,7 @@ export default function FastingScreen() {
       };
     }
     // No active fast — render an empty/zeroed state rather than sample data.
-    const goalHours = (protocolQuery.data as any)?.targetHours ?? SAMPLE_CURRENT_FAST.goal;
+    const goalHours = (protocolQuery.data as any)?.targetHours ?? 16;
     return {
       protocol,
       startTime: "—",
@@ -402,19 +377,24 @@ export default function FastingScreen() {
         };
       });
     }
-    return SAMPLE_WEEKLY_LOG;
+    // No real logs — show an empty weekly log, never fabricated entries.
+    return [];
   }, [logsQuery.data]);
 
   const fastStats = useMemo(() => {
     if (statsQuery.data) {
       const s = statsQuery.data as any;
+      const avg = s.avgDuration ?? s.averageDurationHours;
+      const longest = s.longestFast ?? s.longestDurationHours;
+      const streak = s.streak ?? s.currentStreak;
       return {
-        avgDuration: (s.avgDuration ?? s.averageDurationHours) ? `${Number(s.avgDuration ?? s.averageDurationHours).toFixed(1)}h` : SAMPLE_FAST_STATS.avgDuration,
-        longest: (s.longestFast ?? s.longestDurationHours) ? `${Math.round(Number(s.longestFast ?? s.longestDurationHours))}h` : SAMPLE_FAST_STATS.longest,
-        streak: s.streak ?? s.currentStreak ?? SAMPLE_FAST_STATS.streak,
+        avgDuration: avg != null ? `${Number(avg).toFixed(1)}h` : "—",
+        longest: longest != null ? `${Math.round(Number(longest))}h` : "—",
+        streak: streak != null ? Number(streak) : null,
       };
     }
-    return SAMPLE_FAST_STATS;
+    // No real stats — show placeholders instead of fabricated values.
+    return { avgDuration: "—", longest: "—", streak: null as number | null };
   }, [statsQuery.data]);
 
   const elapsedHours =
@@ -503,6 +483,10 @@ export default function FastingScreen() {
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Weekly Log</Text>
 
+          {weeklyLog.length === 0 && (
+            <Text style={styles.emptyLog}>No fasts logged yet.</Text>
+          )}
+
           {weeklyLog.map((entry, idx) => (
             <View
               key={entry.day}
@@ -548,8 +532,11 @@ export default function FastingScreen() {
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>
-                {fastStats.streak}{" "}
-                <Text style={styles.statUnit}>days</Text>
+                {fastStats.streak != null ? fastStats.streak : "—"}
+                {fastStats.streak != null ? " " : ""}
+                {fastStats.streak != null ? (
+                  <Text style={styles.statUnit}>days</Text>
+                ) : null}
               </Text>
               <Text style={styles.statLabel}>Current Streak</Text>
             </View>
@@ -576,6 +563,12 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingBottom: Spacing.xxl,
     gap: Spacing.md,
+  },
+  emptyLog: {
+    fontSize: FontSizes.sm,
+    color: Colors.silver,
+    fontStyle: "italic",
+    paddingVertical: Spacing.sm,
   },
 
   /* Sections */

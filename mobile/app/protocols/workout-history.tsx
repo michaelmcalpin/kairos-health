@@ -222,8 +222,6 @@ function generateSampleWorkouts(): WorkoutLog[] {
   });
 }
 
-const SAMPLE_WORKOUTS = generateSampleWorkouts();
-
 /* ------------------------------------------------------------------ */
 /* API -> WorkoutLog mapper                                            */
 /* ------------------------------------------------------------------ */
@@ -305,7 +303,7 @@ export default function WorkoutHistoryScreen() {
 
   const workouts: WorkoutLog[] = query.data
     ? (query.data as any[]).map(mapApiWorkout)
-    : SAMPLE_WORKOUTS;
+    : [];
 
   const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
   const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
@@ -516,6 +514,9 @@ export default function WorkoutHistoryScreen() {
         {/* Workout list */}
         <Card style={styles.listCard}>
           <Text style={styles.listTitle}>PAST WORKOUTS</Text>
+          {!query.isLoading && workouts.length === 0 && (
+            <Text style={styles.emptyList}>No workouts logged yet.</Text>
+          )}
           {workouts.map((workout) => (
             <Pressable
               key={workout.id}
@@ -623,6 +624,12 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingBottom: Spacing.xxl,
     gap: Spacing.md,
+  },
+  emptyList: {
+    fontSize: FontSizes.sm,
+    color: Colors.silver,
+    fontStyle: "italic",
+    paddingVertical: Spacing.sm,
   },
 
   /* Stats */

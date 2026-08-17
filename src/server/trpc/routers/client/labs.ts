@@ -40,6 +40,9 @@ export const clientLabsRouter = router({
           status: o.status,
           orderedAt: o.orderedAt,
           testDate: result?.receivedAt ?? o.orderedAt, // actual test date from results
+          // Route file access through the authorized proxy — never expose the
+          // raw storage URL to the browser. Null when there's no source file.
+          pdfUrl: result?.pdfUrl ? `/api/phi-file?type=lab&id=${result.id}` : null,
         };
       });
     }),

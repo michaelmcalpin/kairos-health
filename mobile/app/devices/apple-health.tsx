@@ -46,6 +46,7 @@ import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useHealthKitStatus, useHealthSync } from "@/hooks/useHealthSync";
+import * as HealthKit from "@/lib/healthkit";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -188,25 +189,36 @@ export default function AppleHealthScreen() {
   };
 
   const handleSyncNow = async () => {
-    if (hkStatus.isAvailable && hkStatus.isAuthorized) {
-      // Use real HealthKit sync
+    // Apple Health data lives on-device and can only be read via HealthKit.
+    // A returning, already-connected user starts with isAuthorized=false, so
+    // gating on that would wrongly fall through to the backend-only sync (which
+    // reads NO HealthKit data). Instead, mirror devices/index.tsx: whenever
+    // HealthKit is available on this device, sync directly from it — requesting
+    // permissions first if needed (the request is idempotent). syncFromHealthKit
+    // shows its own honest result alerts. Only use the backend fallback when
+    // we're not on a native iOS build with HealthKit.
+    if (HealthKit.isHealthKitAvailable()) {
+      if (!hkStatus.isAuthorized) {
+        await checkAndRequest();
+      }
       await syncFromHealthKit();
       connectionQuery.refetch();
-    } else {
-      // Fall back to backend-only sync
-      syncMutation.mutate(
-        { provider: "apple_health" },
-        {
-          onSuccess: () => {
-            Alert.alert("Sync Complete", "Apple Health data has been synced.", [{ text: "OK" }]);
-            connectionQuery.refetch();
-          },
-          onError: () => {
-            Alert.alert("Sync Failed", "Could not sync Apple Health data. Please try again.", [{ text: "OK" }]);
-          },
-        },
-      );
+      return;
     }
+
+    // Not on native iOS / HealthKit unavailable — backend-only sync.
+    syncMutation.mutate(
+      { provider: "apple_health" },
+      {
+        onSuccess: () => {
+          Alert.alert("Sync Complete", "Apple Health data has been synced.", [{ text: "OK" }]);
+          connectionQuery.refetch();
+        },
+        onError: () => {
+          Alert.alert("Sync Failed", "Could not sync Apple Health data. Please try again.", [{ text: "OK" }]);
+        },
+      },
+    );
   };
 
   const handleDisconnect = () => {

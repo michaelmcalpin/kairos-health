@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 
@@ -20,19 +21,11 @@ import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                         */
+/* Types                                                               */
 /* ------------------------------------------------------------------ */
-
-const SAMPLE_ACTIVE_CYCLE = {
-  name: "Healing & Recovery Stack",
-  startDate: "May 26, 2026",
-  endDate: "Jun 24, 2026",
-  currentDay: 18,
-  totalDays: 30,
-  status: "active" as const,
-};
 
 interface Peptide {
   name: string;
@@ -46,45 +39,6 @@ interface Peptide {
   color: string;
   todayDosed: boolean;
 }
-
-const SAMPLE_PEPTIDES: Peptide[] = [
-  {
-    name: "BPC-157",
-    dosage: "250mcg",
-    route: "Sublingual",
-    frequency: "Daily",
-    timing: "AM",
-    cycleDay: 18,
-    cycleDays: 30,
-    purpose: "Tissue repair, gut healing, tendon recovery",
-    color: Colors.success,
-    todayDosed: true,
-  },
-  {
-    name: "Thymosin Alpha-1",
-    dosage: "1.5mg",
-    route: "Subcutaneous",
-    frequency: "2x/week (Mon, Thu)",
-    timing: "AM",
-    cycleDay: 18,
-    cycleDays: 30,
-    purpose: "Immune modulation, T-cell activation",
-    color: Colors.info,
-    todayDosed: false,
-  },
-  {
-    name: "GHK-Cu",
-    dosage: "200mcg",
-    route: "Topical",
-    frequency: "Daily",
-    timing: "PM",
-    cycleDay: 18,
-    cycleDays: 30,
-    purpose: "Skin repair, collagen synthesis, anti-aging",
-    color: Colors.gold,
-    todayDosed: false,
-  },
-];
 
 // Cycle calendar: which days have doses for which peptide
 interface CalendarDay {
@@ -156,7 +110,7 @@ export default function PeptidesScreen() {
 
       const cycle = {
         id: firstCycle.id,
-        name: firstCycle.peptideName ?? firstCycle.name ?? SAMPLE_ACTIVE_CYCLE.name,
+        name: firstCycle.peptideName ?? firstCycle.name ?? "Peptide Cycle",
         startDate: startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
         endDate: endDate
           ? endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
@@ -195,17 +149,21 @@ export default function PeptidesScreen() {
 
       const calDays = generateCalendarDays(cycle.currentDay);
 
-      return { activeCycle: cycle, peptides: mappedPeptides, calendarDays: calDays };
+      return { activeCycle: cycle as typeof cycle | null, peptides: mappedPeptides, calendarDays: calDays };
     }
 
+    // No real cycles — render an empty state, never fabricated peptides.
     return {
-      activeCycle: SAMPLE_ACTIVE_CYCLE,
-      peptides: SAMPLE_PEPTIDES,
-      calendarDays: generateCalendarDays(SAMPLE_ACTIVE_CYCLE.currentDay),
+      activeCycle: null as
+        | { id?: string; name: string; startDate: string; endDate: string; currentDay: number; totalDays: number; status: string }
+        | null,
+      peptides: [] as Peptide[],
+      calendarDays: [] as CalendarDay[],
     };
   }, [cyclesQuery.data]);
 
-  const cycleProgress = activeCycle.currentDay / activeCycle.totalDays;
+  const hasCycle = !!activeCycle;
+  const cycleProgress = activeCycle ? activeCycle.currentDay / activeCycle.totalDays : 0;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -216,6 +174,20 @@ export default function PeptidesScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {cyclesQuery.isLoading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={Colors.gold} />
+          </View>
+        ) : !activeCycle ? (
+          <EmptyState
+            icon="activity"
+            title="No active peptide cycles"
+            message="When your coach assigns a peptide protocol, your active cycle, dosing schedule, and calendar will appear here."
+            actionLabel="Add Peptide"
+            onAction={() => router.push("/protocols/add-item?category=peptide" as any)}
+          />
+        ) : (
+        <>
         {/* Active Cycle */}
         <Card style={styles.section}>
           <View style={styles.rowBetween}>
@@ -496,6 +468,8 @@ export default function PeptidesScreen() {
             />
           </View>
         </Card>
+        </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -517,6 +491,11 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingBottom: Spacing.xxl,
     gap: Spacing.md,
+  },
+  loadingWrap: {
+    paddingVertical: Spacing.xxl,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   /* Sections */
