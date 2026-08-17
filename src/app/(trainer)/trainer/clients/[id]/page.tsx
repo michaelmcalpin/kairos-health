@@ -166,6 +166,11 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [showTierDropdown, setShowTierDropdown] = useState(false);
 
+  // ── "Log Data" quick-entry menu ───────────────────────────────
+  const [showLogMenu, setShowLogMenu] = useState(false);
+  const [logTarget, setLogTarget] = useState<DataTab | null>(null);
+  const [logSignal, setLogSignal] = useState(0);
+
   // Close tier dropdown on outside click
   useEffect(() => {
     if (!showTierDropdown) return;
@@ -173,6 +178,14 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
   }, [showTierDropdown]);
+
+  // Close log-data menu on outside click
+  useEffect(() => {
+    if (!showLogMenu) return;
+    const handler = () => setShowLogMenu(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [showLogMenu]);
 
   // ── tRPC queries ──────────────────────────────────────────────
   const detailQuery = trpc.coach.clients.getDetail.useQuery(
@@ -348,6 +361,14 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     });
   }
 
+  // Jump to a metric's tab and auto-open its "Add" modal (one click to the form).
+  function handleLogMetric(tab: DataTab) {
+    setActiveTab(tab);
+    setLogTarget(tab);
+    setLogSignal((s) => s + 1);
+    setShowLogMenu(false);
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Back link */}
@@ -441,6 +462,48 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
         {/* Action buttons inline in header */}
         <div className="flex gap-2 mt-4 pt-4 border-t border-gray-800 flex-wrap">
+          {/* Log Data — quick entry point that jumps to a metric tab and opens its Add form */}
+          {(canEditCategory("healthData") || canEditCategory("labs")) && (
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowLogMenu((v) => !v); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-kairos-gold text-kairos-royal-dark border border-kairos-gold hover:bg-kairos-gold-light transition-colors"
+              >
+                <Plus size={14} /> Log Data
+                <ChevronRight size={12} className={`transition-transform ${showLogMenu ? "rotate-90" : ""}`} />
+              </button>
+              {showLogMenu && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[190px]">
+                  {([
+                    { tab: "glucose", label: "Glucose", icon: Droplets, cat: "healthData" },
+                    { tab: "hrv", label: "HRV", icon: Heart, cat: "healthData" },
+                    { tab: "bp", label: "Blood Pressure", icon: Zap, cat: "healthData" },
+                    { tab: "body", label: "Body Measurement", icon: Scale, cat: "healthData" },
+                    { tab: "activity", label: "Activity", icon: Footprints, cat: "healthData" },
+                    { tab: "sleep", label: "Sleep", icon: Moon, cat: "healthData" },
+                    { tab: "fasting", label: "Fasting", icon: Timer, cat: "healthData" },
+                    { tab: "goals", label: "Goal", icon: Target, cat: "healthData" },
+                    { tab: "checkins", label: "Check-in", icon: ClipboardList, cat: "healthData" },
+                    { tab: "labs", label: "Lab Result", icon: FlaskConical, cat: "labs" },
+                  ] as { tab: DataTab; label: string; icon: typeof Activity; cat: AccessCategory }[])
+                    .filter((m) => canEditCategory(m.cat))
+                    .map((m) => {
+                      const Icon = m.icon;
+                      return (
+                        <button
+                          key={m.tab}
+                          onClick={(e) => { e.stopPropagation(); handleLogMetric(m.tab); }}
+                          className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 text-gray-200 hover:bg-gray-800 transition-colors"
+                        >
+                          <Icon size={13} className="text-kairos-gold" />
+                          {m.label}
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
           <button onClick={handleMessageClient} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors">
             <MessageSquare size={14} /> Message
           </button>
@@ -554,34 +617,34 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <MealPlanManager clientId={params.id} canEdit={canEditCategory("diet")} />
               )}
               {activeTab === "sleep" && (
-                <SleepEntryManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+                <SleepEntryManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "sleep" ? logSignal : 0} />
               )}
               {activeTab === "glucose" && (
-                <GlucoseManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+                <GlucoseManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "glucose" ? logSignal : 0} />
               )}
               {activeTab === "hrv" && (
-                <HrvManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+                <HrvManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "hrv" ? logSignal : 0} />
               )}
               {activeTab === "bp" && (
-                <BloodPressureManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+                <BloodPressureManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "bp" ? logSignal : 0} />
               )}
               {activeTab === "body" && (
-                <BodyMeasurementManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+                <BodyMeasurementManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "body" ? logSignal : 0} />
               )}
               {activeTab === "activity" && (
-                <ActivityManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+                <ActivityManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "activity" ? logSignal : 0} />
               )}
               {activeTab === "goals" && (
-                <GoalManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+                <GoalManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "goals" ? logSignal : 0} />
               )}
               {activeTab === "fasting" && (
-                <FastingManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+                <FastingManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "fasting" ? logSignal : 0} />
               )}
               {activeTab === "checkins" && (
-                <CheckinManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+                <CheckinManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "checkins" ? logSignal : 0} />
               )}
               {activeTab === "labs" && (
-                <LabResultManager clientId={params.id} canEdit={canEditCategory("labs")} />
+                <LabResultManager clientId={params.id} canEdit={canEditCategory("labs")} openSignal={logTarget === "labs" ? logSignal : 0} />
               )}
               {activeTab === "clinical" && (
                 <ClinicalDocManager clientId={params.id} canEdit={canEditCategory("labs")} />
@@ -2937,10 +3000,12 @@ function MealPlanModal({
 
 // ─── Sleep manual entry (coach.plans) ───────────────────────────
 
-function SleepEntryManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+function SleepEntryManager({ clientId, canEdit, openSignal }: { clientId: string; canEdit: boolean; openSignal?: number }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.plans.createSleepEntry.useMutation({
     onSuccess: () => { utils.coach.clients.getClientHealthData.invalidate(); setShowModal(false); setErrorMsg(null); },
@@ -3077,10 +3142,12 @@ function SleepEntryModal({
 
 type BiomarkerDraft = { code: string; value: string; unit: string; refLow: string; refHigh: string; status: string };
 
-function LabResultManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+function LabResultManager({ clientId, canEdit, openSignal }: { clientId: string; canEdit: boolean; openSignal?: number }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.data.createLabResult.useMutation({
     onSuccess: () => { utils.coach.clients.getClientHealthData.invalidate(); setShowModal(false); setErrorMsg(null); },
@@ -3477,10 +3544,12 @@ function MetricPanel({
 
 // ─── Glucose (coach.metrics.createGlucose) ──────────────────────
 
-function GlucoseManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+function GlucoseManager({ clientId, canEdit, openSignal }: { clientId: string; canEdit: boolean; openSignal?: number }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.metrics.createGlucose.useMutation({
     onSuccess: () => {
@@ -3562,10 +3631,12 @@ function GlucoseModal({
 
 // ─── HRV (coach.metrics.createHrv) ──────────────────────────────
 
-function HrvManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+function HrvManager({ clientId, canEdit, openSignal }: { clientId: string; canEdit: boolean; openSignal?: number }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.metrics.createHrv.useMutation({
     onSuccess: () => {
@@ -3638,10 +3709,12 @@ function HrvModal({
 
 // ─── Blood Pressure (coach.metrics.createBloodPressure) ─────────
 
-function BloodPressureManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+function BloodPressureManager({ clientId, canEdit, openSignal }: { clientId: string; canEdit: boolean; openSignal?: number }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.metrics.createBloodPressure.useMutation({
     onSuccess: () => {
@@ -3763,10 +3836,12 @@ function BloodPressureModal({
 
 // ─── Body Measurement (coach.metrics.createBodyMeasurement) ─────
 
-function BodyMeasurementManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+function BodyMeasurementManager({ clientId, canEdit, openSignal }: { clientId: string; canEdit: boolean; openSignal?: number }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.metrics.createBodyMeasurement.useMutation({
     onSuccess: () => {
@@ -3916,10 +3991,12 @@ function BodyMeasurementModal({
 
 // ─── Activity (coach.metrics.createActivity) ────────────────────
 
-function ActivityManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+function ActivityManager({ clientId, canEdit, openSignal }: { clientId: string; canEdit: boolean; openSignal?: number }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.metrics.createActivity.useMutation({
     onSuccess: () => {
@@ -4020,10 +4097,12 @@ type GoalCategory = "glucose" | "sleep" | "weight" | "body_fat" | "activity" | "
 type GoalDirection = "increase" | "decrease" | "maintain" | "reach";
 type GoalTimeframe = "weekly" | "monthly" | "quarterly" | "yearly" | "open_ended";
 
-function GoalManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+function GoalManager({ clientId, canEdit, openSignal }: { clientId: string; canEdit: boolean; openSignal?: number }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.metrics.createGoal.useMutation({
     onSuccess: () => {
@@ -4187,10 +4266,12 @@ function GoalModal({
 
 // ─── Fasting (coach.metrics.createFasting) ──────────────────────
 
-function FastingManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+function FastingManager({ clientId, canEdit, openSignal }: { clientId: string; canEdit: boolean; openSignal?: number }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.metrics.createFasting.useMutation({
     onSuccess: () => {
@@ -4279,10 +4360,12 @@ function FastingModal({
 
 // ─── Daily Check-in (coach.metrics.createCheckin — upsert) ──────
 
-function CheckinManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+function CheckinManager({ clientId, canEdit, openSignal }: { clientId: string; canEdit: boolean; openSignal?: number }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.metrics.createCheckin.useMutation({
     onSuccess: () => {
