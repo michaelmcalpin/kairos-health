@@ -2590,7 +2590,7 @@ function todayISO(): string {
 
 // ─── Training Programs (coach.plans) ────────────────────────────
 
-type ExerciseDraft = { name: string; sets: string; reps: string; restSeconds: string };
+type ExerciseDraft = { name: string; muscleGroup: string; sets: string; reps: string; restSeconds: string };
 type SessionDraft = { name: string; exercises: ExerciseDraft[] };
 
 function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
@@ -2737,7 +2737,7 @@ function TrainingProgramModal({
     description?: string;
     durationWeeks?: number;
     startDate: string;
-    sessions?: Array<{ dayNumber: number; name?: string; exercises: Array<{ name: string; sets: number; reps: string; restSeconds?: number }> }>;
+    sessions?: Array<{ dayNumber: number; name?: string; exercises: Array<{ name: string; muscleGroup?: string; sets: number; reps: string; restSeconds?: number }> }>;
     activate?: boolean;
   }) => void;
 }) {
@@ -2746,15 +2746,15 @@ function TrainingProgramModal({
   const [durationWeeks, setDurationWeeks] = useState("");
   const [startDate, setStartDate] = useState(todayISO());
   const [sessions, setSessions] = useState<SessionDraft[]>([
-    { name: "", exercises: [{ name: "", sets: "3", reps: "10", restSeconds: "" }] },
+    { name: "", exercises: [{ name: "", muscleGroup: "", sets: "3", reps: "10", restSeconds: "" }] },
   ]);
 
-  const addSession = () => setSessions((s) => [...s, { name: "", exercises: [{ name: "", sets: "3", reps: "10", restSeconds: "" }] }]);
+  const addSession = () => setSessions((s) => [...s, { name: "", exercises: [{ name: "", muscleGroup: "", sets: "3", reps: "10", restSeconds: "" }] }]);
   const removeSession = (i: number) => setSessions((s) => s.filter((_, idx) => idx !== i));
   const updateSession = (i: number, key: keyof SessionDraft, value: string) =>
     setSessions((s) => s.map((sess, idx) => (idx === i ? { ...sess, [key]: value } : sess)));
   const addExercise = (si: number) =>
-    setSessions((s) => s.map((sess, idx) => (idx === si ? { ...sess, exercises: [...sess.exercises, { name: "", sets: "3", reps: "10", restSeconds: "" }] } : sess)));
+    setSessions((s) => s.map((sess, idx) => (idx === si ? { ...sess, exercises: [...sess.exercises, { name: "", muscleGroup: "", sets: "3", reps: "10", restSeconds: "" }] } : sess)));
   const removeExercise = (si: number, ei: number) =>
     setSessions((s) => s.map((sess, idx) => (idx === si ? { ...sess, exercises: sess.exercises.filter((_, x) => x !== ei) } : sess)));
   const updateExercise = (si: number, ei: number, key: keyof ExerciseDraft, value: string) =>
@@ -2770,6 +2770,7 @@ function TrainingProgramModal({
           .filter((ex) => ex.name.trim())
           .map((ex) => ({
             name: ex.name.trim(),
+            muscleGroup: ex.muscleGroup || undefined,
             sets: Number(ex.sets) || 0,
             reps: ex.reps.trim() || "0",
             restSeconds: ex.restSeconds.trim() ? Number(ex.restSeconds) : undefined,
@@ -2828,7 +2829,7 @@ function TrainingProgramModal({
                 <div className="space-y-1.5">
                   {sess.exercises.map((ex, ei) => (
                     <div key={ei} className="flex items-center gap-1.5">
-                      <ExercisePicker value={ex.name} onChange={(name) => updateExercise(si, ei, "name", name)} className="flex-1" placeholder="Exercise" />
+                      <ExercisePicker value={ex.name} onChange={(name, group) => { updateExercise(si, ei, "name", name); updateExercise(si, ei, "muscleGroup", group ?? ""); }} className="flex-1" placeholder="Exercise" />
                       <input type="number" min={1} value={ex.sets} onChange={(e) => updateExercise(si, ei, "sets", e.target.value)} placeholder="Sets" title="Sets" className="kairos-input w-14 py-1 text-xs" />
                       <input type="text" value={ex.reps} onChange={(e) => updateExercise(si, ei, "reps", e.target.value)} placeholder="Reps" title="Reps" className="kairos-input w-16 py-1 text-xs" />
                       {sess.exercises.length > 1 && (

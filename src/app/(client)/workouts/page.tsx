@@ -272,14 +272,24 @@ export default function WorkoutsPage() {
                         <>
                           {prog.description && <p className="px-4 pt-3 text-xs text-kairos-silver-dark">{prog.description}</p>}
                           <div className="divide-y divide-kairos-border/50">
-                            {(detail.sessions as Array<{ dayNumber: number; name: string; exercises: Array<{ exerciseId: string; sets: number; reps: string; tempo: string; restSeconds: number }> }>).map((session) => (
+                            {(detail.sessions as Array<{ dayNumber: number; name: string; exercises: Array<{ exerciseId: string; name?: string; muscleGroup?: string; sets: number; reps: string; tempo: string; restSeconds: number }> }>).map((session) => (
                               <div key={session.dayNumber} className="px-4 py-3">
                                 <p className="text-sm font-heading font-semibold text-white mb-1">{session.name}</p>
                                 <div className="space-y-0.5">
                                   {session.exercises.map((ex, i) => (
-                                    <div key={i} className="flex justify-between text-xs">
-                                      <span className="text-kairos-silver">{ex.exerciseId.replace(/_/g, " ")}</span>
-                                      <span className="text-kairos-silver-dark">{ex.sets} x {ex.reps}</span>
+                                    <div key={i} className="flex justify-between items-center text-xs gap-2">
+                                      <span className="flex items-center gap-2 min-w-0">
+                                        <span className="text-kairos-silver truncate">{ex.name || ex.exerciseId.replace(/_/g, " ") || "Exercise"}</span>
+                                        {ex.muscleGroup && (
+                                          <span className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/20 capitalize">
+                                            {ex.muscleGroup.replace(/_/g, " ")}
+                                          </span>
+                                        )}
+                                      </span>
+                                      <span className="flex-shrink-0 text-kairos-silver-dark">
+                                        {ex.sets} x {ex.reps}
+                                        {ex.restSeconds ? ` · ${ex.restSeconds}s rest` : ""}
+                                      </span>
                                     </div>
                                   ))}
                                 </div>

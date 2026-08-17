@@ -52,6 +52,7 @@ async function verifyCoachClientAccess(
 const exerciseInput = z.object({
   exerciseId: z.string().optional(),
   name: z.string().min(1).max(255),
+  muscleGroup: z.string().optional(),
   sets: z.number(),
   reps: z.string(),
   tempo: z.string().optional(),
@@ -127,6 +128,7 @@ export const coachPlansRouter = router({
             exercises: s.exercises.map((e) => ({
               exerciseId: e.exerciseId ?? "",
               name: e.name,
+              muscleGroup: e.muscleGroup ?? "",
               sets: e.sets,
               reps: e.reps,
               tempo: e.tempo ?? "",

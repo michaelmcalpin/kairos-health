@@ -509,6 +509,11 @@ function ProgramBuilderModal({
                               onChange={(nm, group) => updateExercise(di, ei, { name: nm, muscleGroup: group })}
                               placeholder="Exercise name"
                             />
+                            {ex.muscleGroup && (
+                              <span className="mt-1 inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-kairos-gold/10 border border-kairos-gold/30 text-kairos-gold">
+                                {ex.muscleGroup}
+                              </span>
+                            )}
                           </div>
                           <input
                             type="number"

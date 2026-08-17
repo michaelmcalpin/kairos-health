@@ -79,7 +79,8 @@ export default function WorkoutsScreen() {
           ? `${todayW.durationMinutes} min`
           : null,
       exercises: (todayW.exercises ?? []).map((ex: any) => ({
-        name: ex.name,
+        name: ex.name || ex.exerciseId || "Exercise",
+        muscleGroup: ex.muscleGroup ?? null,
         sets: ex.sets ?? 3,
         reps: ex.reps ?? 10,
         weight: ex.weightLbs ? `${ex.weightLbs} lbs` : null,
@@ -192,7 +193,16 @@ export default function WorkoutsScreen() {
                   ]}
                 >
                   <View style={styles.exerciseInfo}>
-                    <Text style={styles.exerciseName}>{ex.name}</Text>
+                    <View style={styles.exerciseNameRow}>
+                      <Text style={styles.exerciseName}>{ex.name}</Text>
+                      {ex.muscleGroup ? (
+                        <View style={styles.muscleBadge}>
+                          <Text style={styles.muscleText}>
+                            {String(ex.muscleGroup).replace(/_/g, " ")}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
                     <Text style={styles.exerciseDetail}>
                       {ex.sets}x{ex.reps}
                       {ex.weight ? ` @ ${ex.weight}` : ""}
@@ -383,10 +393,27 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  exerciseNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: Spacing.xs,
+  },
   exerciseName: {
     fontSize: FontSizes.md,
     fontWeight: "600",
     color: Colors.white,
+  },
+  muscleBadge: {
+    backgroundColor: Colors.navyLight,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: Radii.full,
+  },
+  muscleText: {
+    fontSize: FontSizes.xs,
+    color: Colors.gold,
+    textTransform: "capitalize",
   },
   exerciseDetail: {
     fontSize: FontSizes.sm,
