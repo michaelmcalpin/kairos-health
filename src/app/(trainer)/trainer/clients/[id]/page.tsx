@@ -1513,7 +1513,7 @@ function ProtocolItemModal({
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type ClientDetail = {
   id: string; name: string; initials: string; email: string; tier: string;
-  healthScore: number; scoreTrend: string; activeAlerts: number; adherence: number;
+  healthScore: number | null; scoreTrend: string; activeAlerts: number; adherence: number;
   lastActive: string; status: string; nextSession: string | null; memberSince: string;
   metrics: {
     avgGlucose: number | null; glucoseTrend: string; glucoseData: number[];
@@ -1565,6 +1565,81 @@ type HealthData = {
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+// ─── Overview biometric helpers ─────────────────────────────────
+
+/** Maps an up/down/flat trend to the same arrow + color scheme used in the header. */
+function overviewTrend(trend: string | undefined): { icon: string; color: string } | null {
+  if (trend === "up") return { icon: "↑", color: "text-green-400" };
+  if (trend === "down") return { icon: "↓", color: "text-red-400" };
+  if (trend === "flat") return { icon: "→", color: "text-gray-400" };
+  return null;
+}
+
+/** Derives an up/down/flat trend from a chronological (oldest→newest) numeric series. */
+function deriveArrayTrend(values: number[]): "up" | "down" | "flat" {
+  if (values.length < 2) return "flat";
+  const recent = values.slice(-3);
+  const first = recent[0];
+  const last = recent[recent.length - 1];
+  const change = ((last - first) / Math.max(1, Math.abs(first))) * 100;
+  if (Math.abs(change) < 2) return "flat";
+  return change > 0 ? "up" : "down";
+}
+
+/** Blood-pressure category — mirrors the client dashboard's getBPLabel thresholds. */
+function getBPLabel(sys: number, dia: number): { label: string; color: string } {
+  if (sys > 180 || dia > 120) return { label: "Crisis", color: "text-red-400" };
+  if (sys >= 140 || dia >= 90) return { label: "High", color: "text-red-400" };
+  if (sys >= 130 || dia >= 80) return { label: "Elevated", color: "text-amber-400" };
+  if (sys >= 120) return { label: "Elevated", color: "text-yellow-400" };
+  return { label: "Normal", color: "text-green-400" };
+}
+
+/** A single biometric stat card: value + unit, trend arrow, optional sparkline + sub-label. */
+function BioCard({
+  icon, iconColor, label, value, unit, trend, sub, subColor, sparkData, sparkMax, sparkColor,
+}: {
+  icon: React.ReactNode;
+  iconColor: string;
+  label: string;
+  value: string | number;
+  unit?: string;
+  trend?: string;
+  sub?: string;
+  subColor?: string;
+  sparkData?: number[];
+  sparkMax?: number;
+  sparkColor?: string;
+}) {
+  const t = overviewTrend(trend);
+  const hasSpark = !!sparkData && sparkData.length >= 2;
+  return (
+    <div className="kairos-card p-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className={iconColor}>{icon}</span>
+          <span className="text-[10px] text-gray-500 uppercase tracking-wide truncate">{label}</span>
+        </div>
+        {t && <span className={`text-xs font-bold shrink-0 ${t.color}`}>{t.icon}</span>}
+      </div>
+      <div className="flex items-baseline gap-1">
+        <span className="text-xl font-heading font-bold text-white">{value}</span>
+        {unit && <span className="text-[10px] text-gray-500">{unit}</span>}
+      </div>
+      {sub && <p className={`text-[10px] mt-0.5 ${subColor ?? "text-gray-500"}`}>{sub}</p>}
+      {hasSpark && (
+        <div className="mt-1.5">
+          <SparkLine
+            data={sparkData!}
+            maxVal={sparkMax ?? Math.max(...sparkData!, 1) * 1.1}
+            color={sparkColor ?? "#D4AF37"}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Tab Content ────────────────────────────────────────────────
 
 function TabContent({
@@ -1581,7 +1656,36 @@ function TabContent({
   if (!health) return <div className="kairos-card p-6 text-center text-gray-500 text-sm">No data available</div>;
 
   switch (tab) {
-    case "overview":
+    case "overview": {
+      const m = client.metrics;
+
+      // Sleep — latest duration (hrs) from the chronological sleepData series.
+      const sleepHoursLatest = m.sleepData.length > 0 ? m.sleepData[m.sleepData.length - 1] : null;
+
+      // Weight — trend derived from the weight series (no *Trend field exists for it).
+      const weightTrend = deriveArrayTrend(m.weightData);
+
+      // HRV sparkline — health.hrv is newest→oldest, reverse to chronological.
+      const hrvSpark = [...health.hrv].reverse().map((h) => h.rmssd);
+
+      // Steps — health.activity is newest→oldest; first entry with steps is latest.
+      const stepsEntries = health.activity.filter((a) => a.steps != null);
+      const latestSteps = stepsEntries.length > 0 ? Number(stepsEntries[0].steps) : null;
+      const stepsSpark = [...stepsEntries].reverse().map((a) => Number(a.steps));
+      const stepsTrend = deriveArrayTrend(stepsSpark);
+
+      // Body fat — sparkline + trend from body measurements when present.
+      const bodyFatEntries = health.bodyMeasurements.filter((b) => b.bodyFatPct != null);
+      const bodyFatSpark = [...bodyFatEntries].reverse().map((b) => Number(b.bodyFatPct));
+      const bodyFatTrend = deriveArrayTrend(bodyFatSpark);
+
+      // Blood pressure — latest reading (newest→oldest order) + systolic sparkline.
+      const latestBp = health.bloodPressure.find((bp) => bp.systolic != null && bp.diastolic != null) ?? null;
+      const bpSpark = [...health.bloodPressure].filter((bp) => bp.systolic != null).reverse().map((bp) => Number(bp.systolic));
+      const bpCat = latestBp && latestBp.systolic != null && latestBp.diastolic != null
+        ? getBPLabel(latestBp.systolic, latestBp.diastolic)
+        : null;
+
       return (
         <div className="space-y-6">
           {/* Protocol */}
@@ -1602,29 +1706,110 @@ function TabContent({
             </div>
           </div>
 
-          {/* Biometric Sparklines */}
-          <div className="kairos-card">
+          {/* Biometrics — mirrors the client's own dashboard headline metrics */}
+          <div>
             <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
               <Activity size={16} /> Biometrics
             </h2>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-300 mb-1">Glucose</p>
-                <SparkLine data={client.metrics.glucoseData} maxVal={140} color={tc.accent} />
-                <p className="text-[10px] text-gray-500 text-center">Avg: {client.metrics.avgGlucose ?? "—"} mg/dL</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-300 mb-1">Sleep</p>
-                <SparkLine data={client.metrics.sleepData} maxVal={10} color="rgb(96, 165, 250)" />
-                <p className="text-[10px] text-gray-500 text-center">
-                  Avg: {client.metrics.sleepData.length > 0 ? (client.metrics.sleepData.reduce((a, b) => a + b, 0) / client.metrics.sleepData.length).toFixed(1) : "—"} hrs
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-300 mb-1">Weight</p>
-                <SparkLine data={client.metrics.weightData} maxVal={Math.max(...(client.metrics.weightData.length > 0 ? client.metrics.weightData : [0])) + 10} color="rgb(167, 139, 250)" />
-                <p className="text-[10px] text-gray-500 text-center">Current: {client.metrics.weight ?? "—"} lbs</p>
-              </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Health Score */}
+              <BioCard
+                icon={<Heart size={13} />}
+                iconColor="text-kairos-gold"
+                label="Health Score"
+                value={client.healthScore ?? "—"}
+                trend={client.healthScore == null ? undefined : client.scoreTrend}
+                sub={client.healthScore == null ? "Insufficient data" : "/100"}
+              />
+
+              {/* Weight */}
+              <BioCard
+                icon={<Scale size={13} />}
+                iconColor="text-kairos-gold"
+                label="Weight"
+                value={m.weight ?? "—"}
+                unit="lbs"
+                trend={m.weightData.length >= 2 ? weightTrend : undefined}
+                sparkData={m.weightData}
+                sparkColor={tc.accent}
+              />
+
+              {/* Body Fat */}
+              <BioCard
+                icon={<Scale size={13} />}
+                iconColor="text-kairos-gold"
+                label="Body Fat"
+                value={m.bodyFat ?? "—"}
+                unit="%"
+                trend={bodyFatSpark.length >= 2 ? bodyFatTrend : undefined}
+                sparkData={bodyFatSpark}
+                sparkColor={tc.accent}
+              />
+
+              {/* Sleep */}
+              <BioCard
+                icon={<Moon size={13} />}
+                iconColor="text-blue-400"
+                label="Sleep"
+                value={sleepHoursLatest != null ? sleepHoursLatest.toFixed(1) : "—"}
+                unit="hrs"
+                trend={m.sleepData.length >= 2 ? m.sleepTrend : undefined}
+                sub={`Quality ${m.sleepScore ?? "—"}/100`}
+                sparkData={m.sleepData}
+                sparkMax={10}
+                sparkColor="#60a5fa"
+              />
+
+              {/* Glucose */}
+              <BioCard
+                icon={<Droplets size={13} />}
+                iconColor="text-amber-400"
+                label="Glucose"
+                value={m.avgGlucose ?? "—"}
+                unit="mg/dL"
+                trend={m.glucoseData.length >= 2 ? m.glucoseTrend : undefined}
+                sub="Avg"
+                sparkData={m.glucoseData}
+                sparkMax={140}
+                sparkColor="#f59e0b"
+              />
+
+              {/* HRV */}
+              <BioCard
+                icon={<Zap size={13} />}
+                iconColor="text-purple-400"
+                label="HRV"
+                value={m.hrv ?? "—"}
+                unit="ms"
+                trend={hrvSpark.length >= 2 ? m.hrvTrend : undefined}
+                sparkData={hrvSpark}
+                sparkColor="#a78bfa"
+              />
+
+              {/* Blood Pressure */}
+              <BioCard
+                icon={<Heart size={13} />}
+                iconColor="text-red-400"
+                label="Blood Pressure"
+                value={latestBp && latestBp.systolic != null && latestBp.diastolic != null ? `${latestBp.systolic}/${latestBp.diastolic}` : "—"}
+                unit={latestBp ? "mmHg" : undefined}
+                sub={bpCat?.label}
+                subColor={bpCat?.color}
+                sparkData={bpSpark}
+                sparkColor="#f87171"
+              />
+
+              {/* Steps / Activity */}
+              <BioCard
+                icon={<Footprints size={13} />}
+                iconColor="text-green-400"
+                label="Steps"
+                value={latestSteps != null ? latestSteps.toLocaleString() : "—"}
+                trend={stepsSpark.length >= 2 ? stepsTrend : undefined}
+                sub="Latest"
+                sparkData={stepsSpark}
+                sparkColor="#4ade80"
+              />
             </div>
           </div>
 
@@ -1675,6 +1860,7 @@ function TabContent({
           )}
         </div>
       );
+    }
 
     case "glucose":
       return (
