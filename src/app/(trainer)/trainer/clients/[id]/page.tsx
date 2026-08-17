@@ -556,6 +556,30 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               {activeTab === "sleep" && (
                 <SleepEntryManager clientId={params.id} canEdit={canEditCategory("healthData")} />
               )}
+              {activeTab === "glucose" && (
+                <GlucoseManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+              )}
+              {activeTab === "hrv" && (
+                <HrvManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+              )}
+              {activeTab === "bp" && (
+                <BloodPressureManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+              )}
+              {activeTab === "body" && (
+                <BodyMeasurementManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+              )}
+              {activeTab === "activity" && (
+                <ActivityManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+              )}
+              {activeTab === "goals" && (
+                <GoalManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+              )}
+              {activeTab === "fasting" && (
+                <FastingManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+              )}
+              {activeTab === "checkins" && (
+                <CheckinManager clientId={params.id} canEdit={canEditCategory("healthData")} />
+              )}
               {activeTab === "labs" && (
                 <LabResultManager clientId={params.id} canEdit={canEditCategory("labs")} />
               )}
@@ -3202,6 +3226,998 @@ function ClinicalDocModal({
         <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
         <button onClick={handleSubmit} disabled={!docTitle.trim() || busy} className="kairos-btn-gold flex-1 disabled:opacity-50">
           {uploading ? "Uploading..." : saving ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Health metric entry (coach.metrics) ────────────────────────
+
+/** datetime-local default of "now" in the browser's local zone (YYYY-MM-DDTHH:mm). */
+function nowLocalDatetime(): string {
+  const d = new Date();
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+/** Shared header + read-only note used by the coach metric managers. */
+function MetricPanel({
+  icon,
+  title,
+  addLabel,
+  description,
+  canEdit,
+  errorMsg,
+  setErrorMsg,
+  onAdd,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  addLabel: string;
+  description: string;
+  canEdit: boolean;
+  errorMsg: string | null;
+  setErrorMsg: (v: string | null) => void;
+  onAdd: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="kairos-card">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+        <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2">
+          {icon} {title}
+        </h2>
+        {canEdit && (
+          <button
+            onClick={onAdd}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+          >
+            <Plus size={12} /> {addLabel}
+          </button>
+        )}
+      </div>
+      {canEdit ? (
+        <p className="text-[11px] text-gray-500">{description}</p>
+      ) : (
+        <p className="text-[11px] text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Health Data edit access.</p>
+      )}
+      <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
+      {children}
+    </div>
+  );
+}
+
+// ─── Glucose (coach.metrics.createGlucose) ──────────────────────
+
+function GlucoseManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.metrics.createGlucose.useMutation({
+    onSuccess: () => {
+      utils.coach.clients.getClientHealthData.invalidate();
+      utils.coach.clients.getDetail.invalidate();
+      setShowModal(false); setErrorMsg(null);
+    },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <MetricPanel
+      icon={<Droplets size={16} />}
+      title="Add Glucose Reading"
+      addLabel="Add Reading"
+      description="Manually log a glucose reading for this client."
+      canEdit={canEdit}
+      errorMsg={errorMsg}
+      setErrorMsg={setErrorMsg}
+      onAdd={() => { setErrorMsg(null); setShowModal(true); }}
+    >
+      {showModal && (
+        <GlucoseModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </MetricPanel>
+  );
+}
+
+function GlucoseModal({
+  saving, onClose, onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: { timestamp: string; valueMgdl: number; notes?: string }) => void;
+}) {
+  const [when, setWhen] = useState(nowLocalDatetime());
+  const [value, setValue] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const canSave = !!when && value.trim() !== "";
+  const handleSubmit = () => {
+    if (!canSave) return;
+    onSubmit({
+      timestamp: new Date(when).toISOString(),
+      valueMgdl: parseFloat(value),
+      notes: notes.trim() || undefined,
+    });
+  };
+
+  return (
+    <Modal title="Add Glucose Reading" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date &amp; Time *</label>
+          <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="kairos-input w-full" />
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Glucose (mg/dL) *</label>
+          <input type="number" step="any" min={0} value={value} onChange={(e) => setValue(e.target.value)} placeholder="e.g. 95" className="kairos-input w-full" />
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Fasting, post-meal, context..." className="kairos-input w-full h-16 resize-none" />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!canSave || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Reading"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── HRV (coach.metrics.createHrv) ──────────────────────────────
+
+function HrvManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.metrics.createHrv.useMutation({
+    onSuccess: () => {
+      utils.coach.clients.getClientHealthData.invalidate();
+      utils.coach.clients.getDetail.invalidate();
+      setShowModal(false); setErrorMsg(null);
+    },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <MetricPanel
+      icon={<Heart size={16} />}
+      title="Add HRV Reading"
+      addLabel="Add Reading"
+      description="Manually log an HRV (RMSSD) reading for this client."
+      canEdit={canEdit}
+      errorMsg={errorMsg}
+      setErrorMsg={setErrorMsg}
+      onAdd={() => { setErrorMsg(null); setShowModal(true); }}
+    >
+      {showModal && (
+        <HrvModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </MetricPanel>
+  );
+}
+
+function HrvModal({
+  saving, onClose, onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: { timestamp: string; rmssd: number }) => void;
+}) {
+  const [when, setWhen] = useState(nowLocalDatetime());
+  const [rmssd, setRmssd] = useState("");
+
+  const canSave = !!when && rmssd.trim() !== "";
+  const handleSubmit = () => {
+    if (!canSave) return;
+    onSubmit({ timestamp: new Date(when).toISOString(), rmssd: parseFloat(rmssd) });
+  };
+
+  return (
+    <Modal title="Add HRV Reading" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date &amp; Time *</label>
+          <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="kairos-input w-full" />
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">RMSSD (ms) *</label>
+          <input type="number" step="any" min={0} value={rmssd} onChange={(e) => setRmssd(e.target.value)} placeholder="e.g. 45" className="kairos-input w-full" />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!canSave || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Reading"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Blood Pressure (coach.metrics.createBloodPressure) ─────────
+
+function BloodPressureManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.metrics.createBloodPressure.useMutation({
+    onSuccess: () => {
+      utils.coach.clients.getClientHealthData.invalidate();
+      utils.coach.clients.getDetail.invalidate();
+      setShowModal(false); setErrorMsg(null);
+    },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <MetricPanel
+      icon={<Zap size={16} />}
+      title="Add Blood Pressure"
+      addLabel="Add Reading"
+      description="Manually log a blood pressure reading for this client."
+      canEdit={canEdit}
+      errorMsg={errorMsg}
+      setErrorMsg={setErrorMsg}
+      onAdd={() => { setErrorMsg(null); setShowModal(true); }}
+    >
+      {showModal && (
+        <BloodPressureModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </MetricPanel>
+  );
+}
+
+function BloodPressureModal({
+  saving, onClose, onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: {
+    date: string; systolic: number; diastolic: number;
+    pulse?: number; position?: string; arm?: string; notes?: string;
+  }) => void;
+}) {
+  const [date, setDate] = useState(todayISO());
+  const [systolic, setSystolic] = useState("");
+  const [diastolic, setDiastolic] = useState("");
+  const [pulse, setPulse] = useState("");
+  const [position, setPosition] = useState("");
+  const [arm, setArm] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const canSave = !!date && systolic.trim() !== "" && diastolic.trim() !== "";
+  const handleSubmit = () => {
+    if (!canSave) return;
+    onSubmit({
+      date,
+      systolic: parseInt(systolic, 10),
+      diastolic: parseInt(diastolic, 10),
+      pulse: pulse.trim() ? parseInt(pulse, 10) : undefined,
+      position: position.trim() || undefined,
+      arm: arm.trim() || undefined,
+      notes: notes.trim() || undefined,
+    });
+  };
+
+  return (
+    <Modal title="Add Blood Pressure" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Systolic *</label>
+            <input type="number" min={0} value={systolic} onChange={(e) => setSystolic(e.target.value)} placeholder="120" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Diastolic *</label>
+            <input type="number" min={0} value={diastolic} onChange={(e) => setDiastolic(e.target.value)} placeholder="80" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Pulse</label>
+            <input type="number" min={0} value={pulse} onChange={(e) => setPulse(e.target.value)} placeholder="bpm" className="kairos-input w-full" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Position</label>
+            <select value={position} onChange={(e) => setPosition(e.target.value)} className="kairos-input w-full">
+              <option value="">—</option>
+              <option value="sitting">Sitting</option>
+              <option value="standing">Standing</option>
+              <option value="lying">Lying</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Arm</label>
+            <select value={arm} onChange={(e) => setArm(e.target.value)} className="kairos-input w-full">
+              <option value="">—</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context..." className="kairos-input w-full h-16 resize-none" />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!canSave || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Reading"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Body Measurement (coach.metrics.createBodyMeasurement) ─────
+
+function BodyMeasurementManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.metrics.createBodyMeasurement.useMutation({
+    onSuccess: () => {
+      utils.coach.clients.getClientHealthData.invalidate();
+      utils.coach.clients.getDetail.invalidate();
+      setShowModal(false); setErrorMsg(null);
+    },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <MetricPanel
+      icon={<Scale size={16} />}
+      title="Add Body Measurement"
+      addLabel="Add Measurement"
+      description="Manually log body measurements for this client."
+      canEdit={canEdit}
+      errorMsg={errorMsg}
+      setErrorMsg={setErrorMsg}
+      onAdd={() => { setErrorMsg(null); setShowModal(true); }}
+    >
+      {showModal && (
+        <BodyMeasurementModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </MetricPanel>
+  );
+}
+
+function BodyMeasurementModal({
+  saving, onClose, onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: {
+    date: string; weightLbs?: number; bodyFatPct?: number; waistInches?: number;
+    chestInches?: number; hipsInches?: number; rightBicepInches?: number; leftBicepInches?: number;
+    rightThighInches?: number; leftThighInches?: number; rightCalfInches?: number; leftCalfInches?: number;
+    neckInches?: number; shouldersInches?: number; notes?: string;
+  }) => void;
+}) {
+  const [date, setDate] = useState(todayISO());
+  const [weight, setWeight] = useState("");
+  const [bodyFat, setBodyFat] = useState("");
+  const [waist, setWaist] = useState("");
+  const [chest, setChest] = useState("");
+  const [hips, setHips] = useState("");
+  const [rightBicep, setRightBicep] = useState("");
+  const [leftBicep, setLeftBicep] = useState("");
+  const [rightThigh, setRightThigh] = useState("");
+  const [leftThigh, setLeftThigh] = useState("");
+  const [rightCalf, setRightCalf] = useState("");
+  const [leftCalf, setLeftCalf] = useState("");
+  const [neck, setNeck] = useState("");
+  const [shoulders, setShoulders] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const num = (v: string): number | undefined => (v.trim() ? parseFloat(v) : undefined);
+
+  const handleSubmit = () => {
+    if (!date) return;
+    onSubmit({
+      date,
+      weightLbs: num(weight),
+      bodyFatPct: num(bodyFat),
+      waistInches: num(waist),
+      chestInches: num(chest),
+      hipsInches: num(hips),
+      rightBicepInches: num(rightBicep),
+      leftBicepInches: num(leftBicep),
+      rightThighInches: num(rightThigh),
+      leftThighInches: num(leftThigh),
+      rightCalfInches: num(rightCalf),
+      leftCalfInches: num(leftCalf),
+      neckInches: num(neck),
+      shouldersInches: num(shoulders),
+      notes: notes.trim() || undefined,
+    });
+  };
+
+  const circ: Array<[string, string, (v: string) => void]> = [
+    ["Waist", waist, setWaist],
+    ["Chest", chest, setChest],
+    ["Hips", hips, setHips],
+    ["Neck", neck, setNeck],
+    ["Shoulders", shoulders, setShoulders],
+    ["R Bicep", rightBicep, setRightBicep],
+    ["L Bicep", leftBicep, setLeftBicep],
+    ["R Thigh", rightThigh, setRightThigh],
+    ["L Thigh", leftThigh, setLeftThigh],
+    ["R Calf", rightCalf, setRightCalf],
+    ["L Calf", leftCalf, setLeftCalf],
+  ];
+
+  return (
+    <Modal title="Add Body Measurement" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Weight (lbs)</label>
+            <input type="number" step="any" min={0} value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="e.g. 180" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Body Fat %</label>
+            <input type="number" step="any" min={0} value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} placeholder="e.g. 18" className="kairos-input w-full" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Circumferences (inches, optional)</label>
+          <div className="grid grid-cols-3 gap-2">
+            {circ.map(([label, value, setter]) => (
+              <input
+                key={label}
+                type="number"
+                step="any"
+                min={0}
+                value={value}
+                onChange={(e) => setter(e.target.value)}
+                placeholder={label}
+                title={label}
+                className="kairos-input w-full py-1 text-xs"
+              />
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context..." className="kairos-input w-full h-16 resize-none" />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!date || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Measurement"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Activity (coach.metrics.createActivity) ────────────────────
+
+function ActivityManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.metrics.createActivity.useMutation({
+    onSuccess: () => {
+      utils.coach.clients.getClientHealthData.invalidate();
+      utils.coach.clients.getDetail.invalidate();
+      setShowModal(false); setErrorMsg(null);
+    },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <MetricPanel
+      icon={<Footprints size={16} />}
+      title="Add Activity Summary"
+      addLabel="Add Activity"
+      description="Manually log a daily activity summary for this client."
+      canEdit={canEdit}
+      errorMsg={errorMsg}
+      setErrorMsg={setErrorMsg}
+      onAdd={() => { setErrorMsg(null); setShowModal(true); }}
+    >
+      {showModal && (
+        <ActivityModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </MetricPanel>
+  );
+}
+
+function ActivityModal({
+  saving, onClose, onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: { date: string; steps?: number; caloriesActive?: number; exerciseMinutes?: number; standHours?: number }) => void;
+}) {
+  const [date, setDate] = useState(todayISO());
+  const [steps, setSteps] = useState("");
+  const [caloriesActive, setCaloriesActive] = useState("");
+  const [exerciseMinutes, setExerciseMinutes] = useState("");
+  const [standHours, setStandHours] = useState("");
+
+  const intOrUndef = (v: string): number | undefined => (v.trim() ? parseInt(v, 10) : undefined);
+
+  const handleSubmit = () => {
+    if (!date) return;
+    onSubmit({
+      date,
+      steps: intOrUndef(steps),
+      caloriesActive: intOrUndef(caloriesActive),
+      exerciseMinutes: intOrUndef(exerciseMinutes),
+      standHours: intOrUndef(standHours),
+    });
+  };
+
+  return (
+    <Modal title="Add Activity Summary" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Steps</label>
+            <input type="number" min={0} value={steps} onChange={(e) => setSteps(e.target.value)} placeholder="e.g. 8000" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Active Calories</label>
+            <input type="number" min={0} value={caloriesActive} onChange={(e) => setCaloriesActive(e.target.value)} placeholder="kcal" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Exercise Minutes</label>
+            <input type="number" min={0} value={exerciseMinutes} onChange={(e) => setExerciseMinutes(e.target.value)} placeholder="min" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Stand Hours</label>
+            <input type="number" min={0} value={standHours} onChange={(e) => setStandHours(e.target.value)} placeholder="hrs" className="kairos-input w-full" />
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!date || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Activity"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Health Goal (coach.metrics.createGoal) ─────────────────────
+
+type GoalCategory = "glucose" | "sleep" | "weight" | "body_fat" | "activity" | "nutrition" | "supplements" | "fasting" | "labs" | "custom";
+type GoalDirection = "increase" | "decrease" | "maintain" | "reach";
+type GoalTimeframe = "weekly" | "monthly" | "quarterly" | "yearly" | "open_ended";
+
+function GoalManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.metrics.createGoal.useMutation({
+    onSuccess: () => {
+      utils.coach.clients.getClientHealthData.invalidate();
+      utils.coach.clients.getDetail.invalidate();
+      setShowModal(false); setErrorMsg(null);
+    },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <MetricPanel
+      icon={<Target size={16} />}
+      title="Add Goal"
+      addLabel="Add Goal"
+      description="Set a health goal for this client."
+      canEdit={canEdit}
+      errorMsg={errorMsg}
+      setErrorMsg={setErrorMsg}
+      onAdd={() => { setErrorMsg(null); setShowModal(true); }}
+    >
+      {showModal && (
+        <GoalModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </MetricPanel>
+  );
+}
+
+function GoalModal({
+  saving, onClose, onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: {
+    category: GoalCategory; title: string; description?: string;
+    targetValue: number; targetUnit: string; targetDirection: GoalDirection;
+    startValue: number; currentValue: number; timeframe: GoalTimeframe;
+    startDate: string; targetDate?: string;
+  }) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState<GoalCategory>("custom");
+  const [targetDirection, setTargetDirection] = useState<GoalDirection>("decrease");
+  const [timeframe, setTimeframe] = useState<GoalTimeframe>("monthly");
+  const [targetValue, setTargetValue] = useState("");
+  const [targetUnit, setTargetUnit] = useState("");
+  const [startValue, setStartValue] = useState("");
+  const [currentValue, setCurrentValue] = useState("");
+  const [startDate, setStartDate] = useState(todayISO());
+  const [targetDate, setTargetDate] = useState("");
+  const [description, setDescription] = useState("");
+
+  const canSave =
+    !!title.trim() && !!targetUnit.trim() && !!startDate &&
+    targetValue.trim() !== "" && startValue.trim() !== "" && currentValue.trim() !== "";
+
+  const handleSubmit = () => {
+    if (!canSave) return;
+    onSubmit({
+      category,
+      title: title.trim(),
+      description: description.trim() || undefined,
+      targetValue: parseFloat(targetValue),
+      targetUnit: targetUnit.trim(),
+      targetDirection,
+      startValue: parseFloat(startValue),
+      currentValue: parseFloat(currentValue),
+      timeframe,
+      startDate,
+      targetDate: targetDate.trim() || undefined,
+    });
+  };
+
+  return (
+    <Modal title="Add Goal" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Title *</label>
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lower fasting glucose" className="kairos-input w-full" />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Category</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value as GoalCategory)} className="kairos-input w-full">
+              <option value="glucose">Glucose</option>
+              <option value="sleep">Sleep</option>
+              <option value="weight">Weight</option>
+              <option value="body_fat">Body Fat</option>
+              <option value="activity">Activity</option>
+              <option value="nutrition">Nutrition</option>
+              <option value="supplements">Supplements</option>
+              <option value="fasting">Fasting</option>
+              <option value="labs">Labs</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Direction</label>
+            <select value={targetDirection} onChange={(e) => setTargetDirection(e.target.value as GoalDirection)} className="kairos-input w-full">
+              <option value="increase">Increase</option>
+              <option value="decrease">Decrease</option>
+              <option value="maintain">Maintain</option>
+              <option value="reach">Reach</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Timeframe</label>
+            <select value={timeframe} onChange={(e) => setTimeframe(e.target.value as GoalTimeframe)} className="kairos-input w-full">
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="yearly">Yearly</option>
+              <option value="open_ended">Open-ended</option>
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Target Value *</label>
+            <input type="number" step="any" value={targetValue} onChange={(e) => setTargetValue(e.target.value)} placeholder="e.g. 90" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Target Unit *</label>
+            <input type="text" value={targetUnit} onChange={(e) => setTargetUnit(e.target.value)} placeholder="e.g. mg/dL" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Start Value *</label>
+            <input type="number" step="any" value={startValue} onChange={(e) => setStartValue(e.target.value)} placeholder="e.g. 110" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Current Value *</label>
+            <input type="number" step="any" value={currentValue} onChange={(e) => setCurrentValue(e.target.value)} placeholder="e.g. 105" className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Start Date *</label>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Target Date</label>
+            <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="kairos-input w-full" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Description</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Context, plan, rationale..." className="kairos-input w-full h-16 resize-none" />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!canSave || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Goal"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Fasting (coach.metrics.createFasting) ──────────────────────
+
+function FastingManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.metrics.createFasting.useMutation({
+    onSuccess: () => {
+      utils.coach.clients.getClientHealthData.invalidate();
+      utils.coach.clients.getDetail.invalidate();
+      setShowModal(false); setErrorMsg(null);
+    },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <MetricPanel
+      icon={<Timer size={16} />}
+      title="Add Fasting Log"
+      addLabel="Add Fast"
+      description="Manually log a fasting window for this client."
+      canEdit={canEdit}
+      errorMsg={errorMsg}
+      setErrorMsg={setErrorMsg}
+      onAdd={() => { setErrorMsg(null); setShowModal(true); }}
+    >
+      {showModal && (
+        <FastingModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </MetricPanel>
+  );
+}
+
+function FastingModal({
+  saving, onClose, onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: { date: string; startedAt?: string; endedAt?: string; completed?: boolean }) => void;
+}) {
+  const [date, setDate] = useState(todayISO());
+  const [startedAt, setStartedAt] = useState("");
+  const [endedAt, setEndedAt] = useState("");
+  const [completed, setCompleted] = useState(false);
+
+  const handleSubmit = () => {
+    if (!date) return;
+    onSubmit({
+      date,
+      startedAt: startedAt.trim() ? new Date(startedAt).toISOString() : undefined,
+      endedAt: endedAt.trim() ? new Date(endedAt).toISOString() : undefined,
+      completed,
+    });
+  };
+
+  return (
+    <Modal title="Add Fasting Log" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Started At</label>
+            <input type="datetime-local" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} className="kairos-input w-full" />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Ended At</label>
+            <input type="datetime-local" value={endedAt} onChange={(e) => setEndedAt(e.target.value)} className="kairos-input w-full" />
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-gray-300">
+          <input type="checkbox" checked={completed} onChange={(e) => setCompleted(e.target.checked)} className="accent-kairos-gold" />
+          Completed
+        </label>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!date || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Fast"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Daily Check-in (coach.metrics.createCheckin — upsert) ──────
+
+function CheckinManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
+  const utils = trpc.useUtils();
+  const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const createMutation = trpc.coach.metrics.createCheckin.useMutation({
+    onSuccess: () => {
+      utils.coach.clients.getClientHealthData.invalidate();
+      utils.coach.clients.getDetail.invalidate();
+      setShowModal(false); setErrorMsg(null);
+    },
+    onError: (e) => setErrorMsg(e.message),
+  });
+
+  return (
+    <MetricPanel
+      icon={<ClipboardList size={16} />}
+      title="Add Check-in"
+      addLabel="Add Check-in"
+      description="Log a daily check-in for this client. Existing entries for the same date are updated."
+      canEdit={canEdit}
+      errorMsg={errorMsg}
+      setErrorMsg={setErrorMsg}
+      onAdd={() => { setErrorMsg(null); setShowModal(true); }}
+    >
+      {showModal && (
+        <CheckinModal
+          saving={createMutation.isPending}
+          onClose={() => setShowModal(false)}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+    </MetricPanel>
+  );
+}
+
+function CheckinModal({
+  saving, onClose, onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (payload: {
+    date: string; weight?: number; sleepHours?: number; sleepQuality?: number; hrvScore?: number;
+    readinessScore?: number; steps?: number; proteinG?: number; carbsG?: number; fatG?: number;
+    fiberG?: number; totalCalories?: number; waterOz?: number; cardioMinutes?: number;
+  }) => void;
+}) {
+  const [date, setDate] = useState(todayISO());
+  const [weight, setWeight] = useState("");
+  const [sleepHours, setSleepHours] = useState("");
+  const [sleepQuality, setSleepQuality] = useState("");
+  const [hrvScore, setHrvScore] = useState("");
+  const [readinessScore, setReadinessScore] = useState("");
+  const [steps, setSteps] = useState("");
+  const [cardioMinutes, setCardioMinutes] = useState("");
+  const [proteinG, setProteinG] = useState("");
+  const [carbsG, setCarbsG] = useState("");
+  const [fatG, setFatG] = useState("");
+  const [fiberG, setFiberG] = useState("");
+  const [totalCalories, setTotalCalories] = useState("");
+  const [waterOz, setWaterOz] = useState("");
+
+  const num = (v: string): number | undefined => (v.trim() ? parseFloat(v) : undefined);
+  const int = (v: string): number | undefined => (v.trim() ? parseInt(v, 10) : undefined);
+
+  const handleSubmit = () => {
+    if (!date) return;
+    onSubmit({
+      date,
+      weight: num(weight),
+      sleepHours: num(sleepHours),
+      sleepQuality: int(sleepQuality),
+      hrvScore: num(hrvScore),
+      readinessScore: int(readinessScore),
+      steps: int(steps),
+      cardioMinutes: int(cardioMinutes),
+      proteinG: num(proteinG),
+      carbsG: num(carbsG),
+      fatG: num(fatG),
+      fiberG: num(fiberG),
+      totalCalories: num(totalCalories),
+      waterOz: num(waterOz),
+    });
+  };
+
+  return (
+    <Modal title="Add Check-in" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Vitals (optional)</label>
+          <div className="grid grid-cols-3 gap-2">
+            <input type="number" step="any" min={0} value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Weight" title="Weight (lbs)" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" step="any" min={0} value={sleepHours} onChange={(e) => setSleepHours(e.target.value)} placeholder="Sleep h" title="Sleep hours" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" min={0} value={sleepQuality} onChange={(e) => setSleepQuality(e.target.value)} placeholder="Sleep Q" title="Sleep quality" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" step="any" min={0} value={hrvScore} onChange={(e) => setHrvScore(e.target.value)} placeholder="HRV" title="HRV score" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" min={0} value={readinessScore} onChange={(e) => setReadinessScore(e.target.value)} placeholder="Readiness" title="Readiness score" className="kairos-input w-full py-1 text-xs" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Nutrition (optional)</label>
+          <div className="grid grid-cols-3 gap-2">
+            <input type="number" step="any" min={0} value={proteinG} onChange={(e) => setProteinG(e.target.value)} placeholder="Protein g" title="Protein (g)" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" step="any" min={0} value={carbsG} onChange={(e) => setCarbsG(e.target.value)} placeholder="Carbs g" title="Carbs (g)" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" step="any" min={0} value={fatG} onChange={(e) => setFatG(e.target.value)} placeholder="Fat g" title="Fat (g)" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" step="any" min={0} value={fiberG} onChange={(e) => setFiberG(e.target.value)} placeholder="Fiber g" title="Fiber (g)" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" step="any" min={0} value={totalCalories} onChange={(e) => setTotalCalories(e.target.value)} placeholder="kcal" title="Total calories" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" step="any" min={0} value={waterOz} onChange={(e) => setWaterOz(e.target.value)} placeholder="Water oz" title="Water (oz)" className="kairos-input w-full py-1 text-xs" />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Activity (optional)</label>
+          <div className="grid grid-cols-2 gap-2">
+            <input type="number" min={0} value={steps} onChange={(e) => setSteps(e.target.value)} placeholder="Steps" title="Steps" className="kairos-input w-full py-1 text-xs" />
+            <input type="number" min={0} value={cardioMinutes} onChange={(e) => setCardioMinutes(e.target.value)} placeholder="Cardio min" title="Cardio minutes" className="kairos-input w-full py-1 text-xs" />
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!date || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Saving..." : "Save Check-in"}
         </button>
       </div>
     </Modal>

@@ -82,7 +82,10 @@ export default function PeptideCalcPage() {
     const peptideMcg = vialUnit === "mg" ? pep * 1000 : pep; // IU treated as mcg-equivalent
     const concentrationPerMl = peptideMcg / bac; // mcg per mL
     const drawMl = dose / concentrationPerMl; // mL to draw
-    const drawUnits = drawMl * syringeSize; // units on the syringe
+    // Insulin syringes are ALL U-100 (100 units per mL) regardless of barrel
+    // capacity — the 30u/50u/100u size only changes the max markings, not the
+    // units-per-mL. So draw units are always mL × 100.
+    const drawUnits = drawMl * 100; // units on the syringe (U-100)
     const usesPerVial = Math.floor(peptideMcg / dose);
 
     return {
@@ -98,7 +101,8 @@ export default function PeptideCalcPage() {
     : `${calc.drawMl} mL`;
 
   // ── Syringe ruler rendering ─────────────────────────────────────
-  const syringePercent = Math.min((calc.drawUnits / syringeSize) * 100, 100);
+  // syringeSize (30/50/100) is only the ruler/fill-bar maximum, not a unit factor.
+  const syringePercent = Math.max(0, Math.min((calc.drawUnits / syringeSize) * 100, 100));
 
   // ── Actions ─────────────────────────────────────────────────────
   function handleReset() {

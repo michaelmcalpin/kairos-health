@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { DEFAULT_PREFERENCES } from "@/lib/notifications/types";
+import type { NotificationCategory, ChannelPreferences } from "@/lib/notifications/types";
 import {
   Settings,
   User,
@@ -223,12 +225,18 @@ export default function SettingsPage() {
   // Hydrate notifications from database on load
   useEffect(() => {
     if (settingsData?.notificationPreferences?.categories) {
-      const categories = settingsData.notificationPreferences.categories;
+      // Prefs are stored keyed by CATEGORY (the shape the delivery engine reads).
+      // Derive the coarse UI toggles from a representative category: health_alert
+      // covers email/push/SMS, and weekly_report.email drives the weekly digest.
+      const categories = settingsData.notificationPreferences.categories as
+        Partial<Record<NotificationCategory, ChannelPreferences>>;
+      const alerts = categories.health_alert;
+      const digest = categories.weekly_report;
       setNotifications({
-        emailAlerts: categories.email?.email ?? true,
-        pushNotifications: categories.push?.push ?? true,
-        smsAlerts: categories.sms?.sms ?? false,
-        weeklyDigest: categories.email?.email ?? true,
+        emailAlerts: alerts?.email ?? true,
+        pushNotifications: alerts?.push ?? true,
+        smsAlerts: alerts?.sms ?? false,
+        weeklyDigest: digest?.email ?? true,
       });
     }
   }, [settingsData?.notificationPreferences]);
@@ -311,13 +319,32 @@ export default function SettingsPage() {
 
     // 5. Update notification preferences
     try {
-      await updateNotificationsMutation.mutateAsync({
-        categories: {
-          email: { in_app: notifications.emailAlerts, email: notifications.emailAlerts, push: false, sms: false },
-          push: { in_app: notifications.pushNotifications, email: false, push: notifications.pushNotifications, sms: false },
-          sms: { in_app: notifications.smsAlerts, email: false, push: false, sms: notifications.smsAlerts },
-        },
-      });
+      // The UI exposes coarse per-channel toggles (email / push / SMS) plus a
+      // weekly-digest switch, but the delivery engine (service.ts
+      // getEnabledChannels) reads prefs.categories keyed by CATEGORY
+      // (health_alert, appointment, …), each value being the enabled channels.
+      // Map the toggles onto that shape: gate each category's DEFAULT channels by
+      // the matching global toggle, so a category only emails/pushes/texts if it
+      // does by default AND the user left that channel on. Merge over
+      // existing/default prefs so unspecified keys are preserved (and the old,
+      // broken channel-keyed shape self-heals to defaults).
+      const existingCats = (settingsData?.notificationPreferences?.categories ??
+        {}) as Partial<Record<NotificationCategory, ChannelPreferences>>;
+      const categories = Object.fromEntries(
+        (Object.keys(DEFAULT_PREFERENCES.categories) as NotificationCategory[]).map((cat) => {
+          const def = { ...DEFAULT_PREFERENCES.categories[cat], ...existingCats[cat] };
+          return [cat, {
+            in_app: true, // in-app delivery is always on
+            email: def.email && notifications.emailAlerts,
+            push: def.push && notifications.pushNotifications,
+            sms: def.sms && notifications.smsAlerts,
+          } satisfies ChannelPreferences];
+        })
+      ) as Record<NotificationCategory, ChannelPreferences>;
+      // "Weekly Digest" specifically governs the weekly_report category's email.
+      categories.weekly_report.email = notifications.weeklyDigest;
+
+      await updateNotificationsMutation.mutateAsync({ categories });
     } catch { errors.push("notifications"); }
 
     settingsQuery.refetch();

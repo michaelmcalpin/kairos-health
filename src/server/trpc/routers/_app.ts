@@ -49,6 +49,7 @@ import { coachMarketplaceRouter } from "./coach/marketplace";
 import { coachProtocolsRouter } from "./coach/protocols";
 import { coachDataRouter } from "./coach/data";
 import { coachPlansRouter } from "./coach/plans";
+import { coachMetricsRouter } from "./coach/metrics";
 
 // Admin routers
 import { adminDashboardRouter } from "./admin/dashboard";
@@ -114,6 +115,7 @@ export const appRouter = router({
     protocols: coachProtocolsRouter,
     data: coachDataRouter,
     plans: coachPlansRouter,
+    metrics: coachMetricsRouter,
     sharedAccess: coachSharedAccessRouter,
   }),
   company: router({
