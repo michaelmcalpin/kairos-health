@@ -19,6 +19,7 @@ import {
   STATUS_COLORS, ALERT_PRIORITY_COLORS, formatRelativeTime,
 } from "@/lib/coach-clients/types";
 import { trpc } from "@/lib/trpc";
+import ExercisePicker from "@/components/coach/ExercisePicker";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -2595,6 +2596,7 @@ type SessionDraft = { name: string; exercises: ExerciseDraft[] };
 function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const listQuery = trpc.coach.plans.listTrainingPrograms.useQuery(
@@ -2611,6 +2613,21 @@ function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEd
     onSuccess: () => invalidate(),
     onError: (e) => setErrorMsg(e.message),
   });
+  const assignTemplateMutation = trpc.coach.plans.assignTemplateToClients.useMutation({
+    onSuccess: (res) => {
+      invalidate();
+      setShowTemplateModal(false);
+      const skippedReasons = res.skipped.map((s) => s.reason).join(", ");
+      if (res.assigned === 0 && skippedReasons) {
+        setErrorMsg(`Program not assigned — ${skippedReasons.replace(/_/g, " ")}.`);
+      } else if (skippedReasons) {
+        setErrorMsg(`Program assigned. Skipped: ${skippedReasons.replace(/_/g, " ")}.`);
+      } else {
+        setErrorMsg(null);
+      }
+    },
+    onError: (e) => setErrorMsg(e.message),
+  });
 
   const programs = listQuery.data ?? [];
 
@@ -2621,12 +2638,20 @@ function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEd
           <Dumbbell size={16} /> Training Programs
         </h2>
         {canEdit && (
-          <button
-            onClick={() => { setErrorMsg(null); setShowModal(true); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
-          >
-            <Plus size={12} /> Create / Assign Program
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => { setErrorMsg(null); setShowTemplateModal(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+            >
+              <ClipboardList size={12} /> Apply Template
+            </button>
+            <button
+              onClick={() => { setErrorMsg(null); setShowModal(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+            >
+              <Plus size={12} /> Create / Assign Program
+            </button>
+          </div>
         )}
       </div>
 
@@ -2686,6 +2711,14 @@ function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEd
           saving={createMutation.isPending}
           onClose={() => setShowModal(false)}
           onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+
+      {showTemplateModal && (
+        <ApplyTemplateModal
+          saving={assignTemplateMutation.isPending}
+          onClose={() => setShowTemplateModal(false)}
+          onSubmit={(programId, startDate) => assignTemplateMutation.mutate({ programId, clientIds: [clientId], startDate })}
         />
       )}
     </div>
@@ -2795,7 +2828,7 @@ function TrainingProgramModal({
                 <div className="space-y-1.5">
                   {sess.exercises.map((ex, ei) => (
                     <div key={ei} className="flex items-center gap-1.5">
-                      <input type="text" value={ex.name} onChange={(e) => updateExercise(si, ei, "name", e.target.value)} placeholder="Exercise" className="kairos-input flex-1 py-1 text-xs" />
+                      <ExercisePicker value={ex.name} onChange={(name) => updateExercise(si, ei, "name", name)} className="flex-1" placeholder="Exercise" />
                       <input type="number" min={1} value={ex.sets} onChange={(e) => updateExercise(si, ei, "sets", e.target.value)} placeholder="Sets" title="Sets" className="kairos-input w-14 py-1 text-xs" />
                       <input type="text" value={ex.reps} onChange={(e) => updateExercise(si, ei, "reps", e.target.value)} placeholder="Reps" title="Reps" className="kairos-input w-16 py-1 text-xs" />
                       {sess.exercises.length > 1 && (
@@ -2814,6 +2847,80 @@ function TrainingProgramModal({
         <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
         <button onClick={handleSubmit} disabled={!name.trim() || !startDate || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
           {saving ? "Saving..." : "Create & Assign"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/** Apply one of the coach's saved workout templates to this client. */
+function ApplyTemplateModal({
+  saving,
+  onClose,
+  onSubmit,
+}: {
+  saving: boolean;
+  onClose: () => void;
+  onSubmit: (programId: string, startDate: string) => void;
+}) {
+  const templatesQuery = trpc.coach.plans.listWorkoutTemplates.useQuery(undefined, {
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState(todayISO());
+
+  const templates = templatesQuery.data ?? [];
+
+  const handleSubmit = () => {
+    if (!selectedId || !startDate) return;
+    onSubmit(selectedId, startDate);
+  };
+
+  return (
+    <Modal title="Apply Saved Program" onClose={onClose}>
+      <div className="space-y-3 mb-4">
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Program</label>
+          {templatesQuery.isLoading ? (
+            <p className="text-xs text-gray-500 text-center py-6">Loading programs...</p>
+          ) : templates.length === 0 ? (
+            <p className="text-xs text-gray-500 text-center py-6">No saved programs yet — create one on the Programs page.</p>
+          ) : (
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {templates.map((t) => {
+                const isSelected = t.id === selectedId;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setSelectedId(t.id)}
+                    className={`w-full text-left p-2.5 rounded-lg border transition-colors ${
+                      isSelected
+                        ? "border-kairos-gold/50 bg-kairos-gold/10"
+                        : "border-gray-800 bg-gray-800/20 hover:bg-gray-800/40"
+                    }`}
+                  >
+                    <p className="text-sm text-white font-medium">{t.name}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      {t.sessionCount} day{t.sessionCount === 1 ? "" : "s"} · {t.exerciseCount} exercise{t.exerciseCount === 1 ? "" : "s"}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Start Date *</label>
+          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="kairos-input w-full" />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
+        <button onClick={handleSubmit} disabled={!selectedId || !startDate || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
+          {saving ? "Applying..." : "Apply Template"}
         </button>
       </div>
     </Modal>

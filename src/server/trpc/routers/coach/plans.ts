@@ -64,6 +64,22 @@ const sessionInput = z.object({
   exercises: z.array(exerciseInput),
 });
 
+// Reusable workout-template schemas. Templates are trainer-owned
+// workoutPrograms with NO client assignment; exercises carry muscleGroup.
+const templateExerciseInput = z.object({
+  name: z.string().min(1).max(255),
+  muscleGroup: z.string().optional(),
+  sets: z.number(),
+  reps: z.string(),
+  tempo: z.string().optional(),
+  restSeconds: z.number().optional(),
+});
+
+const templateSessionInput = z.object({
+  name: z.string().max(255).optional(),
+  exercises: z.array(templateExerciseInput),
+});
+
 const macroTargetsInput = z.object({
   calories: z.number(),
   protein: z.number(),
@@ -210,6 +226,263 @@ export const coachPlansRouter = router({
         .returning();
 
       return updated;
+    }),
+
+  // ═══════════════ WORKOUT TEMPLATES (exercise) ═══════════════
+  // Reusable routines a coach builds once and applies to one or many clients.
+  // A template is a trainer-owned workoutPrograms row with sessions but no
+  // clientWorkoutAssignments until explicitly assigned.
+
+  /**
+   * Create a reusable workout template (no client assignment).
+   */
+  createWorkoutTemplate: trainerProcedure
+    .input(z.object({
+      name: z.string().min(1).max(255),
+      description: z.string().optional(),
+      durationWeeks: z.number().optional(),
+      sessions: z.array(templateSessionInput),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [program] = await ctx.db.insert(workoutPrograms).values({
+        trainerId: ctx.dbUserId,
+        isAiGenerated: false,
+        name: input.name,
+        description: input.description ?? null,
+        durationWeeks: input.durationWeeks ?? null,
+      }).returning();
+
+      if (input.sessions.length > 0) {
+        await ctx.db.insert(workoutSessions).values(
+          input.sessions.map((s, i) => ({
+            programId: program.id,
+            dayNumber: i + 1,
+            name: s.name ?? null,
+            exercises: s.exercises.map((e) => ({
+              exerciseId: "",
+              name: e.name,
+              muscleGroup: e.muscleGroup ?? "",
+              sets: e.sets,
+              reps: e.reps,
+              tempo: e.tempo ?? "",
+              restSeconds: e.restSeconds ?? 0,
+            })),
+          }))
+        );
+      }
+
+      return { id: program.id };
+    }),
+
+  /**
+   * List all of this coach's workout templates with aggregate counts.
+   * Batched — one query for programs, one for sessions, one for assignments.
+   */
+  listWorkoutTemplates: trainerProcedure.query(async ({ ctx }) => {
+    const programs = await ctx.db.query.workoutPrograms.findMany({
+      where: eq(workoutPrograms.trainerId, ctx.dbUserId),
+      orderBy: desc(workoutPrograms.createdAt),
+    });
+    if (programs.length === 0) return [];
+
+    const programIds = programs.map((p) => p.id);
+    const [sessions, assignments] = await Promise.all([
+      ctx.db.query.workoutSessions.findMany({
+        where: inArray(workoutSessions.programId, programIds),
+      }),
+      ctx.db.query.clientWorkoutAssignments.findMany({
+        where: inArray(clientWorkoutAssignments.programId, programIds),
+      }),
+    ]);
+
+    const sessionCount = new Map<string, number>();
+    const exerciseCount = new Map<string, number>();
+    for (const s of sessions) {
+      sessionCount.set(s.programId, (sessionCount.get(s.programId) ?? 0) + 1);
+      exerciseCount.set(s.programId, (exerciseCount.get(s.programId) ?? 0) + (s.exercises?.length ?? 0));
+    }
+    const assignedCount = new Map<string, number>();
+    for (const a of assignments) {
+      assignedCount.set(a.programId, (assignedCount.get(a.programId) ?? 0) + 1);
+    }
+
+    return programs.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      durationWeeks: p.durationWeeks,
+      createdAt: p.createdAt.toISOString(),
+      sessionCount: sessionCount.get(p.id) ?? 0,
+      exerciseCount: exerciseCount.get(p.id) ?? 0,
+      assignedClientCount: assignedCount.get(p.id) ?? 0,
+    }));
+  }),
+
+  /**
+   * Get a single template (owned by this coach) with full sessions/exercises.
+   */
+  getWorkoutTemplate: trainerProcedure
+    .input(z.object({ programId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const program = await ctx.db.query.workoutPrograms.findFirst({
+        where: and(
+          eq(workoutPrograms.id, input.programId),
+          eq(workoutPrograms.trainerId, ctx.dbUserId),
+        ),
+      });
+      if (!program) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+
+      const sessions = await ctx.db.query.workoutSessions.findMany({
+        where: eq(workoutSessions.programId, program.id),
+        orderBy: workoutSessions.dayNumber,
+      });
+
+      return {
+        id: program.id,
+        name: program.name,
+        description: program.description,
+        durationWeeks: program.durationWeeks,
+        isAiGenerated: program.isAiGenerated ?? false,
+        createdAt: program.createdAt.toISOString(),
+        sessions: sessions.map((s) => ({
+          id: s.id,
+          dayNumber: s.dayNumber,
+          name: s.name,
+          exercises: s.exercises ?? [],
+        })),
+      };
+    }),
+
+  /**
+   * Update a template. When `sessions` is provided the program's sessions are
+   * fully replaced (deleted, then re-inserted with recomputed dayNumbers).
+   */
+  updateWorkoutTemplate: trainerProcedure
+    .input(z.object({
+      programId: z.string(),
+      name: z.string().min(1).max(255).optional(),
+      description: z.string().optional(),
+      durationWeeks: z.number().optional(),
+      sessions: z.array(templateSessionInput).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const program = await ctx.db.query.workoutPrograms.findFirst({
+        where: and(
+          eq(workoutPrograms.id, input.programId),
+          eq(workoutPrograms.trainerId, ctx.dbUserId),
+        ),
+      });
+      if (!program) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+
+      const updates: Partial<typeof workoutPrograms.$inferInsert> = {};
+      if (input.name !== undefined) updates.name = input.name;
+      if (input.description !== undefined) updates.description = input.description;
+      if (input.durationWeeks !== undefined) updates.durationWeeks = input.durationWeeks;
+      if (Object.keys(updates).length > 0) {
+        await ctx.db.update(workoutPrograms).set(updates).where(eq(workoutPrograms.id, program.id));
+      }
+
+      if (input.sessions !== undefined) {
+        await ctx.db.delete(workoutSessions).where(eq(workoutSessions.programId, program.id));
+        if (input.sessions.length > 0) {
+          await ctx.db.insert(workoutSessions).values(
+            input.sessions.map((s, i) => ({
+              programId: program.id,
+              dayNumber: i + 1,
+              name: s.name ?? null,
+              exercises: s.exercises.map((e) => ({
+                exerciseId: "",
+                name: e.name,
+                muscleGroup: e.muscleGroup ?? "",
+                sets: e.sets,
+                reps: e.reps,
+                tempo: e.tempo ?? "",
+                restSeconds: e.restSeconds ?? 0,
+              })),
+            }))
+          );
+        }
+      }
+
+      return { id: program.id };
+    }),
+
+  /**
+   * Delete a template and everything hanging off it. Order matters for FKs:
+   * sessions → assignments → program.
+   */
+  deleteWorkoutTemplate: trainerProcedure
+    .input(z.object({ programId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const program = await ctx.db.query.workoutPrograms.findFirst({
+        where: and(
+          eq(workoutPrograms.id, input.programId),
+          eq(workoutPrograms.trainerId, ctx.dbUserId),
+        ),
+      });
+      if (!program) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+
+      await ctx.db.delete(workoutSessions).where(eq(workoutSessions.programId, program.id));
+      await ctx.db.delete(clientWorkoutAssignments).where(eq(clientWorkoutAssignments.programId, program.id));
+      await ctx.db.delete(workoutPrograms).where(eq(workoutPrograms.id, program.id));
+
+      return { success: true };
+    }),
+
+  /**
+   * Apply a template to one or many clients. Clients the coach lacks exercise
+   * write access to, or who already have an active assignment of this program,
+   * are skipped (with a reason) rather than failing the whole batch.
+   */
+  assignTemplateToClients: trainerProcedure
+    .input(z.object({
+      programId: z.string(),
+      clientIds: z.array(z.string()).min(1),
+      startDate: z.string(), // date (YYYY-MM-DD)
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const program = await ctx.db.query.workoutPrograms.findFirst({
+        where: and(
+          eq(workoutPrograms.id, input.programId),
+          eq(workoutPrograms.trainerId, ctx.dbUserId),
+        ),
+      });
+      if (!program) throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+
+      let assigned = 0;
+      const skipped: Array<{ clientId: string; reason: string }> = [];
+
+      for (const clientId of input.clientIds) {
+        // Access guard per-client — collect failures instead of throwing.
+        try {
+          await verifyCoachClientAccess(ctx.db, ctx.dbUserId, clientId, "exercise", "write", ctx.userRole);
+        } catch {
+          skipped.push({ clientId, reason: "no_access" });
+          continue;
+        }
+
+        const existing = await ctx.db.query.clientWorkoutAssignments.findFirst({
+          where: and(
+            eq(clientWorkoutAssignments.clientId, clientId),
+            eq(clientWorkoutAssignments.programId, input.programId),
+            eq(clientWorkoutAssignments.status, "active"),
+          ),
+        });
+        if (existing) {
+          skipped.push({ clientId, reason: "already_assigned" });
+          continue;
+        }
+
+        await ctx.db.insert(clientWorkoutAssignments).values({
+          clientId,
+          programId: input.programId,
+          startDate: input.startDate,
+          status: "active",
+        });
+        assigned++;
+      }
+
+      return { assigned, skipped };
     }),
 
   // ═══════════════ MEAL PLANS (diet) ═══════════════

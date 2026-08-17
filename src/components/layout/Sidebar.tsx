@@ -323,6 +323,7 @@ export const trainerNavItems: NavItem[] = [
   { label: "Schedule", href: "/trainer/schedule", icon: <Calendar size={18} />, section: "Overview" },
   { label: "Follow-ups", href: "/trainer/followups", icon: <ClipboardList size={18} />, section: "Overview" },
   { label: "Clients", href: "/trainer/clients", icon: <Users size={18} />, section: "Clients" },
+  { label: "Programs", href: "/trainer/programs", icon: <Dumbbell size={18} />, section: "Clients" },
   { label: "Messages", href: "/trainer/messages", icon: <MessageCircle size={18} />, section: "Clients" },
   { label: "Metrics", href: "/trainer/metrics", icon: <TrendingUp size={18} />, section: "Clients" },
   { label: "Profile", href: "/trainer/profile", icon: <UserCircle size={18} />, section: "Business" },
