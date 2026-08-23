@@ -12,7 +12,6 @@ import {
   Plug,
   CalendarCheck,
   CalendarDays,
-  Mail,
   RefreshCw,
   X,
   AlertCircle,
@@ -354,9 +353,9 @@ export default function TrainerSettingsPage() {
           <h2 className="font-heading text-xl font-semibold text-white">Integrations</h2>
         </div>
         <p className="text-sm font-body text-kairos-silver-dark mb-6">
-          Connect your calendar so its busy times block booking conflicts, and client
-          emails (booking confirmations, protocol updates) are sent from your own
-          address. You can connect Google, Microsoft/Outlook, or both.
+          Connect your calendar so its busy times automatically block booking
+          conflicts and new bookings are added to your calendar. You can connect
+          Google, Microsoft/Outlook, or both.
         </p>
 
         <div className="space-y-3">
@@ -366,7 +365,6 @@ export default function TrainerSettingsPage() {
             );
             const connected = conn?.status === "connected";
             const email = conn?.email ?? undefined;
-            const canSendEmail = conn?.canSendEmail ?? false;
             // `configured` may be undefined while loading — only treat an explicit
             // `false` as "not configured on this server".
             const configured = calendarConnData?.configured[p.id];
@@ -411,21 +409,12 @@ export default function TrainerSettingsPage() {
                         </p>
                       )}
 
-                      {/* Capability chips (only meaningful when connected) */}
+                      {/* Capability chip (only meaningful when connected) */}
                       {connected && (
                         <div className="flex flex-wrap items-center gap-2 mt-2">
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30">
                             <CalendarCheck size={12} /> Calendar sync
                           </span>
-                          {canSendEmail ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30">
-                              <Mail size={12} /> Send email as you
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-600/20 text-kairos-silver-dark border border-kairos-border">
-                              <Mail size={12} /> Reconnect to enable sending email as you
-                            </span>
-                          )}
                         </div>
                       )}
 

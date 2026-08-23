@@ -25,12 +25,11 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const GOOGLE_FREEBUSY_URL = "https://www.googleapis.com/calendar/v3/freeBusy";
 
 const GOOGLE_SCOPES = [
+  // Calendar-only. We intentionally do NOT request gmail.send (a Google
+  // "restricted" scope that needs app verification): the app sends client
+  // emails via the system sender, not the coach's mailbox.
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/calendar.readonly",
-  // Send client-facing coach emails FROM the coach's own Gmail. This is a
-  // Google "sensitive/restricted" scope — see gmail.ts. Coaches who connected
-  // before this scope was added must reconnect to grant it.
-  "https://www.googleapis.com/auth/gmail.send",
 ].join(" ");
 
 // Refresh a bit before the actual expiry to avoid edge-of-expiry failures.

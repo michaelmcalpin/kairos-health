@@ -29,9 +29,9 @@ const MICROSOFT_SCOPES = [
   // Read the signed-in user's profile (to fetch the account email).
   "User.Read",
   // Read/write the coach's calendar (busy times + create events).
+  // Calendar-only — we do NOT request Mail.Send; client emails go via the
+  // system sender.
   "Calendars.ReadWrite",
-  // Send client-facing coach emails FROM the coach's own mailbox.
-  "Mail.Send",
 ].join(" ");
 
 // Refresh a bit before the actual expiry to avoid edge-of-expiry failures.
