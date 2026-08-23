@@ -492,7 +492,36 @@ async function applyWorkouts(
     active = { assignment, programId: program.id };
   }
 
-  const programId = active.programId;
+  let programId = active.programId;
+
+  // Workout programs can be shared templates (one program assigned to many
+  // clients via clientWorkoutAssignments). Editing sessions in place would
+  // overwrite every other client on that template. If this program is assigned
+  // to more than one client, fork it into a fresh per-client copy and repoint
+  // THIS client's active assignment to the copy before rewriting sessions.
+  const assignmentsForProgram = await db.query.clientWorkoutAssignments.findMany({
+    where: eq(clientWorkoutAssignments.programId, programId),
+  });
+  if (assignmentsForProgram.length > 1) {
+    const src = await db.query.workoutPrograms.findFirst({
+      where: eq(workoutPrograms.id, programId),
+    });
+    const [copy] = await db
+      .insert(workoutPrograms)
+      .values({
+        trainerId: coachId,
+        name: src?.name ?? "Training Program",
+        description: src?.description ?? null,
+        durationWeeks: src?.durationWeeks ?? null,
+        isAiGenerated: false,
+      })
+      .returning();
+    await db
+      .update(clientWorkoutAssignments)
+      .set({ programId: copy.id })
+      .where(eq(clientWorkoutAssignments.id, active.assignment.id));
+    programId = copy.id;
+  }
 
   // Group rows by day (preserving first-seen order); one session per distinct day.
   const dayOrder: string[] = [];
@@ -658,7 +687,9 @@ export const coachProtocolBulkRouter = router({
         await dispatchNotification(ctx.db, {
           userId: input.clientId,
           category: "protocol_update",
-          priority: "normal",
+          // "high" so SMS is reachable for clients who opt in (SMS only fires
+          // at high/urgent); in-app/email/push still respect their prefs.
+          priority: "high",
           title: `Your coach updated your ${label}`,
           body: summary,
           actionUrl: CLIENT_ROUTES[input.type],
