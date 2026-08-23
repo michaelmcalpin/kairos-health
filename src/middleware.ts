@@ -18,6 +18,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/trpc(.*)",
   "/api/chat(.*)",
   "/api/upload(.*)",
+  "/api/protocol-import(.*)",
   "/api/phi-file(.*)",
   "/api/callbacks(.*)",
   // Google Calendar OAuth routes perform their own Clerk auth() inside the

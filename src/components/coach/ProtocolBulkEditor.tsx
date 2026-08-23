@@ -6,6 +6,8 @@ import {
   Trash2,
   ClipboardPaste,
   Upload,
+  Download,
+  Sparkles,
   Eraser,
   Eye,
   Send,
@@ -39,7 +41,62 @@ const PRIMARY_FIELDS: Record<ProtocolType, string[]> = {
   workouts: ["day", "exercise"],
 };
 
+// One filled example row per type, keyed by column key — shows the coach the
+// expected format inside the downloadable CSV template.
+const SAMPLE_ROWS: Record<ProtocolType, Record<string, string>> = {
+  supplements: {
+    name: "Vitamin D3",
+    dosage: "5000",
+    unit: "IU",
+    frequency: "daily",
+    timeOfDay: "AM with food",
+    notes: "Take with a fat source",
+  },
+  peptides: {
+    name: "BPC-157",
+    dosage: "250",
+    unit: "mcg",
+    frequency: "daily",
+    route: "Subcutaneous",
+    notes: "5 days on, 2 days off",
+  },
+  diet: {
+    meal: "Breakfast",
+    items: "3 eggs, oats, blueberries",
+    calories: "450",
+    protein: "30",
+    carbs: "40",
+    fat: "15",
+  },
+  workouts: {
+    day: "Monday",
+    exercise: "Back Squat",
+    muscleGroup: "Legs",
+    sets: "4",
+    reps: "8-10",
+    rest: "90",
+    notes: "Warm up thoroughly first",
+  },
+};
+
 // ─── Helpers ────────────────────────────────────────────────
+/** Quote a CSV field when it contains a comma, quote, or newline. */
+function csvEscape(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+/** Coerce AI/JSON rows (mixed string|number|null) into the grid's string cells. */
+function typedRowsToEditRows(columns: Column[], rows: GridRow[]): EditRow[] {
+  return rows.map((row) => {
+    const r: EditRow = emptyRow(columns);
+    for (const c of columns) {
+      const v = row?.[c.key];
+      r[c.key] = v === null || v === undefined ? "" : String(v);
+    }
+    return r;
+  });
+}
+
 function emptyRow(columns: Column[]): EditRow {
   const r: EditRow = {};
   for (const c of columns) r[c.key] = "";
@@ -200,12 +257,15 @@ export default function ProtocolBulkEditor({
   const [pasteText, setPasteText] = useState("");
   const [pendingImport, setPendingImport] = useState<{ rows: EditRow[]; label: string } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [aiNotice, setAiNotice] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const [preview, setPreview] = useState<string[] | null>(null);
   const [published, setPublished] = useState<{ summary: string; bullets: string[]; itemCount: number } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const aiInputRef = useRef<HTMLInputElement | null>(null);
 
   // Re-seed whenever the incoming rows identity changes (e.g. after a publish refetch).
   useEffect(() => {
@@ -301,6 +361,55 @@ export default function ProtocolBulkEditor({
     }
   };
 
+  // ── Download a CSV template (header keys + one sample row) ──
+  const downloadTemplate = () => {
+    const header = columns.map((c) => csvEscape(c.key)).join(",");
+    const sample = SAMPLE_ROWS[type] ?? {};
+    const example = columns.map((c) => csvEscape(sample[c.key] ?? "")).join(",");
+    const csv = `${header}\n${example}\n`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${type}-template.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // ── Import with AI (Word / PDF / Excel / CSV → parsed rows) ──
+  const handleAiFile = async (file: File) => {
+    setImportError(null);
+    setAiNotice(null);
+    setAiLoading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("type", type);
+      const res = await fetch("/api/protocol-import", { method: "POST", body: form });
+      if (!res.ok) {
+        setImportError("Import failed. Supported: Word, PDF, Excel, CSV.");
+        return;
+      }
+      const data = (await res.json()) as { rows?: GridRow[]; warnings?: string[] };
+      const aiRows = Array.isArray(data?.rows) ? data.rows : [];
+      if (aiRows.length === 0) {
+        setImportError(
+          "AI couldn't find matching rows in that document — try a different file or enter manually.",
+        );
+        return;
+      }
+      const warnings = Array.isArray(data?.warnings) ? data.warnings.filter(Boolean) : [];
+      if (warnings.length > 0) setAiNotice(warnings.join(" "));
+      setPendingImport({ rows: typedRowsToEditRows(columns, aiRows), label: `${file.name} (AI)` });
+    } catch {
+      setImportError("Import failed. Supported: Word, PDF, Excel, CSV.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const applyImport = (mode: "replace" | "append") => {
     if (!pendingImport) return;
     setRows((prev) =>
@@ -351,7 +460,8 @@ export default function ProtocolBulkEditor({
         </button>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 border border-gray-700 text-kairos-silver hover:text-white hover:border-gray-600 transition-colors"
+          disabled={aiLoading}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 border border-gray-700 text-kairos-silver hover:text-white hover:border-gray-600 transition-colors disabled:opacity-50"
         >
           <Upload size={13} /> Import CSV
         </button>
@@ -366,6 +476,33 @@ export default function ProtocolBulkEditor({
             e.target.value = ""; // allow re-importing the same file
           }}
         />
+        <button
+          onClick={downloadTemplate}
+          disabled={aiLoading}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 border border-gray-700 text-kairos-silver hover:text-white hover:border-gray-600 transition-colors disabled:opacity-50"
+          title={`Download a ${type}-template.csv to fill in Excel or Google Sheets`}
+        >
+          <Download size={13} /> Download CSV template
+        </button>
+        <button
+          onClick={() => aiInputRef.current?.click()}
+          disabled={aiLoading}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-kairos-gold/15 border border-kairos-gold/30 text-kairos-gold hover:bg-kairos-gold/25 transition-colors disabled:opacity-60"
+        >
+          {aiLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+          {aiLoading ? "Reading your document with AI…" : "Import with AI"}
+        </button>
+        <input
+          ref={aiInputRef}
+          type="file"
+          accept=".docx,.pdf,.xlsx,.xls,.csv,.txt"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleAiFile(f);
+            e.target.value = ""; // allow re-selecting the same file
+          }}
+        />
         <div className="flex-1" />
         <span className="text-[11px] text-kairos-silver-dark">
           {payloadCount} row{payloadCount === 1 ? "" : "s"} ready
@@ -377,6 +514,19 @@ export default function ProtocolBulkEditor({
           <Eraser size={13} /> Clear all
         </button>
       </div>
+
+      {/* AI import helper */}
+      <p className="text-[11px] text-kairos-silver-dark flex items-center gap-1.5">
+        <Sparkles size={12} className="text-kairos-gold/70 shrink-0" />
+        Upload a Word, PDF, Excel, or CSV file — AI reads it and fills the grid for you to review before publishing.
+      </p>
+
+      {/* AI note (non-blocking) */}
+      {aiNotice && (
+        <div className="px-3 py-2 rounded-lg text-xs bg-kairos-gold/10 border border-kairos-gold/25 text-kairos-gold flex items-start gap-2">
+          <Sparkles size={13} className="mt-0.5 shrink-0" /> <span>AI note: {aiNotice}</span>
+        </div>
+      )}
 
       {/* Paste box */}
       {showPasteBox && (
