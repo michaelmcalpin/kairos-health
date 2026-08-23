@@ -105,6 +105,11 @@ export const env = {
   HUME_CLIENT_ID: getEnvVar("HUME_CLIENT_ID", ""),
   HUME_CLIENT_SECRET: getEnvVar("HUME_CLIENT_SECRET", ""),
 
+  // Google Calendar (coach calendar integration — Calendly-style busy-time
+  // conflict blocking). Redirect URI: ${APP_URL}/api/integrations/google/callback
+  GOOGLE_CLIENT_ID: getEnvVar("GOOGLE_CLIENT_ID", ""),
+  GOOGLE_CLIENT_SECRET: getEnvVar("GOOGLE_CLIENT_SECRET", ""),
+
   // Token Encryption (optional — plaintext fallback with warning when missing)
   TOKEN_ENCRYPTION_KEY: getEnvVar("TOKEN_ENCRYPTION_KEY", ""),
 

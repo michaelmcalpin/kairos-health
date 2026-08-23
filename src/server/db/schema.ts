@@ -782,6 +782,25 @@ export const coachAvailability = pgTable("coach_availability", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Coach external calendar connections (Google Calendar, Calendly-style).
+// Lets a coach connect their calendar so busy times automatically remove
+// conflicting bookable slots. Tokens are encrypted at rest via crypto.ts.
+export const calendarConnections = pgTable("calendar_connections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  coachId: uuid("coach_id").notNull().references(() => users.id),
+  provider: varchar("provider", { length: 32 }).notNull().default("google"),
+  googleEmail: varchar("google_email", { length: 255 }),
+  accessTokenEnc: text("access_token_enc"),
+  refreshTokenEnc: text("refresh_token_enc"),
+  expiresAt: timestamp("expires_at"),
+  calendarId: varchar("calendar_id", { length: 255 }).default("primary"),
+  status: varchar("status", { length: 32 }).notNull().default("connected"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("calendar_connections_coach_provider_idx").on(t.coachId, t.provider),
+]);
+
 // ======================== AI COACHING ========================
 export const aiCoachingSessions = pgTable("ai_coaching_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),

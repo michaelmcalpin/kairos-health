@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Clock, Plus, Trash2, Save, CalendarOff, CalendarDays, Check, Globe, X } from "lucide-react";
+import { Clock, Plus, Trash2, Save, CalendarOff, CalendarDays, Check, Globe, X, CalendarCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { COMMON_TIMEZONES } from "@/lib/timezone";
 
@@ -39,6 +39,14 @@ export function AvailabilityEditor() {
 
   // Fetch existing availability
   const { data: existing, isLoading } = trpc.coach.schedule.getAvailability.useQuery();
+
+  // Google Calendar connection status (Calendly-style busy-time blocking)
+  const { data: calendarConn } = trpc.coach.schedule.getCalendarConnection.useQuery();
+  const disconnectCalendar = trpc.coach.schedule.disconnectCalendar.useMutation({
+    onSuccess: () => {
+      void utils.coach.schedule.getCalendarConnection.invalidate();
+    },
+  });
   const updateMutation = trpc.coach.schedule.updateAvailability.useMutation({
     onSuccess: () => {
       void utils.coach.schedule.getAvailability.invalidate();
@@ -299,6 +307,47 @@ export function AvailabilityEditor() {
           {saveError}
         </div>
       )}
+
+      {/* Google Calendar connection */}
+      <div className="kairos-card p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <CalendarCheck className="w-5 h-5 text-kairos-gold" />
+          <h3 className="font-heading font-bold text-lg text-white">Google Calendar</h3>
+        </div>
+        <p className="text-sm text-kairos-silver-dark mb-4">
+          Connect your Google Calendar and any busy time on it will automatically
+          hide conflicting slots from clients — so you never get double-booked.
+        </p>
+
+        {calendarConn?.configured === false ? (
+          <p className="text-xs text-kairos-silver-dark italic">
+            Google Calendar integration is not configured on this server.
+          </p>
+        ) : calendarConn?.connected ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="inline-flex items-center gap-2 text-sm text-green-400">
+              <Check size={16} />
+              Connected{calendarConn.googleEmail ? ` as ${calendarConn.googleEmail}` : ""}
+            </span>
+            <button
+              onClick={() => disconnectCalendar.mutate()}
+              disabled={disconnectCalendar.isPending}
+              className="kairos-btn-outline gap-1 flex items-center text-sm disabled:opacity-50"
+            >
+              <X size={14} />
+              {disconnectCalendar.isPending ? "Disconnecting..." : "Disconnect"}
+            </button>
+          </div>
+        ) : (
+          <a
+            href="/api/integrations/google/connect"
+            className="kairos-btn-gold gap-2 inline-flex items-center text-sm w-fit"
+          >
+            <CalendarCheck size={16} />
+            Connect Google Calendar
+          </a>
+        )}
+      </div>
 
       {/* Timezone */}
       <div className="kairos-card p-6">

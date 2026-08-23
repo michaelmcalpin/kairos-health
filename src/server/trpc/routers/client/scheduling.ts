@@ -1,9 +1,15 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
-import { appointments, sessionNotes, coachAvailability, users } from "@/server/db/schema";
+import { appointments, sessionNotes, coachAvailability, calendarConnections, users } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
 import { zonedTimeToUtc } from "@/lib/timezone";
+import {
+  isGoogleConfigured,
+  getValidAccessToken,
+  getBusyIntervals,
+} from "@/lib/integrations/google-calendar";
+import { notifyAppointmentCreated } from "@/lib/scheduling/notify";
 
 const SESSION_TYPES = [
   { id: "initial_consultation", label: "Initial Consultation", duration: 60, description: "First meeting to discuss goals and health history" },
@@ -154,6 +160,50 @@ export const clientSchedulingRouter = router({
         }
       }
 
+      // ── Google Calendar conflict blocking (Calendly-style) ──
+      // If the coach has connected Google Calendar and Google is configured,
+      // fetch their busy intervals for this date (one freeBusy call) and
+      // remove any candidate slot that overlaps. Fail-open: any problem
+      // (not connected, unconfigured, token/refresh/API failure, no coach
+      // timezone) returns the slots unchanged — today's behavior.
+      if (coachTz && isGoogleConfigured() && slots.length > 0) {
+        try {
+          const connection = await ctx.db.query.calendarConnections.findFirst({
+            where: and(
+              eq(calendarConnections.coachId, input.coachId),
+              eq(calendarConnections.provider, "google"),
+            ),
+          });
+          if (connection && connection.status === "connected") {
+            const dayStartUtc = zonedTimeToUtc(input.date, "00:00", coachTz);
+            const dayEndUtc = new Date(dayStartUtc.getTime() + 24 * 60 * 60 * 1000);
+            const accessToken = await getValidAccessToken(ctx.db, connection);
+            if (accessToken) {
+              const busy = await getBusyIntervals(
+                accessToken,
+                connection.calendarId ?? "primary",
+                dayStartUtc.toISOString(),
+                dayEndUtc.toISOString(),
+              );
+              if (busy.length > 0) {
+                const busyMs = busy.map((b) => ({
+                  start: Date.parse(b.start),
+                  end: Date.parse(b.end),
+                }));
+                return slots.filter((s) => {
+                  if (!s.startUtc || !s.endUtc) return true;
+                  const sStart = Date.parse(s.startUtc);
+                  const sEnd = Date.parse(s.endUtc);
+                  return !busyMs.some((b) => sStart < b.end && sEnd > b.start);
+                });
+              }
+            }
+          }
+        } catch {
+          // Fail-open — return unfiltered slots below.
+        }
+      }
+
       return slots;
     }),
 
@@ -266,6 +316,10 @@ export const clientSchedulingRouter = router({
           notes: input.notes,
         })
         .returning();
+
+      // Fan out booking notifications, .ics calendar invite, and Google
+      // Calendar event — all best-effort / non-fatal (never fails the booking).
+      await notifyAppointmentCreated(ctx.db, created, { bookedByRole: "client" });
 
       return created;
     }),

@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
-import { appointments, sessionNotes, coachAvailability, trainerProfiles, users, notificationPreferences, alerts, conversations, messages, trainerClientRelationships, clientCoachAccess } from "@/server/db/schema";
+import { appointments, sessionNotes, coachAvailability, calendarConnections, trainerProfiles, users, notificationPreferences, alerts, conversations, messages, trainerClientRelationships, clientCoachAccess } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, lt, ne, sql } from "drizzle-orm";
+import { isGoogleConfigured } from "@/lib/integrations/google-calendar";
 import { createZoomMeeting, deleteZoomMeeting } from "@/lib/zoom";
-import { generateIcsContent } from "@/lib/calendar/ics";
-import { sendAppointmentConfirmationEmail } from "@/lib/email/sender";
+import { notifyAppointmentCreated } from "@/lib/scheduling/notify";
 
 const SESSION_DURATIONS: Record<string, number> = {
   initial_consultation: 60,
@@ -430,69 +430,11 @@ export const coachScheduleRouter = router({
         console.error("[Schedule] Failed to send chat notification (non-fatal):", msgErr);
       }
 
-      // Send calendar invite emails to both coach and client (non-fatal)
-      try {
-        // Look up both users' emails
-        const [coachUserData, clientUserData] = await Promise.all([
-          ctx.db.query.users.findFirst({ where: eq(users.id, ctx.dbUserId) }),
-          ctx.db.query.users.findFirst({ where: eq(users.id, input.clientId) }),
-        ]);
-
-        // Generate the .ics calendar content
-        const meetingLink = (created as Record<string, unknown>).meetingLink as string | null | undefined;
-        const icsContent = generateIcsContent({
-          id: created.id,
-          date: input.date,
-          startTime: input.startTime,
-          endTime,
-          durationMinutes: duration,
-          sessionType: input.sessionType,
-          meetingType: input.meetingType,
-          clientName: input.clientName,
-          coachName,
-          meetingLink: meetingLink ?? null,
-          notes: input.notes || null,
-        });
-
-        const emailParams = {
-          sessionType: input.sessionType,
-          meetingType: input.meetingType,
-          date: input.date,
-          startTime: input.startTime,
-          endTime,
-          durationMinutes: duration,
-          coachName,
-          clientName: input.clientName,
-          meetingLink: meetingLink ?? null,
-          notes: input.notes || null,
-          icsContent,
-        };
-
-        // Send to coach
-        if (coachUserData?.email) {
-          const coachFirstName = coachUserData.firstName ?? coachName;
-          sendAppointmentConfirmationEmail({
-            to: coachUserData.email,
-            recipientName: coachFirstName,
-            recipientRole: "coach",
-            ...emailParams,
-          }).catch((err) => console.error("[Schedule] Coach email failed (non-fatal):", err));
-        }
-
-        // Send to client
-        if (clientUserData?.email) {
-          const clientFirstName = clientUserData.firstName ?? input.clientName;
-          sendAppointmentConfirmationEmail({
-            to: clientUserData.email,
-            recipientName: clientFirstName,
-            recipientRole: "client",
-            ...emailParams,
-          }).catch((err) => console.error("[Schedule] Client email failed (non-fatal):", err));
-        }
-      } catch (emailErr) {
-        // Email failure should never block appointment creation
-        console.error("[Schedule] Failed to send calendar invite emails (non-fatal):", emailErr);
-      }
+      // Fan out booking notifications (coach + client), the .ics calendar
+      // invite email to both parties, and a Google Calendar event if the coach
+      // has connected Google — all best-effort / non-fatal. Reuses the same
+      // .ics generator + email sender as the client booking path.
+      await notifyAppointmentCreated(ctx.db, created, { bookedByRole: "coach" });
 
       return created;
     }),
@@ -738,6 +680,37 @@ export const coachScheduleRouter = router({
         where: eq(sessionNotes.appointmentId, input.appointmentId),
       });
     }),
+
+  // ── Google Calendar connection (Calendly-style busy-time blocking) ──
+  getCalendarConnection: trainerProcedure.query(async ({ ctx }) => {
+    const configured = isGoogleConfigured();
+    const connection = await ctx.db.query.calendarConnections.findFirst({
+      where: and(
+        eq(calendarConnections.coachId, ctx.dbUserId),
+        eq(calendarConnections.provider, "google"),
+      ),
+    });
+    const connected = !!connection && connection.status === "connected";
+    return {
+      connected,
+      configured,
+      googleEmail: connection?.googleEmail ?? undefined,
+      provider: connection?.provider ?? undefined,
+      status: connection?.status ?? undefined,
+    };
+  }),
+
+  disconnectCalendar: trainerProcedure.mutation(async ({ ctx }) => {
+    await ctx.db
+      .delete(calendarConnections)
+      .where(
+        and(
+          eq(calendarConnections.coachId, ctx.dbUserId),
+          eq(calendarConnections.provider, "google"),
+        ),
+      );
+    return { success: true };
+  }),
 
   // Scheduling stats
   getStats: trainerProcedure.query(async ({ ctx }) => {

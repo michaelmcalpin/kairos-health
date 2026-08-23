@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Calendar, Clock, Plus, Users, X, Settings2 } from 'lucide-react';
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
@@ -48,7 +49,30 @@ function toDateStr(d: Date): string {
 }
 
 export default function CoachSchedulePage() {
-  const [activeTab, setActiveTab] = useState<ScheduleTab>("calendar");
+  const searchParams = useSearchParams();
+  const calendarParam = searchParams.get("calendar");
+  // When we return from the Google OAuth flow, land on the Availability tab
+  // (where the calendar connection lives) and surface a small notice.
+  const [activeTab, setActiveTab] = useState<ScheduleTab>(
+    calendarParam ? "availability" : "calendar"
+  );
+  const [calendarNotice, setCalendarNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!calendarParam) return;
+    const messages: Record<string, string> = {
+      connected: "Google Calendar connected. Your busy times will now block conflicting slots.",
+      error: "Could not connect Google Calendar. Please try again.",
+      unconfigured: "Google Calendar is not configured on this server yet.",
+    };
+    setCalendarNotice(messages[calendarParam] ?? null);
+    // Strip the query param so a refresh doesn't re-show the notice.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("calendar");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [calendarParam]);
   const { period, setPeriod, dateRange, formattedRange, isCurrent, canForward, goBack, goForward, goToToday } =
     useDateRange({ initialPeriod: "week" });
 
@@ -172,6 +196,37 @@ export default function CoachSchedulePage() {
             Availability
           </button>
         </div>
+
+        {calendarNotice && (
+          <div
+            className={`mb-6 flex items-start justify-between gap-3 p-3 rounded-lg border ${
+              calendarParam === "connected"
+                ? "bg-green-500/10 border-green-500/30"
+                : calendarParam === "error"
+                ? "bg-red-500/10 border-red-500/30"
+                : "bg-amber-500/10 border-amber-500/30"
+            }`}
+          >
+            <p
+              className={`text-sm ${
+                calendarParam === "connected"
+                  ? "text-green-400"
+                  : calendarParam === "error"
+                  ? "text-red-400"
+                  : "text-amber-400"
+              }`}
+            >
+              {calendarNotice}
+            </p>
+            <button
+              onClick={() => setCalendarNotice(null)}
+              className="text-kairos-silver-dark hover:text-white shrink-0"
+              aria-label="Dismiss notice"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
 
         {activeTab === "calendar" && (
         <div className="grid grid-cols-4 gap-4 mb-8">
