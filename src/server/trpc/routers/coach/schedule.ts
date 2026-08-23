@@ -4,6 +4,7 @@ import { router, trainerProcedure } from "@/server/trpc";
 import { appointments, sessionNotes, coachAvailability, calendarConnections, trainerProfiles, users, notificationPreferences, alerts, conversations, messages, trainerClientRelationships, clientCoachAccess } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, lt, ne, sql } from "drizzle-orm";
 import { isGoogleConfigured } from "@/lib/integrations/google-calendar";
+import { isMicrosoftConfigured } from "@/lib/integrations/microsoft-calendar";
 import { createZoomMeeting, deleteZoomMeeting } from "@/lib/zoom";
 import { notifyAppointmentCreated } from "@/lib/scheduling/notify";
 
@@ -681,38 +682,53 @@ export const coachScheduleRouter = router({
       });
     }),
 
-  // ── Google Calendar connection (Calendly-style busy-time blocking) ──
+  // ── Calendar connections (Calendly-style busy-time blocking) ──
+  // Reports BOTH providers (Google + Microsoft). A coach can connect either or
+  // both. `configured` flags which providers are set up at the env level; each
+  // connected provider appears in `connections`.
   getCalendarConnection: trainerProcedure.query(async ({ ctx }) => {
-    const configured = isGoogleConfigured();
-    const connection = await ctx.db.query.calendarConnections.findFirst({
-      where: and(
-        eq(calendarConnections.coachId, ctx.dbUserId),
-        eq(calendarConnections.provider, "google"),
-      ),
+    const rows = await ctx.db.query.calendarConnections.findMany({
+      where: eq(calendarConnections.coachId, ctx.dbUserId),
     });
-    const connected = !!connection && connection.status === "connected";
+
+    const connections = rows
+      .filter((c) => c.provider === "google" || c.provider === "microsoft")
+      .map((c) => ({
+        provider: c.provider as "google" | "microsoft",
+        // `googleEmail` holds the account email for any provider.
+        email: c.googleEmail ?? null,
+        canSendEmail: c.status === "connected" && Boolean(c.canSendEmail),
+        status: c.status,
+      }));
+
     return {
-      connected,
-      configured,
-      googleEmail: connection?.googleEmail ?? undefined,
-      provider: connection?.provider ?? undefined,
-      status: connection?.status ?? undefined,
-      // Whether "send as Gmail" is active (coach granted the gmail.send scope).
-      canSendEmail: connected && Boolean(connection?.canSendEmail),
+      configured: {
+        google: isGoogleConfigured(),
+        microsoft: isMicrosoftConfigured(),
+      },
+      connections,
     };
   }),
 
-  disconnectCalendar: trainerProcedure.mutation(async ({ ctx }) => {
-    await ctx.db
-      .delete(calendarConnections)
-      .where(
-        and(
-          eq(calendarConnections.coachId, ctx.dbUserId),
-          eq(calendarConnections.provider, "google"),
-        ),
-      );
-    return { success: true };
-  }),
+  disconnectCalendar: trainerProcedure
+    .input(
+      z
+        .object({ provider: z.enum(["google", "microsoft"]).optional() })
+        .optional(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Default to "google" for backward-safety when no provider is given.
+      const provider = input?.provider ?? "google";
+      await ctx.db
+        .delete(calendarConnections)
+        .where(
+          and(
+            eq(calendarConnections.coachId, ctx.dbUserId),
+            eq(calendarConnections.provider, provider),
+          ),
+        );
+      return { success: true };
+    }),
 
   // Scheduling stats
   getStats: trainerProcedure.query(async ({ ctx }) => {

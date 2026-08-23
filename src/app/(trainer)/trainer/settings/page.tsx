@@ -11,6 +11,7 @@ import {
   Building2,
   Plug,
   CalendarCheck,
+  CalendarDays,
   Mail,
   RefreshCw,
   X,
@@ -20,6 +21,25 @@ import { useTheme, THEMES } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
 import { useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
+
+// Calendar providers rendered in the Integrations card. The `id` matches the
+// backend `provider` discriminant used by getCalendarConnection / disconnectCalendar.
+const CALENDAR_PROVIDERS = [
+  {
+    id: "google",
+    label: "Google Calendar",
+    connectLabel: "Google",
+    connectHref: "/api/integrations/google/connect",
+    icon: CalendarCheck,
+  },
+  {
+    id: "microsoft",
+    label: "Microsoft / Outlook",
+    connectLabel: "Microsoft",
+    connectHref: "/api/integrations/microsoft/connect",
+    icon: CalendarDays,
+  },
+] as const;
 
 export default function TrainerSettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -36,8 +56,10 @@ export default function TrainerSettingsPage() {
   // Fetch notification preferences
   const { data: notificationPrefs } = trpc.coach.schedule.getNotificationPreferences.useQuery();
 
-  // Google integration (Calendar busy-time blocking + send-as-you email)
-  const { data: calendarConn } = trpc.coach.schedule.getCalendarConnection.useQuery();
+  // Calendar integration (busy-time blocking + send-as-you email).
+  // The backend supports multiple providers (Google, Microsoft/Outlook); the
+  // UI below renders one independent row per provider from this payload.
+  const { data: calendarConnData } = trpc.coach.schedule.getCalendarConnection.useQuery();
 
   const utils = trpc.useUtils();
 
@@ -215,7 +237,7 @@ export default function TrainerSettingsPage() {
         </div>
       )}
 
-      {/* Google OAuth return notice */}
+      {/* Calendar OAuth return notice */}
       {calendarNotice && (
         <div
           className={`flex items-center justify-between gap-3 p-4 rounded-kairos-sm text-sm ${
@@ -227,10 +249,10 @@ export default function TrainerSettingsPage() {
           <span className="flex items-center gap-2">
             {calendarNotice === "connected" ? <Check size={16} /> : <AlertCircle size={16} />}
             {calendarNotice === "connected"
-              ? "Google account connected successfully."
+              ? "Calendar account connected successfully."
               : calendarNotice === "unconfigured"
-                ? "Google integration isn't configured on this server yet."
-                : "Something went wrong connecting your Google account. Please try again."}
+                ? "That calendar integration isn't configured on this server yet."
+                : "Something went wrong connecting your calendar account. Please try again."}
           </span>
           <button
             onClick={() => setCalendarNotice(null)}
@@ -332,114 +354,136 @@ export default function TrainerSettingsPage() {
           <h2 className="font-heading text-xl font-semibold text-white">Integrations</h2>
         </div>
         <p className="text-sm font-body text-kairos-silver-dark mb-6">
-          Connect your Google account so your calendar&apos;s busy times block booking
-          conflicts and client emails (booking confirmations, protocol updates) are
-          sent from your Gmail.
+          Connect your calendar so its busy times block booking conflicts, and client
+          emails (booking confirmations, protocol updates) are sent from your own
+          address. You can connect Google, Microsoft/Outlook, or both.
         </p>
 
-        {/* Google integration row */}
-        <div className="p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            {/* Status + capabilities */}
-            <div className="flex items-start gap-3 min-w-0">
+        <div className="space-y-3">
+          {CALENDAR_PROVIDERS.map((p) => {
+            const conn = calendarConnData?.connections.find(
+              (c) => c.provider === p.id,
+            );
+            const connected = conn?.status === "connected";
+            const email = conn?.email ?? undefined;
+            const canSendEmail = conn?.canSendEmail ?? false;
+            // `configured` may be undefined while loading — only treat an explicit
+            // `false` as "not configured on this server".
+            const configured = calendarConnData?.configured[p.id];
+            const notConfigured = configured === false;
+            const Icon = p.icon;
+
+            return (
               <div
-                className={`w-9 h-9 rounded-kairos-sm flex items-center justify-center flex-shrink-0 ${
-                  calendarConn?.connected ? "bg-kairos-gold/15" : "bg-gray-600/20"
-                }`}
+                key={p.id}
+                className="p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border"
               >
-                <CalendarCheck
-                  size={18}
-                  className={calendarConn?.connected ? "text-kairos-gold" : "text-kairos-silver-dark"}
-                />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-heading font-semibold text-white">Google</span>
-                  {calendarConn?.connected ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-green-400">
-                      <Check size={13} /> Connected
-                    </span>
-                  ) : (
-                    <span className="text-xs text-kairos-silver-dark">Not connected</span>
-                  )}
-                </div>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  {/* Status + capabilities */}
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div
+                      className={`w-9 h-9 rounded-kairos-sm flex items-center justify-center flex-shrink-0 ${
+                        connected ? "bg-kairos-gold/15" : "bg-gray-600/20"
+                      }`}
+                    >
+                      <Icon
+                        size={18}
+                        className={connected ? "text-kairos-gold" : "text-kairos-silver-dark"}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-heading font-semibold text-white">
+                          {p.label}
+                        </span>
+                        {connected ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-green-400">
+                            <Check size={13} /> Connected
+                          </span>
+                        ) : (
+                          <span className="text-xs text-kairos-silver-dark">Not connected</span>
+                        )}
+                      </div>
 
-                {calendarConn?.connected && calendarConn.googleEmail && (
-                  <p className="text-xs text-kairos-silver-dark mt-0.5 truncate">
-                    {calendarConn.googleEmail}
-                  </p>
-                )}
+                      {connected && email && (
+                        <p className="text-xs text-kairos-silver-dark mt-0.5 truncate">
+                          {email}
+                        </p>
+                      )}
 
-                {/* Capability chips (only meaningful when connected) */}
-                {calendarConn?.connected && (
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30">
-                      <CalendarCheck size={12} /> Calendar sync
-                    </span>
-                    {calendarConn.canSendEmail ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30">
-                        <Mail size={12} /> Send email as you
-                      </span>
+                      {/* Capability chips (only meaningful when connected) */}
+                      {connected && (
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30">
+                            <CalendarCheck size={12} /> Calendar sync
+                          </span>
+                          {canSendEmail ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30">
+                              <Mail size={12} /> Send email as you
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-600/20 text-kairos-silver-dark border border-kairos-border">
+                              <Mail size={12} /> Reconnect to enable sending email as you
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {notConfigured && (
+                        <p className="text-xs text-kairos-silver-dark italic mt-2">
+                          {p.label} integration isn&apos;t configured on this server yet.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {connected ? (
+                      <>
+                        <a
+                          href={p.connectHref}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-kairos-sm text-sm font-heading font-semibold text-kairos-silver border border-kairos-border hover:border-kairos-gold/40 transition-colors"
+                        >
+                          <RefreshCw size={14} /> Reconnect
+                        </a>
+                        <button
+                          onClick={() => disconnectCalendar.mutate({ provider: p.id })}
+                          disabled={disconnectCalendar.isPending}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-kairos-sm text-sm font-heading font-semibold text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                        >
+                          <X size={14} />
+                          {disconnectCalendar.isPending ? "Disconnecting..." : "Disconnect"}
+                        </button>
+                      </>
+                    ) : notConfigured ? (
+                      <button
+                        disabled
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-kairos-sm text-sm font-heading font-semibold opacity-50 cursor-not-allowed"
+                        style={{
+                          backgroundColor: accentColor || "rgb(var(--k-accent))",
+                          color: accentColor ? "#fff" : "rgb(var(--k-bg))",
+                        }}
+                      >
+                        <Icon size={14} /> Connect {p.connectLabel}
+                      </button>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-600/20 text-kairos-silver-dark border border-kairos-border">
-                        <Mail size={12} /> Reconnect to enable sending email as you
-                      </span>
+                      <a
+                        href={p.connectHref}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-kairos-sm text-sm font-heading font-semibold transition-colors"
+                        style={{
+                          backgroundColor: accentColor || "rgb(var(--k-accent))",
+                          color: accentColor ? "#fff" : "rgb(var(--k-bg))",
+                        }}
+                      >
+                        <Icon size={14} /> Connect {p.connectLabel}
+                      </a>
                     )}
                   </div>
-                )}
-
-                {calendarConn?.configured === false && (
-                  <p className="text-xs text-kairos-silver-dark italic mt-2">
-                    Google integration isn&apos;t configured on this server yet.
-                  </p>
-                )}
+                </div>
               </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {calendarConn?.connected ? (
-                <>
-                  <a
-                    href="/api/integrations/google/connect"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-kairos-sm text-sm font-heading font-semibold text-kairos-silver border border-kairos-border hover:border-kairos-gold/40 transition-colors"
-                  >
-                    <RefreshCw size={14} /> Reconnect
-                  </a>
-                  <button
-                    onClick={() => disconnectCalendar.mutate()}
-                    disabled={disconnectCalendar.isPending}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-kairos-sm text-sm font-heading font-semibold text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                  >
-                    <X size={14} />
-                    {disconnectCalendar.isPending ? "Disconnecting..." : "Disconnect"}
-                  </button>
-                </>
-              ) : calendarConn?.configured === false ? (
-                <button
-                  disabled
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-kairos-sm text-sm font-heading font-semibold opacity-50 cursor-not-allowed"
-                  style={{
-                    backgroundColor: accentColor || "rgb(var(--k-accent))",
-                    color: accentColor ? "#fff" : "rgb(var(--k-bg))",
-                  }}
-                >
-                  <CalendarCheck size={14} /> Connect Google
-                </button>
-              ) : (
-                <a
-                  href="/api/integrations/google/connect"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-kairos-sm text-sm font-heading font-semibold transition-colors"
-                  style={{
-                    backgroundColor: accentColor || "rgb(var(--k-accent))",
-                    color: accentColor ? "#fff" : "rgb(var(--k-bg))",
-                  }}
-                >
-                  <CalendarCheck size={14} /> Connect Google
-                </a>
-              )}
-            </div>
-          </div>
+            );
+          })}
         </div>
       </div>
 

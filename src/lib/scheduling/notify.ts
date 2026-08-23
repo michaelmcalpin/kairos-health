@@ -28,6 +28,11 @@ import {
   getValidAccessToken,
   createCalendarEvent,
 } from "@/lib/integrations/google-calendar";
+import {
+  isMicrosoftConfigured,
+  getMicrosoftValidAccessToken,
+  createMicrosoftEvent,
+} from "@/lib/integrations/microsoft-calendar";
 
 // Keep the session-type → human label mapping consistent with the schedulers.
 const SESSION_LABELS: Record<string, string> = {
@@ -260,41 +265,60 @@ export async function notifyAppointmentCreated(
       console.error("[Scheduling] Calendar invite email failed (non-fatal):", err);
     }
 
-    // ── 4. Google Calendar event (if the coach connected Google) ─────────
+    // ── 4. Calendar event(s) — create on EVERY provider the coach connected
+    // (Google and/or Microsoft). Each provider auto-emails invites to
+    // attendees. All non-fatal. NOTE: no `googleEventId`/`externalEventId`
+    // column on `appointments`, so returned event ids aren't persisted here
+    // (invites still sent).
     try {
-      if (isGoogleConfigured()) {
-        const connection = await db.query.calendarConnections.findFirst({
-          where: eq(calendarConnections.coachId, appt.coachId),
-        });
-        if (
-          connection &&
-          connection.provider === "google" &&
-          connection.status === "connected"
-        ) {
+      const timeZone = coachTz ?? "America/Denver";
+      let description = `Session Type: ${label}\nMeeting Type: ${meeting}`;
+      if (appt.meetingLink) description += `\n\nJoin: ${appt.meetingLink}`;
+      if (appt.notes) description += `\n\nNotes: ${appt.notes}`;
+      const attendeeEmails = [coachUser?.email, clientUser?.email].filter(
+        (e): e is string => Boolean(e),
+      );
+      const startISO = `${appt.date}T${appt.startTime}:00`;
+      const endISO = `${appt.date}T${endTime}:00`;
+      const summary = `${label} — ${clientName}`;
+
+      const connections = await db.query.calendarConnections.findMany({
+        where: eq(calendarConnections.coachId, appt.coachId),
+      });
+
+      for (const connection of connections) {
+        if (connection.status !== "connected") continue;
+
+        if (connection.provider === "google" && isGoogleConfigured()) {
           const accessToken = await getValidAccessToken(db, connection);
           if (accessToken) {
-            const timeZone = coachTz ?? "America/Denver";
-            let description = `Session Type: ${label}\nMeeting Type: ${meeting}`;
-            if (appt.meetingLink) description += `\n\nJoin: ${appt.meetingLink}`;
-            if (appt.notes) description += `\n\nNotes: ${appt.notes}`;
-            const attendeeEmails = [coachUser?.email, clientUser?.email].filter(
-              (e): e is string => Boolean(e),
-            );
             await createCalendarEvent(accessToken, connection.calendarId ?? "primary", {
-              summary: `${label} — ${clientName}`,
+              summary,
               description,
-              startISO: `${appt.date}T${appt.startTime}:00`,
-              endISO: `${appt.date}T${endTime}:00`,
+              startISO,
+              endISO,
               timeZone,
               attendeeEmails,
             });
-            // NOTE: no `googleEventId`/`externalEventId` column on `appointments`,
-            // so the returned event id is not persisted here (invite still sent).
+          }
+        } else if (connection.provider === "microsoft" && isMicrosoftConfigured()) {
+          const accessToken = await getMicrosoftValidAccessToken(db, connection);
+          if (accessToken) {
+            await createMicrosoftEvent(accessToken, {
+              subject: summary,
+              // Graph expects HTML body content — preserve the plain-text
+              // description's line breaks.
+              bodyHtml: description.replace(/\n/g, "<br>"),
+              startISO,
+              endISO,
+              timeZone,
+              attendeeEmails,
+            });
           }
         }
       }
     } catch (err) {
-      console.error("[Scheduling] Google Calendar event failed (non-fatal):", err);
+      console.error("[Scheduling] Calendar event creation failed (non-fatal):", err);
     }
   } catch (err) {
     // Absolute backstop — booking must never fail because of notifications.

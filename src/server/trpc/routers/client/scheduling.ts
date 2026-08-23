@@ -8,7 +8,13 @@ import {
   isGoogleConfigured,
   getValidAccessToken,
   getBusyIntervals,
+  type BusyInterval,
 } from "@/lib/integrations/google-calendar";
+import {
+  isMicrosoftConfigured,
+  getMicrosoftValidAccessToken,
+  getMicrosoftBusyIntervals,
+} from "@/lib/integrations/microsoft-calendar";
 import { notifyAppointmentCreated } from "@/lib/scheduling/notify";
 
 const SESSION_TYPES = [
@@ -160,44 +166,67 @@ export const clientSchedulingRouter = router({
         }
       }
 
-      // ── Google Calendar conflict blocking (Calendly-style) ──
-      // If the coach has connected Google Calendar and Google is configured,
-      // fetch their busy intervals for this date (one freeBusy call) and
-      // remove any candidate slot that overlaps. Fail-open: any problem
-      // (not connected, unconfigured, token/refresh/API failure, no coach
-      // timezone) returns the slots unchanged — today's behavior.
-      if (coachTz && isGoogleConfigured() && slots.length > 0) {
+      // ── Calendar conflict blocking (Calendly-style, all providers) ──
+      // Gather busy intervals from EVERY calendar the coach has connected
+      // (Google via freeBusy, Microsoft via getSchedule — one call per
+      // connected provider), MERGE them, and remove any candidate slot that
+      // overlaps any busy interval. Fail-open: any problem (not connected,
+      // unconfigured, token/refresh/API failure, no coach timezone) leaves the
+      // slots unchanged — today's behavior.
+      if (coachTz && slots.length > 0) {
         try {
-          const connection = await ctx.db.query.calendarConnections.findFirst({
-            where: and(
-              eq(calendarConnections.coachId, input.coachId),
-              eq(calendarConnections.provider, "google"),
-            ),
+          const connections = await ctx.db.query.calendarConnections.findMany({
+            where: eq(calendarConnections.coachId, input.coachId),
           });
-          if (connection && connection.status === "connected") {
-            const dayStartUtc = zonedTimeToUtc(input.date, "00:00", coachTz);
-            const dayEndUtc = new Date(dayStartUtc.getTime() + 24 * 60 * 60 * 1000);
-            const accessToken = await getValidAccessToken(ctx.db, connection);
-            if (accessToken) {
-              const busy = await getBusyIntervals(
-                accessToken,
-                connection.calendarId ?? "primary",
-                dayStartUtc.toISOString(),
-                dayEndUtc.toISOString(),
-              );
-              if (busy.length > 0) {
-                const busyMs = busy.map((b) => ({
-                  start: Date.parse(b.start),
-                  end: Date.parse(b.end),
-                }));
-                return slots.filter((s) => {
-                  if (!s.startUtc || !s.endUtc) return true;
-                  const sStart = Date.parse(s.startUtc);
-                  const sEnd = Date.parse(s.endUtc);
-                  return !busyMs.some((b) => sStart < b.end && sEnd > b.start);
-                });
+
+          const dayStartUtc = zonedTimeToUtc(input.date, "00:00", coachTz);
+          const dayEndUtc = new Date(dayStartUtc.getTime() + 24 * 60 * 60 * 1000);
+          const timeMinISO = dayStartUtc.toISOString();
+          const timeMaxISO = dayEndUtc.toISOString();
+
+          const busy: BusyInterval[] = [];
+          for (const connection of connections) {
+            if (connection.status !== "connected") continue;
+
+            if (connection.provider === "google" && isGoogleConfigured()) {
+              const accessToken = await getValidAccessToken(ctx.db, connection);
+              if (accessToken) {
+                busy.push(
+                  ...(await getBusyIntervals(
+                    accessToken,
+                    connection.calendarId ?? "primary",
+                    timeMinISO,
+                    timeMaxISO,
+                  )),
+                );
+              }
+            } else if (connection.provider === "microsoft" && isMicrosoftConfigured()) {
+              const accessToken = await getMicrosoftValidAccessToken(ctx.db, connection);
+              // `googleEmail` holds the account email for any provider.
+              if (accessToken && connection.googleEmail) {
+                busy.push(
+                  ...(await getMicrosoftBusyIntervals(
+                    accessToken,
+                    connection.googleEmail,
+                    timeMinISO,
+                    timeMaxISO,
+                  )),
+                );
               }
             }
+          }
+
+          if (busy.length > 0) {
+            const busyMs = busy.map((b) => ({
+              start: Date.parse(b.start),
+              end: Date.parse(b.end),
+            }));
+            return slots.filter((s) => {
+              if (!s.startUtc || !s.endUtc) return true;
+              const sStart = Date.parse(s.startUtc);
+              const sEnd = Date.parse(s.endUtc);
+              return !busyMs.some((b) => sStart < b.end && sEnd > b.start);
+            });
           }
         } catch {
           // Fail-open — return unfiltered slots below.

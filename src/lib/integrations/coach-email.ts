@@ -2,11 +2,12 @@
  * EVERIST Send-As-Coach Email Helper
  *
  * A single entry point for client-facing, coach-originated emails. When the
- * coach has connected Google AND granted the gmail.send scope, the email is
- * sent FROM the coach's own Gmail (so it lands in the client's inbox as if the
- * coach sent it). Otherwise — not connected, missing scope, Google unconfigured,
- * or the Gmail send failing — it FALLS BACK to the app's system email sender so
- * nothing is ever silently dropped.
+ * coach has connected a calendar provider AND granted its send scope, the email
+ * is sent FROM the coach's own mailbox (so it lands in the client's inbox as if
+ * the coach sent it): Google (gmail.send) is preferred, then Microsoft/Outlook
+ * (Mail.Send). Otherwise — not connected, missing scope, provider unconfigured,
+ * or the provider send failing — it FALLS BACK to the app's system email sender
+ * so nothing is ever silently dropped.
  *
  * This helper NEVER throws: callers can fire it best-effort.
  */
@@ -15,6 +16,11 @@ import { eq, and } from "drizzle-orm";
 import type { Database } from "@/server/db";
 import { calendarConnections } from "@/server/db/schema";
 import { isGoogleConfigured, getValidAccessToken } from "./google-calendar";
+import {
+  isMicrosoftConfigured,
+  getMicrosoftValidAccessToken,
+  sendOutlookMail,
+} from "./microsoft-calendar";
 import { sendGmail } from "./gmail";
 import { sendEmail } from "@/lib/email/sender";
 
@@ -29,12 +35,14 @@ export interface CoachEmailMessage {
 }
 
 export interface CoachEmailResult {
-  via: "gmail" | "system" | "failed";
+  via: "gmail" | "outlook" | "system" | "failed";
 }
 
 /**
  * Send a client-facing email as the coach when possible, else via the system
- * sender. Returns which path delivered it. Best-effort — never throws.
+ * sender. Tries providers in order — Google (Gmail) first, then Microsoft
+ * (Outlook) — using whichever the coach has connected + granted send on.
+ * Returns which path delivered it. Best-effort — never throws.
  */
 export async function sendCoachEmail(
   db: Database,
@@ -69,12 +77,47 @@ export async function sendCoachEmail(
             icsFilename: msg.icsFilename,
           });
           if (result.success) return { via: "gmail" };
-          // Fall through to the system sender on Gmail failure.
+          // Fall through to the next provider / system sender on failure.
         }
       }
     }
   } catch (err) {
     console.error("[CoachEmail] Gmail send path failed (falling back):", err);
+  }
+
+  // ── Next path: send FROM the coach's own Outlook/Microsoft mailbox ────────
+  try {
+    if (isMicrosoftConfigured()) {
+      const connection = await db.query.calendarConnections.findFirst({
+        where: and(
+          eq(calendarConnections.coachId, coachId),
+          eq(calendarConnections.provider, "microsoft"),
+        ),
+      });
+      if (
+        connection &&
+        connection.status === "connected" &&
+        connection.canSendEmail &&
+        // `googleEmail` holds the account email for any provider.
+        connection.googleEmail
+      ) {
+        const accessToken = await getMicrosoftValidAccessToken(db, connection);
+        if (accessToken) {
+          const result = await sendOutlookMail(accessToken, {
+            to: msg.to,
+            subject: msg.subject,
+            html: msg.html,
+            text: msg.text,
+            icsContent: msg.icsContent,
+            icsFilename: msg.icsFilename,
+          });
+          if (result.success) return { via: "outlook" };
+          // Fall through to the system sender on failure.
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[CoachEmail] Outlook send path failed (falling back):", err);
   }
 
   // ── Fallback: the app's system email sender ──────────────────────────────

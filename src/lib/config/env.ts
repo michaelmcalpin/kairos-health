@@ -110,6 +110,14 @@ export const env = {
   GOOGLE_CLIENT_ID: getEnvVar("GOOGLE_CLIENT_ID", ""),
   GOOGLE_CLIENT_SECRET: getEnvVar("GOOGLE_CLIENT_SECRET", ""),
 
+  // Microsoft / Outlook Calendar (coach calendar integration — same
+  // Calendly-style busy-time blocking + send-as-coach mail via Graph).
+  // Redirect URI: ${APP_URL}/api/integrations/microsoft/callback
+  // MICROSOFT_TENANT_ID defaults to "common" (multi-tenant / personal accounts).
+  MICROSOFT_CLIENT_ID: getEnvVar("MICROSOFT_CLIENT_ID", ""),
+  MICROSOFT_CLIENT_SECRET: getEnvVar("MICROSOFT_CLIENT_SECRET", ""),
+  MICROSOFT_TENANT_ID: getEnvVar("MICROSOFT_TENANT_ID", "common"),
+
   // Token Encryption (optional — plaintext fallback with warning when missing)
   TOKEN_ENCRYPTION_KEY: getEnvVar("TOKEN_ENCRYPTION_KEY", ""),
 

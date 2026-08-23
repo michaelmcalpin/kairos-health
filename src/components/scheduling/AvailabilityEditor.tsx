@@ -41,10 +41,18 @@ export function AvailabilityEditor() {
   // Fetch existing availability
   const { data: existing, isLoading } = trpc.coach.schedule.getAvailability.useQuery();
 
-  // Google Calendar connection status (Calendly-style busy-time blocking).
+  // Calendar connection status (Calendly-style busy-time blocking).
   // Management (connect/disconnect) lives in Settings → Integrations; here we
-  // only surface a compact read-only status chip that links there.
-  const { data: calendarConn } = trpc.coach.schedule.getCalendarConnection.useQuery();
+  // only surface a compact read-only status chip that links there. The backend
+  // supports multiple providers (Google, Microsoft/Outlook) — reflect either/both.
+  const { data: calendarConnData } = trpc.coach.schedule.getCalendarConnection.useQuery();
+  const googleConn = calendarConnData?.connections.find((c) => c.provider === "google");
+  const microsoftConn = calendarConnData?.connections.find(
+    (c) => c.provider === "microsoft",
+  );
+  const googleConnected = googleConn?.status === "connected";
+  const microsoftConnected = microsoftConn?.status === "connected";
+  const anyConnected = googleConnected || microsoftConnected;
   const updateMutation = trpc.coach.schedule.updateAvailability.useMutation({
     onSuccess: () => {
       void utils.coach.schedule.getAvailability.invalidate();
@@ -306,18 +314,22 @@ export function AvailabilityEditor() {
         </div>
       )}
 
-      {/* Google Calendar status chip — management lives in Settings → Integrations */}
+      {/* Calendar status chip — management lives in Settings → Integrations */}
       <div className="kairos-card px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="inline-flex items-center gap-2 text-sm text-kairos-silver">
-            <CalendarCheck className="w-4 h-4 text-kairos-gold flex-shrink-0" />
-            <span className="font-heading font-semibold text-white">Google Calendar:</span>
-            {calendarConn?.configured === false ? (
-              <span className="text-kairos-silver-dark">Not configured</span>
-            ) : calendarConn?.connected ? (
+            <CalendarCheck
+              className={`w-4 h-4 flex-shrink-0 ${anyConnected ? "text-kairos-gold" : "text-kairos-silver-dark"}`}
+            />
+            <span className="font-heading font-semibold text-white">Calendar:</span>
+            {anyConnected ? (
               <span className="inline-flex items-center gap-1 text-green-400">
                 <Check size={14} />
-                Connected{calendarConn.googleEmail ? ` (${calendarConn.googleEmail})` : ""}
+                {googleConnected && microsoftConnected
+                  ? "Google + Outlook connected"
+                  : googleConnected
+                    ? `Google${googleConn?.email ? ` (${googleConn.email})` : ""}`
+                    : `Outlook${microsoftConn?.email ? ` (${microsoftConn.email})` : ""}`}
               </span>
             ) : (
               <span className="text-kairos-silver-dark">Not connected</span>
