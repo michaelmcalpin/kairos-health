@@ -31,7 +31,7 @@ export async function GET() {
   try {
     // Not configured → fail gracefully back to the schedule page.
     if (!isGoogleConfigured()) {
-      return NextResponse.redirect(new URL("/trainer/schedule?calendar=unconfigured", env.APP_URL));
+      return NextResponse.redirect(new URL("/trainer/settings?calendar=unconfigured", env.APP_URL));
     }
 
     const { userId: clerkId } = await auth();
@@ -43,7 +43,7 @@ export async function GET() {
       where: eq(users.clerkId, clerkId),
     });
     if (!dbUser) {
-      return NextResponse.redirect(new URL("/trainer/schedule?calendar=error", env.APP_URL));
+      return NextResponse.redirect(new URL("/trainer/settings?calendar=error", env.APP_URL));
     }
 
     const redirectUri = `${env.APP_URL}/api/integrations/google/callback`;
@@ -62,6 +62,6 @@ export async function GET() {
     logger.error("oauth", "Google connect error", {
       error: err instanceof Error ? err.message : "Unknown",
     });
-    return NextResponse.redirect(new URL("/trainer/schedule?calendar=error", env.APP_URL));
+    return NextResponse.redirect(new URL("/trainer/settings?calendar=error", env.APP_URL));
   }
 }

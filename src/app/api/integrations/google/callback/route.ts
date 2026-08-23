@@ -42,7 +42,7 @@ function verifyOAuthState(statePayload: string, providedSig: string): boolean {
  */
 export async function GET(req: Request) {
   const scheduleUrl = (status: string) =>
-    new URL(`/trainer/schedule?calendar=${status}`, env.APP_URL);
+    new URL(`/trainer/settings?calendar=${status}`, env.APP_URL);
 
   try {
     if (!isGoogleConfigured()) {
@@ -92,6 +92,8 @@ export async function GET(req: Request) {
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
     const accessTokenEnc = encryptToken(tokens.access_token);
     const refreshTokenEnc = tokens.refresh_token ? encryptToken(tokens.refresh_token) : null;
+    // Whether the coach granted the gmail.send scope, enabling send-as-coach.
+    const canSendEmail = tokens.scope.includes("gmail.send");
 
     const existing = await db
       .select()
@@ -114,6 +116,7 @@ export async function GET(req: Request) {
           // a new one (it only sends it on first consent).
           refreshTokenEnc: refreshTokenEnc ?? existing[0].refreshTokenEnc,
           expiresAt,
+          canSendEmail,
           status: "connected",
           updatedAt: new Date(),
         })
@@ -126,6 +129,7 @@ export async function GET(req: Request) {
         accessTokenEnc,
         refreshTokenEnc,
         expiresAt,
+        canSendEmail,
         calendarId: "primary",
         status: "connected",
       });

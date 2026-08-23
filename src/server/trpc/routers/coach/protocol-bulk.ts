@@ -40,7 +40,12 @@ import {
   summarizeProtocolChange,
   computeDiffBullets,
 } from "@/lib/ai/protocol-summary";
-import { dispatchNotification } from "@/lib/notifications/service";
+import {
+  dispatchNotification,
+  getUserPreferences,
+  getEnabledChannels,
+} from "@/lib/notifications/service";
+import { sendCoachEmail } from "@/lib/integrations/coach-email";
 
 type Database = typeof import("@/server/db").db;
 
@@ -672,7 +677,7 @@ export const coachProtocolBulkRouter = router({
       // c. Summarize the change (never throws; deterministic fallback).
       const client = await ctx.db.query.users.findFirst({
         where: eq(users.id, input.clientId),
-        columns: { firstName: true },
+        columns: { firstName: true, email: true },
       });
       const { summary, bullets } = await summarizeProtocolChange({
         type: input.type,
@@ -682,23 +687,67 @@ export const coachProtocolBulkRouter = router({
       });
 
       // d. Alert the client — best-effort so a delivery hiccup can't fail publish.
+      // The EMAIL channel is handled separately below via sendCoachEmail (so the
+      // update lands in the client's inbox FROM the coach's own Gmail when
+      // connected). We therefore EXCLUDE "email" from the dispatch channels here
+      // — in-app / push / sms still fire per the client's prefs — to avoid a
+      // duplicate system email.
       const label = NOTIF_LABELS[input.type];
       try {
+        const clientPrefs = await getUserPreferences(ctx.db, input.clientId);
+        const nonEmailChannels = getEnabledChannels(
+          clientPrefs,
+          "protocol_update",
+          "high",
+        ).filter((c) => c !== "email");
         await dispatchNotification(ctx.db, {
           userId: input.clientId,
           category: "protocol_update",
           // "high" so SMS is reachable for clients who opt in (SMS only fires
-          // at high/urgent); in-app/email/push still respect their prefs.
+          // at high/urgent); in-app/push still respect their prefs.
           priority: "high",
           title: `Your coach updated your ${label}`,
           body: summary,
           actionUrl: CLIENT_ROUTES[input.type],
           actionLabel: "View",
           metadata: { type: input.type, bullets, note: input.note ?? undefined },
+          channelOverride: nonEmailChannels.length > 0 ? nonEmailChannels : ["in_app"],
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("[Protocol Bulk Publish] notification dispatch failed", msg);
+      }
+
+      // d.2 Client email — sent AS THE COACH (from their Gmail when connected +
+      // scoped), else via the system sender. Best-effort; publish must succeed.
+      if (client?.email) {
+        try {
+          const coach = await ctx.db.query.users.findFirst({
+            where: eq(users.id, ctx.dbUserId),
+            columns: { firstName: true, lastName: true },
+          });
+          const coachName =
+            [coach?.firstName, coach?.lastName].filter(Boolean).join(" ") || "Your coach";
+          const esc = (s: string) =>
+            s
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;");
+          const bulletsHtml =
+            bullets.length > 0
+              ? `<ul>${bullets.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>`
+              : "";
+          const html = `<p>${esc(summary)}</p>${bulletsHtml}`;
+          await sendCoachEmail(ctx.db, ctx.dbUserId, {
+            to: client.email,
+            subject: `Your coach updated your ${label}`,
+            html,
+            fromName: coachName,
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error("[Protocol Bulk Publish] client send-as-coach email failed", msg);
+        }
       }
 
       // e. Result.

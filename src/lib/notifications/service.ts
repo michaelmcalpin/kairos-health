@@ -295,7 +295,7 @@ function mapRowToNotification(row: typeof notificationsTable.$inferSelect): Noti
   };
 }
 
-function getEnabledChannels(
+export function getEnabledChannels(
   prefs: NotificationPreferences,
   category: string,
   priority: NotificationPriority

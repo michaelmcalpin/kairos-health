@@ -20,6 +20,8 @@ import { dispatchNotification, getUserPreferences } from "@/lib/notifications/se
 import type { DeliveryChannel } from "@/lib/notifications/types";
 import { generateIcsContent } from "@/lib/calendar/ics";
 import { sendAppointmentConfirmationEmail } from "@/lib/email/sender";
+import { buildAppointmentConfirmationEmail } from "@/lib/email/templates";
+import { sendCoachEmail } from "@/lib/integrations/coach-email";
 import { timezoneLabel } from "@/lib/timezone";
 import {
   isGoogleConfigured,
@@ -211,6 +213,7 @@ export async function notifyAppointmentCreated(
         icsContent,
       };
 
+      // Coach's own copy stays on the system sender.
       if (coachUser?.email) {
         sendAppointmentConfirmationEmail({
           to: coachUser.email,
@@ -219,13 +222,39 @@ export async function notifyAppointmentCreated(
           ...emailParams,
         }).catch((err) => console.error("[Scheduling] Coach .ics email failed (non-fatal):", err));
       }
+
+      // The CLIENT's .ics confirmation is sent AS THE COACH (from their Gmail
+      // when connected + scoped), falling back to the system sender otherwise.
+      // sendCoachEmail replaces the previous system send here — no double-send.
       if (clientUser?.email) {
-        sendAppointmentConfirmationEmail({
-          to: clientUser.email,
+        const shortDate = dateObj.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        });
+        const clientHtml = buildAppointmentConfirmationEmail({
           recipientName: clientUser.firstName ?? clientName,
           recipientRole: "client",
-          ...emailParams,
-        }).catch((err) => console.error("[Scheduling] Client .ics email failed (non-fatal):", err));
+          sessionType: appt.sessionType,
+          meetingType: appt.meetingType,
+          date: appt.date,
+          startTime: appt.startTime,
+          endTime,
+          durationMinutes: duration,
+          coachName,
+          clientName,
+          meetingLink: appt.meetingLink ?? null,
+          notes: appt.notes ?? null,
+        });
+        sendCoachEmail(db, appt.coachId, {
+          to: clientUser.email,
+          subject: `Session Confirmed: ${label} with ${coachName} — ${shortDate}`,
+          html: clientHtml,
+          icsContent,
+          icsFilename: `everist-session-${appt.date}.ics`,
+          fromName: coachName,
+        }).catch((err) =>
+          console.error("[Scheduling] Client send-as-coach email failed (non-fatal):", err),
+        );
       }
     } catch (err) {
       console.error("[Scheduling] Calendar invite email failed (non-fatal):", err);

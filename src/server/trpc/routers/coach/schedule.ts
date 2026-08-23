@@ -697,6 +697,8 @@ export const coachScheduleRouter = router({
       googleEmail: connection?.googleEmail ?? undefined,
       provider: connection?.provider ?? undefined,
       status: connection?.status ?? undefined,
+      // Whether "send as Gmail" is active (coach granted the gmail.send scope).
+      canSendEmail: connected && Boolean(connection?.canSendEmail),
     };
   }),
 

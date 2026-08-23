@@ -27,6 +27,10 @@ const GOOGLE_FREEBUSY_URL = "https://www.googleapis.com/calendar/v3/freeBusy";
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/calendar.readonly",
+  // Send client-facing coach emails FROM the coach's own Gmail. This is a
+  // Google "sensitive/restricted" scope — see gmail.ts. Coaches who connected
+  // before this scope was added must reconnect to grant it.
+  "https://www.googleapis.com/auth/gmail.send",
 ].join(" ");
 
 // Refresh a bit before the actual expiry to avoid edge-of-expiry failures.
@@ -66,7 +70,12 @@ export function getGoogleAuthUrl(state: string, redirectUri: string): string {
 export async function exchangeCodeForTokens(
   code: string,
   redirectUri: string,
-): Promise<{ access_token: string; refresh_token?: string; expires_in: number } | null> {
+): Promise<{
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+  scope: string;
+} | null> {
   try {
     const res = await fetch(GOOGLE_TOKEN_URL, {
       method: "POST",
@@ -84,12 +93,15 @@ export async function exchangeCodeForTokens(
       access_token?: string;
       refresh_token?: string;
       expires_in?: number;
+      scope?: string;
     };
     if (!data.access_token) return null;
     return {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
       expires_in: data.expires_in ?? 3600,
+      // Space-separated list of granted scopes; used to detect gmail.send.
+      scope: data.scope ?? "",
     };
   } catch {
     return null;

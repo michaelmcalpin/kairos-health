@@ -795,6 +795,10 @@ export const calendarConnections = pgTable("calendar_connections", {
   expiresAt: timestamp("expires_at"),
   calendarId: varchar("calendar_id", { length: 255 }).default("primary"),
   status: varchar("status", { length: 32 }).notNull().default("connected"),
+  // True when the OAuth grant included the gmail.send scope, so the coach's
+  // client-facing emails can be sent FROM their own Gmail. False until they
+  // (re)connect and grant it — callers fall back to the system email sender.
+  canSendEmail: boolean("can_send_email").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
