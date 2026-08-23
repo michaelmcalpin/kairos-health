@@ -1,43 +1,77 @@
 "use client";
 
 /**
- * Notification Bell — Real-time notification indicator + dropdown
+ * Notification Bell — client in-app notification indicator + dropdown.
  *
- * Connects to /api/realtime/notifications SSE stream.
- * Shows unread count badge and dropdown with recent notifications.
+ * Backed by the persisted notifications feed (`clientPortal.notifications`),
+ * so it surfaces every in-app notification the server has dispatched —
+ * including coach `protocol_update` alerts — not just live socket events.
+ * Styled to match the dark kairos TopBar it lives in.
  */
 
 import React, { useState, useRef, useEffect } from "react";
-import { useSSE } from "@/hooks/useSSE";
+import { Bell } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { trpc } from "@/lib/trpc";
 
-interface NotificationData {
-  notificationId: string;
-  title: string;
-  body: string;
-  category: "health" | "coaching" | "billing" | "system";
-  actionUrl?: string;
-  read: boolean;
-}
-
-const CATEGORY_ICONS: Record<string, string> = {
-  health: "\ud83d\udcaa",
-  coaching: "\ud83d\udc68\u200d\u2695\ufe0f",
-  billing: "\ud83d\udcb3",
-  system: "\u2699\ufe0f",
+/** Per-category label + icon. `protocol_update` gets a kairos-gold accent. */
+const CATEGORY_META: Record<string, { label: string; icon: string; accent?: boolean }> = {
+  health_alert: { label: "Health alert", icon: "💪" },
+  insight: { label: "Insight", icon: "🧠" },
+  weekly_report: { label: "Weekly report", icon: "📊" },
+  coach_message: { label: "Coach message", icon: "👨‍⚕️" },
+  appointment: { label: "Appointment", icon: "📅" },
+  lab_result: { label: "Lab result", icon: "🧪" },
+  supplement: { label: "Supplement", icon: "💊" },
+  fasting: { label: "Fasting", icon: "⏳" },
+  streak: { label: "Streak", icon: "🏆" },
+  billing: { label: "Billing", icon: "💳" },
+  system: { label: "System", icon: "⚙️" },
+  onboarding: { label: "Onboarding", icon: "✨" },
+  protocol_update: { label: "Protocol update", icon: "📋", accent: true },
 };
 
-export function NotificationBell() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
-  const dropdownRef = useRef<HTMLDivElement>(null);
+function relativeTime(iso?: string): string {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const diffMin = Math.floor((Date.now() - then) / 60_000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
 
-  const { messages, clear } = useSSE<NotificationData>({
-    url: "/api/realtime/notifications",
-    eventTypes: ["notification:new"],
-    maxBuffer: 20,
+export function NotificationBell() {
+  const router = useRouter();
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const utils = trpc.useUtils();
+
+  const { data: unreadData } = trpc.clientPortal.notifications.unreadCount.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
   });
 
-  const unreadCount = messages.filter((m) => !readIds.has(m.data.notificationId)).length;
+  const { data: notifications } = trpc.clientPortal.notifications.list.useQuery(
+    { limit: 20 },
+    { staleTime: 30_000, refetchOnWindowFocus: true, retry: 1 }
+  );
+
+  const invalidate = () => {
+    utils.clientPortal.notifications.list.invalidate();
+    utils.clientPortal.notifications.unreadCount.invalidate();
+  };
+
+  const markRead = trpc.clientPortal.notifications.markRead.useMutation({ onSuccess: invalidate });
+  const markAllRead = trpc.clientPortal.notifications.markAllRead.useMutation({ onSuccess: invalidate });
+
+  const unreadCount = unreadData?.count ?? 0;
+  const items = notifications ?? [];
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -50,108 +84,103 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const markAllRead = () => {
-    setReadIds(new Set(messages.map((m) => m.data.notificationId)));
-  };
-
-  const clearAll = () => {
-    clear();
-    setReadIds(new Set());
-  };
+  function openItem(n: (typeof items)[number]) {
+    if (!n.read) markRead.mutate({ notificationId: n.id });
+    if (n.actionUrl) {
+      setIsOpen(false);
+      router.push(n.actionUrl);
+    }
+  }
 
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Bell Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+        onClick={() => setIsOpen((v) => !v)}
+        className="relative text-kairos-silver-dark hover:text-white transition-colors p-2"
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
       >
-        <svg
-          className="w-5 h-5 text-gray-600"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-          />
-        </svg>
+        <Bell size={18} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-            {unreadCount > 9 ? "9+" : unreadCount}
+          <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-[9px] font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
+            {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
-          <div className="flex items-center justify-between p-3 border-b border-gray-100">
-            <span className="text-sm font-semibold text-kairos-royal">Notifications</span>
-            <div className="flex gap-2">
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllRead}
-                  className="text-xs text-kairos-gold hover:text-kairos-gold-dim transition-colors"
-                >
-                  Mark all read
-                </button>
-              )}
-              {messages.length > 0 && (
-                <button
-                  onClick={clearAll}
-                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
+        <div className="absolute right-0 top-full mt-2 w-80 bg-kairos-card rounded-kairos border border-kairos-border shadow-lg z-50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-kairos-border">
+            <span className="text-sm font-heading font-semibold text-white">Notifications</span>
+            {unreadCount > 0 && (
+              <button
+                onClick={() => markAllRead.mutate()}
+                className="text-xs font-heading text-kairos-gold hover:text-kairos-gold-dim transition-colors"
+              >
+                Mark all read
+              </button>
+            )}
           </div>
 
           <div className="max-h-80 overflow-y-auto">
-            {messages.length > 0 ? (
-              [...messages].reverse().map((msg, i) => {
-                const n = msg.data;
-                const isRead = readIds.has(n.notificationId);
+            {items.length > 0 ? (
+              items.map((n) => {
+                const meta = CATEGORY_META[n.category] ?? { label: "Notification", icon: "🔔" };
                 return (
-                  <div
-                    key={msg.id || i}
-                    className={`p-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer ${
-                      !isRead ? "bg-blue-50/50" : ""
+                  <button
+                    key={n.id}
+                    onClick={() => openItem(n)}
+                    className={`w-full text-left px-4 py-3 border-b border-kairos-border last:border-0 hover:bg-kairos-royal-dark/40 transition-colors ${
+                      !n.read ? "bg-kairos-gold/5" : ""
                     }`}
-                    onClick={() => {
-                      setReadIds((prev) => { const next = new Set(Array.from(prev)); next.add(n.notificationId); return next; });
-                      if (n.actionUrl) {
-                        window.location.href = n.actionUrl;
-                      }
-                    }}
                   >
-                    <div className="flex items-start gap-2">
-                      <span className="text-sm flex-shrink-0">
-                        {CATEGORY_ICONS[n.category] || "\ud83d\udd14"}
+                    <div className="flex items-start gap-2.5">
+                      <span
+                        className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm ${
+                          meta.accent ? "bg-kairos-gold/15" : "bg-kairos-royal-dark"
+                        }`}
+                      >
+                        {meta.icon}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm ${!isRead ? "font-semibold" : "font-medium"} text-gray-800`}>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`text-[10px] font-heading font-bold px-1.5 py-0.5 rounded-full ${
+                              meta.accent
+                                ? "bg-kairos-gold/15 text-kairos-gold"
+                                : "bg-kairos-royal-dark text-kairos-silver-dark"
+                            }`}
+                          >
+                            {meta.label}
+                          </span>
+                          {!n.read && <span className="w-2 h-2 rounded-full bg-kairos-gold flex-shrink-0" />}
+                        </div>
+                        <p className={`text-sm mt-1 ${!n.read ? "font-semibold text-white" : "font-medium text-kairos-silver"}`}>
                           {n.title}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
+                        <p className="text-xs text-kairos-silver-dark mt-0.5 line-clamp-2">{n.body}</p>
+                        <p className="text-[10px] text-kairos-silver-dark mt-1">{relativeTime(n.createdAt)}</p>
                       </div>
-                      {!isRead && (
-                        <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-1.5" />
-                      )}
                     </div>
-                  </div>
+                  </button>
                 );
               })
             ) : (
-              <div className="text-center text-gray-400 text-sm py-8">
-                No notifications yet
-              </div>
+              <div className="text-center text-kairos-silver-dark text-sm py-8">No notifications yet</div>
             )}
+          </div>
+
+          <div className="border-t border-kairos-border">
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                router.push("/alerts");
+              }}
+              className="w-full text-center py-2.5 text-xs font-heading text-kairos-gold hover:text-kairos-gold-dim transition-colors"
+            >
+              View all
+            </button>
           </div>
         </div>
       )}

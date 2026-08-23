@@ -22,9 +22,13 @@ import {
   notifications as notificationsTable,
   notificationPreferences as prefsTable,
   users,
+  userContactInfo,
+  pushTokens,
 } from "@/server/db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import { sendNotificationEmail } from "@/lib/email/sender";
+import { sendSms, isSmsConfigured } from "./sms";
+import { sendExpoPush } from "./push";
 
 // ─── Core Service ────────────────────────────────────────────────────────────
 
@@ -216,12 +220,21 @@ export async function getUserPreferences(
   });
 
   if (existing) {
+    // Merge stored per-category prefs over the defaults so any category the
+    // user's row predates (e.g. a newly added "protocol_update") falls back to
+    // its default channels instead of being undefined and getting dropped.
+    const storedCategories = (existing.categories ?? {}) as Partial<NotificationPreferences["categories"]>;
+    const categories = {
+      ...DEFAULT_PREFERENCES.categories,
+      ...storedCategories,
+    } as NotificationPreferences["categories"];
+
     return {
       userId,
       enabled: existing.enabled,
       quietHoursStart: existing.quietHoursStart ?? undefined,
       quietHoursEnd: existing.quietHoursEnd ?? undefined,
-      categories: (existing.categories ?? DEFAULT_PREFERENCES.categories) as NotificationPreferences["categories"],
+      categories,
     };
   }
 
@@ -357,13 +370,54 @@ function deliverToChannel(db: Database, notification: Notification, channel: Del
           status = "failed";
         }
       } else if (channel === "push") {
-        // Push notifications require FCM/APNs integration (not yet configured)
-        // Mark as pending until a push provider is connected
-        status = "pending";
+        // Look up all registered Expo push tokens for the user
+        const tokenRows = await db.query.pushTokens.findMany({
+          where: eq(pushTokens.userId, notification.userId),
+          columns: { token: true },
+        });
+        const tokens = tokenRows.map((r) => r.token);
+
+        if (tokens.length === 0) {
+          // No devices registered — nothing to deliver to yet
+          status = "pending";
+        } else {
+          const result = await sendExpoPush(tokens, {
+            title: notification.title,
+            body: notification.body,
+            data: { url: notification.actionUrl },
+          });
+          status = result.success ? "sent" : "failed";
+
+          // Best-effort cleanup of tokens Expo reports as unregistered
+          if (result.invalidTokens && result.invalidTokens.length > 0) {
+            try {
+              await db.delete(pushTokens).where(inArray(pushTokens.token, result.invalidTokens));
+            } catch {
+              // Non-critical — token cleanup failure is ignored
+            }
+          }
+        }
       } else if (channel === "sms") {
-        // SMS delivery requires Twilio integration (not yet configured)
-        // Mark as pending until an SMS provider is connected
-        status = "pending";
+        if (!isSmsConfigured()) {
+          // Twilio not configured — leave pending until an SMS provider is connected
+          status = "pending";
+        } else {
+          // Look up the user's phone number
+          const contact = await db.query.userContactInfo.findFirst({
+            where: eq(userContactInfo.userId, notification.userId),
+            columns: { phone: true },
+          });
+
+          if (!contact?.phone) {
+            status = "failed";
+          } else {
+            const result = await sendSms(
+              contact.phone,
+              `${notification.title}\n\n${notification.body}`
+            );
+            status = result.success ? "sent" : "failed";
+          }
+        }
       } else {
         // in_app — already persisted in DB, no external delivery needed
         status = "delivered";

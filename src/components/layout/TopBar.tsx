@@ -5,6 +5,7 @@ import { useClerk, UserButton } from "@clerk/nextjs";
 import { Bell, Search, LogOut } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { trpc } from "@/lib/trpc";
+import { NotificationBell } from "@/components/realtime";
 
 interface TopBarProps {
   title: string;
@@ -87,6 +88,11 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
             <Search size={18} />
           </button>
         )}
+
+        {/* In-app notifications feed (protocol updates, coach messages, etc.).
+            clientPortal.notifications is a clientProcedure, so only mount it for
+            the client portal — other roles would 403. */}
+        {portal === "client" && <NotificationBell />}
 
         {/* Alert Bell — hidden on admin/company portals (no alerts feed there) */}
         {portal !== "admin" && (

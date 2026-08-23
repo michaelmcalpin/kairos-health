@@ -514,6 +514,11 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           <button onClick={() => { setProtocolError(null); setShowProtocolModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors">
             <Settings size={14} /> Adjust Protocol
           </button>
+          {(canEditCategory("diet") || canEditCategory("exercise")) && (
+            <Link href={`/trainer/clients/${params.id}/protocols`} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors">
+              <ClipboardList size={14} /> Bulk Edit Protocols
+            </Link>
+          )}
           <div className="flex-1" />
           <button onClick={() => setShowRemoveConfirm(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-red-500/5 text-red-400/70 border border-red-500/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors">
             <X size={14} /> Remove

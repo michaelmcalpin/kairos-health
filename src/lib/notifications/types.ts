@@ -19,7 +19,8 @@ export type NotificationCategory =
   | "streak"            // Streak milestone
   | "billing"           // Subscription/payment event
   | "system"            // Platform announcements
-  | "onboarding";       // Onboarding nudges
+  | "onboarding"        // Onboarding nudges
+  | "protocol_update";  // Coach bulk-edited a protocol (diet/supplements/peptides/workouts)
 
 export type NotificationPriority = "low" | "normal" | "high" | "urgent";
 
@@ -101,6 +102,7 @@ export const DEFAULT_PREFERENCES: Omit<NotificationPreferences, "userId"> = {
     billing: { in_app: true, email: true, push: false, sms: false },
     system: { in_app: true, email: true, push: false, sms: false },
     onboarding: { in_app: true, email: true, push: false, sms: false },
+    protocol_update: { in_app: true, email: true, push: true, sms: false },
   },
 };
 

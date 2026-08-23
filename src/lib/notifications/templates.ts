@@ -218,6 +218,20 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     actionUrlTemplate: "/settings?tab=devices",
     actionLabel: "Connect Device",
   },
+
+  // ─── Protocol Updates ──────────────────────────────────────────────────
+  // Coach bulk-edited a client's protocol. The publish flow passes explicit
+  // title/body (an AI-generated change summary), so interpolation here is a
+  // fallback only — the template mainly registers category metadata.
+  protocol_updated: {
+    category: "protocol_update",
+    defaultPriority: "normal",
+    defaultChannels: ["in_app", "email", "push"],
+    titleTemplate: "Your coach updated your {{protocolLabel}}",
+    bodyTemplate: "{{summary}}",
+    actionUrlTemplate: "{{actionUrl}}",
+    actionLabel: "View",
+  },
 };
 
 // ─── Template Interpolation ──────────────────────────────────────────────────

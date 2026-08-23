@@ -6,7 +6,9 @@
  */
 
 import { z } from "zod";
+import { and, eq } from "drizzle-orm";
 import { router, clientProcedure } from "@/server/trpc";
+import { pushTokens } from "@/server/db/schema";
 import {
   getUserNotifications,
   getUnreadCount,
@@ -89,5 +91,45 @@ export const clientNotificationsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       return updateUserPreferences(ctx.db, ctx.dbUserId, input);
+    }),
+
+  /**
+   * Register (upsert) an Expo push token for the current user's device.
+   * On conflict by token, reassign it to this user and bump updatedAt.
+   */
+  registerPushToken: clientProcedure
+    .input(z.object({
+      token: z.string().min(1),
+      platform: z.enum(["ios", "android", "web"]).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .insert(pushTokens)
+        .values({
+          userId: ctx.dbUserId,
+          token: input.token,
+          platform: input.platform,
+        })
+        .onConflictDoUpdate({
+          target: pushTokens.token,
+          set: {
+            userId: ctx.dbUserId,
+            platform: input.platform,
+            updatedAt: new Date(),
+          },
+        });
+      return { success: true };
+    }),
+
+  /**
+   * Unregister an Expo push token (e.g. on logout).
+   */
+  unregisterPushToken: clientProcedure
+    .input(z.object({ token: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .delete(pushTokens)
+        .where(and(eq(pushTokens.token, input.token), eq(pushTokens.userId, ctx.dbUserId)));
+      return { success: true };
     }),
 });

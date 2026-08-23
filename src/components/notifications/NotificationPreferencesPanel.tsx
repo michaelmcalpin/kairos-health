@@ -21,6 +21,7 @@ const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   billing: "Billing & Payments",
   system: "System Updates",
   onboarding: "Onboarding Tips",
+  protocol_update: "Protocol Updates",
 };
 
 const CHANNEL_LABELS: Record<DeliveryChannel, string> = {

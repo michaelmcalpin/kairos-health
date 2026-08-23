@@ -143,16 +143,49 @@ export function useDismissNotification() {
 // Helpers
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/**
+ * Backend notification categories -> mobile notification `type` (drives the
+ * icon/label). Keeps `protocol_update` on the clipboard "protocol" icon.
+ */
+const CATEGORY_TYPE_MAP: Record<string, Notification["type"]> = {
+  health_alert: "heart",
+  insight: "report",
+  weekly_report: "report",
+  coach_message: "coach",
+  appointment: "appointment",
+  lab_result: "labs",
+  supplement: "supplement",
+  fasting: "goal",
+  streak: "goal",
+  billing: "report",
+  system: "report",
+  onboarding: "report",
+  protocol_update: "protocol",
+};
+
+/** Backend priority (low/normal/high/urgent) -> mobile priority buckets. */
+const PRIORITY_MAP: Record<string, Notification["priority"]> = {
+  urgent: "urgent",
+  high: "action",
+  action: "action",
+  normal: "info",
+  low: "info",
+  info: "info",
+  resolved: "resolved",
+};
+
 function mapApiNotification(raw: any): Notification {
+  const category: string | undefined = raw.category;
+  const timestamp = raw.createdAt ?? raw.timestamp ?? "";
   return {
     id: raw.id,
-    type: raw.type ?? "report",
-    priority: raw.priority ?? "info",
+    type: raw.type ?? (category ? CATEGORY_TYPE_MAP[category] : undefined) ?? "report",
+    priority: PRIORITY_MAP[raw.priority] ?? "info",
     title: raw.title ?? "",
-    message: raw.message ?? "",
-    detail: raw.detail ?? raw.message ?? "",
-    timestamp: raw.createdAt ?? raw.timestamp ?? "",
-    timeAgo: raw.timeAgo ?? formatRelativeTime(new Date(raw.createdAt)),
+    message: raw.body ?? raw.message ?? "",
+    detail: raw.detail ?? raw.body ?? raw.message ?? "",
+    timestamp,
+    timeAgo: raw.timeAgo ?? (timestamp ? formatRelativeTime(new Date(timestamp)) : ""),
     read: raw.read ?? false,
     relatedData: raw.relatedData ?? undefined,
     actionLabel: raw.actionLabel ?? undefined,

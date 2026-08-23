@@ -1,5 +1,5 @@
 import {
-  pgTable, uuid, text, varchar, integer, boolean, timestamp, date, real, jsonb, pgEnum, decimal, index,
+  pgTable, uuid, text, varchar, integer, boolean, timestamp, date, real, jsonb, pgEnum, decimal, index, uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // ======================== ENUMS ========================
@@ -17,6 +17,7 @@ export const subscriptionStatusEnum = pgEnum("subscription_status", ["active", "
 export const notifCategoryEnum = pgEnum("notif_category", [
   "health_alert", "insight", "weekly_report", "coach_message", "appointment",
   "lab_result", "supplement", "fasting", "streak", "billing", "system", "onboarding",
+  "protocol_update",
 ]);
 export const notifPriorityEnum = pgEnum("notif_priority", ["low", "normal", "high", "urgent"]);
 export const messageRoleEnum = pgEnum("message_role", ["client", "coach", "ai_coach", "system"]);
@@ -837,6 +838,19 @@ export const notificationPreferences = pgTable("notification_preferences", {
   categories: jsonb("categories").$type<Record<string, { in_app: boolean; email: boolean; push: boolean; sms: boolean }>>(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// ─── Push Notification Tokens (Expo) ──────────────────────────────
+export const pushTokens = pgTable("push_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  token: varchar("token", { length: 255 }).notNull(),
+  platform: varchar("platform", { length: 10 }), // "ios" | "android" | "web"
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("push_tokens_token_idx").on(t.token),
+  index("push_tokens_user_idx").on(t.userId),
+]);
 
 // ─── Coach Notes ──────────────────────────────────────────────────
 export const coachNotes = pgTable("coach_notes", {
