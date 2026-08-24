@@ -41,10 +41,14 @@ export function ChatView({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  // Mark as read when viewing
+  // Mark as read when the OPEN conversation changes. We intentionally depend
+  // only on conversation.id: onMarkAsRead's identity changes on every render
+  // (mutation state churn + query invalidations), and including it here caused
+  // an infinite update loop (React #185) that crashed the messages page.
   useEffect(() => {
     onMarkAsRead();
-  }, [conversation.id, onMarkAsRead]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.id]);
 
   const handleInputChange = (value: string) => {
     setInputValue(value);
