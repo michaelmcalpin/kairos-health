@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { db } from "@/server/db";
 import { calendarConnections } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
-import { env } from "@/lib/config/env";
+import { getRequestBaseUrl } from "@/lib/integrations/oauth-origin";
 import { logger } from "@/lib/middleware/logger";
 import { encryptToken } from "@/lib/crypto";
 import {
@@ -43,8 +43,9 @@ function verifyOAuthState(statePayload: string, providedSig: string): boolean {
  * provider) and the default calendar in `calendarId`.
  */
 export async function GET(req: Request) {
+  const base = getRequestBaseUrl(req);
   const scheduleUrl = (status: string) =>
-    new URL(`/trainer/settings?calendar=${status}`, env.APP_URL);
+    new URL(`/trainer/settings?calendar=${status}`, base);
 
   try {
     if (!isMicrosoftConfigured()) {
@@ -83,7 +84,7 @@ export async function GET(req: Request) {
       return NextResponse.redirect(scheduleUrl("error"));
     }
 
-    const redirectUri = `${env.APP_URL}/api/integrations/microsoft/callback`;
+    const redirectUri = `${base}/api/integrations/microsoft/callback`;
     const tokens = await exchangeMicrosoftCode(code, redirectUri);
     if (!tokens) {
       logger.error("oauth", "microsoft calendar token exchange failed");

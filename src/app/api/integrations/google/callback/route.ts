@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { db } from "@/server/db";
 import { calendarConnections } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
-import { env } from "@/lib/config/env";
+import { getRequestBaseUrl } from "@/lib/integrations/oauth-origin";
 import { logger } from "@/lib/middleware/logger";
 import { encryptToken } from "@/lib/crypto";
 import {
@@ -41,8 +41,9 @@ function verifyOAuthState(statePayload: string, providedSig: string): boolean {
  * upserts the coach's calendarConnections row (tokens encrypted at rest).
  */
 export async function GET(req: Request) {
+  const base = getRequestBaseUrl(req);
   const scheduleUrl = (status: string) =>
-    new URL(`/trainer/settings?calendar=${status}`, env.APP_URL);
+    new URL(`/trainer/settings?calendar=${status}`, base);
 
   try {
     if (!isGoogleConfigured()) {
@@ -81,7 +82,7 @@ export async function GET(req: Request) {
       return NextResponse.redirect(scheduleUrl("error"));
     }
 
-    const redirectUri = `${env.APP_URL}/api/integrations/google/callback`;
+    const redirectUri = `${base}/api/integrations/google/callback`;
     const tokens = await exchangeCodeForTokens(code, redirectUri);
     if (!tokens) {
       logger.error("oauth", "google calendar token exchange failed");

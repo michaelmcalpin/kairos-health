@@ -4,8 +4,8 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
-import { env } from "@/lib/config/env";
 import { isMicrosoftConfigured, getMicrosoftAuthUrl } from "@/lib/integrations/microsoft-calendar";
+import { getRequestBaseUrl } from "@/lib/integrations/oauth-origin";
 import { logger } from "@/lib/middleware/logger";
 
 /**
@@ -27,26 +27,27 @@ function signOAuthState(payload: string): string {
   return crypto.createHmac("sha256", secret).update(payload, "utf8").digest("hex");
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const base = getRequestBaseUrl(req);
   try {
     // Not configured → fail gracefully back to the settings page.
     if (!isMicrosoftConfigured()) {
-      return NextResponse.redirect(new URL("/trainer/settings?calendar=unconfigured", env.APP_URL));
+      return NextResponse.redirect(new URL("/trainer/settings?calendar=unconfigured", base));
     }
 
     const { userId: clerkId } = await auth();
     if (!clerkId) {
-      return NextResponse.redirect(new URL("/trainer/login", env.APP_URL));
+      return NextResponse.redirect(new URL("/trainer/login", base));
     }
 
     const dbUser = await db.query.users.findFirst({
       where: eq(users.clerkId, clerkId),
     });
     if (!dbUser) {
-      return NextResponse.redirect(new URL("/trainer/settings?calendar=error", env.APP_URL));
+      return NextResponse.redirect(new URL("/trainer/settings?calendar=error", base));
     }
 
-    const redirectUri = `${env.APP_URL}/api/integrations/microsoft/callback`;
+    const redirectUri = `${base}/api/integrations/microsoft/callback`;
 
     const statePayload = JSON.stringify({
       coachId: dbUser.id,
@@ -62,6 +63,6 @@ export async function GET() {
     logger.error("oauth", "Microsoft connect error", {
       error: err instanceof Error ? err.message : "Unknown",
     });
-    return NextResponse.redirect(new URL("/trainer/settings?calendar=error", env.APP_URL));
+    return NextResponse.redirect(new URL("/trainer/settings?calendar=error", base));
   }
 }
