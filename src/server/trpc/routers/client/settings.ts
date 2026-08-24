@@ -140,15 +140,33 @@ export const clientSettingsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       try {
+        // Normalize phone numbers to E.164 (+15551234567) so SMS delivery works.
+        // Accepts common US formats; leaves already-international numbers as-is.
+        const normalizePhone = (raw?: string): string | undefined => {
+          if (raw === undefined) return undefined;
+          const trimmed = raw.trim();
+          if (trimmed === "") return trimmed; // allow clearing
+          if (trimmed.startsWith("+")) return "+" + trimmed.slice(1).replace(/\D/g, "");
+          const digits = trimmed.replace(/\D/g, "");
+          if (digits.length === 10) return "+1" + digits;
+          if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
+          return trimmed; // unknown format — store as entered
+        };
+        const values = {
+          ...input,
+          ...(input.phone !== undefined ? { phone: normalizePhone(input.phone) } : {}),
+          ...(input.emergencyPhone !== undefined ? { emergencyPhone: normalizePhone(input.emergencyPhone) } : {}),
+        };
+
         const existing = await ctx.db.query.userContactInfo.findFirst({
           where: eq(userContactInfo.userId, ctx.dbUserId),
         });
 
         if (existing) {
-          await ctx.db.update(userContactInfo).set({ ...input, updatedAt: new Date() })
+          await ctx.db.update(userContactInfo).set({ ...values, updatedAt: new Date() })
             .where(eq(userContactInfo.userId, ctx.dbUserId));
         } else {
-          await ctx.db.insert(userContactInfo).values({ userId: ctx.dbUserId, ...input });
+          await ctx.db.insert(userContactInfo).values({ userId: ctx.dbUserId, ...values });
         }
         return { success: true };
       } catch {

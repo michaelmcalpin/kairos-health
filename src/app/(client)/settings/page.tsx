@@ -328,6 +328,16 @@ export default function SettingsPage() {
       // does by default AND the user left that channel on. Merge over
       // existing/default prefs so unspecified keys are preserved (and the old,
       // broken channel-keyed shape self-heals to defaults).
+      // Categories eligible for SMS when the client opts in. SMS is reserved for
+      // time-sensitive, coach-driven alerts (not billing/system/marketing), and
+      // only actually sends at high/urgent priority (see service.ts).
+      const SMS_ELIGIBLE: NotificationCategory[] = [
+        "health_alert",
+        "appointment",
+        "protocol_update",
+        "coach_message",
+        "lab_result",
+      ];
       const existingCats = (settingsData?.notificationPreferences?.categories ??
         {}) as Partial<Record<NotificationCategory, ChannelPreferences>>;
       const categories = Object.fromEntries(
@@ -337,7 +347,10 @@ export default function SettingsPage() {
             in_app: true, // in-app delivery is always on
             email: def.email && notifications.emailAlerts,
             push: def.push && notifications.pushNotifications,
-            sms: def.sms && notifications.smsAlerts,
+            // The SMS toggle turns texting ON for the eligible categories (the
+            // category defaults ship OFF for consent reasons, so we must not
+            // AND against them or SMS could never enable).
+            sms: notifications.smsAlerts && SMS_ELIGIBLE.includes(cat),
           } satisfies ChannelPreferences];
         })
       ) as Record<NotificationCategory, ChannelPreferences>;
@@ -497,9 +510,11 @@ export default function SettingsPage() {
                       className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm opacity-60 cursor-not-allowed" />
                   </div>
                   <div>
-                    <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Phone</label>
+                    <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Mobile Phone</label>
                     <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange}
+                      placeholder="+1 801 555 1234"
                       className="w-full px-4 py-3 bg-kairos-card border border-kairos-border text-kairos-silver-dark rounded-kairos-sm focus:outline-none focus:ring-2 focus:ring-kairos-gold focus:border-kairos-gold" />
+                    <p className="text-xs text-gray-400 mt-1">Used for text (SMS) alerts if you enable them. US numbers are auto-formatted; for other countries include the country code (e.g. +44…).</p>
                   </div>
                   <div>
                     <label className="block font-body text-kairos-silver-dark text-sm font-medium mb-2">Timezone</label>
@@ -939,13 +954,16 @@ export default function SettingsPage() {
 
               <div className="space-y-4">
                 {[
-                  { key: "emailAlerts" as const, label: "Email Alerts" },
-                  { key: "pushNotifications" as const, label: "Push Notifications" },
-                  { key: "smsAlerts" as const, label: "SMS Alerts" },
-                  { key: "weeklyDigest" as const, label: "Weekly Digest" },
-                ].map(({ key, label }) => (
-                  <div key={key} className="flex items-center justify-between p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border">
-                    <span className="font-body text-kairos-silver-dark">{label}</span>
+                  { key: "emailAlerts" as const, label: "Email Alerts", desc: "" },
+                  { key: "pushNotifications" as const, label: "Push Notifications", desc: "" },
+                  { key: "smsAlerts" as const, label: "Text (SMS) Alerts", desc: "Get texts for time-sensitive alerts (appointments, coach & protocol updates). Requires a mobile number on file (above). By enabling, you consent to receive automated texts; message & data rates may apply, and you can reply STOP to opt out." },
+                  { key: "weeklyDigest" as const, label: "Weekly Digest", desc: "" },
+                ].map(({ key, label, desc }) => (
+                  <div key={key} className="flex items-center justify-between gap-4 p-4 bg-kairos-card-hover rounded-kairos-sm border border-kairos-border">
+                    <div>
+                      <span className="font-body text-kairos-silver-dark">{label}</span>
+                      {desc ? <p className="text-xs text-gray-400 mt-1 max-w-md">{desc}</p> : null}
+                    </div>
                     <button onClick={() => handleNotificationChange(key)}
                       className={`relative w-12 h-6 rounded-full transition-colors ${
                         notifications[key] ? "bg-kairos-gold" : "bg-gray-600 border border-kairos-border"

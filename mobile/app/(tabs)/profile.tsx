@@ -320,6 +320,12 @@ export default function ProfileScreen() {
           icon={<Bell size={16} color={Colors.gold} />}
         >
           <SettingsRow
+            icon={<Bell size={18} color={Colors.silver} />}
+            label="Notification Preferences"
+            subtitle="Email, push, text (SMS) & weekly digest"
+            onPress={() => router.push("/settings/notifications" as any)}
+          />
+          <SettingsRow
             type="toggle"
             icon={<Smartphone size={18} color={Colors.silver} />}
             label="Push Notifications"
