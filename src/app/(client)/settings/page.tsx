@@ -39,6 +39,21 @@ export default function SettingsPage() {
   const updateClientProfileMutation = trpc.clientPortal.settings.updateClientProfile.useMutation();
   const updateContactInfoMutation = trpc.clientPortal.settings.updateContactInfo.useMutation();
   const updateNotificationsMutation = trpc.clientPortal.settings.updateNotificationPreferences.useMutation();
+  const sendTestSmsMutation = trpc.clientPortal.settings.sendTestSms.useMutation();
+  const [testSmsResult, setTestSmsResult] = useState("");
+
+  const handleSendTestSms = async () => {
+    setTestSmsResult("");
+    try {
+      const r = await sendTestSmsMutation.mutateAsync();
+      if (r.ok) setTestSmsResult(`✅ Sent to ${r.to} — check your phone.`);
+      else if (r.reason === "no_phone") setTestSmsResult("Add a mobile number above and save first.");
+      else if (r.reason === "not_configured") setTestSmsResult("SMS isn't configured on the server yet.");
+      else setTestSmsResult(`Couldn't send: ${r.reason}`);
+    } catch {
+      setTestSmsResult("Couldn't send: try again.");
+    }
+  };
 
   const { theme, setTheme } = useTheme();
   const [saveMessage, setSaveMessage] = useState("");
@@ -963,6 +978,19 @@ export default function SettingsPage() {
                     <div>
                       <span className="font-body text-kairos-silver-dark">{label}</span>
                       {desc ? <p className="text-xs text-gray-400 mt-1 max-w-md">{desc}</p> : null}
+                      {key === "smsAlerts" && (
+                        <div className="mt-2 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={handleSendTestSms}
+                            disabled={sendTestSmsMutation.isPending}
+                            className="px-3 py-1.5 text-xs font-body bg-kairos-card-hover border border-kairos-border rounded-kairos-sm text-kairos-silver-dark hover:border-kairos-gold/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {sendTestSmsMutation.isPending ? "Sending…" : "Send test text"}
+                          </button>
+                          {testSmsResult ? <span className="text-xs text-gray-400">{testSmsResult}</span> : null}
+                        </div>
+                      )}
                     </div>
                     <button onClick={() => handleNotificationChange(key)}
                       className={`relative w-12 h-6 rounded-full transition-colors ${

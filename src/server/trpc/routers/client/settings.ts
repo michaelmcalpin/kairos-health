@@ -12,6 +12,7 @@ import { router, clientProcedure } from "@/server/trpc";
 import { users, notificationPreferences, clientProfiles, trainerClientRelationships, trainerProfiles, userContactInfo, auditLogs } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { clerkClient } from "@clerk/nextjs/server";
+import { sendSms, isSmsConfigured } from "@/lib/notifications/sms";
 
 export const clientSettingsRouter = router({
   /**
@@ -234,6 +235,34 @@ export const clientSettingsRouter = router({
         return created;
       }
     }),
+
+  /**
+   * Send a test SMS to the caller's OWN phone on file — a self-test so the
+   * client can confirm Twilio + their number work end-to-end. Bypasses
+   * notification prefs/priority entirely. Never throws.
+   */
+  sendTestSms: clientProcedure.mutation(async ({ ctx }) => {
+    let contactInfo = null;
+    try {
+      contactInfo = await ctx.db.query.userContactInfo.findFirst({
+        where: eq(userContactInfo.userId, ctx.dbUserId),
+      });
+    } catch { /* table may not exist yet */ }
+
+    const phone = contactInfo?.phone?.trim();
+    if (!phone) return { ok: false as const, reason: "no_phone" as const };
+    if (!isSmsConfigured()) return { ok: false as const, reason: "not_configured" as const };
+
+    const r = await sendSms(
+      phone,
+      "Everist.ai test message — your text (SMS) alerts are working. Reply STOP to opt out.",
+    );
+    return {
+      ok: r.success,
+      reason: r.success ? undefined : (r.error ?? "send_failed"),
+      to: phone,
+    };
+  }),
 
   /**
    * Update a feature toggle (e.g. cycleTracker).

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Send,
   User,
@@ -709,9 +709,14 @@ function AIChatTab() {
 // ---------------------------------------------------------------------------
 
 function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: string }) {
+  const router = useRouter();
   const [input, setInput] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
 
@@ -754,20 +759,48 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text) return;
-    setInput("");
-
+  // Ensure a coach conversation exists, then send a message body to it.
+  const sendToCoach = useCallback(async (body: string) => {
     let convId = coachConv?.id;
     if (!convId) {
       const conv = await startConversation.mutateAsync({ coachId, coachName, isAiCoach: false });
       convId = conv.id;
     }
+    sendMessage.mutate({ conversationId: convId, body });
+  }, [coachConv?.id, coachId, coachName, startConversation, sendMessage]);
 
-    sendMessage.mutate({ conversationId: convId, body: text });
+  const handleSend = useCallback(async () => {
+    const text = input.trim();
+    if (!text) return;
+    setInput("");
+    await sendToCoach(text);
     inputRef.current?.focus();
-  }, [input, coachConv?.id, coachId, coachName, startConversation, sendMessage]);
+  }, [input, sendToCoach]);
+
+  // Upload a file via /api/upload, then share the resulting link with the coach.
+  const handleFileSelected = useCallback(async (file: File | undefined, kind: "photo" | "document") => {
+    if (!file) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("category", kind);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || `Upload failed (${res.status})`);
+      }
+      const body = kind === "photo"
+        ? `🖼️ Shared an image: ${data.url}`
+        : `📎 Shared a file: ${data.url}`;
+      await sendToCoach(body);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }, [sendToCoach]);
 
   function formatTime(timestamp: string | Date): string {
     const d = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
@@ -811,10 +844,10 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
           <p className="text-xs font-body text-kairos-silver-dark">Your Health Coach</p>
         </div>
         <div className="flex items-center gap-1">
-          <button className="p-2 rounded-lg text-kairos-silver-dark hover:text-emerald-400 hover:bg-kairos-royal-surface transition-colors" title="Video call">
+          <button onClick={() => router.push("/appointments")} className="p-2 rounded-lg text-kairos-silver-dark hover:text-emerald-400 hover:bg-kairos-royal-surface transition-colors" title="Video call">
             <Video size={16} />
           </button>
-          <button className="p-2 rounded-lg text-kairos-silver-dark hover:text-emerald-400 hover:bg-kairos-royal-surface transition-colors" title="Schedule session">
+          <button onClick={() => router.push("/appointments")} className="p-2 rounded-lg text-kairos-silver-dark hover:text-emerald-400 hover:bg-kairos-royal-surface transition-colors" title="Schedule session">
             <Calendar size={16} />
           </button>
         </div>
@@ -833,11 +866,11 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
               They&apos;ll respond as soon as they&apos;re available.
             </p>
             <div className="flex gap-3">
-              <button className="kairos-btn-outline flex items-center gap-2 text-sm" title="Schedule a video call">
+              <button onClick={() => router.push("/appointments")} className="kairos-btn-outline flex items-center gap-2 text-sm" title="Schedule a video call">
                 <Video size={14} />
                 Schedule Video Call
               </button>
-              <button className="kairos-btn-outline flex items-center gap-2 text-sm" title="Schedule a session">
+              <button onClick={() => router.push("/appointments")} className="kairos-btn-outline flex items-center gap-2 text-sm" title="Schedule a session">
                 <Calendar size={14} />
                 Book Session
               </button>
@@ -892,14 +925,32 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
 
       {/* Input with attachments */}
       <div className="px-4 py-3 border-t border-kairos-border">
+        {/* Hidden file inputs for attach / image */}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => { handleFileSelected(e.target.files?.[0], "photo"); e.target.value = ""; }}
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+          className="hidden"
+          onChange={(e) => { handleFileSelected(e.target.files?.[0], "document"); e.target.value = ""; }}
+        />
+        {uploadError && (
+          <p className="text-xs font-body text-red-400 mb-2">{uploadError}</p>
+        )}
         <div className="flex items-center gap-2">
-          <button className="p-2 rounded-lg text-kairos-silver-dark hover:text-kairos-gold hover:bg-kairos-royal-surface transition-colors" title="Attach file">
-            <Paperclip size={16} />
+          <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="p-2 rounded-lg text-kairos-silver-dark hover:text-kairos-gold hover:bg-kairos-royal-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Attach file">
+            {uploading ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
           </button>
-          <button className="p-2 rounded-lg text-kairos-silver-dark hover:text-kairos-gold hover:bg-kairos-royal-surface transition-colors" title="Send image">
+          <button onClick={() => imageInputRef.current?.click()} disabled={uploading} className="p-2 rounded-lg text-kairos-silver-dark hover:text-kairos-gold hover:bg-kairos-royal-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Send image">
             <ImageIcon size={16} />
           </button>
-          <button className="p-2 rounded-lg text-kairos-silver-dark hover:text-kairos-gold hover:bg-kairos-royal-surface transition-colors" title="Share report">
+          <button onClick={() => router.push("/insights")} className="p-2 rounded-lg text-kairos-silver-dark hover:text-kairos-gold hover:bg-kairos-royal-surface transition-colors" title="Share report">
             <FileText size={16} />
           </button>
           <input
@@ -907,7 +958,7 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="Message your coach..."
+            placeholder={uploading ? "Uploading..." : "Message your coach..."}
             disabled={sendMessage.isPending}
             className="kairos-input flex-1 disabled:opacity-50"
           />

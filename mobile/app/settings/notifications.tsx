@@ -96,6 +96,8 @@ export default function NotificationPreferencesScreen() {
   const utils = trpc.useUtils();
   const updateNotificationsMutation =
     trpc.clientPortal.settings.updateNotificationPreferences.useMutation();
+  const sendTestSmsMutation =
+    trpc.clientPortal.settings.sendTestSms.useMutation();
 
   /* -- coarse UI toggles (null-safe defaults) -- */
   const [emailAlerts, setEmailAlerts] = useState(true);
@@ -191,6 +193,24 @@ export default function NotificationPreferencesScreen() {
     }
   };
 
+  /* -- Send a test SMS to the caller's own number (self-test) -- */
+  const handleSendTestSms = async () => {
+    try {
+      const r = await sendTestSmsMutation.mutateAsync();
+      if (r.ok) {
+        Alert.alert("Sent", `✅ Sent to ${r.to} — check your phone.`);
+      } else if (r.reason === "no_phone") {
+        Alert.alert("No mobile number", "Add a mobile number above and save first.");
+      } else if (r.reason === "not_configured") {
+        Alert.alert("SMS unavailable", "SMS isn't configured on the server yet.");
+      } else {
+        Alert.alert("Couldn't send", `Couldn't send: ${r.reason}`);
+      }
+    } catch (error: any) {
+      Alert.alert("Couldn't send", error?.message ?? "Please try again.");
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <ScrollView
@@ -247,6 +267,14 @@ export default function NotificationPreferencesScreen() {
             >
               <Text style={styles.link}>Edit Profile →</Text>
             </Pressable>
+            <Button
+              title="Send test text"
+              variant="secondary"
+              size="sm"
+              loading={sendTestSmsMutation.isPending}
+              onPress={handleSendTestSms}
+              style={styles.testSmsBtn}
+            />
           </View>
 
           <SettingsRow
@@ -316,6 +344,10 @@ const styles = StyleSheet.create({
   },
   linkPressed: {
     opacity: 0.7,
+  },
+  testSmsBtn: {
+    marginTop: Spacing.sm,
+    alignSelf: "flex-start",
   },
   saveBtn: {
     marginTop: Spacing.sm,

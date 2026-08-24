@@ -65,6 +65,7 @@ export default function TrainerSettingsPage() {
   // Mutations
   const updateProfileMutation = trpc.coach.schedule.updateProfile.useMutation();
   const updateNotificationsMutation = trpc.coach.schedule.updateNotificationPreferences.useMutation();
+  const sendTestSmsMutation = trpc.coach.schedule.sendTestSms.useMutation();
   const disconnectCalendar = trpc.coach.schedule.disconnectCalendar.useMutation({
     onSuccess: () => {
       void utils.coach.schedule.getCalendarConnection.invalidate();
@@ -77,6 +78,21 @@ export default function TrainerSettingsPage() {
   const [calendarNotice, setCalendarNotice] = useState<
     "connected" | "error" | "unconfigured" | null
   >(null);
+
+  // "Send test text" self-test — confirms Twilio + the phone on file work.
+  const [testSmsResult, setTestSmsResult] = useState("");
+  const handleSendTestSms = async () => {
+    setTestSmsResult("");
+    try {
+      const r = await sendTestSmsMutation.mutateAsync();
+      if (r.ok) setTestSmsResult(`✅ Sent to ${r.to} — check your phone.`);
+      else if (r.reason === "no_phone") setTestSmsResult("Add a mobile number above and save first.");
+      else if (r.reason === "not_configured") setTestSmsResult("SMS isn't configured on the server yet.");
+      else setTestSmsResult(`Couldn't send: ${r.reason}`);
+    } catch {
+      setTestSmsResult("Couldn't send: try again.");
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -343,6 +359,17 @@ export default function TrainerSettingsPage() {
               </div>
             </button>
           ))}
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSendTestSms}
+            disabled={sendTestSmsMutation.isPending}
+            className="px-3 py-1.5 text-xs font-body bg-kairos-card-hover border border-kairos-border rounded-kairos-sm text-kairos-silver-dark hover:border-kairos-gold/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {sendTestSmsMutation.isPending ? "Sending…" : "Send test text"}
+          </button>
+          {testSmsResult ? <span className="text-xs text-kairos-silver-dark">{testSmsResult}</span> : null}
         </div>
       </div>
 

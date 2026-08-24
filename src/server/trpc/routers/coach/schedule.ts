@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
-import { appointments, sessionNotes, coachAvailability, calendarConnections, trainerProfiles, users, notificationPreferences, alerts, conversations, messages, trainerClientRelationships, clientCoachAccess } from "@/server/db/schema";
+import { appointments, sessionNotes, coachAvailability, calendarConnections, trainerProfiles, users, notificationPreferences, alerts, conversations, messages, trainerClientRelationships, clientCoachAccess, userContactInfo } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, lt, ne, sql } from "drizzle-orm";
 import { isGoogleConfigured } from "@/lib/integrations/google-calendar";
 import { isMicrosoftConfigured } from "@/lib/integrations/microsoft-calendar";
 import { createZoomMeeting, deleteZoomMeeting } from "@/lib/zoom";
 import { notifyAppointmentCreated } from "@/lib/scheduling/notify";
+import { sendSms, isSmsConfigured } from "@/lib/notifications/sms";
 
 const SESSION_DURATIONS: Record<string, number> = {
   initial_consultation: 60,
@@ -147,6 +148,34 @@ export const coachScheduleRouter = router({
         return created;
       }
     }),
+
+  /**
+   * Send a test SMS to the caller's OWN phone on file — a self-test so the
+   * coach can confirm Twilio + their number work end-to-end. Bypasses
+   * notification prefs/priority entirely. Never throws.
+   */
+  sendTestSms: trainerProcedure.mutation(async ({ ctx }) => {
+    let contactInfo = null;
+    try {
+      contactInfo = await ctx.db.query.userContactInfo.findFirst({
+        where: eq(userContactInfo.userId, ctx.dbUserId),
+      });
+    } catch { /* table may not exist yet */ }
+
+    const phone = contactInfo?.phone?.trim();
+    if (!phone) return { ok: false as const, reason: "no_phone" as const };
+    if (!isSmsConfigured()) return { ok: false as const, reason: "not_configured" as const };
+
+    const r = await sendSms(
+      phone,
+      "Everist.ai test message — your text (SMS) alerts are working. Reply STOP to opt out.",
+    );
+    return {
+      ok: r.success,
+      reason: r.success ? undefined : (r.error ?? "send_failed"),
+      to: phone,
+    };
+  }),
 
   // List appointments for a week
   listAppointments: trainerProcedure
