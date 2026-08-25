@@ -25,8 +25,13 @@ export interface SendSmsResult {
 export function isSmsConfigured(): boolean {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
+  const keySid = process.env.TWILIO_API_KEY_SID;
+  const keySecret = process.env.TWILIO_API_KEY_SECRET;
   const sender = process.env.TWILIO_FROM_NUMBER ?? process.env.TWILIO_MESSAGING_SERVICE_SID;
-  return Boolean(sid && token && sender);
+  // Auth can be an API Key (SK sid + secret — recommended) OR the Account Auth
+  // Token. The Account SID is always required (it's the REST URL path).
+  const hasAuth = Boolean((keySid && keySecret) || token);
+  return Boolean(sid && hasAuth && sender);
 }
 
 /**
@@ -37,12 +42,19 @@ export function isSmsConfigured(): boolean {
 export function smsConfigDiagnostics() {
   const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
   const token = process.env.TWILIO_AUTH_TOKEN?.trim();
+  const keySid = process.env.TWILIO_API_KEY_SID?.trim();
+  const keySecret = process.env.TWILIO_API_KEY_SECRET?.trim();
   const from = process.env.TWILIO_FROM_NUMBER?.trim();
   const msgSvc = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim();
+  const usingApiKey = Boolean(keySid && keySecret);
   return {
     sidPresent: Boolean(sid),
     sidStartsWithAC: sid?.startsWith("AC") ?? false,
     sidLen: sid?.length ?? 0, // expect 34
+    authMode: usingApiKey ? ("apikey" as const) : ("authtoken" as const),
+    keySidStartsWithSK: keySid?.startsWith("SK") ?? false,
+    keySidLen: keySid?.length ?? 0, // expect 34
+    keySecretLen: keySecret?.length ?? 0, // expect 32
     tokenPresent: Boolean(token),
     tokenLen: token?.length ?? 0, // expect 32
     senderPresent: Boolean(from || msgSvc),
@@ -65,10 +77,19 @@ export async function sendSms(to: string, message: string): Promise<SendSmsResul
   // which produce a Twilio 401 (auth rejected).
   const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
   const token = process.env.TWILIO_AUTH_TOKEN?.trim();
+  const apiKeySid = process.env.TWILIO_API_KEY_SID?.trim();
+  const apiKeySecret = process.env.TWILIO_API_KEY_SECRET?.trim();
   const fromNumber = process.env.TWILIO_FROM_NUMBER?.trim();
   const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim();
 
-  if (!sid || !token || (!fromNumber && !messagingServiceSid)) {
+  // Prefer an API Key (SK sid + secret) when present — Twilio's recommended
+  // auth. Fall back to the Account Auth Token. The Account SID is always the
+  // REST URL path, regardless of which credential authenticates the request.
+  const useApiKey = Boolean(apiKeySid && apiKeySecret);
+  const authUser = useApiKey ? apiKeySid : sid;
+  const authPass = useApiKey ? apiKeySecret : token;
+
+  if (!sid || !authUser || !authPass || (!fromNumber && !messagingServiceSid)) {
     return { success: false, error: "Twilio not configured" };
   }
 
@@ -86,7 +107,7 @@ export async function sendSms(to: string, message: string): Promise<SendSmsResul
     }
     body.set("Body", message.slice(0, 600));
 
-    const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+    const auth = Buffer.from(`${authUser}:${authPass}`).toString("base64");
     const res = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
       {

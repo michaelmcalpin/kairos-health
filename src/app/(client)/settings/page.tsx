@@ -47,7 +47,7 @@ export default function SettingsPage() {
     try {
       const r = await sendTestSmsMutation.mutateAsync();
       const d = r.diag
-        ? ` [SID ${r.diag.sidLen}/34 ${r.diag.sidStartsWithAC ? "AC✓" : "AC✗"}, token ${r.diag.tokenLen}/32, sender ${r.diag.senderPresent ? "set" : "missing"}]`
+        ? ` [SID ${r.diag.sidLen}/34 ${r.diag.sidStartsWithAC ? "AC✓" : "AC✗"}, auth ${r.diag.authMode === "apikey" ? `API key ${r.diag.keySidLen}/34 ${r.diag.keySidStartsWithSK ? "SK✓" : "SK✗"}/${r.diag.keySecretLen}/32` : `token ${r.diag.tokenLen}/32`}, sender ${r.diag.senderPresent ? "set" : "missing"}]`
         : "";
       if (r.ok) setTestSmsResult(`✅ Sent to ${r.to} — check your phone.`);
       else if (r.reason === "no_phone") setTestSmsResult("Add a mobile number above and save first." + d);
