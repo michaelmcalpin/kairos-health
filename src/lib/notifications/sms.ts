@@ -40,10 +40,12 @@ export function isValidE164(phone: string): boolean {
  * configured or the destination number is not a valid E.164 number.
  */
 export async function sendSms(to: string, message: string): Promise<SendSmsResult> {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const fromNumber = process.env.TWILIO_FROM_NUMBER;
-  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+  // Trim to defend against trailing spaces / newlines pasted into env vars,
+  // which produce a Twilio 401 (auth rejected).
+  const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
+  const token = process.env.TWILIO_AUTH_TOKEN?.trim();
+  const fromNumber = process.env.TWILIO_FROM_NUMBER?.trim();
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim();
 
   if (!sid || !token || (!fromNumber && !messagingServiceSid)) {
     return { success: false, error: "Twilio not configured" };
