@@ -46,10 +46,13 @@ export default function SettingsPage() {
     setTestSmsResult("");
     try {
       const r = await sendTestSmsMutation.mutateAsync();
+      const d = r.diag
+        ? ` [SID ${r.diag.sidLen}/34 ${r.diag.sidStartsWithAC ? "AC✓" : "AC✗"}, token ${r.diag.tokenLen}/32, sender ${r.diag.senderPresent ? "set" : "missing"}]`
+        : "";
       if (r.ok) setTestSmsResult(`✅ Sent to ${r.to} — check your phone.`);
-      else if (r.reason === "no_phone") setTestSmsResult("Add a mobile number above and save first.");
-      else if (r.reason === "not_configured") setTestSmsResult("SMS isn't configured on the server yet.");
-      else setTestSmsResult(`Couldn't send: ${r.reason}`);
+      else if (r.reason === "no_phone") setTestSmsResult("Add a mobile number above and save first." + d);
+      else if (r.reason === "not_configured") setTestSmsResult("SMS isn't configured on the server yet." + d);
+      else setTestSmsResult(`Couldn't send: ${r.reason}${d}`);
     } catch {
       setTestSmsResult("Couldn't send: try again.");
     }

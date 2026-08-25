@@ -7,7 +7,7 @@ import { isGoogleConfigured } from "@/lib/integrations/google-calendar";
 import { isMicrosoftConfigured } from "@/lib/integrations/microsoft-calendar";
 import { createZoomMeeting, deleteZoomMeeting } from "@/lib/zoom";
 import { notifyAppointmentCreated } from "@/lib/scheduling/notify";
-import { sendSms, isSmsConfigured } from "@/lib/notifications/sms";
+import { sendSms, isSmsConfigured, smsConfigDiagnostics } from "@/lib/notifications/sms";
 
 const SESSION_DURATIONS: Record<string, number> = {
   initial_consultation: 60,
@@ -163,8 +163,9 @@ export const coachScheduleRouter = router({
     } catch { /* table may not exist yet */ }
 
     const phone = contactInfo?.phone?.trim();
-    if (!phone) return { ok: false as const, reason: "no_phone" as const };
-    if (!isSmsConfigured()) return { ok: false as const, reason: "not_configured" as const };
+    const diag = smsConfigDiagnostics();
+    if (!phone) return { ok: false as const, reason: "no_phone" as const, diag };
+    if (!isSmsConfigured()) return { ok: false as const, reason: "not_configured" as const, diag };
 
     const r = await sendSms(
       phone,
@@ -174,6 +175,7 @@ export const coachScheduleRouter = router({
       ok: r.success,
       reason: r.success ? undefined : (r.error ?? "send_failed"),
       to: phone,
+      diag,
     };
   }),
 

@@ -29,6 +29,27 @@ export function isSmsConfigured(): boolean {
   return Boolean(sid && token && sender);
 }
 
+/**
+ * Non-secret diagnostics about the Twilio credentials as the RUNNING deployment
+ * sees them — used by the "Send test SMS" self-test to pinpoint a 401. Never
+ * returns the actual SID/token values, only presence/shape.
+ */
+export function smsConfigDiagnostics() {
+  const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
+  const token = process.env.TWILIO_AUTH_TOKEN?.trim();
+  const from = process.env.TWILIO_FROM_NUMBER?.trim();
+  const msgSvc = process.env.TWILIO_MESSAGING_SERVICE_SID?.trim();
+  return {
+    sidPresent: Boolean(sid),
+    sidStartsWithAC: sid?.startsWith("AC") ?? false,
+    sidLen: sid?.length ?? 0, // expect 34
+    tokenPresent: Boolean(token),
+    tokenLen: token?.length ?? 0, // expect 32
+    senderPresent: Boolean(from || msgSvc),
+    from: from ?? null,
+  };
+}
+
 /** Basic E.164 guard — must start with "+" followed by 7-15 digits. */
 export function isValidE164(phone: string): boolean {
   return /^\+[1-9]\d{6,14}$/.test(phone.trim());
@@ -84,7 +105,14 @@ export async function sendSms(to: string, message: string): Promise<SendSmsResul
 
     const errorBody = await res.text().catch(() => "");
     logger.error("notifications", "Twilio SMS send failed", { status: res.status, error: errorBody });
-    return { success: false, error: `Twilio responded ${res.status}` };
+    // Surface Twilio's own code/message so misconfig (e.g. 20003 auth error) is
+    // diagnosable from the client without exposing secrets.
+    let detail = "";
+    try {
+      const parsed = JSON.parse(errorBody) as { code?: number; message?: string };
+      if (parsed.code || parsed.message) detail = ` (${parsed.code ?? ""} ${parsed.message ?? ""})`.trimEnd();
+    } catch { /* non-JSON body */ }
+    return { success: false, error: `Twilio responded ${res.status}${detail}` };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error("notifications", "Twilio SMS send error", { error: message });
