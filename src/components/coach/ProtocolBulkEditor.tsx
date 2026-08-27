@@ -260,6 +260,7 @@ export default function ProtocolBulkEditor({
   const [aiNotice, setAiNotice] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
 
   const [preview, setPreview] = useState<string[] | null>(null);
   const [published, setPublished] = useState<{ summary: string; bullets: string[]; itemCount: number } | null>(null);
@@ -394,13 +395,17 @@ export default function ProtocolBulkEditor({
       }
       const data = (await res.json()) as { rows?: GridRow[]; warnings?: string[] };
       const aiRows = Array.isArray(data?.rows) ? data.rows : [];
+      const warnings = Array.isArray(data?.warnings) ? data.warnings.filter(Boolean) : [];
       if (aiRows.length === 0) {
+        // Surface the real reason (missing API key, parse failure, truncation,
+        // or genuinely empty) instead of a generic "couldn't find rows".
         setImportError(
-          "AI couldn't find matching rows in that document — try a different file or enter manually.",
+          warnings.length > 0
+            ? warnings.join(" ")
+            : "AI couldn't find matching rows in that document — try a different file or enter manually.",
         );
         return;
       }
-      const warnings = Array.isArray(data?.warnings) ? data.warnings.filter(Boolean) : [];
       if (warnings.length > 0) setAiNotice(warnings.join(" "));
       setPendingImport({ rows: typedRowsToEditRows(columns, aiRows), label: `${file.name} (AI)` });
     } catch {
@@ -433,10 +438,21 @@ export default function ProtocolBulkEditor({
     previewMutation.mutate({ clientId, type, rows: buildPayload(type, columns, rows) });
   };
   const handlePublish = () => {
+    setShowPublishConfirm(false);
     publishMutation.mutate({ clientId, type, rows: buildPayload(type, columns, rows) });
   };
 
   const payloadCount = buildPayload(type, columns, rows).length;
+  // Rows the coach typed into that will NOT publish because they're missing a
+  // required field (e.g. a supplement with no Name) — surfaced so nothing is
+  // silently dropped.
+  const primaryLabels = PRIMARY_FIELDS[type]
+    .map((k) => columns.find((c) => c.key === k)?.label ?? k)
+    .join(" + ");
+  const nonEmptyRowCount = rows.filter((r) =>
+    columns.some((c) => (r[c.key] ?? "").trim() !== ""),
+  ).length;
+  const skippedCount = Math.max(0, nonEmptyRowCount - payloadCount);
   const busy = previewMutation.isPending || publishMutation.isPending;
 
   return (
@@ -665,14 +681,27 @@ export default function ProtocolBulkEditor({
           Preview changes
         </button>
         <button
-          onClick={handlePublish}
-          disabled={busy}
-          className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium bg-kairos-gold text-kairos-royal-dark border border-kairos-gold hover:bg-kairos-gold-light transition-colors disabled:opacity-50"
+          onClick={() => setShowPublishConfirm(true)}
+          disabled={busy || payloadCount === 0}
+          title={payloadCount === 0 ? "Add at least one complete row before publishing" : undefined}
+          className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium bg-kairos-gold text-kairos-royal-dark border border-kairos-gold hover:bg-kairos-gold-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {publishMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
           Publish &amp; notify client
         </button>
+        <span className="text-[11px] text-kairos-silver-dark">
+          {payloadCount} row{payloadCount === 1 ? "" : "s"} ready
+        </span>
       </div>
+
+      {/* Missing-required-field warning — rows the coach typed but that won't
+          publish because a required field (e.g. Name) is blank. */}
+      {skippedCount > 0 && (
+        <div className="px-3 py-2 rounded-lg text-xs bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-center gap-2">
+          <AlertCircle size={13} />
+          {skippedCount} row{skippedCount === 1 ? "" : "s"} won&apos;t be published — missing required {primaryLabels}. Fill {skippedCount === 1 ? "it" : "them"} in or delete the row.
+        </div>
+      )}
 
       {/* Errors from preview/publish */}
       {previewMutation.isError && (
@@ -727,6 +756,49 @@ export default function ProtocolBulkEditor({
           <p className="text-[11px] text-kairos-silver-dark">
             {published.itemCount} item{published.itemCount === 1 ? "" : "s"} now saved. The client has been alerted.
           </p>
+        </div>
+      )}
+
+      {/* Publish confirm — destructive (replaces the client's live protocol) and
+          notifies the client, so require explicit confirmation. */}
+      {showPublishConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setShowPublishConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm kairos-card border border-gray-700 rounded-2xl shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-kairos-gold/10 border border-kairos-gold/30 flex items-center justify-center">
+                <Send size={18} className="text-kairos-gold" />
+              </div>
+              <h2 className="text-lg font-heading font-bold text-white">Publish &amp; notify client?</h2>
+            </div>
+            <p className="text-sm text-gray-400 mb-2">
+              This replaces the client&apos;s current {type} protocol with {payloadCount} row{payloadCount === 1 ? "" : "s"} and alerts them (in-app, email, and push/text per their settings).
+            </p>
+            {skippedCount > 0 && (
+              <p className="text-xs text-amber-300 mb-4">
+                {skippedCount} incomplete row{skippedCount === 1 ? "" : "s"} will be skipped.
+              </p>
+            )}
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setShowPublishConfirm(false)}
+                className="flex-1 py-2 rounded-xl text-sm font-medium bg-gray-800 border border-gray-700 text-kairos-silver hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePublish}
+                className="flex-1 py-2 rounded-xl text-sm font-medium bg-kairos-gold text-kairos-royal-dark hover:bg-kairos-gold-light transition-colors"
+              >
+                Publish
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

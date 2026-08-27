@@ -7,6 +7,9 @@ import {
   type ProtocolType,
   type ExtractInput,
 } from "@/lib/ai/protocol-extract";
+import { db } from "@/server/db";
+import { users } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 
 /**
  * POST /api/protocol-import
@@ -105,6 +108,16 @@ export async function POST(req: NextRequest) {
     const { userId: clerkId } = await auth();
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Coach-only: this endpoint runs documents through the AI extractor (spends
+    // tokens) and is only meant for the coach bulk-editor. Reject clients.
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.clerkId, clerkId),
+      columns: { role: true },
+    });
+    if (dbUser?.role !== "trainer" && dbUser?.role !== "super_admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const formData = await req.formData();

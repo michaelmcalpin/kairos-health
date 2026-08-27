@@ -146,6 +146,14 @@ function toStr(v: unknown): string | null {
   return s.length > 0 ? s : null;
 }
 
+// Same as toStr but hard-caps the length so a long AI/pasted value can't overflow
+// a narrow varchar column and 500 the whole publish. Trailing "…" signals a cut.
+function toStrMax(v: unknown, max: number): string | null {
+  const s = toStr(v);
+  if (s === null) return null;
+  return s.length > max ? s.slice(0, Math.max(1, max - 1)) + "…" : s;
+}
+
 function toNum(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "number" ? v : Number(v);
@@ -336,13 +344,13 @@ async function applySupplements(
     .filter((x): x is { r: Record<string, unknown>; name: string } => x.name !== null)
     .map(({ r, name }) => ({
       protocolId: protocol!.id,
-      name,
+      name: toStrMax(name, 255) ?? name,
       category: "supplement" as const,
-      dosage: toStr(r.dosage),
-      unit: toStr(r.unit),
-      frequency: toStr(r.frequency),
+      dosage: toStrMax(r.dosage, 100),
+      unit: toStrMax(r.unit, 50),
+      frequency: toStrMax(r.frequency, 50),
       route: null,
-      timeOfDay: toStr(r.timeOfDay),
+      timeOfDay: toStrMax(r.timeOfDay, 50),
       coachNotes: toStr(r.notes),
     }));
 
@@ -378,12 +386,12 @@ async function applyPeptideCycles(
     .filter((x): x is { r: Record<string, unknown>; name: string } => x.name !== null)
     .map(({ r, name }) => ({
       clientId,
-      name,
-      peptideName: name,
-      dosage: toStr(r.dosage),
-      unit: toStr(r.unit),
-      frequency: toStr(r.frequency),
-      route: toStr(r.route),
+      name: toStrMax(name, 255) ?? name,
+      peptideName: toStrMax(name, 255) ?? name,
+      dosage: toStrMax(r.dosage, 100),
+      unit: toStrMax(r.unit, 50),
+      frequency: toStrMax(r.frequency, 100),
+      route: toStrMax(r.route, 50),
       startDate: today,
       status: "active" as const,
       notes: toStr(r.notes),
@@ -665,13 +673,17 @@ export const coachProtocolBulkRouter = router({
       // a. BEFORE — current stored rows (same shape getGrid returns).
       const before = await readGrid(ctx.db, input.type, input.clientId);
 
-      // b. Apply the replace; AFTER = the new stored rows.
-      const after = await applyReplace(
-        ctx.db,
-        ctx.dbUserId,
-        input.type,
-        input.clientId,
-        input.rows,
+      // b. Apply the replace inside a transaction so a mid-write failure rolls
+      // back instead of leaving the client's protocol partially wiped.
+      // AFTER = the new stored rows.
+      const after = await ctx.db.transaction(async (tx) =>
+        applyReplace(
+          tx as unknown as Database,
+          ctx.dbUserId,
+          input.type,
+          input.clientId,
+          input.rows,
+        ),
       );
 
       // c. Summarize the change (never throws; deterministic fallback).
