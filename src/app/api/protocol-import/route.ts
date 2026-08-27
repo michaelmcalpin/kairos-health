@@ -143,12 +143,12 @@ export async function POST(req: NextRequest) {
       return content; // unsupported file type (400)
     }
 
-    const { rows, warnings } = await extractProtocolRows({
+    const { rows, warnings, plan } = await extractProtocolRows({
       type: type as ProtocolType,
       content,
     });
 
-    return NextResponse.json({ rows, warnings }, { status: 200 });
+    return NextResponse.json({ rows, warnings, plan: plan ?? null }, { status: 200 });
   } catch (err) {
     // Do not leak internals or log file contents.
     console.error("[Protocol Import Error]", err instanceof Error ? err.message : String(err));

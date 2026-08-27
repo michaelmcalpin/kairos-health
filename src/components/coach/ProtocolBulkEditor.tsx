@@ -25,11 +25,35 @@ type GridRow = Record<string, string | number | null>;
 /** Internal editable rows keep everything as strings for simple controlled inputs. */
 type EditRow = Record<string, string>;
 
+/** Diet plan-level metadata (fast / flush / no-carb / high-protein / pulse …). */
+type PlanMeta = {
+  planType: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  cyclePattern: string | null;
+};
+
+// Suggested plan types for the datalist — free text, so coaches can type others.
+const PLAN_TYPE_SUGGESTIONS = [
+  "Standard",
+  "Fast",
+  "Flush",
+  "No Carb",
+  "Low Carb",
+  "High Protein",
+  "Keto",
+  "Carb Cycle",
+  "Pulse",
+  "Elimination",
+  "Refeed",
+];
+
 type Props = {
   clientId: string;
   type: ProtocolType;
   columns: Column[];
   initialRows: GridRow[];
+  initialPlanMeta?: PlanMeta;
   onPublished?: () => void;
 };
 
@@ -243,14 +267,25 @@ function csvToRows(columns: Column[], matrix: string[][]): EditRow[] {
 }
 
 // ─── Component ──────────────────────────────────────────────
+function seedPlanMeta(meta?: PlanMeta): PlanMeta {
+  return {
+    planType: meta?.planType ?? "",
+    startDate: meta?.startDate ?? "",
+    endDate: meta?.endDate ?? "",
+    cyclePattern: meta?.cyclePattern ?? "",
+  };
+}
+
 export default function ProtocolBulkEditor({
   clientId,
   type,
   columns,
   initialRows,
+  initialPlanMeta,
   onPublished,
 }: Props) {
   const [rows, setRows] = useState<EditRow[]>(() => seedRows(columns, initialRows));
+  const [planMeta, setPlanMeta] = useState<PlanMeta>(() => seedPlanMeta(initialPlanMeta));
   const [activeCell, setActiveCell] = useState<{ r: number; c: number } | null>(null);
 
   const [showPasteBox, setShowPasteBox] = useState(false);
@@ -271,6 +306,7 @@ export default function ProtocolBulkEditor({
   // Re-seed whenever the incoming rows identity changes (e.g. after a publish refetch).
   useEffect(() => {
     setRows(seedRows(columns, initialRows));
+    setPlanMeta(seedPlanMeta(initialPlanMeta));
     setActiveCell(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialRows, type]);
@@ -393,7 +429,16 @@ export default function ProtocolBulkEditor({
         setImportError("Import failed. Supported: Word, PDF, Excel, CSV.");
         return;
       }
-      const data = (await res.json()) as { rows?: GridRow[]; warnings?: string[] };
+      const data = (await res.json()) as {
+        rows?: GridRow[];
+        warnings?: string[];
+        plan?: PlanMeta | null;
+      };
+      // Diet uploads may carry plan-level metadata (fast/flush/etc. + timeframe
+      // + cycle) — pre-fill the plan fields so the coach can review before publish.
+      if (type === "diet" && data?.plan) {
+        setPlanMeta(seedPlanMeta(data.plan));
+      }
       const aiRows = Array.isArray(data?.rows) ? data.rows : [];
       const warnings = Array.isArray(data?.warnings) ? data.warnings.filter(Boolean) : [];
       if (aiRows.length === 0) {
@@ -437,9 +482,19 @@ export default function ProtocolBulkEditor({
     setPublished(null);
     previewMutation.mutate({ clientId, type, rows: buildPayload(type, columns, rows) });
   };
+  const planPayload =
+    type === "diet"
+      ? {
+          planType: planMeta.planType || null,
+          startDate: planMeta.startDate || null,
+          endDate: planMeta.endDate || null,
+          cyclePattern: planMeta.cyclePattern || null,
+        }
+      : undefined;
+
   const handlePublish = () => {
     setShowPublishConfirm(false);
-    publishMutation.mutate({ clientId, type, rows: buildPayload(type, columns, rows) });
+    publishMutation.mutate({ clientId, type, rows: buildPayload(type, columns, rows), plan: planPayload });
   };
 
   const payloadCount = buildPayload(type, columns, rows).length;
@@ -457,6 +512,64 @@ export default function ProtocolBulkEditor({
 
   return (
     <div className="space-y-4">
+      {/* Diet plan details — a fast, flush, no-carb, high-protein, keto, pulse,
+          etc. is a dietary plan defined by its TYPE + a start/stop window (and an
+          optional cycling pattern). Only shown for the diet tab. */}
+      {type === "diet" && (
+        <div className="rounded-xl border border-gray-700 bg-gray-800/40 p-4">
+          <h3 className="text-xs font-heading font-semibold text-kairos-gold mb-3 uppercase tracking-wide">
+            Plan details
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[11px] text-kairos-silver-dark mb-1">Plan type</label>
+              <input
+                list="plan-type-suggestions"
+                value={planMeta.planType ?? ""}
+                onChange={(e) => setPlanMeta((p) => ({ ...p, planType: e.target.value }))}
+                placeholder="e.g. Fast, Flush, No Carb"
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-white placeholder:text-gray-600 focus:border-kairos-gold/50 focus:outline-none"
+              />
+              <datalist id="plan-type-suggestions">
+                {PLAN_TYPE_SUGGESTIONS.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <label className="block text-[11px] text-kairos-silver-dark mb-1">Start date</label>
+              <input
+                type="date"
+                value={planMeta.startDate ?? ""}
+                onChange={(e) => setPlanMeta((p) => ({ ...p, startDate: e.target.value }))}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-white focus:border-kairos-gold/50 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-kairos-silver-dark mb-1">End date</label>
+              <input
+                type="date"
+                value={planMeta.endDate ?? ""}
+                onChange={(e) => setPlanMeta((p) => ({ ...p, endDate: e.target.value }))}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-white focus:border-kairos-gold/50 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-kairos-silver-dark mb-1">Cycle pattern</label>
+              <input
+                value={planMeta.cyclePattern ?? ""}
+                onChange={(e) => setPlanMeta((p) => ({ ...p, cyclePattern: e.target.value }))}
+                placeholder="e.g. 3 days on / 2 off"
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-white placeholder:text-gray-600 focus:border-kairos-gold/50 focus:outline-none"
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-kairos-silver-dark mt-2">
+            Leave dates blank for an ongoing plan. Uploading a document with AI fills these in automatically.
+          </p>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <button

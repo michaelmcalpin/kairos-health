@@ -80,7 +80,7 @@ const SYSTEM_PROMPT =
 const TYPE_GUIDANCE: Record<ProtocolType, string> = {
   supplements: `This is a SUPPLEMENTS extraction. Documents often have a SCHEDULE TABLE where the times of day are COLUMNS (e.g. Waking, BF, 10AM, Lunch, 3PM, Dinner, Bed) and each cell holds the amount taken at that time. In that case produce ONE row per supplement: put the amount in "dosage" and the times where it appears, comma-joined, into "timeOfDay". EXCLUDE injectable peptides and prescription medications — only oral/topical supplements and vitamins belong here.`,
   peptides: `This is a PEPTIDES extraction. Extract injectable / prescription items (e.g. Reta/Retatrutide, Tesamorelin, NAD+, GHK-Cu, BPC-157, Semaglutide). Capture the dose (mg/mcg/units) in "dosage", the frequency (e.g. "1x weekly", "M-F nightly", "daily") in "frequency", and the "route" if stated (subcutaneous, IM, intranasal, topical). EXCLUDE ordinary oral vitamins/supplements — only peptides and prescriptions belong here.`,
-  diet: `This is a DIET extraction. Extract meals with their items and macro targets (calories/protein/carbs/fat) when present. A document may describe multiple day-types (e.g. High Carb vs Low Carb days) — when it does, PREFIX the meal name with the day-type, e.g. "High Carb — Meal 1", "Low Carb — Meal 1".`,
+  diet: `This is a DIET extraction. A fast, flush, no-carb, high-protein, keto, carb-cycle, or "pulse" is a DIETARY PLAN — capture its plan-level details in the "plan" object: "planType" (e.g. Fast, Flush, No Carb, High Protein, Keto, Carb Cycle, Pulse, Standard), "startDate" and "endDate" (ISO YYYY-MM-DD if stated, else null; a fast is often 3–5 days then a ramp-up), and "cyclePattern" for on/off rotations (e.g. "3 days on / 2 days off"). Then extract the meals into "rows" with their items and macro targets (calories/protein/carbs/fat) when present. A document may describe multiple day-types (e.g. High Carb vs Low Carb days) — when it does, PREFIX the meal name with the day-type, e.g. "High Carb — Meal 1", "Low Carb — Meal 1". If a phase has no explicit meals (e.g. a water fast), still return the plan and any guidance as a single row with the phase name as "meal".`,
   workouts: `This is a WORKOUTS extraction. Extract the training day, exercise, sets, and reps. Include muscleGroup, rest, and notes when present. One row per exercise; repeat the "day" label for every exercise in that day.`,
 };
 
@@ -169,9 +169,20 @@ export interface ExtractInput {
   content: { kind: "text"; text: string } | { kind: "pdf"; base64: string };
 }
 
+// Plan-level metadata for a DIET upload. A fast, flush, no-carb, high-protein,
+// keto, carb-cycle or "pulse" is a dietary plan distinguished by its TYPE and a
+// start/stop window (plus an optional cycling pattern, e.g. "3 days on / 2 off").
+export interface ExtractedPlan {
+  planType: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  cyclePattern: string | null;
+}
+
 export interface ExtractResult {
   rows: Array<Record<string, string | number | null>>;
   warnings: string[];
+  plan?: ExtractedPlan | null;
 }
 
 /**
@@ -207,7 +218,7 @@ Rules:
 - Number columns must be plain numbers (or null); text columns are strings (or null).
 
 Respond with STRICT JSON and nothing else, matching exactly:
-{ "rows": [ { ${columns.map((c) => `"${c.key}": <value|null>`).join(", ")} } ] }`;
+{ ${input.type === "diet" ? `"plan": { "planType": <string|null>, "startDate": <YYYY-MM-DD|null>, "endDate": <YYYY-MM-DD|null>, "cyclePattern": <string|null> }, ` : ""}"rows": [ { ${columns.map((c) => `"${c.key}": <value|null>`).join(", ")} } ] }`;
 
     // Build the user message content. For PDFs we attach a document block so the
     // model reads the file directly; for text we inline the extracted content.
@@ -267,11 +278,29 @@ ${text}`;
       .map((r) => coerceRow(input.type, r))
       .filter((r) => hasRequiredFields(input.type, r));
 
+    // For diet, surface the plan-level metadata (type + timeframe + cycle).
+    let plan: ExtractedPlan | null = null;
+    if (input.type === "diet") {
+      const p = (parsed as { plan?: unknown }).plan;
+      if (p && typeof p === "object" && !Array.isArray(p)) {
+        const pr = p as Record<string, unknown>;
+        plan = {
+          planType: toText(pr.planType),
+          startDate: toText(pr.startDate),
+          endDate: toText(pr.endDate),
+          cyclePattern: toText(pr.cyclePattern),
+        };
+        if (!plan.planType && !plan.startDate && !plan.endDate && !plan.cyclePattern) {
+          plan = null;
+        }
+      }
+    }
+
     if (rows.length === 0) {
       warnings.push("No rows for the selected protocol type were found in the document.");
     }
 
-    return { rows, warnings };
+    return { rows, warnings, plan };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error("[Protocol Document Extraction Error]", errMsg);

@@ -256,6 +256,44 @@ async function readDietRows(db: Database, clientId: string): Promise<GridRow[]> 
   return meals.map((m): GridRow => planMealToRow((m ?? {}) as Record<string, unknown>));
 }
 
+// Plan-level metadata for a DIET plan. Fasts, flushes, no-carb, high-protein,
+// pulses, etc. are all just dietary plans with a TYPE and a start/stop window
+// (and optionally a cycling pattern like "3 days on / 2 days off"). We store
+// these on the meal-plan library object (the `meals` jsonb) so no migration is
+// needed and the client nutrition view can read them alongside the meals.
+export interface PlanMeta {
+  planType: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  cyclePattern: string | null;
+}
+
+const EMPTY_PLAN_META: PlanMeta = {
+  planType: null,
+  startDate: null,
+  endDate: null,
+  cyclePattern: null,
+};
+
+function readLibraryMeta(stored: unknown): PlanMeta {
+  const lib =
+    stored && typeof stored === "object" && !Array.isArray(stored)
+      ? (stored as Record<string, unknown>)
+      : {};
+  return {
+    planType: toStrMax(lib.planType, 80),
+    startDate: toStrMax(lib.startDate, 40),
+    endDate: toStrMax(lib.endDate, 40),
+    cyclePattern: toStrMax(lib.cyclePattern, 120),
+  };
+}
+
+async function readDietMeta(db: Database, clientId: string): Promise<PlanMeta> {
+  const plan = await findActiveMealPlan(db, clientId);
+  if (!plan) return { ...EMPTY_PLAN_META };
+  return readLibraryMeta(plan.meals as unknown);
+}
+
 async function findActiveWorkoutProgram(db: Database, clientId: string) {
   const assignment = await db.query.clientWorkoutAssignments.findFirst({
     where: and(
@@ -419,6 +457,7 @@ async function applyDiet(
   coachId: string,
   clientId: string,
   rows: Array<Record<string, unknown>>,
+  planMeta?: PlanMeta,
 ): Promise<GridRow[]> {
   // Build PlanMeal objects in the exact shape the client nutrition plan view
   // reads (MealLibrary.meals[] — see client/nutrition.ts getActivePlan). The
@@ -452,8 +491,13 @@ async function applyDiet(
       };
     });
 
+  const meta = planMeta ?? EMPTY_PLAN_META;
   const library = {
-    libraryName: "Coach Nutrition Plan",
+    libraryName: toStr(meta.planType) ?? "Coach Nutrition Plan",
+    planType: meta.planType,
+    startDate: meta.startDate,
+    endDate: meta.endDate,
+    cyclePattern: meta.cyclePattern,
     description: "",
     dailyTargets: {
       calories: planMeals.reduce((s, m) => s + m.calories, 0),
@@ -582,6 +626,7 @@ async function applyReplace(
   type: ProtocolType,
   clientId: string,
   rows: Array<Record<string, unknown>>,
+  planMeta?: PlanMeta,
 ): Promise<GridRow[]> {
   switch (type) {
     case "supplements":
@@ -589,7 +634,7 @@ async function applyReplace(
     case "peptides":
       return applyPeptideCycles(db, coachId, clientId, rows);
     case "diet":
-      return applyDiet(db, coachId, clientId, rows);
+      return applyDiet(db, coachId, clientId, rows, planMeta);
     case "workouts":
       return applyWorkouts(db, coachId, clientId, rows);
   }
@@ -598,6 +643,26 @@ async function applyReplace(
 // ─── Input schemas ──────────────────────────────────────────
 const typeEnum = z.enum(["diet", "supplements", "peptides", "workouts"]);
 const rowsInput = z.array(z.record(z.string(), z.unknown()));
+// Diet plan-level metadata (fast / flush / no-carb / high-protein / pulse etc.
+// are dietary plans distinguished by type + a start/stop window + cycle pattern).
+const planInput = z
+  .object({
+    planType: z.string().nullish(),
+    startDate: z.string().nullish(),
+    endDate: z.string().nullish(),
+    cyclePattern: z.string().nullish(),
+  })
+  .optional();
+
+function normalizePlanMeta(input: z.infer<typeof planInput>): PlanMeta | undefined {
+  if (!input) return undefined;
+  return {
+    planType: toStrMax(input.planType, 80),
+    startDate: toStrMax(input.startDate, 40),
+    endDate: toStrMax(input.endDate, 40),
+    cyclePattern: toStrMax(input.cyclePattern, 120),
+  };
+}
 
 // ─── Router ─────────────────────────────────────────────────
 export const coachProtocolBulkRouter = router({
@@ -622,6 +687,12 @@ export const coachProtocolBulkRouter = router({
         type: input.type,
         columns: COLUMNS[input.type],
         rows,
+        // Diet plans carry plan-level metadata (type + timeframe + cycle); other
+        // types have none.
+        planMeta:
+          input.type === "diet"
+            ? await readDietMeta(ctx.db, input.clientId)
+            : null,
       };
     }),
 
@@ -658,6 +729,7 @@ export const coachProtocolBulkRouter = router({
         type: typeEnum,
         rows: rowsInput,
         note: z.string().optional(),
+        plan: planInput,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -683,6 +755,7 @@ export const coachProtocolBulkRouter = router({
           input.type,
           input.clientId,
           input.rows,
+          normalizePlanMeta(input.plan),
         ),
       );
 

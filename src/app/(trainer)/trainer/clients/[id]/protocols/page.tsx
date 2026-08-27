@@ -96,6 +96,7 @@ export default function BulkEditProtocolsPage({ params }: { params: { id: string
             type={type}
             columns={gridQuery.data.columns}
             initialRows={gridQuery.data.rows}
+            initialPlanMeta={gridQuery.data.planMeta ?? undefined}
             onPublished={() => gridQuery.refetch()}
           />
         ) : null}

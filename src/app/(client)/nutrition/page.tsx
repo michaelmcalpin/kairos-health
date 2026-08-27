@@ -48,6 +48,12 @@ interface PlanMeal {
 interface MealLibrary {
   libraryName: string;
   description: string;
+  // Optional plan-level metadata a coach sets (fast / flush / no-carb / etc.
+  // are dietary plans with a type + start/stop window + optional cycle pattern).
+  planType?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  cyclePattern?: string | null;
   dailyTargets: { calories: number; proteinG: number; carbsG: number; fatG: number; fiberG: number };
   meals: PlanMeal[];
 }
@@ -489,8 +495,31 @@ export default function NutritionPage() {
               <div className="kairos-card">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h2 className="font-heading font-bold text-lg text-white">{library.libraryName}</h2>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="font-heading font-bold text-lg text-white">{library.libraryName}</h2>
+                      {library.planType && library.planType !== library.libraryName && (
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-kairos-gold/15 text-kairos-gold border border-kairos-gold/30">
+                          {library.planType}
+                        </span>
+                      )}
+                    </div>
                     {library.description && <p className="text-sm text-kairos-silver-dark font-body mt-1">{library.description}</p>}
+                    {(library.startDate || library.endDate || library.cyclePattern) && (
+                      <p className="text-xs text-kairos-gold/90 font-body mt-1.5">
+                        {[
+                          library.startDate && library.endDate
+                            ? `${library.startDate} → ${library.endDate}`
+                            : library.startDate
+                              ? `From ${library.startDate}`
+                              : library.endDate
+                                ? `Until ${library.endDate}`
+                                : null,
+                          library.cyclePattern,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    )}
                     <p className="text-xs text-kairos-silver-dark font-body mt-2">
                       {planMeals.length} meals &middot; {library.dailyTargets.calories} kcal/day target
                     </p>
