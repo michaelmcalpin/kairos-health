@@ -54,6 +54,10 @@ type Props = {
   columns: Column[];
   initialRows: GridRow[];
   initialPlanMeta?: PlanMeta;
+  /** When set, the editor auto-runs the AI import on this file once on mount
+   *  (used by the page-level "detect type" flow after the coach confirms a tab). */
+  autoImportFile?: File | null;
+  onAutoImportConsumed?: () => void;
   onPublished?: () => void;
 };
 
@@ -282,6 +286,8 @@ export default function ProtocolBulkEditor({
   columns,
   initialRows,
   initialPlanMeta,
+  autoImportFile,
+  onAutoImportConsumed,
   onPublished,
 }: Props) {
   const [rows, setRows] = useState<EditRow[]>(() => seedRows(columns, initialRows));
@@ -509,6 +515,18 @@ export default function ProtocolBulkEditor({
   ).length;
   const skippedCount = Math.max(0, nonEmptyRowCount - payloadCount);
   const busy = previewMutation.isPending || publishMutation.isPending;
+
+  // When the page hands us a file (after the coach confirms which tab in the
+  // "detect type" flow), run the AI import on it once per distinct file.
+  const lastAutoFileRef = useRef<File | null>(null);
+  useEffect(() => {
+    if (autoImportFile && lastAutoFileRef.current !== autoImportFile) {
+      lastAutoFileRef.current = autoImportFile;
+      void handleAiFile(autoImportFile);
+      onAutoImportConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoImportFile]);
 
   return (
     <div className="space-y-4">

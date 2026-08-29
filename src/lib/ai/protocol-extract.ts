@@ -307,3 +307,110 @@ ${text}`;
     return { rows: [], warnings: [...warnings, `AI extraction unavailable: ${errMsg.slice(0, 200)}`] };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Document type detection — "which tab does this belong in?"
+// ---------------------------------------------------------------------------
+
+const TYPE_LABELS: Record<ProtocolType, string> = {
+  diet: "Diet / Nutrition",
+  supplements: "Supplements",
+  peptides: "Peptides",
+  workouts: "Workouts",
+};
+
+export interface DetectedType {
+  type: ProtocolType;
+  label: string;
+  reason: string;
+}
+
+export interface DetectResult {
+  detected: DetectedType[];
+  warnings: string[];
+}
+
+const DETECT_SYSTEM_PROMPT =
+  "You classify a coach's protocol document. Decide which of these protocol types it contains, most prominent first: diet (meal plans, fasts, flushes, no-carb, high-protein, keto, carb-cycle, pulses — anything eaten on a schedule), supplements (oral vitamins/supplements), peptides (injectable/prescription items), workouts (training/exercise). A document may contain more than one. Return STRICT JSON only.";
+
+/**
+ * Classify which protocol type(s) a document belongs to, so the coach can be
+ * asked "import into which tab?" instead of choosing up front. Never throws —
+ * on any failure returns { detected: [], warnings: [...] }.
+ */
+export async function detectProtocolTypes(
+  content: ExtractInput["content"],
+): Promise<DetectResult> {
+  const warnings: string[] = [];
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return { detected: [], warnings: ["AI detection unavailable: ANTHROPIC_API_KEY is not configured."] };
+  }
+
+  const instruction = `Classify the protocol document below. Return the types it contains, MOST PROMINENT FIRST, each with a one-line reason (max ~12 words). Only include a type if the document actually contains it.
+
+Valid types: diet, supplements, peptides, workouts.
+
+Respond with STRICT JSON and nothing else:
+{ "detected": [ { "type": "diet|supplements|peptides|workouts", "reason": "<why>" } ] }`;
+
+  try {
+    let userContent: Anthropic.MessageParam["content"];
+    if (content.kind === "pdf") {
+      userContent = [
+        { type: "document", source: { type: "base64", media_type: "application/pdf", data: content.base64 } },
+        { type: "text", text: instruction },
+      ];
+    } else {
+      let text = content.text ?? "";
+      if (text.length > MAX_TEXT_CHARS) text = text.slice(0, MAX_TEXT_CHARS);
+      userContent = `${instruction}\n\n--- DOCUMENT CONTENT ---\n${text}`;
+    }
+
+    const anthropic = new Anthropic({ apiKey });
+    const response = await callWithRetry(
+      () =>
+        anthropic.messages.create({
+          model: ANTHROPIC_MODEL,
+          max_tokens: 500,
+          temperature: 0,
+          system: DETECT_SYSTEM_PROMPT,
+          messages: [{ role: "user", content: userContent }],
+        }),
+      "Protocol Document Detection",
+    );
+
+    const textBlock = response.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") {
+      return { detected: [], warnings: ["AI detection unavailable: the model returned no text."] };
+    }
+
+    const parsed = extractJson(textBlock.text) as { detected?: unknown } | null;
+    const rawList = parsed && Array.isArray(parsed.detected) ? parsed.detected : [];
+    const valid: ProtocolType[] = ["diet", "supplements", "peptides", "workouts"];
+    const seen = new Set<ProtocolType>();
+    const detected: DetectedType[] = [];
+    for (const item of rawList) {
+      if (!item || typeof item !== "object") continue;
+      const t = (item as Record<string, unknown>).type;
+      if (typeof t !== "string" || !valid.includes(t as ProtocolType)) continue;
+      const type = t as ProtocolType;
+      if (seen.has(type)) continue;
+      seen.add(type);
+      detected.push({
+        type,
+        label: TYPE_LABELS[type],
+        reason: toText((item as Record<string, unknown>).reason) ?? "",
+      });
+    }
+
+    if (detected.length === 0) {
+      warnings.push("Couldn't tell which protocol type this document is — pick a tab and try importing directly.");
+    }
+    return { detected, warnings };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[Protocol Document Detection Error]", errMsg);
+    return { detected: [], warnings: [`AI detection unavailable: ${errMsg.slice(0, 200)}`] };
+  }
+}

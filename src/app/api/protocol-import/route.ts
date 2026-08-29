@@ -4,6 +4,7 @@ import mammoth from "mammoth";
 import * as XLSX from "xlsx";
 import {
   extractProtocolRows,
+  detectProtocolTypes,
   type ProtocolType,
   type ExtractInput,
 } from "@/lib/ai/protocol-extract";
@@ -123,11 +124,13 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const type = formData.get("type") as string | null;
+    // "detect" mode classifies which tab the document belongs in (no type needed).
+    const detect = formData.get("detect") === "1";
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
-    if (!type || !VALID_TYPES.includes(type as ProtocolType)) {
+    if (!detect && (!type || !VALID_TYPES.includes(type as ProtocolType))) {
       return NextResponse.json(
         { error: "Invalid or missing protocol type", validTypes: VALID_TYPES },
         { status: 400 },
@@ -141,6 +144,11 @@ export async function POST(req: NextRequest) {
     const content = await buildContent(file, ext);
     if (content instanceof NextResponse) {
       return content; // unsupported file type (400)
+    }
+
+    if (detect) {
+      const { detected, warnings } = await detectProtocolTypes(content);
+      return NextResponse.json({ detected, warnings }, { status: 200 });
     }
 
     const { rows, warnings, plan } = await extractProtocolRows({
