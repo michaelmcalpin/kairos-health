@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Sparkles,
   X,
+  Download,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import ProtocolBulkEditor from "@/components/coach/ProtocolBulkEditor";
@@ -147,6 +148,47 @@ export default function BulkEditProtocolsPage({ params }: { params: { id: string
             {detecting ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
             Upload a document (AI picks the tab)
           </button>
+        </div>
+      </div>
+
+      {/* Blank templates — for coaches who prefer to enter data by hand. */}
+      <div className="rounded-xl border border-gray-700 bg-gray-800/40 p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Download size={14} className="text-kairos-gold" />
+          <h3 className="text-xs font-heading font-semibold text-white uppercase tracking-wide">
+            Enter data by hand
+          </h3>
+        </div>
+        <p className="text-[11px] text-kairos-silver-dark mb-3">
+          Download a template with sample rows, fill in your own data in Excel or Google Sheets, then upload it above.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {[
+            { key: "diet", label: "Diet / Meal Plan" },
+            { key: "supplements", label: "Supplements" },
+            { key: "peptides", label: "Peptides" },
+            { key: "workouts", label: "Workouts" },
+          ].map((t) => (
+            <div key={t.key} className="rounded-lg border border-gray-700 bg-gray-900/60 px-3 py-2">
+              <p className="text-xs font-medium text-kairos-silver mb-1.5">{t.label}</p>
+              <div className="flex items-center gap-3">
+                <a
+                  href={`/templates/${t.key}-template.xlsx`}
+                  download
+                  className="text-[11px] font-medium text-kairos-gold hover:text-kairos-gold-light inline-flex items-center gap-1"
+                >
+                  <Download size={11} /> Excel
+                </a>
+                <a
+                  href={`/templates/${t.key}-template.csv`}
+                  download
+                  className="text-[11px] font-medium text-kairos-silver-dark hover:text-white inline-flex items-center gap-1"
+                >
+                  <Download size={11} /> CSV
+                </a>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
