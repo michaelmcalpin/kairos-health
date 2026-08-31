@@ -65,6 +65,7 @@ import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SummitGlyph } from "@/components/brand";
 import { useConnectedDevices } from "@/hooks/useDevices";
+import { useViewMode } from "@/hooks/useToday";
 
 /* ------------------------------------------------------------------ */
 /* Screen                                                              */
@@ -72,6 +73,7 @@ import { useConnectedDevices } from "@/hooks/useDevices";
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const viewMode = useViewMode();
   const { signOut } = useAuth();
   const { user: authUser } = useUser();
 
@@ -313,6 +315,23 @@ export default function ProfileScreen() {
         </Card>
 
         {/* ═══════════════════════════════════════════════════════════ */}
+        {/* HOME SCREEN MODE                                          */}
+        {/* ═══════════════════════════════════════════════════════════ */}
+        <SettingsSection
+          title="Home screen"
+          icon={<Activity size={16} color={Colors.gold} />}
+        >
+          <SettingsRow
+            type="toggle"
+            icon={<Activity size={18} color={Colors.silver} />}
+            label="Guided mode"
+            subtitle="Just tell me what to do and when (off = full data)"
+            value={viewMode.mode === "guided"}
+            onValueChange={(v: boolean) => viewMode.setMode(v ? "guided" : "full")}
+            last
+          />
+        </SettingsSection>
+
         {/* 3a. NOTIFICATIONS                                         */}
         {/* ═══════════════════════════════════════════════════════════ */}
         <SettingsSection

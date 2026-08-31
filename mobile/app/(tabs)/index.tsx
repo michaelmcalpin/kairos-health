@@ -51,6 +51,10 @@ import {
   useAlerts,
 } from "@/hooks/useHealthData";
 import { useDashboardProtocol } from "@/hooks/useProtocols";
+import { useToday, useViewMode } from "@/hooks/useToday";
+import { TodayChecklist } from "@/components/today/TodayChecklist";
+import { ModeToggle } from "@/components/today/ModeToggle";
+import GuidedHome from "@/components/today/GuidedHome";
 
 // Protocol data is now fetched via the useDashboardProtocol hook below.
 
@@ -83,7 +87,17 @@ function getAlertIcon(type: string): React.ReactNode {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export default function HomeScreen() {
+  // Guided vs Full is a per-client preference. Branch at the component level so
+  // the heavy dashboard queries only run in Full mode.
+  const { mode } = useViewMode();
+  if (mode === "guided") return <GuidedHome />;
+  return <FullDashboard />;
+}
+
+function FullDashboard() {
   const router = useRouter();
+  const { mode, setMode } = useViewMode();
+  const todayHook = useToday();
 
   // ── tRPC data hooks ──────────────────────────────────────────
   const healthScore = useHealthScore();
@@ -158,7 +172,9 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.headerDate}>{today}</Text>
           </View>
+          <ModeToggle mode={mode} onChange={setMode} />
         </View>
+        <Text style={styles.taglineText}>Full data analysis mode</Text>
 
         {/* ─── 1. Health Score Hero ────────────────────────── */}
         <Pressable onPress={() => router.push("/insights")}>
@@ -260,17 +276,20 @@ export default function HomeScreen() {
           />
         </ScrollView>
 
-        {/* ─── 3. Today's Schedule ─────────────────────────── */}
-        <SectionHeader title="Today's Schedule" actionLabel="View all" onAction={() => router.push("/appointments")} />
-        <Card style={styles.emptyScheduleCard}>
-          <Text style={styles.emptyScheduleText}>No appointments scheduled today</Text>
-          <Text
-            style={styles.emptyScheduleLink}
-            onPress={() => router.push("/appointments")}
-          >
-            Book an appointment
-          </Text>
-        </Card>
+        {/* ─── 3. Today's Plan (shared checklist) ──────────── */}
+        <SectionHeader title="Today's Plan" />
+        {todayHook.data?.advice ? (
+          <Card style={styles.todayAdviceCard}>
+            <Text style={styles.todayAdviceText}>{todayHook.data.advice}</Text>
+          </Card>
+        ) : null}
+        {todayHook.data ? (
+          <TodayChecklist sections={todayHook.data.sections} onToggle={todayHook.toggleItem} />
+        ) : (
+          <Card style={styles.emptyScheduleCard}>
+            <Text style={styles.emptyScheduleText}>Loading your plan…</Text>
+          </Card>
+        )}
 
         {/* ─── 4. Biometrics Overview ─────────────────────── */}
         <SectionHeader title="Biometrics" actionLabel="View all" onAction={() => router.push("/(tabs)/health")} />
@@ -602,6 +621,25 @@ const styles = StyleSheet.create({
     color: Colors.gold,
     fontSize: 11,
     fontWeight: "600",
+  },
+
+  // Full-mode tagline + today plan
+  taglineText: {
+    color: Colors.silver,
+    fontSize: FontSizes.xs,
+    fontStyle: "italic",
+    marginTop: -Spacing.xs,
+    marginBottom: Spacing.md,
+    marginLeft: 42,
+  },
+  todayAdviceCard: {
+    marginBottom: Spacing.sm,
+  },
+  todayAdviceText: {
+    color: Colors.white,
+    fontSize: FontSizes.sm,
+    fontWeight: "600",
+    lineHeight: 20,
   },
 
   // Empty schedule state
