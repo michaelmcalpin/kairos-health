@@ -358,6 +358,31 @@ export const dailyChecklistCompletions = pgTable("daily_checklist_completions", 
   completedAt: timestamp("completed_at").notNull().defaultNow(),
 }, (t) => [index("daily_checklist_client_date_idx").on(t.clientId, t.date)]);
 
+// Coach-authored "today's focus" line for a client. A row with a specific date
+// applies to that day; a row with null date is a standing message. getToday
+// prefers today's dated row, else the standing row, else a rule-based line.
+export const clientDailyAdvice = pgTable("client_daily_advice", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  coachId: uuid("coach_id").references(() => users.id),
+  date: date("date"),
+  message: text("message").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("client_daily_advice_idx").on(t.clientId, t.date)]);
+
+// Coach-assigned tasks that appear in the client's daily checklist.
+export const clientTasks = pgTable("client_tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  coachId: uuid("coach_id").references(() => users.id),
+  title: varchar("title", { length: 255 }).notNull(),
+  notes: text("notes"),
+  dueDate: date("due_date"),
+  completed: boolean("completed").default(false),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [index("client_tasks_client_idx").on(t.clientId)]);
+
 export const injectionSiteLogs = pgTable("injection_site_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id").notNull().references(() => users.id),

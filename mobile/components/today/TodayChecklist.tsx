@@ -13,6 +13,7 @@ import {
   Dumbbell,
   Clock,
   Check,
+  ListChecks,
 } from "lucide-react-native";
 import { Colors, Spacing, FontSizes } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
@@ -21,6 +22,8 @@ import type { TodayItem, TodaySection } from "@/hooks/useToday";
 function kindIcon(kind: TodayItem["kind"], color: string) {
   const size = 15;
   switch (kind) {
+    case "task":
+      return <ListChecks size={size} color={color} />;
     case "appointment":
       return <Calendar size={size} color={color} />;
     case "peptide":

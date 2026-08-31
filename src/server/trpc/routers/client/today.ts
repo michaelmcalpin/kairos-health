@@ -26,8 +26,10 @@ import {
   fastingProtocols,
   appointments,
   dailyChecklistCompletions,
+  clientDailyAdvice,
+  clientTasks,
 } from "@/server/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 
 async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
@@ -39,7 +41,7 @@ async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 
 type TodayItem = {
   key: string;
-  kind: "appointment" | "peptide" | "supplement" | "medication" | "meal" | "workout" | "fasting";
+  kind: "task" | "appointment" | "peptide" | "supplement" | "medication" | "meal" | "workout" | "fasting";
   title: string;
   subtitle: string | null;
   time: string | null;
@@ -131,6 +133,34 @@ export const clientTodayRouter = router({
           };
         });
       if (apptItems.length > 0) sections.push({ key: "appointments", label: "Meetings", items: apptItems });
+
+      // Coach-assigned tasks -------------------------------------------------
+      const tasks = await safeQ(
+        () =>
+          ctx.db.query.clientTasks.findMany({
+            where: eq(clientTasks.clientId, ctx.dbUserId),
+            orderBy: desc(clientTasks.createdAt),
+          }),
+        [] as Array<{ id: string; title: string; notes: string | null; dueDate: string | null; completed: boolean | null }>,
+      );
+      const taskItems: TodayItem[] = tasks
+        // Due today (keep visible even when done), or overdue/undated + not done.
+        .filter(
+          (t) =>
+            t.dueDate === date ||
+            (!t.completed && (t.dueDate == null || t.dueDate < date)),
+        )
+        .map((t) => ({
+          key: `task:${t.id}`,
+          kind: "task" as const,
+          title: t.title,
+          subtitle: t.notes ?? (t.dueDate ? `Due ${t.dueDate}` : null),
+          time: null,
+          completable: true,
+          done: !!t.completed,
+          protocolItemId: null,
+        }));
+      if (taskItems.length > 0) sections.unshift({ key: "tasks", label: "Tasks", items: taskItems });
 
       // Peptides (peptideCycles) ---------------------------------------------
       const cycles = await safeQ(
@@ -305,17 +335,30 @@ export const clientTodayRouter = router({
         }
       }
 
-      // Advice line (rule-based; coach override can be layered later) ---------
+      // Advice line — a coach-authored line wins over the rule-based one.
       const adviceParts: string[] = [];
       if (library.planType) adviceParts.push(`${library.planType} day.`);
       if (library.cyclePattern) adviceParts.push(library.cyclePattern + ".");
       if (assignment) adviceParts.push("Training day — bring intensity.");
       if (fastingWindow) adviceParts.push(`Eat between ${fastingWindow}.`);
-      const advice =
+      const ruleAdvice =
         adviceParts.join(" ") ||
         (sections.length > 0
           ? "Here's your plan for today. Check things off as you go."
           : "Nothing scheduled yet today. Your coach will add to your plan.");
+
+      const adviceRows = await safeQ(
+        () =>
+          ctx.db.query.clientDailyAdvice.findMany({
+            where: eq(clientDailyAdvice.clientId, ctx.dbUserId),
+          }),
+        [] as Array<{ date: string | null; message: string }>,
+      );
+      const coachAdvice =
+        adviceRows.find((r) => r.date === date)?.message ??
+        adviceRows.find((r) => r.date == null)?.message ??
+        null;
+      const advice = coachAdvice || ruleAdvice;
 
       const totalItems = sections.reduce((n, s) => n + s.items.filter((i) => i.completable).length, 0);
       const doneCount = sections.reduce(
@@ -358,6 +401,21 @@ export const clientTodayRouter = router({
             takenAt: new Date(),
             skipped: false,
           });
+        }
+        return { ok: true };
+      }
+
+      // Coach tasks → clientTasks.completed.
+      if (input.key.startsWith("task:")) {
+        const taskId = input.key.slice("task:".length);
+        const task = await ctx.db.query.clientTasks.findFirst({
+          where: and(eq(clientTasks.id, taskId), eq(clientTasks.clientId, ctx.dbUserId)),
+        });
+        if (task) {
+          await ctx.db
+            .update(clientTasks)
+            .set({ completed: input.done, completedAt: input.done ? new Date() : null })
+            .where(eq(clientTasks.id, taskId));
         }
         return { ok: true };
       }

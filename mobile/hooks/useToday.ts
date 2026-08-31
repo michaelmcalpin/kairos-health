@@ -8,7 +8,7 @@ import { trpc, DEFAULT_QUERY_OPTIONS, STATIC_QUERY_OPTIONS } from "@/lib/api";
 
 export type TodayItem = {
   key: string;
-  kind: "appointment" | "peptide" | "supplement" | "medication" | "meal" | "workout" | "fasting";
+  kind: "task" | "appointment" | "peptide" | "supplement" | "medication" | "meal" | "workout" | "fasting";
   title: string;
   subtitle: string | null;
   time: string | null;

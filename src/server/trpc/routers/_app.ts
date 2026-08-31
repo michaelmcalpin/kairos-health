@@ -52,6 +52,7 @@ import { coachDataRouter } from "./coach/data";
 import { coachPlansRouter } from "./coach/plans";
 import { coachMetricsRouter } from "./coach/metrics";
 import { coachProtocolBulkRouter } from "./coach/protocol-bulk";
+import { coachGuidanceRouter } from "./coach/guidance";
 
 // Admin routers
 import { adminDashboardRouter } from "./admin/dashboard";
@@ -120,6 +121,7 @@ export const appRouter = router({
     plans: coachPlansRouter,
     metrics: coachMetricsRouter,
     protocolBulk: coachProtocolBulkRouter,
+    guidance: coachGuidanceRouter,
     sharedAccess: coachSharedAccessRouter,
   }),
   company: router({
