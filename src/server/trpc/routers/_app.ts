@@ -29,6 +29,7 @@ import { clientSymptomsRouter } from "./client/symptoms";
 import { clientMealsRouter } from "./client/meals";
 import { clientProgressPhotosRouter } from "./client/progressphotos";
 import { clientProtocolRouter } from "./client/protocol";
+import { clientTodayRouter } from "./client/today";
 import { clientGeneticsRouter } from "./client/genetics";
 import { clientSettingsRouter } from "./client/settings";
 import { clientDevicesRouter } from "./client/devices";
@@ -97,6 +98,7 @@ export const appRouter = router({
     meals: clientMealsRouter,
     progressPhotos: clientProgressPhotosRouter,
     protocol: clientProtocolRouter,
+    today: clientTodayRouter,
     genetics: clientGeneticsRouter,
     settings: clientSettingsRouter,
     devices: clientDevicesRouter,

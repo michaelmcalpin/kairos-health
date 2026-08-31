@@ -37,6 +37,39 @@ export const clientSettingsRouter = router({
   }),
 
   /**
+   * Mobile home view mode: "guided" (directive daily checklist) vs "full"
+   * (data + the same checklist). Stored as a boolean in featureToggles to avoid
+   * a migration; defaults to guided (most clients want to be told what to do).
+   */
+  getViewMode: clientProcedure.query(async ({ ctx }) => {
+    const profile = await ctx.db.query.clientProfiles.findFirst({
+      where: eq(clientProfiles.userId, ctx.dbUserId),
+    });
+    const stored = (profile?.featureToggles as Record<string, boolean>) ?? {};
+    const guided = stored.guidedMode ?? true;
+    return { mode: guided ? ("guided" as const) : ("full" as const) };
+  }),
+
+  setViewMode: clientProcedure
+    .input(z.object({ mode: z.enum(["guided", "full"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const profile = await ctx.db.query.clientProfiles.findFirst({
+        where: eq(clientProfiles.userId, ctx.dbUserId),
+      });
+      const current = (profile?.featureToggles as Record<string, boolean>) ?? {};
+      const updated = { ...current, guidedMode: input.mode === "guided" };
+      if (profile) {
+        await ctx.db
+          .update(clientProfiles)
+          .set({ featureToggles: updated })
+          .where(eq(clientProfiles.userId, ctx.dbUserId));
+      } else {
+        await ctx.db.insert(clientProfiles).values({ userId: ctx.dbUserId, featureToggles: updated });
+      }
+      return { mode: input.mode };
+    }),
+
+  /**
    * Get current user's settings (profile + notification preferences)
    */
   getSettings: clientProcedure.query(async ({ ctx }) => {

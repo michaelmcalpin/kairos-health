@@ -346,6 +346,18 @@ export const adherenceLogs = pgTable("adherence_logs", {
   notes: text("notes"),
 }, (t) => [index("adherence_client_date_idx").on(t.clientId, t.date)]);
 
+// Per-day completion for the mobile "today" checklist items that are NOT
+// protocol_items (meals, workout, fasting, appointments). Protocol items keep
+// using adherence_logs so the coach adherence dashboard is unaffected. itemKey
+// is a stable per-item key, e.g. "meal:<id>", "workout:<date>", "appt:<id>".
+export const dailyChecklistCompletions = pgTable("daily_checklist_completions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  date: date("date").notNull(),
+  itemKey: varchar("item_key", { length: 160 }).notNull(),
+  completedAt: timestamp("completed_at").notNull().defaultNow(),
+}, (t) => [index("daily_checklist_client_date_idx").on(t.clientId, t.date)]);
+
 export const injectionSiteLogs = pgTable("injection_site_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
   clientId: uuid("client_id").notNull().references(() => users.id),
