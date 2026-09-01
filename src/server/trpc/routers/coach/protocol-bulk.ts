@@ -47,6 +47,7 @@ import {
   getEnabledChannels,
 } from "@/lib/notifications/service";
 import { sendCoachEmail } from "@/lib/integrations/coach-email";
+import { findExerciseVideo } from "@/lib/ai/exercise-video";
 
 type Database = typeof import("@/server/db").db;
 
@@ -732,6 +733,13 @@ export const coachProtocolBulkRouter = router({
    * Return the stable column headers + the CURRENT rows for a protocol type,
    * so the trainer's grid can render. Requires read access.
    */
+  /** Find a short (<=30s) demo video for an exercise. Coach tool for the grid. */
+  findVideo: trainerProcedure
+    .input(z.object({ exercise: z.string().min(1), muscleGroup: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      return findExerciseVideo(input.exercise, input.muscleGroup);
+    }),
+
   getGrid: trainerProcedure
     .input(z.object({ clientId: z.string(), type: typeEnum }))
     .query(async ({ ctx, input }) => {

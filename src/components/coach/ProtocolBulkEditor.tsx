@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  Youtube,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
@@ -305,6 +306,7 @@ export default function ProtocolBulkEditor({
   const [aiLoading, setAiLoading] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+  const [videoBusy, setVideoBusy] = useState(false);
 
   const [preview, setPreview] = useState<string[] | null>(null);
   const [published, setPublished] = useState<{ summary: string; bullets: string[]; itemCount: number } | null>(null);
@@ -326,6 +328,7 @@ export default function ProtocolBulkEditor({
       setPublished(null);
     },
   });
+  const findVideoMutation = trpc.coach.protocolBulk.findVideo.useMutation();
   const publishMutation = trpc.coach.protocolBulk.publish.useMutation({
     onSuccess: (res) => {
       setPublished(res);
@@ -501,6 +504,46 @@ export default function ProtocolBulkEditor({
         }
       : undefined;
 
+  // ── Find demo videos (<=30s) for workout rows with a blank Video Link ──
+  const handleFindVideos = async () => {
+    setAiNotice(null);
+    setImportError(null);
+    setVideoBusy(true);
+    try {
+      let filled = 0;
+      let missed = 0;
+      for (let i = 0; i < rows.length; i++) {
+        const ex = (rows[i].exercise ?? "").trim();
+        const existing = (rows[i].videoUrl ?? "").trim();
+        if (!ex || existing) continue;
+        try {
+          const res = await findVideoMutation.mutateAsync({
+            exercise: ex,
+            muscleGroup: (rows[i].muscleGroup ?? "").trim() || undefined,
+          });
+          if (res?.video?.url) {
+            setCell(i, "videoUrl", res.video.url);
+            filled++;
+          } else {
+            missed++;
+          }
+        } catch {
+          missed++;
+        }
+      }
+      if (filled === 0 && missed === 0) {
+        setAiNotice("Every exercise already has a video, or no exercise names are filled in.");
+      } else {
+        setAiNotice(
+          `Added ${filled} demo video${filled === 1 ? "" : "s"}` +
+            (missed > 0 ? ` — ${missed} had no clip 30s or under, or search isn't set up.` : "."),
+        );
+      }
+    } finally {
+      setVideoBusy(false);
+    }
+  };
+
   const handlePublish = () => {
     setShowPublishConfirm(false);
     publishMutation.mutate({ clientId, type, rows: buildPayload(type, columns, rows), plan: planPayload });
@@ -653,6 +696,17 @@ export default function ProtocolBulkEditor({
             e.target.value = ""; // allow re-selecting the same file
           }}
         />
+        {type === "workouts" && columns.some((c) => c.key === "videoUrl") && (
+          <button
+            onClick={handleFindVideos}
+            disabled={videoBusy}
+            title="Fill blank Video Link cells with a demo 30 seconds or under"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-kairos-gold/15 border border-kairos-gold/30 text-kairos-gold hover:bg-kairos-gold/25 transition-colors disabled:opacity-60"
+          >
+            {videoBusy ? <Loader2 size={13} className="animate-spin" /> : <Youtube size={13} />}
+            {videoBusy ? "Finding demo videos…" : "Find demo videos"}
+          </button>
+        )}
         <div className="flex-1" />
         <span className="text-[11px] text-kairos-silver-dark">
           {payloadCount} row{payloadCount === 1 ? "" : "s"} ready
