@@ -163,12 +163,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
   const [activeTab, setActiveTab] = useState<DataTab>("overview");
   const [noteText, setNoteText] = useState("");
-  const [showProtocolModal, setShowProtocolModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [protocolNotes, setProtocolNotes] = useState("");
-  const [protocolPriority, setProtocolPriority] = useState("Normal");
-  const [protocolSaved, setProtocolSaved] = useState(false);
-  const [protocolError, setProtocolError] = useState<string | null>(null);
 
   // ── Schedule modal state ──────────────────────────────────────
   const [schedSessionType, setSchedSessionType] = useState<"initial_consultation" | "follow_up" | "protocol_review" | "lab_review" | "goal_setting" | "ad_hoc">("follow_up");
@@ -257,18 +252,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
   const deleteNoteMutation = trpc.coach.clients.deleteNote.useMutation({
     onSuccess: () => { notesQuery.refetch(); },
   });
-  const updateProtocolMutation = trpc.coach.clients.updateProtocol.useMutation({
-    onSuccess: () => {
-      notesQuery.refetch();
-      setProtocolError(null);
-      setProtocolSaved(true);
-      setTimeout(() => { setShowProtocolModal(false); setProtocolNotes(""); setProtocolPriority("Normal"); setProtocolSaved(false); }, 1500);
-    },
-    onError: (err) => {
-      setProtocolError(err.message || "Failed to save protocol adjustment note.");
-    },
-  });
-
   const startConversationMutation = trpc.coach.messaging.startConversation.useMutation({
     onSuccess: (data) => {
       router.push(`/trainer/messages?conversationId=${data.id}`);
@@ -523,9 +506,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           </button>
           <button onClick={handleScheduleSession} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors">
             <Video size={14} /> Schedule Session
-          </button>
-          <button onClick={() => { setProtocolError(null); setShowProtocolModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors">
-            <Settings size={14} /> Adjust Protocol
           </button>
           {(canEditCategory("diet") || canEditCategory("exercise")) && (
             <Link href={`/trainer/clients/${params.id}/protocols`} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors">
@@ -804,43 +784,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           </div>
         </div>
       </div>
-
-      {/* Protocol Adjustment Modal */}
-      {showProtocolModal && (
-        <Modal title="Adjust Protocol" onClose={() => setShowProtocolModal(false)}>
-          <p className="text-sm text-gray-400 mb-2">
-            Send an adjustment <span className="text-white font-semibold">note</span> about{" "}
-            <span className="text-white font-semibold">{client.name}</span>&apos;s protocol. This does not change protocol items directly.
-          </p>
-          <p className="text-xs text-gray-500 mb-4">
-            To add, edit, or remove protocol items, use the{" "}
-            <button
-              onClick={() => { setShowProtocolModal(false); setActiveTab("supplements"); }}
-              className="text-kairos-gold hover:underline"
-            >
-              Protocol tab
-            </button>.
-          </p>
-          {protocolSaved && <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/20 mb-3"><p className="text-sm text-green-400">Saved!</p></div>}
-          {protocolError && <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 mb-3"><p className="text-sm text-red-400">{protocolError}</p></div>}
-          <textarea value={protocolNotes} onChange={(e) => setProtocolNotes(e.target.value)} placeholder="Describe changes..." className="kairos-input w-full h-28 resize-none mb-3" />
-          <select value={protocolPriority} onChange={(e) => setProtocolPriority(e.target.value)} className="kairos-input w-full mb-4">
-            <option>Normal</option>
-            <option>High — Review within 24h</option>
-            <option>Urgent — Immediate attention</option>
-          </select>
-          <div className="flex gap-3">
-            <button onClick={() => setShowProtocolModal(false)} className="kairos-btn-outline flex-1">Cancel</button>
-            <button
-              onClick={() => updateProtocolMutation.mutate({ clientId: params.id, notes: protocolNotes.trim(), priority: protocolPriority as "Normal" | "High — Review within 24h" | "Urgent — Immediate attention" })}
-              disabled={!protocolNotes.trim() || updateProtocolMutation.isPending}
-              className="kairos-btn-gold flex-1 disabled:opacity-50"
-            >
-              {updateProtocolMutation.isPending ? "Saving..." : "Save"}
-            </button>
-          </div>
-        </Modal>
-      )}
 
       {/* Schedule Session Modal */}
       {showScheduleModal && (
