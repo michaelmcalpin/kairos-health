@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Search, Users, UserPlus, X, Mail, Check, Clock, ChevronDown, Trash2, Plus, Phone, Calendar, ShieldCheck } from "lucide-react";
+import { Search, Users, UserPlus, X, Mail, Check, Clock, ChevronDown, Trash2, Plus, Phone, Calendar, ShieldCheck, KeyRound } from "lucide-react";
 import { TIER_LABELS, STATUS_LABELS } from "@/lib/coach-clients/types";
 import type { ClientTier, ClientStatus } from "@/lib/coach-clients/types";
 import { ClientCard } from "@/components/coach/ClientCard";
 import { trpc } from "@/lib/trpc";
 
 type SortField = "name" | "healthScore" | "alerts" | "adherence";
-type ModalTab = "search" | "invite" | "create" | "pending";
+type ModalTab = "search" | "code" | "invite" | "create" | "pending";
 
 export default function CoachClientsPage() {
   const [search, setSearch] = useState("");
@@ -351,6 +351,16 @@ function AddClientModal({
     },
   });
 
+  const [addCode, setAddCode] = useState("");
+  const addByCodeMutation = trpc.coach.clients.addClientByCode.useMutation({
+    onSuccess: (res) => {
+      setFeedback({ type: "success", message: `${res.name} added to your roster.` });
+      setAddCode("");
+      onClientAdded();
+    },
+    onError: (err) => setFeedback({ type: "error", message: err.message }),
+  });
+
   const inviteClientMutation = trpc.coach.clients.inviteClient.useMutation({
     onSuccess: (result) => {
       if (result.success) {
@@ -442,6 +452,7 @@ function AddClientModal({
         <div className="flex border-b border-gray-700/50">
           {([
             { key: "search" as ModalTab, label: "Search", icon: Search },
+            { key: "code" as ModalTab, label: "By Code", icon: KeyRound },
             { key: "invite" as ModalTab, label: "Invite", icon: Mail },
             { key: "create" as ModalTab, label: "Create", icon: Plus },
             { key: "pending" as ModalTab, label: `Pending${pendingInvitations.length > 0 ? ` (${pendingInvitations.length})` : ""}`, icon: Clock },
@@ -503,6 +514,27 @@ function AddClientModal({
               onAdd={handleAddClient}
               isAdding={addClientMutation.isPending}
             />
+          )}
+          {tab === "code" && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-400">
+                Enter the <span className="text-white font-medium">coach access code</span> your client shows in their app settings. You&apos;ll be added to their care team with full access.
+              </p>
+              <input
+                value={addCode}
+                onChange={(e) => setAddCode(e.target.value)}
+                placeholder="EVX-XXXX-XXXX"
+                autoCapitalize="characters"
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white tracking-widest font-mono placeholder:text-gray-600 focus:border-kairos-gold/50 focus:outline-none"
+              />
+              <button
+                onClick={() => addCode.trim() && addByCodeMutation.mutate({ code: addCode.trim() })}
+                disabled={!addCode.trim() || addByCodeMutation.isPending}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-kairos-gold text-kairos-royal-dark hover:bg-kairos-gold-light transition-colors disabled:opacity-50"
+              >
+                <KeyRound size={15} /> {addByCodeMutation.isPending ? "Adding…" : "Add client"}
+              </button>
+            </div>
           )}
           {tab === "invite" && (
             <InviteTab

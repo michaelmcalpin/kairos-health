@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
 import { sendInvitationEmail, sendClientCreatedEmail } from "@/lib/email";
+import { normalizeCoachAddCode } from "@/lib/coach-add-code";
 import {
   trainerClientRelationships,
   clientInvitations,
@@ -1290,6 +1291,61 @@ export const coachClientsRouter = router({
       } catch { /* table may not exist yet */ }
 
       return { success: true, clientId: input.clientId };
+    }),
+
+  /**
+   * Add a client using the code they generated in their settings (consent-based).
+   * Grants full coach access (an active trainerClientRelationships row).
+   */
+  addClientByCode: trainerProcedure
+    .input(z.object({ code: z.string().min(4).max(32) }))
+    .mutation(async ({ ctx, input }) => {
+      const trainerId = ctx.dbUserId;
+      const normalized = normalizeCoachAddCode(input.code);
+      if (!normalized) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "That doesn't look like a valid code." });
+      }
+      const profile = await ctx.db.query.clientProfiles.findFirst({
+        where: eq(clientProfiles.coachAddCode, normalized),
+      });
+      if (!profile) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No client matches that code. Ask them to re-share it." });
+      }
+      const clientId = profile.userId;
+
+      const user = await ctx.db.query.users.findFirst({ where: eq(users.id, clientId) });
+      if (!user || user.role !== "client") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "That code isn't for a client account." });
+      }
+
+      const existing = await ctx.db.query.trainerClientRelationships.findFirst({
+        where: and(
+          eq(trainerClientRelationships.trainerId, trainerId),
+          eq(trainerClientRelationships.clientId, clientId),
+          eq(trainerClientRelationships.status, "active"),
+        ),
+      });
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: "This client is already on your roster." });
+      }
+
+      const inactive = await ctx.db.query.trainerClientRelationships.findFirst({
+        where: and(
+          eq(trainerClientRelationships.trainerId, trainerId),
+          eq(trainerClientRelationships.clientId, clientId),
+          eq(trainerClientRelationships.status, "inactive"),
+        ),
+      });
+      if (inactive) {
+        await ctx.db.update(trainerClientRelationships)
+          .set({ status: "active", startedAt: new Date() })
+          .where(eq(trainerClientRelationships.id, inactive.id));
+      } else {
+        await ctx.db.insert(trainerClientRelationships).values({ trainerId, clientId, status: "active" });
+      }
+
+      const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+      return { success: true, clientId, name };
     }),
 
   /**

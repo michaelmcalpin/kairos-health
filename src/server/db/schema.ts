@@ -76,6 +76,9 @@ export const clientProfiles = pgTable("client_profiles", {
   onboardingCompleted: boolean("onboarding_completed").default(false),
   /** Per-client feature toggles (e.g. { cycleTracker: true }) — admin-editable */
   featureToggles: jsonb("feature_toggles").$type<Record<string, boolean>>().default({}),
+  /** Client-issued code a coach enters to be added as this client's coach
+   *  (consent-based). Reusable by multiple coaches; regenerating invalidates it. */
+  coachAddCode: varchar("coach_add_code", { length: 24 }).unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

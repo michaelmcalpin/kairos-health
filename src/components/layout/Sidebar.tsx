@@ -346,6 +346,7 @@ export const superAdminNavItems: NavItem[] = [
   { label: "Companies", href: "/super-admin/companies", icon: <Building2 size={18} />, section: "People" },
   { label: "Coaches", href: "/super-admin/trainers", icon: <Dumbbell size={18} />, section: "People" },
   { label: "Users", href: "/super-admin/users", icon: <Users size={18} />, section: "People" },
+  { label: "Clients & Coaches", href: "/super-admin/clients", icon: <Users size={18} />, section: "People" },
   { label: "Analytics", href: "/super-admin/analytics", icon: <BarChart3 size={18} />, section: "Data" },
   { label: "Revenue", href: "/super-admin/revenue", icon: <DollarSign size={18} />, section: "Data" },
   { label: "Content", href: "/super-admin/content", icon: <FileText size={18} />, section: "Manage" },

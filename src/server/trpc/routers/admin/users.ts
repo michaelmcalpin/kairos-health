@@ -510,4 +510,68 @@ export const adminUsersRouter = router({
         createdAt: e.createdAt.toISOString(),
       }));
     }),
+
+  /**
+   * All clients with their coach(es), flagging orphaned (no coach) clients.
+   */
+  listClientsWithCoaches: adminProcedure
+    .input(
+      z.object({
+        search: z.string().optional().default(""),
+        filter: z.enum(["all", "orphaned", "assigned"]).optional().default("all"),
+      }).optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const { search = "", filter = "all" } = input ?? {};
+
+      const clientRows = await ctx.db.query.users.findMany({
+        where: eq(users.role, "client"),
+        columns: { id: true, firstName: true, lastName: true, email: true, status: true, createdAt: true },
+      });
+
+      const rels = await ctx.db.query.trainerClientRelationships.findMany({
+        where: eq(trainerClientRelationships.status, "active"),
+        columns: { trainerId: true, clientId: true },
+      });
+
+      const coachIds = Array.from(new Set(rels.map((r) => r.trainerId).filter(Boolean))) as string[];
+      const coaches = coachIds.length
+        ? await ctx.db.query.users.findMany({
+            where: inArray(users.id, coachIds),
+            columns: { id: true, firstName: true, lastName: true, email: true },
+          })
+        : [];
+      const coachById = new Map(coaches.map((c) => [c.id, c]));
+      const name = (u: { firstName: string | null; lastName: string | null; email: string }) =>
+        [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email;
+
+      const coachesByClient = new Map<string, Array<{ id: string; name: string }>>();
+      for (const r of rels) {
+        if (!r.clientId || !r.trainerId) continue;
+        const coach = coachById.get(r.trainerId);
+        if (!coach) continue;
+        const arr = coachesByClient.get(r.clientId) ?? [];
+        arr.push({ id: coach.id, name: name(coach) });
+        coachesByClient.set(r.clientId, arr);
+      }
+
+      const q = search.trim().toLowerCase();
+      let out = clientRows.map((c) => ({
+        id: c.id,
+        name: name(c),
+        email: c.email,
+        status: c.status,
+        coaches: coachesByClient.get(c.id) ?? [],
+      }));
+      if (q) out = out.filter((c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q));
+      if (filter === "orphaned") out = out.filter((c) => c.coaches.length === 0);
+      if (filter === "assigned") out = out.filter((c) => c.coaches.length > 0);
+      out.sort((a, b) => a.name.localeCompare(b.name));
+
+      return {
+        clients: out,
+        total: out.length,
+        orphanedCount: (coachesByClient.size === 0 ? clientRows.length : clientRows.filter((c) => !coachesByClient.has(c.id)).length),
+      };
+    }),
 });

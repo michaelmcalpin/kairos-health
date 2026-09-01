@@ -13,6 +13,17 @@ import { users, notificationPreferences, clientProfiles, trainerClientRelationsh
 import { eq, and } from "drizzle-orm";
 import { clerkClient } from "@clerk/nextjs/server";
 import { sendSms, isSmsConfigured, smsConfigDiagnostics } from "@/lib/notifications/sms";
+import { generateCoachAddCode } from "@/lib/coach-add-code";
+
+async function ensureUniqueAddCode(db: typeof import("@/server/db").db): Promise<string> {
+  for (let i = 0; i < 6; i++) {
+    const code = generateCoachAddCode();
+    const clash = await db.query.clientProfiles.findFirst({ where: eq(clientProfiles.coachAddCode, code) });
+    if (!clash) return code;
+  }
+  // Extremely unlikely; append entropy.
+  return `${generateCoachAddCode()}${Date.now().toString(36).slice(-2).toUpperCase()}`;
+}
 
 export const clientSettingsRouter = router({
   /**
@@ -68,6 +79,38 @@ export const clientSettingsRouter = router({
       }
       return { mode: input.mode };
     }),
+
+  /**
+   * The client's coach add code — a coach enters this to be added as their
+   * coach. Generated on first read and stored; reusable by multiple coaches.
+   */
+  getCoachAddCode: clientProcedure.query(async ({ ctx }) => {
+    const profile = await ctx.db.query.clientProfiles.findFirst({
+      where: eq(clientProfiles.userId, ctx.dbUserId),
+    });
+    if (profile?.coachAddCode) return { code: profile.coachAddCode };
+    const code = await ensureUniqueAddCode(ctx.db);
+    if (profile) {
+      await ctx.db.update(clientProfiles).set({ coachAddCode: code }).where(eq(clientProfiles.userId, ctx.dbUserId));
+    } else {
+      await ctx.db.insert(clientProfiles).values({ userId: ctx.dbUserId, coachAddCode: code });
+    }
+    return { code };
+  }),
+
+  /** Generate a NEW code (invalidates the old one — existing coaches keep access). */
+  regenerateCoachAddCode: clientProcedure.mutation(async ({ ctx }) => {
+    const code = await ensureUniqueAddCode(ctx.db);
+    const profile = await ctx.db.query.clientProfiles.findFirst({
+      where: eq(clientProfiles.userId, ctx.dbUserId),
+    });
+    if (profile) {
+      await ctx.db.update(clientProfiles).set({ coachAddCode: code }).where(eq(clientProfiles.userId, ctx.dbUserId));
+    } else {
+      await ctx.db.insert(clientProfiles).values({ userId: ctx.dbUserId, coachAddCode: code });
+    }
+    return { code };
+  }),
 
   /**
    * Get current user's settings (profile + notification preferences)

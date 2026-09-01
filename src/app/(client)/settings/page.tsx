@@ -131,6 +131,12 @@ export default function SettingsPage() {
 
   // Coach assignment query
   const coachQuery = trpc.clientPortal.settings.getMyCoach.useQuery();
+  const addCodeUtils = trpc.useUtils();
+  const addCodeQuery = trpc.clientPortal.settings.getCoachAddCode.useQuery();
+  const [addCodeCopied, setAddCodeCopied] = useState(false);
+  const regenAddCodeMutation = trpc.clientPortal.settings.regenerateCoachAddCode.useMutation({
+    onSuccess: () => addCodeUtils.clientPortal.settings.getCoachAddCode.invalidate(),
+  });
 
   // Document repository query + delete mutation
   const docsQuery = trpc.clientPortal.clinicalDocs.listAll.useQuery();
@@ -864,6 +870,39 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3 mb-6">
               <Award className="w-6 h-6 text-kairos-gold" />
               <h2 className="font-heading text-xl text-white">Your Coach</h2>
+            </div>
+
+            {/* Coach access code — a coach enters this to be added to your care team. */}
+            <div className="mb-8 p-5 rounded-kairos-sm bg-kairos-royal-dark/40 border border-kairos-border">
+              <h3 className="font-heading text-sm text-kairos-gold mb-1">Coach access code</h3>
+              <p className="text-xs text-kairos-silver-dark mb-3">
+                Give this code to a coach so they can add you. You can share it with more than one coach. Regenerate it any time to stop new coaches from using the old code (coaches you already have keep access).
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <code className="px-4 py-2 rounded-lg bg-kairos-card border border-kairos-border text-lg tracking-widest text-white font-mono">
+                  {addCodeQuery.data?.code ?? "————————"}
+                </code>
+                <button
+                  onClick={() => {
+                    const code = addCodeQuery.data?.code;
+                    if (code) {
+                      navigator.clipboard?.writeText(code);
+                      setAddCodeCopied(true);
+                      setTimeout(() => setAddCodeCopied(false), 1500);
+                    }
+                  }}
+                  className="px-3 py-2 rounded-lg text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+                >
+                  {addCodeCopied ? "Copied" : "Copy"}
+                </button>
+                <button
+                  onClick={() => regenAddCodeMutation.mutate()}
+                  disabled={regenAddCodeMutation.isPending}
+                  className="px-3 py-2 rounded-lg text-xs font-medium bg-kairos-card border border-kairos-border text-kairos-silver hover:text-white transition-colors disabled:opacity-50"
+                >
+                  {regenAddCodeMutation.isPending ? "Regenerating…" : "Regenerate"}
+                </button>
+              </div>
             </div>
 
             {coachQuery.isLoading ? (
