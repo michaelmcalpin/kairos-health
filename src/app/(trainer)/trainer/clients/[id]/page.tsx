@@ -155,6 +155,49 @@ function BulkEditLink({ clientId, tab, label }: { clientId: string; tab: "diet" 
   );
 }
 
+// Read-only peptides list (peptideCycles is canonical) shown alongside the
+// supplement/medication ProtocolEditor, since that editor only reads protocolItems.
+function PeptidesPanel({ clientId }: { clientId: string }) {
+  const gridQuery = trpc.coach.protocolBulk.getGrid.useQuery(
+    { clientId, type: "peptides" },
+    { staleTime: 10_000, refetchOnWindowFocus: false, retry: false },
+  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = ((gridQuery.data as any)?.rows ?? []) as Array<Record<string, unknown>>;
+  if (rows.length === 0) return null;
+  return (
+    <div className="kairos-card">
+      <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2 mb-3">
+        <Syringe size={16} /> Peptides
+      </h2>
+      <div className="overflow-x-auto rounded-lg border border-gray-800">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-left text-gray-500 border-b border-gray-800">
+              <th className="px-3 py-2 font-medium">Name</th>
+              <th className="px-3 py-2 font-medium">Dosage</th>
+              <th className="px-3 py-2 font-medium">Frequency</th>
+              <th className="px-3 py-2 font-medium">Route</th>
+              <th className="px-3 py-2 font-medium">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-b border-gray-800/50 last:border-0">
+                <td className="px-3 py-2 text-white whitespace-nowrap">{String(r.name ?? "")}</td>
+                <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{[r.dosage, r.unit].filter(Boolean).join(" ")}</td>
+                <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{String(r.frequency ?? "")}</td>
+                <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{String(r.route ?? "")}</td>
+                <td className="px-3 py-2 text-gray-400">{String(r.notes ?? "")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const tc = useThemeColors();
@@ -607,6 +650,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 clientId={params.id}
                 canEdit={!isSharedOnly || myAccess?.diet === "write"}
               />
+              <PeptidesPanel clientId={params.id} />
             </div>
           ) : healthQuery.isLoading ? (
             <div className="kairos-card h-64 animate-pulse bg-gray-800/50 flex items-center justify-center">

@@ -106,6 +106,7 @@ const SAMPLE_ROWS: Record<ProtocolType, Record<string, string>> = {
     reps: "8-10",
     rest: "90",
     notes: "Warm up thoroughly first",
+    videoUrl: "https://youtu.be/ultWZbUMPL8",
   },
 };
 

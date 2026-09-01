@@ -48,6 +48,7 @@ type TodayItem = {
   completable: boolean;
   done: boolean;
   protocolItemId: string | null;
+  link?: string | null;
 };
 
 type TodaySection = { key: string; label: string; items: TodayItem[] };
@@ -295,24 +296,52 @@ export const clientTodayRouter = router({
             idx = ((days % sessionsList.length) + sessionsList.length) % sessionsList.length;
           }
           const session = sessionsList[idx];
-          const exCount = Array.isArray(session.exercises) ? (session.exercises as unknown[]).length : 0;
-          const key = `workout:${date}`;
-          sections.push({
-            key: "workout",
-            label: "Workout",
-            items: [
-              {
-                key,
-                kind: "workout",
-                title: (session.name as string) || `Day ${session.dayNumber ?? idx + 1}`,
-                subtitle: exCount > 0 ? `${exCount} exercise${exCount === 1 ? "" : "s"}` : null,
-                time: null,
-                completable: true,
-                done: doneKeys.has(key),
-                protocolItemId: null,
-              },
-            ],
+          const sessionName = (session.name as string) || `Day ${session.dayNumber ?? idx + 1}`;
+          const exercises = Array.isArray(session.exercises)
+            ? (session.exercises as Array<Record<string, unknown>>)
+            : [];
+          // One checklist item per exercise, with full detail + a demo link.
+          const workoutItems: TodayItem[] = exercises.map((e, ei) => {
+            const key = `workout:${date}:${ei}`;
+            const sets = e.sets != null && Number(e.sets) > 0 ? String(e.sets) : null;
+            const reps = e.reps != null && String(e.reps).trim() ? String(e.reps).trim() : null;
+            const setsReps = sets && reps ? `${sets}×${reps}` : sets ? `${sets} sets` : reps ? `${reps} reps` : null;
+            const rest = e.restSeconds != null && Number(e.restSeconds) > 0 ? `${e.restSeconds}s rest` : null;
+            const notes = typeof e.notes === "string" && e.notes.trim() ? e.notes.trim() : null;
+            const link = typeof e.videoUrl === "string" && e.videoUrl.trim() ? e.videoUrl.trim() : null;
+            return {
+              key,
+              kind: "workout" as const,
+              title: (e.name as string) || `Exercise ${ei + 1}`,
+              subtitle: joinParts([e.muscleGroup as string, setsReps, rest, notes]),
+              time: null,
+              completable: true,
+              done: doneKeys.has(key),
+              protocolItemId: null,
+              link,
+            };
           });
+          if (workoutItems.length > 0) {
+            sections.push({ key: "workout", label: `Workout — ${sessionName}`, items: workoutItems });
+          } else {
+            const key = `workout:${date}`;
+            sections.push({
+              key: "workout",
+              label: "Workout",
+              items: [
+                {
+                  key,
+                  kind: "workout",
+                  title: sessionName,
+                  subtitle: null,
+                  time: null,
+                  completable: true,
+                  done: doneKeys.has(key),
+                  protocolItemId: null,
+                },
+              ],
+            });
+          }
         }
       }
 

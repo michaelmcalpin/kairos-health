@@ -15,6 +15,7 @@ export type TodayItem = {
   completable: boolean;
   done: boolean;
   protocolItemId: string | null;
+  link?: string | null;
 };
 export type TodaySection = { key: string; label: string; items: TodayItem[] };
 export type TodayData = {

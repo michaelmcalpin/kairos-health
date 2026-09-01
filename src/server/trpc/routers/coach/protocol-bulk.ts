@@ -123,6 +123,7 @@ const COLUMNS: Record<ProtocolType, Column[]> = {
     { key: "reps", label: "Reps", type: "text" },
     { key: "rest", label: "Rest (sec)", type: "number" },
     { key: "notes", label: "Notes", type: "text" },
+    { key: "videoUrl", label: "Video Link", type: "text" },
   ],
 };
 
@@ -370,6 +371,7 @@ async function readWorkoutRows(db: Database, clientId: string): Promise<GridRow[
         reps: toStr(e.reps),
         rest: toNum(e.restSeconds),
         notes: toStr(e.notes),
+        videoUrl: toStr(e.videoUrl),
       });
     }
   }
@@ -671,6 +673,7 @@ async function applyWorkouts(
           tempo: "",
           restSeconds: toNum(e.rest) ?? 0,
           notes: toStr(e.notes) ?? "",
+          videoUrl: toStr(e.videoUrl) ?? "",
         })),
       })) as unknown as (typeof workoutSessions.$inferInsert)[],
     );

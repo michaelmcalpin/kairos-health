@@ -4,7 +4,8 @@
  */
 
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, Linking } from "react-native";
+import { PlayCircle } from "lucide-react-native";
 import {
   Calendar,
   Syringe,
@@ -60,9 +61,19 @@ function Row({ item, onToggle }: { item: TodayItem; onToggle: (i: TodayItem) => 
           {item.title}
         </Text>
         {item.subtitle ? (
-          <Text style={styles.rowSubtitle} numberOfLines={1}>
+          <Text style={styles.rowSubtitle} numberOfLines={2}>
             {item.subtitle}
           </Text>
+        ) : null}
+        {item.link ? (
+          <Pressable
+            onPress={() => item.link && Linking.openURL(item.link)}
+            hitSlop={6}
+            style={styles.watchBtn}
+          >
+            <PlayCircle size={13} color={Colors.gold} />
+            <Text style={styles.watchText}>Watch demo</Text>
+          </Pressable>
         ) : null}
       </View>
       {item.time ? <Text style={styles.rowTime}>{item.time}</Text> : null}
@@ -147,6 +158,8 @@ const styles = StyleSheet.create({
   rowTitle: { color: Colors.white, fontSize: FontSizes.sm, fontWeight: "600" },
   rowTitleDone: { color: Colors.silver, textDecorationLine: "line-through" },
   rowSubtitle: { color: Colors.silver, fontSize: FontSizes.xs, marginTop: 2 },
+  watchBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5 },
+  watchText: { color: Colors.gold, fontSize: FontSizes.xs, fontWeight: "600" },
   rowTime: { color: Colors.gold, fontSize: FontSizes.xs, fontWeight: "600" },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.border, marginLeft: 32 },
   emptyCard: { alignItems: "center", paddingVertical: Spacing.lg },

@@ -1,7 +1,6 @@
-day,exercise,muscleGroup,sets,reps,rest,notes
-Day 1 - Push,Barbell Bench Press,Chest,4,6-8,120,Warm up thoroughly
-Day 1 - Push,Overhead Press,Shoulders,3,8-10,90,
-Day 1 - Push,Cable Fly,Chest,3,12-15,60,
-Day 2 - Pull,Deadlift,Back,4,5,150,
-Day 2 - Pull,Pull-Up,Back,3,AMRAP,90,Add weight if easy
-Day 3 - Legs,Back Squat,Quads,4,8-10,120,
+day,exercise,muscleGroup,sets,reps,rest,notes,videoUrl
+Day 1 - Push,Barbell Bench Press,Chest,4,6-8,120,Warm up thoroughly,https://youtu.be/rT7DgCr-3pg
+Day 1 - Push,Overhead Press,Shoulders,3,8-10,90,,https://youtu.be/2yjwXTZQDDI
+Day 2 - Pull,Deadlift,Back,4,5,150,,https://youtu.be/op9kVnSso6Q
+Day 2 - Pull,Pull-Up,Back,3,AMRAP,90,Add weight if easy,https://youtu.be/eGo4IYlbE5g
+Day 3 - Legs,Back Squat,Quads,4,8-10,120,,https://youtu.be/ultWZbUMPL8

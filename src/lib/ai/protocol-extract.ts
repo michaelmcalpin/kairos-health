@@ -69,6 +69,7 @@ export const EXTRACT_COLUMNS: Record<ProtocolType, ExtractColumn[]> = {
     { key: "reps", label: "Reps", type: "text", hint: "rep scheme as text, e.g. 8-12, 5, AMRAP" },
     { key: "rest", label: "Rest (sec)", type: "number", hint: "rest between sets in seconds, digits only" },
     { key: "notes", label: "Notes", type: "text", hint: "tempo, RPE, or any coaching cue" },
+    { key: "videoUrl", label: "Video Link", type: "text", hint: "a demo video URL (YouTube etc.) if the document includes one, else blank" },
   ],
 };
 
