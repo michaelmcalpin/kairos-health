@@ -27,6 +27,7 @@ import { router, trainerProcedure } from "@/server/trpc";
 import {
   supplementProtocols,
   protocolItems,
+  adherenceLogs,
   peptideCycles,
   mealPlans,
   workoutPrograms,
@@ -34,7 +35,7 @@ import {
   clientWorkoutAssignments,
   users,
 } from "@/server/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { getCoachAccess, hasCategoryAccess } from "@/lib/access/coach-access";
 import {
   summarizeProtocolChange,
@@ -204,7 +205,7 @@ async function readPeptideRows(db: Database, clientId: string): Promise<GridRow[
     ),
     orderBy: desc(peptideCycles.startDate),
   });
-  return cycles.map((c): GridRow => ({
+  const rows: GridRow[] = cycles.map((c): GridRow => ({
     name: c.name,
     dosage: c.dosage ?? null,
     unit: c.unit ?? null,
@@ -212,6 +213,40 @@ async function readPeptideRows(db: Database, clientId: string): Promise<GridRow[
     route: c.route ?? null,
     notes: c.notes ?? null,
   }));
+
+  // Legacy peptides may still live in protocolItems (category peptide/injection)
+  // from the older editor. Surface them here so the coach sees ALL peptides in
+  // the grid; on publish they get consolidated into peptideCycles (see below).
+  const legacy = await readLegacyPeptideItems(db, clientId);
+  const have = new Set(rows.map((r) => String(r.name ?? "").trim().toLowerCase()));
+  for (const it of legacy) {
+    const nm = (it.name ?? "").trim().toLowerCase();
+    if (nm && !have.has(nm)) {
+      rows.push({
+        name: it.name,
+        dosage: it.dosage ?? null,
+        unit: it.unit ?? null,
+        frequency: it.frequency ?? null,
+        route: it.route ?? null,
+        notes: it.coachNotes ?? null,
+      });
+      have.add(nm);
+    }
+  }
+  return rows;
+}
+
+// Active protocolItems of peptide/injection category under the client's active
+// supplement protocol — the legacy peptide storage the bulk grid consolidates.
+async function readLegacyPeptideItems(db: Database, clientId: string) {
+  const protocol = await findActiveSupplementProtocol(db, clientId);
+  if (!protocol) return [] as Array<typeof protocolItems.$inferSelect>;
+  return db.query.protocolItems.findMany({
+    where: and(
+      eq(protocolItems.protocolId, protocol.id),
+      inArray(protocolItems.category, ["peptide", "injection"]),
+    ),
+  });
 }
 
 async function findActiveMealPlan(db: Database, clientId: string) {
@@ -440,6 +475,17 @@ async function applyPeptideCycles(
 
   if (insertable.length > 0) {
     await db.insert(peptideCycles).values(insertable);
+  }
+
+  // Consolidate: legacy protocolItems peptides were surfaced in the grid (see
+  // readPeptideRows), so they're now represented in peptideCycles. Remove them
+  // from protocolItems (and their adherence logs) so peptideCycles is the single
+  // source and protocolItems-based views stop showing stale/duplicate peptides.
+  const legacy = await readLegacyPeptideItems(db, clientId);
+  if (legacy.length > 0) {
+    const ids = legacy.map((l) => l.id);
+    await db.delete(adherenceLogs).where(inArray(adherenceLogs.protocolItemId, ids));
+    await db.delete(protocolItems).where(inArray(protocolItems.id, ids));
   }
 
   return readPeptideRows(db, clientId);
