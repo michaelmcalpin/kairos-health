@@ -34,6 +34,7 @@ interface PlanMeal {
   id: string;
   name: string;
   category: MealCategory;
+  day?: string | null;
   prepTimeMinutes: number;
   calories: number;
   proteinG: number;
@@ -560,7 +561,12 @@ export default function NutritionPage() {
                             <button onClick={() => setExpandedMealId(isExpanded ? null : meal.id)}
                               className="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors">
                               <div className="flex-1 min-w-0">
-                                <p className="font-heading font-semibold text-white text-sm truncate">{meal.name}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-heading font-semibold text-white text-sm truncate">{meal.name}</p>
+                                  {meal.day && (
+                                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold">{meal.day}</span>
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-3 mt-1 text-xs text-kairos-silver-dark">
                                   <span className="text-kairos-gold font-semibold">{meal.calories} kcal</span>
                                   <span>P:{meal.proteinG}g</span>

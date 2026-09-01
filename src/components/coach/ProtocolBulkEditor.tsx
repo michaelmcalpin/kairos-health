@@ -89,7 +89,9 @@ const SAMPLE_ROWS: Record<ProtocolType, Record<string, string>> = {
     notes: "5 days on, 2 days off",
   },
   diet: {
-    meal: "Breakfast",
+    day: "Monday",
+    mealType: "Breakfast",
+    meal: "Morning Smoothie + Eggs",
     items: "3 eggs, oats, blueberries",
     calories: "450",
     protein: "30",

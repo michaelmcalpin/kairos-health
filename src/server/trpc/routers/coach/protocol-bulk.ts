@@ -106,6 +106,8 @@ const COLUMNS: Record<ProtocolType, Column[]> = {
     { key: "notes", label: "Notes", type: "text" },
   ],
   diet: [
+    { key: "day", label: "Day", type: "text" },
+    { key: "mealType", label: "Meal Type", type: "text" },
     { key: "meal", label: "Meal", type: "text" },
     { key: "items", label: "Items", type: "text" },
     { key: "calories", label: "Calories", type: "number" },
@@ -266,7 +268,12 @@ function planMealToRow(m: Record<string, unknown>): GridRow {
     ingredients.length > 0
       ? ingredients.map((ing) => toStr(ing.name)).filter(Boolean).join(", ")
       : toStr(m.items);
+  // Meal type stored as the MealCategory enum; surface it title-cased.
+  const cat = toStr(m.mealType) ?? toStr(m.category);
+  const mealType = cat ? cat.charAt(0).toUpperCase() + cat.slice(1) : null;
   return {
+    day: toStr(m.day),
+    mealType,
     // Preserve the coach's free-text meal label (stored as the meal `name`).
     meal: toStr(m.name) ?? toStr(m.meal),
     items: items && items.length > 0 ? items : null,
@@ -527,7 +534,10 @@ async function applyDiet(
       return {
         id: crypto.randomUUID(),
         name: meal,
-        category: mealCategoryFor(meal),
+        // Meal type comes from the explicit column when set, else inferred from
+        // the meal label. `day` schedules the meal (e.g. "Monday", "Day 1").
+        category: mealCategoryFor(toStr(r.mealType) ?? meal),
+        day: toStr(r.day),
         prepTimeMinutes: 0,
         calories: toNum(r.calories) ?? 0,
         proteinG: toNum(r.protein) ?? 0,

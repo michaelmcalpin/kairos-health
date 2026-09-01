@@ -234,11 +234,13 @@ export const clientTodayRouter = router({
         const id = (m.id as string) ?? String(i);
         const key = `meal:${id}`;
         const kcal = m.calories != null ? `${m.calories} kcal` : null;
+        const cat = typeof m.category === "string" ? m.category : null;
+        const mealType = cat ? cat.charAt(0).toUpperCase() + cat.slice(1) : null;
         return {
           key,
           kind: "meal" as const,
           title: (m.name as string) || (m.meal as string) || `Meal ${i + 1}`,
-          subtitle: kcal,
+          subtitle: joinParts([m.day as string, mealType, kcal]),
           time: null,
           completable: true,
           done: doneKeys.has(key),
