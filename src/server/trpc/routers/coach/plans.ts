@@ -139,6 +139,17 @@ export const coachPlansRouter = router({
       }
 
       if (input.activate) {
+        // Single-active invariant: deactivate any existing active assignments so
+        // the client + bulk-editor resolvers can't diverge on which one is live.
+        await ctx.db
+          .update(clientWorkoutAssignments)
+          .set({ status: "inactive" })
+          .where(
+            and(
+              eq(clientWorkoutAssignments.clientId, input.clientId),
+              eq(clientWorkoutAssignments.status, "active"),
+            ),
+          );
         await ctx.db.insert(clientWorkoutAssignments).values({
           clientId: input.clientId,
           programId: program.id,
@@ -475,6 +486,16 @@ export const coachPlansRouter = router({
           continue;
         }
 
+        // Single-active invariant: retire other active assignments first.
+        await ctx.db
+          .update(clientWorkoutAssignments)
+          .set({ status: "inactive" })
+          .where(
+            and(
+              eq(clientWorkoutAssignments.clientId, clientId),
+              eq(clientWorkoutAssignments.status, "active"),
+            ),
+          );
         await ctx.db.insert(clientWorkoutAssignments).values({
           clientId,
           programId: input.programId,

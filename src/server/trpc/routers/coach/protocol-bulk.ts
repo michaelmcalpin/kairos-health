@@ -300,6 +300,9 @@ async function findActiveWorkoutProgram(db: Database, clientId: string) {
       eq(clientWorkoutAssignments.clientId, clientId),
       eq(clientWorkoutAssignments.status, "active"),
     ),
+    // Deterministic: newest assignment wins when more than one is active, so
+    // the coach editor and the client reader always resolve the SAME program.
+    orderBy: desc(clientWorkoutAssignments.startDate),
   });
   if (!assignment) return null;
   return { assignment, programId: assignment.programId };

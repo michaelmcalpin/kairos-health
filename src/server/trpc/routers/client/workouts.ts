@@ -142,6 +142,9 @@ export const clientWorkoutsRouter = router({
         eq(clientWorkoutAssignments.clientId, ctx.dbUserId),
         eq(clientWorkoutAssignments.status, "active")
       ),
+      // Newest active assignment wins — matches the coach bulk-editor's resolver
+      // so both sides always agree on which program is "the" active one.
+      orderBy: desc(clientWorkoutAssignments.startDate),
     });
 
     if (!assignment) return null;
