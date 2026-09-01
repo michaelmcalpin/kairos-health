@@ -12,9 +12,10 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { History } from "lucide-react-native";
+import { History, PlayCircle } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
@@ -85,6 +86,8 @@ export default function WorkoutsScreen() {
         reps: ex.reps ?? 10,
         weight: ex.weightLbs ? `${ex.weightLbs} lbs` : null,
         rest: ex.restSeconds ? `${ex.restSeconds}s` : "60s",
+        notes: ex.notes || null,
+        videoUrl: ex.videoUrl || null,
       })),
     };
   }, [programQuery.data]);
@@ -207,6 +210,17 @@ export default function WorkoutsScreen() {
                       {ex.sets}x{ex.reps}
                       {ex.weight ? ` @ ${ex.weight}` : ""}
                     </Text>
+                    {ex.notes ? <Text style={styles.exerciseNotes}>{ex.notes}</Text> : null}
+                    {ex.videoUrl ? (
+                      <Pressable
+                        onPress={() => Linking.openURL(ex.videoUrl)}
+                        hitSlop={10}
+                        style={styles.watchBtn}
+                      >
+                        <PlayCircle size={15} color={Colors.gold} />
+                        <Text style={styles.watchText}>Watch demo</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                   <View style={styles.restBadge}>
                     <Text style={styles.restText}>Rest {ex.rest}</Text>
@@ -415,6 +429,19 @@ const styles = StyleSheet.create({
     color: Colors.gold,
     textTransform: "capitalize",
   },
+  exerciseNotes: { color: Colors.silver, fontSize: FontSizes.xs, marginTop: 3 },
+  watchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+    alignSelf: "flex-start",
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: Radii.md,
+    backgroundColor: "rgba(212,175,55,0.12)",
+  },
+  watchText: { color: Colors.gold, fontSize: FontSizes.xs, fontWeight: "600" },
   exerciseDetail: {
     fontSize: FontSizes.sm,
     color: Colors.silver,
