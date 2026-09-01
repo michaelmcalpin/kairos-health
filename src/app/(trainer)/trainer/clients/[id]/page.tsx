@@ -143,6 +143,20 @@ function DataTable({ headers, rows }: { headers: string[]; rows: (string | numbe
 
 // ─── Main Page ──────────────────────────────────────────────────
 
+// Deep-links a protocol tab's edit action into the single Bulk Edit Protocols
+// editor (the source of truth), preselecting the matching grid tab.
+function BulkEditLink({ clientId, tab, label }: { clientId: string; tab: "diet" | "supplements" | "peptides" | "workouts"; label: string }) {
+  return (
+    <Link
+      href={`/trainer/clients/${clientId}/protocols?tab=${tab}`}
+      className="flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+    >
+      <span className="flex items-center gap-2"><ClipboardList size={15} /> {label}</span>
+      <span className="text-xs opacity-70">Open →</span>
+    </Link>
+  );
+}
+
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const tc = useThemeColors();
@@ -608,10 +622,13 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               <p className="text-sm text-gray-500">Not shared with you</p>
             </div>
           ) : activeTab === "supplements" ? (
-            <ProtocolEditor
-              clientId={params.id}
-              canEdit={!isSharedOnly || myAccess?.diet === "write"}
-            />
+            <div className="space-y-4">
+              <BulkEditLink clientId={params.id} tab="supplements" label="Edit supplements & peptides in Bulk Editor" />
+              <ProtocolEditor
+                clientId={params.id}
+                canEdit={!isSharedOnly || myAccess?.diet === "write"}
+              />
+            </div>
           ) : healthQuery.isLoading ? (
             <div className="kairos-card h-64 animate-pulse bg-gray-800/50 flex items-center justify-center">
               <p className="text-sm text-gray-500">Loading health data...</p>
@@ -620,10 +637,16 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             <div className="space-y-6">
               {/* Coach write panels (Add / Upload / Create) shown above the read-only data. */}
               {activeTab === "workouts" && (
-                <TrainingProgramManager clientId={params.id} canEdit={canEditCategory("exercise")} />
+                <>
+                  <BulkEditLink clientId={params.id} tab="workouts" label="Edit workouts in Bulk Editor" />
+                  <TrainingProgramManager clientId={params.id} canEdit={canEditCategory("exercise")} />
+                </>
               )}
               {activeTab === "nutrition" && (
-                <MealPlanManager clientId={params.id} canEdit={canEditCategory("diet")} />
+                <>
+                  <BulkEditLink clientId={params.id} tab="diet" label="Edit meal plan in Bulk Editor" />
+                  <MealPlanManager clientId={params.id} canEdit={canEditCategory("diet")} />
+                </>
               )}
               {activeTab === "sleep" && (
                 <SleepEntryManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "sleep" ? logSignal : 0} />

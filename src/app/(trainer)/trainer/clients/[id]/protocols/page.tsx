@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Apple,
@@ -37,7 +38,13 @@ type Detected = { type: ProtocolType; label: string; reason: string };
 
 export default function BulkEditProtocolsPage({ params }: { params: { id: string } }) {
   const clientId = params.id;
-  const [type, setType] = useState<ProtocolType>("diet");
+  const searchParams = useSearchParams();
+  const [type, setType] = useState<ProtocolType>(() => {
+    const t = searchParams.get("tab");
+    return (["diet", "supplements", "peptides", "workouts"] as const).includes(t as ProtocolType)
+      ? (t as ProtocolType)
+      : "diet";
+  });
 
   // "Detect type" flow — coach uploads once, AI says which tab, coach confirms.
   const detectInputRef = useRef<HTMLInputElement | null>(null);
