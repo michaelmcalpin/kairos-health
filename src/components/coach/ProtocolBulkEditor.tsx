@@ -512,6 +512,7 @@ export default function ProtocolBulkEditor({
     try {
       let filled = 0;
       let missed = 0;
+      let firstWarning: string | null = null;
       for (let i = 0; i < rows.length; i++) {
         const ex = (rows[i].exercise ?? "").trim();
         const existing = (rows[i].videoUrl ?? "").trim();
@@ -526,6 +527,7 @@ export default function ProtocolBulkEditor({
             filled++;
           } else {
             missed++;
+            if (!firstWarning && res?.warning) firstWarning = res.warning;
           }
         } catch {
           missed++;
@@ -533,10 +535,13 @@ export default function ProtocolBulkEditor({
       }
       if (filled === 0 && missed === 0) {
         setAiNotice("Every exercise already has a video, or no exercise names are filled in.");
+      } else if (filled === 0 && firstWarning) {
+        // Surface the actual reason (e.g. key missing / API error / none found).
+        setImportError(firstWarning);
       } else {
         setAiNotice(
           `Added ${filled} demo video${filled === 1 ? "" : "s"}` +
-            (missed > 0 ? ` — ${missed} had no clip 30s or under, or search isn't set up.` : "."),
+            (missed > 0 ? ` — ${missed} exercise${missed === 1 ? "" : "s"} had no short clip.` : "."),
         );
       }
     } finally {

@@ -31,7 +31,8 @@ function iso8601ToSeconds(d: string | undefined): number | null {
   return h * 3600 + min * 60 + s;
 }
 
-const MAX_SECONDS = 30;
+const MAX_SECONDS = 30; // preferred cap
+const FALLBACK_SECONDS = 60; // if nothing <=30s exists, take the shortest up to this
 
 export async function findExerciseVideo(
   exercise: string,
@@ -70,23 +71,27 @@ export async function findExerciseVideo(
       items?: Array<{ id: string; contentDetails?: { duration?: string }; snippet?: { title?: string } }>;
     };
 
-    // Keep the search's relevance order; return the first that is <= 30s.
-    for (const id of ids) {
-      const item = (ddata.items ?? []).find((it) => it.id === id);
-      if (!item) continue;
-      const secs = iso8601ToSeconds(item.contentDetails?.duration);
-      if (secs != null && secs > 0 && secs <= MAX_SECONDS) {
-        return {
-          video: {
-            url: `https://youtu.be/${id}`,
-            title: item.snippet?.title ?? name,
-            seconds: secs,
-          },
-        };
-      }
-    }
+    // Collect candidates with their real duration (search order preserved).
+    const candidates = ids
+      .map((id) => {
+        const item = (ddata.items ?? []).find((it) => it.id === id);
+        const secs = iso8601ToSeconds(item?.contentDetails?.duration);
+        return { id, secs, title: item?.snippet?.title ?? name };
+      })
+      .filter((c) => c.secs != null && c.secs > 0) as Array<{ id: string; secs: number; title: string }>;
 
-    return { video: null, warning: "No demo 30 seconds or under was found." };
+    if (candidates.length === 0) return { video: null, warning: "No usable demo was found." };
+
+    // Prefer <= 30s; if none exist (common on YouTube), fall back to the
+    // SHORTEST clip up to 60s so a helpful demo still gets attached.
+    const shortestUnder = (cap: number) =>
+      candidates.filter((c) => c.secs <= cap).sort((a, b) => a.secs - b.secs)[0];
+    const pick = shortestUnder(MAX_SECONDS) ?? shortestUnder(FALLBACK_SECONDS);
+
+    if (!pick) return { video: null, warning: "No demo 60 seconds or under was found." };
+    return {
+      video: { url: `https://youtu.be/${pick.id}`, title: pick.title, seconds: pick.secs },
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[Exercise Video Search Error]", msg);
