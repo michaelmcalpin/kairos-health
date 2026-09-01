@@ -16,7 +16,7 @@ import {
   Check,
   ListChecks,
 } from "lucide-react-native";
-import { Colors, Spacing, FontSizes } from "@/lib/constants";
+import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
 import type { TodayItem, TodaySection } from "@/hooks/useToday";
 
@@ -43,20 +43,26 @@ function kindIcon(kind: TodayItem["kind"], color: string) {
 
 function Row({ item, onToggle }: { item: TodayItem; onToggle: (i: TodayItem) => void }) {
   const done = item.done;
+  const toggle = () => item.completable && onToggle(item);
+  // Not a single full-row Pressable: the checkbox + text toggle completion,
+  // while the "Watch demo" link is its own separate tap target so it opens the
+  // video instead of toggling the task.
   return (
-    <Pressable
-      onPress={() => onToggle(item)}
-      disabled={!item.completable}
-      style={({ pressed }) => [styles.row, pressed && item.completable && styles.rowPressed]}
-    >
-      {item.completable ? (
-        <View style={[styles.checkbox, done && styles.checkboxDone]}>
-          {done && <Check size={14} color={Colors.dark} strokeWidth={3} />}
-        </View>
-      ) : (
-        <View style={styles.kindDot}>{kindIcon(item.kind, Colors.silver)}</View>
-      )}
-      <View style={styles.rowBody}>
+    <View style={styles.row}>
+      <Pressable onPress={toggle} disabled={!item.completable} hitSlop={8}>
+        {item.completable ? (
+          <View style={[styles.checkbox, done && styles.checkboxDone]}>
+            {done && <Check size={14} color={Colors.dark} strokeWidth={3} />}
+          </View>
+        ) : (
+          <View style={styles.kindDot}>{kindIcon(item.kind, Colors.silver)}</View>
+        )}
+      </Pressable>
+      <Pressable
+        onPress={toggle}
+        disabled={!item.completable}
+        style={({ pressed }) => [styles.rowBody, pressed && item.completable && styles.rowPressed]}
+      >
         <Text style={[styles.rowTitle, done && styles.rowTitleDone]} numberOfLines={1}>
           {item.title}
         </Text>
@@ -65,19 +71,20 @@ function Row({ item, onToggle }: { item: TodayItem; onToggle: (i: TodayItem) => 
             {item.subtitle}
           </Text>
         ) : null}
-        {item.link ? (
-          <Pressable
-            onPress={() => item.link && Linking.openURL(item.link)}
-            hitSlop={6}
-            style={styles.watchBtn}
-          >
-            <PlayCircle size={13} color={Colors.gold} />
-            <Text style={styles.watchText}>Watch demo</Text>
-          </Pressable>
-        ) : null}
-      </View>
-      {item.time ? <Text style={styles.rowTime}>{item.time}</Text> : null}
-    </Pressable>
+      </Pressable>
+      {item.link ? (
+        <Pressable
+          onPress={() => item.link && Linking.openURL(item.link)}
+          hitSlop={10}
+          style={styles.watchBtn}
+        >
+          <PlayCircle size={16} color={Colors.gold} />
+          <Text style={styles.watchText}>Watch</Text>
+        </Pressable>
+      ) : item.time ? (
+        <Text style={styles.rowTime}>{item.time}</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -158,7 +165,15 @@ const styles = StyleSheet.create({
   rowTitle: { color: Colors.white, fontSize: FontSizes.sm, fontWeight: "600" },
   rowTitleDone: { color: Colors.silver, textDecorationLine: "line-through" },
   rowSubtitle: { color: Colors.silver, fontSize: FontSizes.xs, marginTop: 2 },
-  watchBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 5 },
+  watchBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: Radii.md,
+    backgroundColor: "rgba(212,175,55,0.12)",
+  },
   watchText: { color: Colors.gold, fontSize: FontSizes.xs, fontWeight: "600" },
   rowTime: { color: Colors.gold, fontSize: FontSizes.xs, fontWeight: "600" },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.border, marginLeft: 32 },
