@@ -39,9 +39,7 @@ const DATA_TABS: { id: DataTab; label: string; icon: typeof Activity }[] = [
   { id: "genetics", label: "Genetics", icon: Dna },
   { id: "clinical", label: "Clinical Docs", icon: FileText },
   { id: "nutrition", label: "Nutrition", icon: Apple },
-  { id: "fasting", label: "Fasting", icon: Timer },
-  { id: "supplements", label: "Protocol", icon: Pill },
-  { id: "checkins", label: "Check-ins", icon: ClipboardList },
+  { id: "supplements", label: "Supplements", icon: Pill },
   { id: "discussion", label: "Coach Discussion", icon: MessagesSquare },
 ];
 
@@ -378,7 +376,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
   // Jump to a metric's tab and auto-open its "Add" modal (one click to the form).
   function handleLogMetric(tab: DataTab) {
-    setActiveTab(tab);
+    // Fasting now lives under the Nutrition tab (diet), so open that tab but
+    // still signal the fasting form to open.
+    setActiveTab(tab === "fasting" ? "nutrition" : tab);
     setLogTarget(tab);
     setLogSignal((s) => s + 1);
     setShowLogMenu(false);
@@ -498,7 +498,6 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                     { tab: "sleep", label: "Sleep", icon: Moon, cat: "healthData" },
                     { tab: "fasting", label: "Fasting", icon: Timer, cat: "healthData" },
                     { tab: "goals", label: "Goal", icon: Target, cat: "healthData" },
-                    { tab: "checkins", label: "Check-in", icon: ClipboardList, cat: "healthData" },
                     { tab: "labs", label: "Lab Result", icon: FlaskConical, cat: "labs" },
                   ] as { tab: DataTab; label: string; icon: typeof Activity; cat: AccessCategory }[])
                     .filter((m) => canEditCategory(m.cat))
@@ -646,6 +645,8 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                 <>
                   <BulkEditLink clientId={params.id} tab="diet" label="Edit meal plan in Bulk Editor" />
                   <MealPlanManager clientId={params.id} canEdit={canEditCategory("diet")} />
+                  {/* Fasting is part of diet — managed here rather than a separate tab. */}
+                  <FastingManager clientId={params.id} canEdit={canEditCategory("healthData")} openSignal={logTarget === "fasting" ? logSignal : 0} />
                 </>
               )}
               {activeTab === "sleep" && (
@@ -2970,6 +2971,13 @@ function MealPlanManager({ clientId, canEdit }: { clientId: string; canEdit: boo
     { clientId },
     { staleTime: 10_000, refetchOnWindowFocus: false, retry: false },
   );
+  // Same source the Bulk Edit "Diet" tab reads, so the meals shown here match it.
+  const dietGrid = trpc.coach.protocolBulk.getGrid.useQuery(
+    { clientId, type: "diet" },
+    { staleTime: 10_000, refetchOnWindowFocus: false, retry: false },
+  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dietRows = ((dietGrid.data as any)?.rows ?? []) as Array<Record<string, unknown>>;
   const invalidate = () => utils.coach.plans.listMealPlans.invalidate({ clientId });
 
   const createMutation = trpc.coach.plans.createMealPlan.useMutation({
@@ -3007,6 +3015,34 @@ function MealPlanManager({ clientId, canEdit }: { clientId: string; canEdit: boo
       )}
 
       <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
+
+      {/* Current meals — the same data as the Bulk Edit "Diet" tab. */}
+      {dietRows.length > 0 && (
+        <div className="mb-4 overflow-x-auto rounded-lg border border-gray-800">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-gray-500 border-b border-gray-800">
+                <th className="px-3 py-2 font-medium">Day</th>
+                <th className="px-3 py-2 font-medium">Type</th>
+                <th className="px-3 py-2 font-medium">Meal</th>
+                <th className="px-3 py-2 font-medium">Items</th>
+                <th className="px-3 py-2 font-medium text-right">kcal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dietRows.map((r, i) => (
+                <tr key={i} className="border-b border-gray-800/50 last:border-0">
+                  <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{String(r.day ?? "")}</td>
+                  <td className="px-3 py-2 text-gray-400 whitespace-nowrap">{String(r.mealType ?? "")}</td>
+                  <td className="px-3 py-2 text-white whitespace-nowrap">{String(r.meal ?? "")}</td>
+                  <td className="px-3 py-2 text-gray-400">{String(r.items ?? "")}</td>
+                  <td className="px-3 py-2 text-kairos-gold text-right whitespace-nowrap">{r.calories != null ? String(r.calories) : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {listQuery.isLoading ? (
         <p className="text-xs text-gray-500 text-center py-6">Loading meal plans...</p>

@@ -230,7 +230,25 @@ export const clientTodayRouter = router({
         undefined,
       );
       const library = plan ? readLibrary(plan.meals as unknown) : { planType: null, cyclePattern: null, meals: [] };
-      const mealItems: TodayItem[] = library.meals.map((m, i) => {
+      // Only show TODAY's meals. When meals are scheduled by weekday, keep the
+      // ones for today (and any with no day = every-day). When the plan doesn't
+      // use weekday labels (blank, or cycle labels like "Day 1"), show them all.
+      const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const todayName = WEEKDAYS[dow];
+      const todayAbbr = todayName.slice(0, 3);
+      const dayLabel = (m: Record<string, unknown>) =>
+        typeof m.day === "string" ? m.day.toLowerCase() : "";
+      const usesWeekday = library.meals.some((m) => {
+        const d = dayLabel(m);
+        return WEEKDAYS.some((w) => d.includes(w) || d.includes(w.slice(0, 3)));
+      });
+      const mealsForToday = usesWeekday
+        ? library.meals.filter((m) => {
+            const d = dayLabel(m);
+            return d === "" || d.includes(todayName) || d.includes(todayAbbr);
+          })
+        : library.meals;
+      const mealItems: TodayItem[] = mealsForToday.map((m, i) => {
         const id = (m.id as string) ?? String(i);
         const key = `meal:${id}`;
         const kcal = m.calories != null ? `${m.calories} kcal` : null;
