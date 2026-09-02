@@ -4,7 +4,9 @@
  *  - useViewMode(): read/write the guided|full home preference.
  */
 
+import { useEffect } from "react";
 import { trpc, DEFAULT_QUERY_OPTIONS, STATIC_QUERY_OPTIONS } from "@/lib/api";
+import { scheduleMeetingReminders } from "@/lib/notifications";
 
 export type TodayItem = {
   key: string;
@@ -62,6 +64,25 @@ export function useToday() {
       utils.clientPortal.today.getToday.invalidate({ date });
     },
   });
+
+  // Schedule a local "meeting in 5 minutes" reminder for each of today's coach
+  // meetings whenever today's data changes.
+  useEffect(() => {
+    const data = query.data as TodayData | undefined;
+    if (!data) return;
+    const meetings = data.sections
+      .filter((s) => s.key === "appointments")
+      .flatMap((s) => s.items)
+      .filter((it) => !!it.time)
+      .map((it) => ({
+        id: it.key,
+        title: it.title,
+        date: data.date,
+        startTime: it.time as string,
+        link: it.link ?? null,
+      }));
+    void scheduleMeetingReminders(meetings);
+  }, [query.data]);
 
   const toggleItem = (item: TodayItem) => {
     if (!item.completable) return;

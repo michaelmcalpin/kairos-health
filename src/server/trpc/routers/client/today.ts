@@ -115,22 +115,28 @@ export const clientTodayRouter = router({
           }),
         [] as Array<Record<string, unknown>>,
       );
+      const prettySession = (s: unknown) =>
+        typeof s === "string" && s ? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null;
       const apptItems: TodayItem[] = appts
         .filter((a) => a.status !== "cancelled")
+        .sort((a, b) => String(a.startTime ?? "").localeCompare(String(b.startTime ?? "")))
         .map((a) => {
           const key = `appt:${String(a.id)}`;
+          const coachName = (a.coachName as string) || null;
           return {
             key,
             kind: "appointment" as const,
-            title: (a.sessionType as string) || "Appointment",
+            title: coachName ? `Meeting with ${coachName}` : (prettySession(a.sessionType) || "Coach meeting"),
             subtitle: joinParts([
-              a.coachName as string,
+              prettySession(a.sessionType),
               a.meetingType as string,
+              (a.startTime as string) ?? null,
             ]),
             time: (a.startTime as string) ?? null,
             completable: true,
             done: doneKeys.has(key),
             protocolItemId: null,
+            link: (a.meetingLink as string) || null,
           };
         });
       if (apptItems.length > 0) sections.push({ key: "appointments", label: "Meetings", items: apptItems });
@@ -408,6 +414,13 @@ export const clientTodayRouter = router({
         adviceRows.find((r) => r.date == null)?.message ??
         null;
       const advice = coachAdvice || ruleAdvice;
+
+      // A scheduled meeting with a coach always sits at the very top of the day.
+      const apptIdx = sections.findIndex((s) => s.key === "appointments");
+      if (apptIdx > 0) {
+        const [apptSection] = sections.splice(apptIdx, 1);
+        sections.unshift(apptSection);
+      }
 
       const totalItems = sections.reduce((n, s) => n + s.items.filter((i) => i.completable).length, 0);
       const doneCount = sections.reduce(
