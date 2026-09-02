@@ -395,11 +395,15 @@ export const clientDevicesRouter = router({
           date: z.string(),
           weightLbs: z.number().optional(),
           bodyFatPct: z.number().optional(),
+          leanMassLbs: z.number().optional(),
+          bmi: z.number().optional(),
         })).max(2000).optional(),
         activity: z.array(z.object({
           date: z.string(),
           steps: z.number().optional(),
           caloriesActive: z.number().optional(),
+          distanceMeters: z.number().optional(),
+          flightsClimbed: z.number().optional(),
         })).max(2000).optional(),
       }),
     )
@@ -547,6 +551,8 @@ export const clientDevicesRouter = router({
           date: r.date,
           weightLbs: r.weightLbs ?? null,
           bodyFatPct: r.bodyFatPct ?? null,
+          leanMassLbs: r.leanMassLbs ?? null,
+          bmi: r.bmi ?? null,
           source: SOURCE,
         }));
         const dates = Array.from(new Set(rows.map((r) => r.date)));
@@ -570,6 +576,8 @@ export const clientDevicesRouter = router({
           date: r.date,
           steps: r.steps != null ? Math.round(r.steps) : null,
           caloriesActive: r.caloriesActive != null ? Math.round(r.caloriesActive) : null,
+          distanceMeters: r.distanceMeters ?? null,
+          flightsClimbed: r.flightsClimbed != null ? Math.round(r.flightsClimbed) : null,
           source: SOURCE,
         }));
         const dates = Array.from(new Set(rows.map((r) => r.date)));

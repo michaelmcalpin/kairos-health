@@ -145,31 +145,41 @@ export function useHealthSync() {
         steps,
         heartRate,
         restingHR,
+        walkingHR,
         hrv,
         sleep,
         weight,
         bodyFat,
+        leanMass,
+        bmi,
         glucose,
         bpSystolic,
         bpDiastolic,
         activeEnergy,
+        distance,
+        flights,
       ] = await Promise.all([
         HealthKit.readHealthData("HKQuantityTypeIdentifierStepCount", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierHeartRate", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierRestingHeartRate", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierWalkingHeartRateAverage", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierHeartRateVariabilitySDNN", windowStart),
         HealthKit.readHealthData("HKCategoryTypeIdentifierSleepAnalysis", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierBodyMass", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierBodyFatPercentage", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierLeanBodyMass", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierBodyMassIndex", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierBloodGlucose", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierBloodPressureSystolic", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierBloodPressureDiastolic", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierActiveEnergyBurned", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierDistanceWalkingRunning", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierFlightsClimbed", windowStart),
       ]);
 
-      // ── Heart rate: per-sample, plus resting HR folded in ──
+      // ── Heart rate: per-sample, plus resting + walking-average HR folded in ──
       const heartRatePayload: { timestamp: string; bpm: number }[] = [];
-      for (const s of [...heartRate, ...restingHR]) {
+      for (const s of [...heartRate, ...restingHR, ...walkingHR]) {
         const bpm = Number(s.value);
         if (s.startDate && bpm > 0) {
           heartRatePayload.push({ timestamp: s.startDate, bpm: Math.round(bpm) });
@@ -257,10 +267,19 @@ export function useHealthSync() {
         }
       }
 
-      // ── Weight (native returns POUNDS via explicit unit) + body fat ──
-      const weightPayload: { date: string; weightLbs?: number; bodyFatPct?: number }[] = [];
+      // ── Weight (native returns POUNDS via explicit unit) + body composition ──
+      const weightPayload: {
+        date: string;
+        weightLbs?: number;
+        bodyFatPct?: number;
+        leanMassLbs?: number;
+        bmi?: number;
+      }[] = [];
       {
-        const byDate = new Map<string, { weightLbs?: number; bodyFatPct?: number }>();
+        const byDate = new Map<
+          string,
+          { weightLbs?: number; bodyFatPct?: number; leanMassLbs?: number; bmi?: number }
+        >();
         for (const s of weight) {
           const lbs = Number(s.value);
           const date = dateOf(s.startDate);
@@ -281,15 +300,44 @@ export function useHealthSync() {
             byDate.set(date, entry);
           }
         }
+        // Lean body mass (native returns POUNDS via explicit unit)
+        for (const s of leanMass) {
+          const lbs = Number(s.value);
+          const date = dateOf(s.startDate);
+          if (date && lbs > 0) {
+            const entry = byDate.get(date) ?? {};
+            entry.leanMassLbs = Math.round(lbs * 10) / 10;
+            byDate.set(date, entry);
+          }
+        }
+        // Body Mass Index (unitless)
+        for (const s of bmi) {
+          const value = Number(s.value);
+          const date = dateOf(s.startDate);
+          if (date && value > 0) {
+            const entry = byDate.get(date) ?? {};
+            entry.bmi = Math.round(value * 10) / 10;
+            byDate.set(date, entry);
+          }
+        }
         for (const [date, entry] of byDate) {
           weightPayload.push({ date, ...entry });
         }
       }
 
-      // ── Activity: steps + active calories aggregated per day ──
-      const activityPayload: { date: string; steps?: number; caloriesActive?: number }[] = [];
+      // ── Activity: steps + active calories + distance + flights per day ──
+      const activityPayload: {
+        date: string;
+        steps?: number;
+        caloriesActive?: number;
+        distanceMeters?: number;
+        flightsClimbed?: number;
+      }[] = [];
       {
-        const byDate = new Map<string, { steps?: number; caloriesActive?: number }>();
+        const byDate = new Map<
+          string,
+          { steps?: number; caloriesActive?: number; distanceMeters?: number; flightsClimbed?: number }
+        >();
         for (const s of steps) {
           const count = Number(s.value);
           const date = dateOf(s.startDate);
@@ -308,12 +356,34 @@ export function useHealthSync() {
             byDate.set(date, entry);
           }
         }
+        for (const s of distance) {
+          const meters = Number(s.value);
+          const date = dateOf(s.startDate);
+          if (date && meters > 0) {
+            const entry = byDate.get(date) ?? {};
+            entry.distanceMeters = (entry.distanceMeters ?? 0) + meters;
+            byDate.set(date, entry);
+          }
+        }
+        for (const s of flights) {
+          const count = Number(s.value);
+          const date = dateOf(s.startDate);
+          if (date && count > 0) {
+            const entry = byDate.get(date) ?? {};
+            entry.flightsClimbed = (entry.flightsClimbed ?? 0) + count;
+            byDate.set(date, entry);
+          }
+        }
         for (const [date, entry] of byDate) {
           activityPayload.push({
             date,
             steps: entry.steps != null ? Math.round(entry.steps) : undefined,
             caloriesActive:
               entry.caloriesActive != null ? Math.round(entry.caloriesActive) : undefined,
+            distanceMeters:
+              entry.distanceMeters != null ? Math.round(entry.distanceMeters) : undefined,
+            flightsClimbed:
+              entry.flightsClimbed != null ? Math.round(entry.flightsClimbed) : undefined,
           });
         }
       }

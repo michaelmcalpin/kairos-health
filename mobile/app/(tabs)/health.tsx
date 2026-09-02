@@ -122,12 +122,12 @@ export default function HealthScreen() {
 
   const biometricRoutes: Record<string, string> = {
     sleep: "/health/sleep",
-    heartRate: "/health/body",
+    heartRate: "/health/heart-rate",
     bloodPressure: "/health/blood-pressure",
     glucose: "/health/glucose",
-    hrv: "/health/body",
+    hrv: "/health/hrv",
     weight: "/health/body",
-    steps: "/health/goals",
+    steps: "/health/activity",
     temperature: "/health/body",
   };
 

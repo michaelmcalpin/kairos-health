@@ -209,6 +209,8 @@ export const activitySummaries = pgTable("activity_summaries", {
   caloriesActive: integer("calories_active"),
   exerciseMinutes: integer("exercise_minutes"),
   standHours: integer("stand_hours"),
+  distanceMeters: real("distance_meters"),
+  flightsClimbed: integer("flights_climbed"),
   source: varchar("source", { length: 50 }),
 }, (t) => [index("activity_client_date_idx").on(t.clientId, t.date)]);
 
@@ -218,6 +220,8 @@ export const bodyMeasurements = pgTable("body_measurements", {
   date: date("date").notNull(),
   weightLbs: real("weight_lbs"),
   bodyFatPct: real("body_fat_pct"),
+  leanMassLbs: real("lean_mass_lbs"),
+  bmi: real("bmi"),
   waistInches: real("waist_inches"),
   chestInches: real("chest_inches"),
   hipsInches: real("hips_inches"),

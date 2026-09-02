@@ -47,13 +47,22 @@ export const HEALTHKIT_READ_TYPES = [
   "HKQuantityTypeIdentifierStepCount",
   "HKQuantityTypeIdentifierHeartRate",
   "HKQuantityTypeIdentifierRestingHeartRate",
+  "HKQuantityTypeIdentifierWalkingHeartRateAverage",
   "HKQuantityTypeIdentifierHeartRateVariabilitySDNN",
   "HKQuantityTypeIdentifierActiveEnergyBurned",
+  "HKQuantityTypeIdentifierDistanceWalkingRunning",
+  "HKQuantityTypeIdentifierFlightsClimbed",
   "HKQuantityTypeIdentifierBodyMass",
   "HKQuantityTypeIdentifierBodyFatPercentage",
+  "HKQuantityTypeIdentifierLeanBodyMass",
+  "HKQuantityTypeIdentifierBodyMassIndex",
   "HKQuantityTypeIdentifierBloodGlucose",
   "HKQuantityTypeIdentifierBloodPressureSystolic",
   "HKQuantityTypeIdentifierBloodPressureDiastolic",
+  "HKQuantityTypeIdentifierRespiratoryRate",
+  "HKQuantityTypeIdentifierOxygenSaturation",
+  "HKQuantityTypeIdentifierVO2Max",
+  "HKQuantityTypeIdentifierBodyTemperature",
   "HKCategoryTypeIdentifierSleepAnalysis",
 ] as const;
 
@@ -92,13 +101,22 @@ const permissions: HealthKitPermissions = {
       "StepCount",
       "HeartRate",
       "RestingHeartRate",
+      "WalkingHeartRateAverage",
       "HeartRateVariability",
       "ActiveEnergyBurned",
+      "DistanceWalkingRunning",
+      "FlightsClimbed",
       "Weight",
       "BodyFatPercentage",
+      "LeanBodyMass",
+      "BodyMassIndex",
       "BloodGlucose",
       "BloodPressureSystolic",
       "BloodPressureDiastolic",
+      "RespiratoryRate",
+      "OxygenSaturation",
+      "Vo2Max",
+      "BodyTemperature",
       "SleepAnalysis",
     ] as any,
     write: [],
@@ -164,6 +182,31 @@ export async function requestHealthKitPermissions(): Promise<HealthKitStatus> {
 }
 
 /**
+ * Defensively invoke a native HealthKit getter by name.
+ *
+ * Some `react-native-health` methods may be absent depending on the linked
+ * native version. If the method is missing we resolve with an empty array
+ * instead of throwing, so an unavailable type never breaks a sync.
+ */
+function safeCall(
+  method: string,
+  options: HealthInputOptions,
+  callback: (err: string, results: HealthValue[]) => void,
+  resolve: (value: HealthKitSample[]) => void,
+): void {
+  try {
+    const fn = AppleHealthKit?.[method];
+    if (typeof fn === "function") {
+      fn(options, callback as any);
+    } else {
+      resolve([]);
+    }
+  } catch {
+    resolve([]);
+  }
+}
+
+/**
  * Read health samples for a given type within a date range.
  *
  * Routes to the correct `react-native-health` query method based on
@@ -186,10 +229,15 @@ export async function readHealthData(
 
     // Request explicit units so values arrive in the units the backend
     // expects (HealthKit otherwise returns locale/default units).
-    if (type === "HKQuantityTypeIdentifierBodyMass") {
+    if (
+      type === "HKQuantityTypeIdentifierBodyMass" ||
+      type === "HKQuantityTypeIdentifierLeanBodyMass"
+    ) {
       (options as any).unit = "pound";
     } else if (type === "HKQuantityTypeIdentifierBloodGlucose") {
       (options as any).unit = "mgPerdL";
+    } else if (type === "HKQuantityTypeIdentifierDistanceWalkingRunning") {
+      (options as any).unit = "meter";
     }
     // NOTE: HRV (HeartRateVariabilitySDNN) is intentionally left unitless —
     // the native module returns seconds, converted to ms in useHealthSync.
@@ -274,6 +322,33 @@ export async function readHealthData(
             );
           });
           return;
+        case "HKQuantityTypeIdentifierWalkingHeartRateAverage":
+          safeCall("getWalkingHeartRateAverage", options, callback, resolve);
+          break;
+        case "HKQuantityTypeIdentifierDistanceWalkingRunning":
+          safeCall("getDailyDistanceWalkingRunningSamples", options, callback, resolve);
+          break;
+        case "HKQuantityTypeIdentifierFlightsClimbed":
+          safeCall("getDailyFlightsClimbedSamples", options, callback, resolve);
+          break;
+        case "HKQuantityTypeIdentifierLeanBodyMass":
+          safeCall("getLeanBodyMassSamples", options, callback, resolve);
+          break;
+        case "HKQuantityTypeIdentifierBodyMassIndex":
+          safeCall("getBmiSamples", options, callback, resolve);
+          break;
+        case "HKQuantityTypeIdentifierRespiratoryRate":
+          safeCall("getRespiratoryRateSamples", options, callback, resolve);
+          break;
+        case "HKQuantityTypeIdentifierOxygenSaturation":
+          safeCall("getOxygenSaturationSamples", options, callback, resolve);
+          break;
+        case "HKQuantityTypeIdentifierVO2Max":
+          safeCall("getVo2MaxSamples", options, callback, resolve);
+          break;
+        case "HKQuantityTypeIdentifierBodyTemperature":
+          safeCall("getBodyTemperatureSamples", options, callback, resolve);
+          break;
         case "HKCategoryTypeIdentifierSleepAnalysis":
           AppleHealthKit.getSleepSamples(options, callback as any);
           break;
