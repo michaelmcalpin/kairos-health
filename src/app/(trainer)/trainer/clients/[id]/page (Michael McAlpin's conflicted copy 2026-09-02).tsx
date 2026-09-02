@@ -2275,7 +2275,7 @@ function TabContent({
           </h2>
           <DataTable
             headers={["Date", "Meal", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"]}
-            rows={health.nutrition.recentMeals.map((m) => [m.date, m.mealType, m.calories, m.protein, m.carbs, m.fat])}
+            rows={health.nutrition.recentMeals.map((m) => [m.date, m.mealType, round(m.calories, 0), round(m.protein, 0), round(m.carbs, 0), round(m.fat, 0)])}
           />
         </div>
       );

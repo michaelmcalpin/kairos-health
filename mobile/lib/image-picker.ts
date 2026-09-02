@@ -31,7 +31,7 @@ export async function takePhoto(): Promise<PickedImage | null> {
     mediaTypes: ["images"],
     allowsEditing: true,
     aspect: [1, 1],
-    quality: 0.8,
+    quality: 0.6, // keep photos under Vercel's 4.5MB upload limit
   });
 
   if (result.canceled || !result.assets?.[0]) return null;
@@ -60,7 +60,7 @@ export async function pickFromLibrary(): Promise<PickedImage | null> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["images"],
     allowsEditing: true,
-    quality: 0.8,
+    quality: 0.6, // keep photos under Vercel's 4.5MB upload limit
   });
 
   if (result.canceled || !result.assets?.[0]) return null;

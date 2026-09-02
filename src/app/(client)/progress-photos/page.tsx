@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Camera, Upload, Calendar, ImageIcon, X, Check, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { compressImage } from "@/lib/image/compress";
 import { cn } from "@/utils/cn";
 
 type PoseType = "front" | "side" | "back";
@@ -54,9 +55,11 @@ export default function ProgressPhotosPage() {
     setFormError(null);
     setUploading(true);
     try {
-      // Upload file to cloud storage via API
+      // Downscale/compress in the browser first — a raw phone photo often
+      // exceeds Vercel's ~4.5MB request-body limit and would fail to upload.
+      const toUpload = await compressImage(selectedFile);
       const formData = new FormData();
-      formData.append("file", selectedFile);
+      formData.append("file", toUpload);
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const result = await res.json();
 
@@ -71,7 +74,7 @@ export default function ProgressPhotosPage() {
         poseType: selectedPose,
       });
     } catch (err) {
-      setFormError("Failed to upload photo. Please try again.");
+      setFormError(err instanceof Error ? err.message : "Failed to upload photo. Please try again.");
     } finally {
       setUploading(false);
       setSelectedFile(null);
