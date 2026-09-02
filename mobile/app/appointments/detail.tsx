@@ -17,7 +17,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Pressable,
 } from "react-native";
+import { openMeetingLink } from "@/lib/meeting";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -259,10 +261,20 @@ export default function AppointmentDetailScreen() {
                 <Video size={18} color={Colors.info} />
                 <Text style={styles.locationLabel}>Video Consultation</Text>
               </View>
-              <Text style={styles.locationHint}>
-                Your coach will share the video call link before the session
-                begins.
-              </Text>
+              {appt.meetingLink ? (
+                <Pressable
+                  onPress={() => openMeetingLink(appt.meetingLink)}
+                  style={({ pressed }) => [styles.joinBtn, pressed && { opacity: 0.7 }]}
+                >
+                  <Video size={16} color={Colors.dark} />
+                  <Text style={styles.joinBtnText}>Join meeting</Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.locationHint}>
+                  Your coach will share the video call link before the session
+                  begins.
+                </Text>
+              )}
             </Card>
           </>
         )}
@@ -437,6 +449,17 @@ const styles = StyleSheet.create({
     color: Colors.silver,
     lineHeight: 20,
   },
+  joinBtn: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.gold,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  joinBtnText: { color: Colors.dark, fontSize: FontSizes.sm, fontWeight: "700" },
 
   /* Notes */
   notesCard: {},

@@ -5,7 +5,8 @@
 
 import React from "react";
 import { View, Text, StyleSheet, Pressable, Linking } from "react-native";
-import { PlayCircle } from "lucide-react-native";
+import { PlayCircle, Video } from "lucide-react-native";
+import { openMeetingLink } from "@/lib/meeting";
 import {
   Calendar,
   Syringe,
@@ -72,7 +73,16 @@ function Row({ item, onToggle }: { item: TodayItem; onToggle: (i: TodayItem) => 
           </Text>
         ) : null}
       </Pressable>
-      {item.link ? (
+      {item.link && item.kind === "appointment" ? (
+        <Pressable
+          onPress={() => openMeetingLink(item.link)}
+          hitSlop={10}
+          style={styles.watchBtn}
+        >
+          <Video size={16} color={Colors.gold} />
+          <Text style={styles.watchText}>Join</Text>
+        </Pressable>
+      ) : item.link ? (
         <Pressable
           onPress={() => item.link && Linking.openURL(item.link)}
           hitSlop={10}
