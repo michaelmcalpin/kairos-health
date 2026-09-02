@@ -25,6 +25,7 @@ import {
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
+import { round } from "@/lib/format/number";
 
 // ─── Types ─────────────────────────────────────────────────────
 type PageTab = "log" | "library" | "shopping";
@@ -409,10 +410,10 @@ export default function NutritionPage() {
               </h2>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <MacroRing pct={(daySummary.totalCalories / targets.calories) * 100} label="Calories" value={`${daySummary.totalCalories}/${targets.calories}`} />
-              <MacroRing pct={(daySummary.totalProtein / targets.proteinG) * 100} label="Protein" value={`${daySummary.totalProtein}/${targets.proteinG}g`} />
-              <MacroRing pct={(daySummary.totalCarbs / targets.carbsG) * 100} label="Carbs" value={`${daySummary.totalCarbs}/${targets.carbsG}g`} />
-              <MacroRing pct={(daySummary.totalFat / targets.fatG) * 100} label="Fat" value={`${daySummary.totalFat}/${targets.fatG}g`} />
+              <MacroRing pct={(daySummary.totalCalories / targets.calories) * 100} label="Calories" value={`${round(daySummary.totalCalories, 0)}/${targets.calories}`} />
+              <MacroRing pct={(daySummary.totalProtein / targets.proteinG) * 100} label="Protein" value={`${round(daySummary.totalProtein, 0)}/${targets.proteinG}g`} />
+              <MacroRing pct={(daySummary.totalCarbs / targets.carbsG) * 100} label="Carbs" value={`${round(daySummary.totalCarbs, 0)}/${targets.carbsG}g`} />
+              <MacroRing pct={(daySummary.totalFat / targets.fatG) * 100} label="Fat" value={`${round(daySummary.totalFat, 0)}/${targets.fatG}g`} />
             </div>
           </div>
 
@@ -464,7 +465,7 @@ export default function NutritionPage() {
                                 {mealItems.map((i) => i.name).join(", ") || "Meal logged"}
                               </span>
                               <span className="text-kairos-silver-dark font-body whitespace-nowrap ml-3">
-                                P:{m.totalProtein ?? 0}g C:{m.totalCarbs ?? 0}g F:{m.totalFat ?? 0}g
+                                P:{round(m.totalProtein ?? 0, 0)}g C:{round(m.totalCarbs ?? 0, 0)}g F:{round(m.totalFat ?? 0, 0)}g
                               </span>
                             </div>
                           );

@@ -8,6 +8,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { fmt } from "@/lib/format";
 
 interface DayData {
   day: string; // abbreviation e.g. "M", "T", "W"
@@ -65,7 +66,7 @@ export function WeeklyAdherenceChart({ data }: WeeklyAdherenceChartProps) {
                 />
               </View>
               <Text style={[styles.percentLabel, { color: percentColor }]}>
-                {day.percent}%
+                {fmt(day.percent)}%
               </Text>
             </View>
           );

@@ -7,6 +7,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { fmt } from "@/lib/format";
 
 interface TrendLineItem {
   label: string;
@@ -26,6 +27,8 @@ interface TrendLineProps {
   showValues?: boolean;
   /** Unit for values */
   unit?: string;
+  /** Decimal places for value labels (display only; default 0, max 2) */
+  decimals?: number;
 }
 
 export function TrendLine({
@@ -36,6 +39,7 @@ export function TrendLine({
   height = 100,
   showValues = true,
   unit = "",
+  decimals = 0,
 }: TrendLineProps) {
   const allValues = [
     ...data.map((d) => d.value),
@@ -72,7 +76,7 @@ export function TrendLine({
             >
               {showValues && (
                 <Text style={[styles.dotValue, { color }]}>
-                  {item.value}
+                  {fmt(item.value, decimals)}
                   {unit}
                 </Text>
               )}
@@ -103,7 +107,7 @@ export function TrendLine({
             >
               {showValues && (
                 <Text style={[styles.dotValue, { color: secondaryColor }]}>
-                  {item.value}
+                  {fmt(item.value, decimals)}
                   {unit}
                 </Text>
               )}

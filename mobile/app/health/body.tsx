@@ -13,6 +13,7 @@ import { TrendingDown, TrendingUp, Watch, Plus } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { fmt, round } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BarChart, StackedBar } from "@/components/health";
@@ -48,25 +49,29 @@ export default function BodyScreen() {
   const currentStats = [
     {
       label: "Weight",
-      value: latestRaw?.weightLbs != null ? String(latestRaw.weightLbs) : "—",
+      // Weight → 1 dp.
+      value: fmt(latestRaw?.weightLbs, 1),
       unit: latestRaw?.weightLbs != null ? "lbs" : "",
       color: Colors.gold,
     },
     {
       label: "BMI",
-      value: latestRaw?.bmi != null ? String(latestRaw.bmi) : "—",
+      // BMI → 1 dp.
+      value: fmt(latestRaw?.bmi, 1),
       unit: "",
       color: Colors.info,
     },
     {
       label: "Body Fat",
-      value: latestRaw?.bodyFatPct != null ? String(latestRaw.bodyFatPct) : "—",
+      // Body-fat % → 1 dp.
+      value: fmt(latestRaw?.bodyFatPct, 1),
       unit: latestRaw?.bodyFatPct != null ? "%" : "",
       color: "#F97316",
     },
     {
       label: "Muscle Mass",
-      value: latestRaw?.muscleMassLbs != null ? String(Math.round(latestRaw.muscleMassLbs)) : "—",
+      // Lean / muscle mass → 1 dp.
+      value: fmt(latestRaw?.muscleMassLbs, 1),
       unit: latestRaw?.muscleMassLbs != null ? "lbs" : "",
       color: Colors.success,
     },
@@ -95,7 +100,8 @@ export default function BodyScreen() {
   // Body composition — only segments backed by real measurements
   const bodyComposition: { label: string; value: number; color: string }[] = [];
   if (latestRaw?.muscleMassLbs != null) {
-    bodyComposition.push({ label: "Muscle", value: latestRaw.muscleMassLbs, color: Colors.success });
+    // Lean / muscle mass → 1 dp.
+    bodyComposition.push({ label: "Muscle", value: round(latestRaw.muscleMassLbs, 1) as number, color: Colors.success });
   }
   if (latestRaw?.bodyFatPct != null && latestRaw?.weightLbs != null) {
     bodyComposition.push({
@@ -208,7 +214,7 @@ export default function BodyScreen() {
                         />
                         <Text style={styles.compositionLabel}>{comp.label}</Text>
                         <Text style={styles.compositionValue}>
-                          {comp.value} lbs
+                          {fmt(comp.value, 1)} lbs
                         </Text>
                         <Text style={styles.compositionPct}>
                           {pct.toFixed(1)}%

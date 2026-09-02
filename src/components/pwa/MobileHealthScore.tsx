@@ -1,6 +1,7 @@
 "use client";
 
 import { useThemeColors } from "@/lib/theme";
+import { round } from "@/lib/format/number";
 
 /**
  * Mobile-optimized circular health score display.
@@ -66,7 +67,7 @@ export function MobileHealthScore({
             className="font-heading text-4xl font-bold"
             style={{ color: scoreColor }}
           >
-            {score}
+            {round(score, 0)}
           </span>
           <span className="text-xs text-kairos-silver-dark mt-0.5">/ 100</span>
         </div>
@@ -78,7 +79,7 @@ export function MobileHealthScore({
             change > 0 ? "text-emerald-400" : "text-red-400"
           }`}
         >
-          {change > 0 ? "↑" : "↓"} {Math.abs(change)} pts from last week
+          {change > 0 ? "↑" : "↓"} {round(Math.abs(change), 0)} pts from last week
         </p>
       )}
     </div>

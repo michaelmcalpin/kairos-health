@@ -6,6 +6,7 @@ import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useSupplements } from "@/hooks/client/useSupplements";
 import { trpc } from "@/lib/trpc";
+import { round } from "@/lib/format/number";
 
 interface ProtocolItem {
   id: string;
@@ -199,7 +200,7 @@ export default function SupplementsPage() {
                 }`} style={{ height: `${day.adherence}%` }} />
               </div>
               <p className="text-xs font-heading font-bold mt-1" style={{ color: day.adherence >= 90 ? "rgb(74, 222, 128)" : day.adherence >= 70 ? "rgb(var(--k-accent))" : "rgb(248, 113, 113)" }}>
-                {day.adherence}%
+                {round(day.adherence, 0)}%
               </p>
             </div>
           ))}

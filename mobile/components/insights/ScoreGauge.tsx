@@ -7,6 +7,7 @@ import { View, Text, StyleSheet } from "react-native";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { fmt } from "@/lib/format";
 
 interface ScoreGaugeProps {
   score: number;
@@ -45,7 +46,7 @@ export function ScoreGauge({
     <View style={styles.container}>
       {/* Score circle */}
       <View style={[styles.circle, { borderColor: scoreColor }]}>
-        <Text style={[styles.scoreText, { color: scoreColor }]}>{score}</Text>
+        <Text style={[styles.scoreText, { color: scoreColor }]}>{fmt(score)}</Text>
         <Text style={styles.maxText}>/{maxScore}</Text>
       </View>
 
@@ -56,7 +57,7 @@ export function ScoreGauge({
           {getTrendIcon()}
           <Text style={[styles.trendText, { color: getTrendColor() }]}>
             {trend > 0 ? "+" : ""}
-            {trend} pts
+            {fmt(trend)} pts
           </Text>
           <Text style={styles.trendPeriod}>vs. last period</Text>
         </View>

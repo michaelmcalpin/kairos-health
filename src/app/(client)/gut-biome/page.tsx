@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/utils/cn";
+import { round } from "@/lib/format/number";
 
 /* ─── Parsed Gut Biome data shape ─────────────────────────────── */
 interface HealthScore {
@@ -411,7 +412,7 @@ export default function GutBiomePage() {
               <div className="flex justify-between text-[10px] text-kairos-silver-dark px-2 mb-4">
                 {diversityTrend.map((p, i) => (
                   <div key={i} className="text-center">
-                    <p className="font-bold text-white text-sm">{p.value}</p>
+                    <p className="font-bold text-white text-sm">{round(p.value, 0)}</p>
                     <p>{new Date(p.date).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}</p>
                   </div>
                 ))}
@@ -476,7 +477,7 @@ export default function GutBiomePage() {
                     <p className={cn("text-2xl font-heading font-bold",
                       latestData.diversityRating === "high" ? "text-green-400"
                         : latestData.diversityRating === "moderate" ? "text-yellow-400" : "text-red-400")}>
-                      {latestData.diversityScore ?? "—"}
+                      {round(latestData.diversityScore, 0)}
                     </p>
                   </div>
                   <div className="kairos-card p-5">
@@ -636,7 +637,7 @@ export default function GutBiomePage() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
                           <div>
                             <p className="text-[10px] font-heading text-kairos-silver-dark uppercase">Diversity</p>
-                            <p className="text-lg font-heading font-bold text-white">{data.diversityScore ?? "—"}</p>
+                            <p className="text-lg font-heading font-bold text-white">{round(data.diversityScore, 0)}</p>
                           </div>
                           <div>
                             <p className="text-[10px] font-heading text-kairos-silver-dark uppercase">Dysbiosis</p>

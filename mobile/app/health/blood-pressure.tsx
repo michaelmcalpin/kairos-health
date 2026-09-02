@@ -18,6 +18,7 @@ import { Activity, Heart, Watch } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { fmt } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -200,7 +201,7 @@ export default function BloodPressureScreen() {
 
             <View style={styles.latestValueRow}>
               <Text style={styles.latestValue}>
-                {latestReading.systolic}/{latestReading.diastolic}
+                {fmt(latestReading.systolic)}/{fmt(latestReading.diastolic)}
               </Text>
               <Text style={styles.latestUnit}>mmHg</Text>
             </View>
@@ -209,7 +210,7 @@ export default function BloodPressureScreen() {
               <View style={styles.pulseRow}>
                 <Heart size={14} color={Colors.danger} />
                 <Text style={styles.pulseLabel}>Pulse</Text>
-                <Text style={styles.pulseValue}>{latestReading.pulse} bpm</Text>
+                <Text style={styles.pulseValue}>{fmt(latestReading.pulse)} bpm</Text>
               </View>
             )}
           </Card>
@@ -263,7 +264,7 @@ export default function BloodPressureScreen() {
                       </View>
                       <View style={styles.tableCellCenter}>
                         <Text style={styles.tableBP}>
-                          {reading.sys}/{reading.dia}
+                          {fmt(reading.sys)}/{fmt(reading.dia)}
                         </Text>
                         <View
                           style={[
@@ -273,7 +274,7 @@ export default function BloodPressureScreen() {
                         />
                       </View>
                       <Text style={styles.tablePulse}>
-                        {reading.pulse != null ? reading.pulse : "—"}
+                        {fmt(reading.pulse)}
                       </Text>
                     </View>
                     {idx < history.length - 1 && (

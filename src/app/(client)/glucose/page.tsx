@@ -7,6 +7,7 @@ import { useDateRange } from "@/hooks/useDateRange";
 import { useGlucose } from "@/hooks/client/useGlucose";
 import { useThemeColors } from "@/lib/theme";
 import { trpc } from "@/lib/trpc";
+import { round } from "@/lib/format/number";
 import { Droplets, TrendingDown, TrendingUp, Clock, Target, AlertTriangle, Plus, X } from "lucide-react";
 
 export default function GlucosePage() {
@@ -301,11 +302,11 @@ export default function GlucosePage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard label="Current" value={stats.current} unit="mg/dL" icon={<Droplets size={16} />} highlight />
-        <KPICard label="Average" value={stats.avg} unit="mg/dL" trend="flat" trendValue={formattedRange} />
-        <KPICard label="High" value={stats.max} unit="mg/dL" icon={<TrendingUp size={16} />} />
-        <KPICard label="Low" value={stats.min} unit="mg/dL" icon={<TrendingDown size={16} />} />
-        <KPICard label="Time in Range" value={stats.timeInRange} unit="%" icon={<Target size={16} />} highlight />
+        <KPICard label="Current" value={round(stats.current, 0)} unit="mg/dL" icon={<Droplets size={16} />} highlight />
+        <KPICard label="Average" value={round(stats.avg, 0)} unit="mg/dL" trend="flat" trendValue={formattedRange} />
+        <KPICard label="High" value={round(stats.max, 0)} unit="mg/dL" icon={<TrendingUp size={16} />} />
+        <KPICard label="Low" value={round(stats.min, 0)} unit="mg/dL" icon={<TrendingDown size={16} />} />
+        <KPICard label="Time in Range" value={round(stats.timeInRange, 0)} unit="%" icon={<Target size={16} />} highlight />
         <KPICard label="Est. A1C" value={stats.avg ? ((Number(stats.avg) + 46.7) / 28.7).toFixed(1) : "---"} unit="%" trend="flat" trendValue="estimated" icon={<Clock size={16} />} />
       </div>
 
@@ -368,8 +369,8 @@ export default function GlucosePage() {
                     <div className="absolute left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-kairos-gold border-2 border-kairos-card" style={{ bottom: `${((day.avg - day.min) / (day.max - day.min)) * 100}%` }} />
                   </div>
                 </div>
-                <p className="text-xs font-heading font-bold text-kairos-gold mt-1">{day.avg}</p>
-                <p className="text-[9px] font-body text-kairos-silver-dark">{day.min}–{day.max}</p>
+                <p className="text-xs font-heading font-bold text-kairos-gold mt-1">{round(day.avg, 0)}</p>
+                <p className="text-[9px] font-body text-kairos-silver-dark">{round(day.min, 0)}–{round(day.max, 0)}</p>
                 <p className="text-[9px] font-body text-green-400">{day.timeInRange}% IR</p>
               </div>
             ))}
@@ -424,7 +425,7 @@ export default function GlucosePage() {
                       status === "warning" ? "bg-yellow-500/15 text-yellow-400" :
                       status === "elevated" ? "bg-red-500/15 text-red-400" :
                       "bg-kairos-silver/10 text-kairos-silver"
-                    }`}>{val} mg/dL</span>
+                    }`}>{round(val, 0)} mg/dL</span>
                   </div>
                 );
               })
@@ -439,7 +440,7 @@ export default function GlucosePage() {
               <div className={`flex gap-3 p-3 rounded-kairos-sm ${stats.timeInRange >= 70 ? "bg-green-500/5 border border-green-500/20" : "bg-yellow-500/5 border border-yellow-500/20"}`}>
                 <Target size={16} className={`${stats.timeInRange >= 70 ? "text-green-400" : "text-yellow-400"} mt-0.5 flex-shrink-0`} />
                 <div>
-                  <p className="text-sm font-body text-white">Time in range: {stats.timeInRange}%</p>
+                  <p className="text-sm font-body text-white">Time in range: {round(stats.timeInRange, 0)}%</p>
                   <p className="text-xs font-body text-kairos-silver-dark mt-0.5">{stats.timeInRange >= 70 ? "Within the recommended target of 70%+ time in range." : "Below the recommended target of 70%+ time in range."}</p>
                 </div>
               </div>

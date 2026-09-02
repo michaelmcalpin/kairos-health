@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { UtensilsCrossed, Camera, Plus, Trash2, ChevronDown, ChevronUp, Image } from 'lucide-react';
+import { round } from '@/lib/format/number';
 
 // ── Types ──
 interface FoodItem {
@@ -157,19 +158,19 @@ export const MealsTab: React.FC<MealsTabProps> = ({ data, onChange }) => {
         {meals.length > 0 && (
           <div className="grid grid-cols-4 gap-3">
             <div className="p-2 rounded border border-kairos-border text-center">
-              <p className="text-lg font-heading font-bold text-white">{dayTotals.calories}</p>
+              <p className="text-lg font-heading font-bold text-white">{round(dayTotals.calories, 0)}</p>
               <p className="text-[10px] font-body text-kairos-silver-dark uppercase">Calories</p>
             </div>
             <div className="p-2 rounded border border-kairos-border text-center">
-              <p className="text-lg font-heading font-bold text-kairos-gold">{dayTotals.protein}g</p>
+              <p className="text-lg font-heading font-bold text-kairos-gold">{round(dayTotals.protein, 0)}g</p>
               <p className="text-[10px] font-body text-kairos-silver-dark uppercase">Protein</p>
             </div>
             <div className="p-2 rounded border border-kairos-border text-center">
-              <p className="text-lg font-heading font-bold text-blue-400">{dayTotals.carbs}g</p>
+              <p className="text-lg font-heading font-bold text-blue-400">{round(dayTotals.carbs, 0)}g</p>
               <p className="text-[10px] font-body text-kairos-silver-dark uppercase">Carbs</p>
             </div>
             <div className="p-2 rounded border border-kairos-border text-center">
-              <p className="text-lg font-heading font-bold text-green-400">{dayTotals.fat}g</p>
+              <p className="text-lg font-heading font-bold text-green-400">{round(dayTotals.fat, 0)}g</p>
               <p className="text-[10px] font-body text-kairos-silver-dark uppercase">Fat</p>
             </div>
           </div>
@@ -320,7 +321,7 @@ export const MealsTab: React.FC<MealsTabProps> = ({ data, onChange }) => {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-body text-white truncate">{item.name}</p>
                           <p className="text-xs font-body text-kairos-silver-dark">
-                            {item.quantity} {item.unit} &middot; {item.calories} cal &middot; {item.protein}g P &middot; {item.carbs}g C &middot; {item.fat}g F
+                            {item.quantity} {item.unit} &middot; {round(item.calories, 0)} cal &middot; {round(item.protein, 0)}g P &middot; {round(item.carbs, 0)}g C &middot; {round(item.fat, 0)}g F
                           </p>
                         </div>
                         <button

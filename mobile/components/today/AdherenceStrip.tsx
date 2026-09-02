@@ -12,6 +12,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { fmt } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { useAdherence } from "@/hooks/useAdherence";
 
@@ -38,7 +39,7 @@ export function AdherenceStrip({ todayPct }: { todayPct?: number | null }) {
       <View style={styles.topRow}>
         <View style={styles.todayWrap}>
           <Text style={styles.todayLabel}>Today</Text>
-          <Text style={styles.todayPct}>{bigPct != null ? `${bigPct}%` : "—"}</Text>
+          <Text style={styles.todayPct}>{bigPct != null ? `${fmt(bigPct)}%` : "—"}</Text>
         </View>
         {data.streak > 0 && (
           <View style={styles.streakPill}>

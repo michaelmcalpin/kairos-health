@@ -7,6 +7,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { fmt } from "@/lib/format";
 
 interface StackedBarSegment {
   label: string;
@@ -22,6 +23,8 @@ interface StackedBarProps {
   showLegend?: boolean;
   /** Unit for legend values */
   unit?: string;
+  /** Decimal places for legend values (display only; default 1, max 2) */
+  decimals?: number;
 }
 
 export function StackedBar({
@@ -29,6 +32,7 @@ export function StackedBar({
   height = 24,
   showLegend = true,
   unit = "h",
+  decimals = 1,
 }: StackedBarProps) {
   const total = segments.reduce((sum, s) => sum + s.value, 0);
 
@@ -67,7 +71,7 @@ export function StackedBar({
               />
               <Text style={styles.legendLabel}>{segment.label}</Text>
               <Text style={styles.legendValue}>
-                {segment.value}
+                {fmt(segment.value, decimals)}
                 {unit}
               </Text>
             </View>

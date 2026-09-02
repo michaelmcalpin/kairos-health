@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/utils/cn";
+import { fmtLoose } from "@/lib/format/number";
 
 /* ─── Record categories ───────────────────────────────────────── */
 const RECORD_CATEGORIES = [
@@ -424,10 +425,10 @@ export default function MedicalRecordPage() {
                             <h4 className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-2 flex items-center gap-1.5"><Heart size={12} /> Vital Signs</h4>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                               {vitals.bloodPressure != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Blood Pressure</p><p className="text-sm font-bold text-white">{String(vitals.bloodPressure)}</p></div>}
-                              {vitals.heartRate != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Heart Rate</p><p className="text-sm font-bold text-white">{String(vitals.heartRate)} bpm</p></div>}
-                              {vitals.temperature != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Temperature</p><p className="text-sm font-bold text-white">{String(vitals.temperature)}</p></div>}
-                              {vitals.respiratoryRate != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Respiratory Rate</p><p className="text-sm font-bold text-white">{String(vitals.respiratoryRate)}</p></div>}
-                              {vitals.oxygenSaturation != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">O₂ Saturation</p><p className="text-sm font-bold text-white">{String(vitals.oxygenSaturation)}</p></div>}
+                              {vitals.heartRate != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Heart Rate</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.heartRate, 0)} bpm</p></div>}
+                              {vitals.temperature != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Temperature</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.temperature, 1)}</p></div>}
+                              {vitals.respiratoryRate != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Respiratory Rate</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.respiratoryRate, 0)}</p></div>}
+                              {vitals.oxygenSaturation != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">O₂ Saturation</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.oxygenSaturation, 0)}</p></div>}
                             </div>
                           </div>
                         )}
@@ -471,7 +472,7 @@ export default function MedicalRecordPage() {
                                   {labResults.map((lr, i) => (
                                     <tr key={i} className="border-b border-kairos-border/30">
                                       <td className="py-1.5 px-2 text-white">{lr.name}</td>
-                                      <td className="py-1.5 px-2 text-right font-bold text-white">{lr.value} {lr.unit}</td>
+                                      <td className="py-1.5 px-2 text-right font-bold text-white">{fmtLoose(lr.value, 2)} {lr.unit}</td>
                                       <td className="py-1.5 px-2 text-right text-kairos-silver-dark">{lr.referenceRange ?? "—"}</td>
                                       <td className="py-1.5 px-2 text-right">
                                         {lr.status && <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-bold uppercase",

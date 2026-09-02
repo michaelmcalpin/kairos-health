@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Droplet } from 'lucide-react';
+import { round } from '@/lib/format/number';
 
 interface BloodSugarReading {
   id: string;
@@ -183,7 +184,7 @@ export const BloodSugarTab: React.FC<BloodSugarTabProps> = ({ readings, onAdd })
                     </td>
                     <td className="py-2 px-3 text-kairos-silver">{reading.timing}</td>
                     <td className={`py-2 px-3 font-semibold ${getReadingColor(reading.valueMgdl)}`}>
-                      {reading.valueMgdl}
+                      {round(reading.valueMgdl, 0)}
                     </td>
                     <td className="py-2 px-3 text-kairos-silver-dark text-xs">
                       {reading.mealDescription || '—'}

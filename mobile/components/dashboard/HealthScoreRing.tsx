@@ -9,6 +9,7 @@ import { View, Text, StyleSheet } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 
 import { Colors, FontSizes } from "@/lib/constants";
+import { fmt } from "@/lib/format";
 
 interface HealthScoreRingProps {
   score: number;
@@ -69,7 +70,7 @@ export function HealthScoreRing({
       </Svg>
       <View style={styles.labelContainer}>
         <Text style={[styles.scoreText, { fontSize: size * 0.28 }]}>
-          {score}
+          {fmt(score)}
         </Text>
         <Text style={[styles.labelText, { color }]}>{getScoreLabel(score)}</Text>
       </View>

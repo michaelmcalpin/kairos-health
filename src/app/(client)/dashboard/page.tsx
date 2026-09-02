@@ -29,6 +29,7 @@ import {
   Minus,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
+import { round } from "@/lib/format/number";
 
 // ─────────────────────────────────────────────────────────────
 // SVG Sparkline — tiny inline trend chart
@@ -399,9 +400,9 @@ export default function ClientDashboard() {
               <div className="space-y-1">
                 <p className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-silver-dark">Health Score</p>
                 <div className="text-xs font-body text-kairos-silver-dark space-y-0.5">
-                  <p>Sleep avg: <span className="text-white">{healthScore.avgSleep != null ? `${healthScore.avgSleep}/100` : "—"}</span></p>
-                  <p>Glucose avg: <span className="text-white">{healthScore.avgGlucose != null ? `${healthScore.avgGlucose} mg/dL` : "—"}</span></p>
-                  <p>HRV: <span className="text-white">{healthScore.hrv != null ? `${healthScore.hrv} ms` : "—"}</span></p>
+                  <p>Sleep avg: <span className="text-white">{healthScore.avgSleep != null ? `${round(healthScore.avgSleep, 0)}/100` : "—"}</span></p>
+                  <p>Glucose avg: <span className="text-white">{healthScore.avgGlucose != null ? `${round(healthScore.avgGlucose, 0)} mg/dL` : "—"}</span></p>
+                  <p>HRV: <span className="text-white">{healthScore.hrv != null ? `${round(healthScore.hrv, 0)} ms` : "—"}</span></p>
                 </div>
               </div>
             </div>
@@ -446,11 +447,11 @@ export default function ClientDashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xl font-heading font-bold text-white">{kpis?.weight?.value ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">lbs</span></p>
+                <p className="text-xl font-heading font-bold text-white">{round(kpis?.weight?.value, 1)}<span className="text-xs text-kairos-silver-dark ml-1">lbs</span></p>
                 <p className="text-[10px] font-body text-kairos-silver-dark">Weight</p>
               </div>
               <div>
-                <p className="text-xl font-heading font-bold text-white">{kpis?.bodyFat?.value ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">%</span></p>
+                <p className="text-xl font-heading font-bold text-white">{round(kpis?.bodyFat?.value, 1)}<span className="text-xs text-kairos-silver-dark ml-1">%</span></p>
                 <p className="text-[10px] font-body text-kairos-silver-dark">Body Fat</p>
               </div>
             </div>
@@ -479,7 +480,7 @@ export default function ClientDashboard() {
                 <p className="text-[10px] font-body text-kairos-silver-dark">Duration</p>
               </div>
               <div>
-                <p className="text-xl font-heading font-bold text-white">{kpis?.sleep?.quality ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">/100</span></p>
+                <p className="text-xl font-heading font-bold text-white">{round(kpis?.sleep?.quality, 0)}<span className="text-xs text-kairos-silver-dark ml-1">/100</span></p>
                 <p className="text-[10px] font-body text-kairos-silver-dark">Quality</p>
               </div>
             </div>
@@ -504,11 +505,11 @@ export default function ClientDashboard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xl font-heading font-bold text-white">{kpis?.glucose?.value ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">mg/dL</span></p>
+                <p className="text-xl font-heading font-bold text-white">{round(kpis?.glucose?.value, 0)}<span className="text-xs text-kairos-silver-dark ml-1">mg/dL</span></p>
                 <p className="text-[10px] font-body text-kairos-silver-dark">Latest</p>
               </div>
               <div>
-                <p className="text-xl font-heading font-bold text-white">{kpis?.glucoseTimeInRange ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">%</span></p>
+                <p className="text-xl font-heading font-bold text-white">{round(kpis?.glucoseTimeInRange, 0)}<span className="text-xs text-kairos-silver-dark ml-1">%</span></p>
                 <p className="text-[10px] font-body text-kairos-silver-dark">Time in Range</p>
               </div>
             </div>
@@ -534,7 +535,7 @@ export default function ClientDashboard() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <p className="text-xl font-heading font-bold text-white">
-                  {kpis?.bloodPressure ? `${kpis.bloodPressure.systolic}/${kpis.bloodPressure.diastolic}` : "—"}
+                  {kpis?.bloodPressure ? `${round(kpis.bloodPressure.systolic, 0)}/${round(kpis.bloodPressure.diastolic, 0)}` : "—"}
                   <span className="text-xs text-kairos-silver-dark ml-1">mmHg</span>
                 </p>
                 <p className="text-[10px] font-body text-kairos-silver-dark">Latest</p>
@@ -587,7 +588,7 @@ export default function ClientDashboard() {
                 <ChevronRight size={12} className="text-kairos-silver-dark group-hover:text-kairos-gold transition-colors" />
               </div>
               <p className="text-lg font-heading font-bold text-white">
-                {kpis?.heartRate?.value ?? "—"}<span className="text-xs text-kairos-silver-dark ml-1">bpm</span>
+                {round(kpis?.heartRate?.value, 0)}<span className="text-xs text-kairos-silver-dark ml-1">bpm</span>
               </p>
               <p className="text-[10px] font-body text-kairos-silver-dark">Heart Rate</p>
             </button>

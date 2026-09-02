@@ -7,6 +7,7 @@ import { useDateRange } from "@/hooks/useDateRange";
 import { useSleep } from "@/hooks/client/useSleep";
 import { Moon, Clock, Zap, Brain, TrendingUp, Sun, Plus, X, AlertTriangle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { round } from "@/lib/format/number";
 
 // ─── Sleep stages ────
 interface SleepStageBlock { stage: string; duration: number; }
@@ -363,10 +364,10 @@ export default function SleepPage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard label="Sleep Score" value={period === "day" ? displayRecord.score : sleepStats.avgScore} unit="/100" icon={<Moon size={16} />} highlight />
-        <KPICard label="Total Sleep" value={period === "day" ? displayRecord.total : sleepStats.avgTotal} unit="hrs" icon={<Clock size={16} />} />
-        <KPICard label="Deep Sleep" value={period === "day" ? displayRecord.deep : sleepStats.avgDeep} unit="hrs" icon={<Brain size={16} />} />
-        <KPICard label="REM Sleep" value={period === "day" ? displayRecord.rem : sleepStats.avgRem} unit="hrs" icon={<Zap size={16} />} />
+        <KPICard label="Sleep Score" value={period === "day" ? round(displayRecord.score, 0) : round(sleepStats.avgScore, 0)} unit="/100" icon={<Moon size={16} />} highlight />
+        <KPICard label="Total Sleep" value={period === "day" ? round(displayRecord.total, 1) : round(sleepStats.avgTotal, 1)} unit="hrs" icon={<Clock size={16} />} />
+        <KPICard label="Deep Sleep" value={period === "day" ? round(displayRecord.deep, 1) : round(sleepStats.avgDeep, 1)} unit="hrs" icon={<Brain size={16} />} />
+        <KPICard label="REM Sleep" value={period === "day" ? round(displayRecord.rem, 1) : round(sleepStats.avgRem, 1)} unit="hrs" icon={<Zap size={16} />} />
         <KPICard label="Bedtime" value={displayRecord.bedtime} icon={<Moon size={16} />} />
         <KPICard label="Wake" value={displayRecord.wake} icon={<Sun size={16} />} />
       </div>
@@ -431,7 +432,7 @@ export default function SleepPage() {
                   <div key={stage.label}>
                     <div className="flex justify-between mb-1">
                       <span className="text-sm font-body text-white">{stage.label}</span>
-                      <span className="text-sm font-heading font-semibold text-kairos-silver">{stage.value}h ({stage.pct}%)</span>
+                      <span className="text-sm font-heading font-semibold text-kairos-silver">{round(stage.value, 1)}h ({stage.pct}%)</span>
                     </div>
                     <div className="h-2 bg-kairos-royal-surface rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all" style={{ width: `${stage.pct}%`, backgroundColor: stage.color, opacity: stage.label === "Light Sleep" ? 0.5 : 1 }} />
@@ -490,9 +491,9 @@ export default function SleepPage() {
                   day.score >= 70 ? "border-kairos-gold text-kairos-gold" :
                   "border-red-400 text-red-400"
                 }`}>
-                  <span className="text-sm font-heading font-bold">{day.score}</span>
+                  <span className="text-sm font-heading font-bold">{round(day.score, 0)}</span>
                 </div>
-                <p className="text-xs font-body text-kairos-silver mt-2">{day.total}h</p>
+                <p className="text-xs font-body text-kairos-silver mt-2">{round(day.total, 1)}h</p>
                 <div className="flex h-16 mt-1 rounded-sm overflow-hidden flex-col">
                   <div style={{ flex: day.deep, backgroundColor: stageColors.deep }} />
                   <div style={{ flex: day.rem, backgroundColor: stageColors.rem }} />

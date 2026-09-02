@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { round } from "@/lib/format/number";
 import type { WeeklyHealthReport } from "@/lib/ai/types";
 import { InsightCard } from "./InsightCard";
 
@@ -37,10 +38,10 @@ export function WeeklyReportCard({ report }: WeeklyReportCardProps) {
           </div>
           <div className="text-right">
             <p className={`text-4xl font-heading font-bold ${scoreColor} bg-white rounded-xl px-4 py-2`}>
-              {report.overallScore}
+              {round(report.overallScore, 0)}
             </p>
             <p className={`mt-1 text-sm font-medium ${report.scoreChange >= 0 ? "text-emerald-300" : "text-red-300"}`}>
-              {changeIcon} {Math.abs(report.scoreChange)} pts from last week
+              {changeIcon} {round(Math.abs(report.scoreChange), 0)} pts from last week
             </p>
           </div>
         </div>

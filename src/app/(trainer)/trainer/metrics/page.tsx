@@ -12,6 +12,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { round } from "@/lib/format/number";
 
 const KPI_ICONS: Record<string, React.ReactNode> = {
   users: <Users className="w-5 h-5" />,
@@ -455,7 +456,7 @@ export default function CoachMetricsPage() {
                         <p className="text-red-300 text-xs">{client.issue}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-red-400 text-sm font-bold">{client.healthScore ?? "—"}</p>
+                        <p className="text-red-400 text-sm font-bold">{round(client.healthScore, 0)}</p>
                         <p className="text-kairos-silver-dark text-xs">score</p>
                       </div>
                     </div>

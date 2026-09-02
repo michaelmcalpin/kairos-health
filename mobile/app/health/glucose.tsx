@@ -19,6 +19,7 @@ import { Droplets, TrendingDown, TrendingUp, Watch } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { fmt, round } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -155,8 +156,9 @@ export default function GlucoseScreen() {
   const timeInRange =
     inRangePercent != null
       ? [
-          { label: "In Range (70-140)", value: inRangePercent, color: Colors.success },
-          { label: "Out of Range", value: Math.max(0, Math.round((100 - inRangePercent) * 10) / 10), color: Colors.warning },
+          // Percentages → 0 dp.
+          { label: "In Range (70-140)", value: round(inRangePercent, 0) as number, color: Colors.success },
+          { label: "Out of Range", value: Math.max(0, round(100 - inRangePercent, 0) as number), color: Colors.warning },
         ]
       : null;
 
@@ -184,7 +186,7 @@ export default function GlucoseScreen() {
               <Badge label={latestStatus.label} variant={latestStatus.variant} />
             </View>
             <View style={styles.currentValueRow}>
-              <Text style={styles.currentValue}>{latestReading.value}</Text>
+              <Text style={styles.currentValue}>{fmt(latestReading.value)}</Text>
               <Text style={styles.currentUnit}>mg/dL</Text>
             </View>
           </Card>
@@ -277,7 +279,7 @@ export default function GlucoseScreen() {
                             status.variant === "danger" && styles.readingDanger,
                           ]}
                         >
-                          {reading.value}
+                          {fmt(reading.value)}
                         </Text>
                         <Text style={styles.readingUnit}>mg/dL</Text>
                       </View>
@@ -314,7 +316,7 @@ export default function GlucoseScreen() {
             <Card style={styles.donutCard}>
               <DonutChart
                 segments={timeInRange}
-                centerLabel={`${inRangePercent}%`}
+                centerLabel={`${fmt(inRangePercent)}%`}
                 centerSublabel="In Range"
                 size={150}
                 strokeWidth={14}
@@ -362,7 +364,7 @@ function RangeItem({
           highlighted && styles.rangeItemHighlighted,
         ]}
       >
-        {value}
+        {fmt(value)}
       </Text>
     </View>
   );

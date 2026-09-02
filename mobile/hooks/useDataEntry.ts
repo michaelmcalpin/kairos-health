@@ -13,6 +13,7 @@
 import { useMemo } from "react";
 import { Alert } from "react-native";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { round } from "@/lib/format";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Types
@@ -206,7 +207,8 @@ export function useRecentEntries(type?: string) {
             result.push({
               id: m.id ?? `m-${m.date}`,
               type: "weight",
-              value: m.weightLbs,
+              // Weight → 1 dp.
+              value: round(m.weightLbs, 1) ?? m.weightLbs,
               unit: "lbs",
               notes: m.notes ?? undefined,
               recordedAt: m.date ?? m.createdAt ?? "",
@@ -225,7 +227,8 @@ export function useRecentEntries(type?: string) {
           result.push({
             id: bp.id ?? `bp-${bp.date}`,
             type: "blood_pressure",
-            value: `${bp.systolic}/${bp.diastolic}`,
+            // Blood pressure → 0 dp each.
+            value: `${round(bp.systolic, 0)}/${round(bp.diastolic, 0)}`,
             unit: "mmHg",
             notes: bp.notes ?? undefined,
             recordedAt: bp.date ?? bp.createdAt ?? "",
@@ -243,7 +246,8 @@ export function useRecentEntries(type?: string) {
           result.push({
             id: g.id ?? `g-${g.timestamp}`,
             type: "blood_glucose",
-            value: g.valueMgdl ?? g.value ?? 0,
+            // Glucose → 0 dp.
+            value: round(g.valueMgdl ?? g.value ?? 0, 0) ?? 0,
             unit: "mg/dL",
             notes: g.notes ?? g.timingContext ?? undefined,
             recordedAt: g.timestamp ?? g.createdAt ?? "",

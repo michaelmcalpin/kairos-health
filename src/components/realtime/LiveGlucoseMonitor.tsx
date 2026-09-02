@@ -11,6 +11,7 @@
 
 import React, { useMemo } from "react";
 import { useSSE } from "@/hooks/useSSE";
+import { round } from "@/lib/format/number";
 
 interface GlucoseReading {
   readingId: string;
@@ -149,7 +150,7 @@ export function LiveGlucoseMonitor() {
               className="text-4xl font-bold font-heading"
               style={{ color: getGlucoseColor(current.value) }}
             >
-              {current.value}
+              {round(current.value, 0)}
             </span>
             <span className="text-lg text-gray-400 mb-1">{current.unit}</span>
             <span
@@ -187,7 +188,7 @@ export function LiveGlucoseMonitor() {
         >
           {latestAlert.direction === "high" ? "\u26a0\ufe0f" : "\u26a0\ufe0f"}{" "}
           Glucose {latestAlert.direction === "high" ? "above" : "below"}{" "}
-          {latestAlert.threshold} {current?.unit} — {latestAlert.value}{" "}
+          {latestAlert.threshold} {current?.unit} — {round(latestAlert.value, 0)}{" "}
           {current?.unit}
         </div>
       )}

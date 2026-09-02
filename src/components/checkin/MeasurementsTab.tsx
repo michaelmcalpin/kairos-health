@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Ruler } from 'lucide-react';
+import { round } from '@/lib/format/number';
 
 interface MeasurementsTabProps {
   data: Record<string, unknown>;
@@ -20,7 +21,7 @@ export const MeasurementsTab: React.FC<MeasurementsTabProps> = ({ data, onChange
       <div className="p-3 rounded border border-kairos-border/50 bg-kairos-gold/5">
         <p className="text-xs font-body text-kairos-silver-dark mb-1">Weight (from Vitals)</p>
         <p className="text-lg font-semibold text-kairos-gold">
-          {data.weight ? `${data.weight} lbs` : '—'}
+          {data.weight ? `${round(data.weight as number, 1)} lbs` : '—'}
         </p>
       </div>
 

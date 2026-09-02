@@ -31,6 +31,7 @@ import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/utils/cn";
+import { round } from "@/lib/format/number";
 
 // ─────────────────────────────────────────────────────────
 // Types
@@ -492,13 +493,13 @@ function ReportViewer({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {report.glucoseAnalysis.avgGlucose != null && (
                   <div className="text-center">
-                    <p className="text-xl font-heading font-bold text-white">{report.glucoseAnalysis.avgGlucose}</p>
+                    <p className="text-xl font-heading font-bold text-white">{round(report.glucoseAnalysis.avgGlucose, 0)}</p>
                     <p className="text-[10px] font-body text-kairos-silver-dark">Avg mg/dL</p>
                   </div>
                 )}
                 {report.glucoseAnalysis.timeInRange != null && (
                   <div className="text-center">
-                    <p className="text-xl font-heading font-bold text-white">{report.glucoseAnalysis.timeInRange}%</p>
+                    <p className="text-xl font-heading font-bold text-white">{round(report.glucoseAnalysis.timeInRange, 0)}%</p>
                     <p className="text-[10px] font-body text-kairos-silver-dark">Time in Range</p>
                   </div>
                 )}
@@ -524,17 +525,17 @@ function ReportViewer({
               <h3 className="text-sm font-heading font-bold text-white mb-3">Sleep Analysis</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="text-center">
-                  <p className="text-xl font-heading font-bold text-white">{report.sleepAnalysis.avgDuration}</p>
+                  <p className="text-xl font-heading font-bold text-white">{round(report.sleepAnalysis.avgDuration, 1)}</p>
                   <p className="text-[10px] font-body text-kairos-silver-dark">Avg Duration</p>
                 </div>
                 {report.sleepAnalysis.avgQuality != null && (
                   <div className="text-center">
-                    <p className="text-xl font-heading font-bold text-white">{report.sleepAnalysis.avgQuality}/100</p>
+                    <p className="text-xl font-heading font-bold text-white">{round(report.sleepAnalysis.avgQuality, 0)}/100</p>
                     <p className="text-[10px] font-body text-kairos-silver-dark">Quality</p>
                   </div>
                 )}
                 <div className="text-center">
-                  <p className="text-xl font-heading font-bold text-purple-400">{report.sleepAnalysis.deepSleepPct}</p>
+                  <p className="text-xl font-heading font-bold text-purple-400">{round(report.sleepAnalysis.deepSleepPct, 0)}</p>
                   <p className="text-[10px] font-body text-kairos-silver-dark">Deep Sleep</p>
                 </div>
                 <div className="text-center">

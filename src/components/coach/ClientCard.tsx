@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { round } from "@/lib/format/number";
 import type { CoachClientSummary, ClientStatus } from "@/lib/coach-clients/types";
 import {
   TIER_LABELS,
@@ -67,7 +68,7 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick, toda
                   className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${todayPctColor(todayPct)}`}
                   title="Today's daily-task completion"
                 >
-                  Today {todayPct}%
+                  Today {round(todayPct, 0)}%
                 </span>
               )}
             </div>
@@ -78,7 +79,7 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick, toda
         <div className="flex items-center gap-5 shrink-0">
           {/* Health Score */}
           <div className="text-center">
-            <p className="text-lg font-heading font-bold text-kairos-gold">{client.healthScore ?? "—"}</p>
+            <p className="text-lg font-heading font-bold text-kairos-gold">{round(client.healthScore, 0)}</p>
             {noData ? (
               <p className="text-[10px] text-gray-500">No data</p>
             ) : (
@@ -88,7 +89,7 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick, toda
 
           {/* Adherence */}
           <div className="text-center">
-            <p className="text-sm font-heading font-bold text-white">{client.adherence}%</p>
+            <p className="text-sm font-heading font-bold text-white">{round(client.adherence, 0)}%</p>
             <p className="text-[10px] text-gray-500">Adherence</p>
           </div>
 

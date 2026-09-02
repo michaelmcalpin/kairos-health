@@ -39,6 +39,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { fmt } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -107,6 +108,16 @@ const CATEGORY_MAP: Record<string, {
   other: { label: "Other", variant: "default", color: Colors.gold, icon: <Scale size={22} color={Colors.gold} /> },
 };
 
+/**
+ * Display precision for a goal value based on its unit. Length/weight/time
+ * units get 1 dp; everything else 0 dp. Never exceeds the 2-dp cap.
+ */
+function unitDecimals(unit?: string | null): number {
+  const u = (unit ?? "").toLowerCase();
+  if (["lbs", "kg", "hrs", "hr", "in", "cm", "°f", "°c"].includes(u)) return 1;
+  return 0;
+}
+
 function mapApiGoalToDetail(raw: GoalSummary): GoalDetailDisplay {
   const catInfo = CATEGORY_MAP[raw.category ?? "other"] ?? CATEGORY_MAP.other;
   const progress = raw.progress ?? 0;
@@ -140,7 +151,7 @@ function mapApiGoalToDetail(raw: GoalSummary): GoalDetailDisplay {
     }
     return {
       label: raw.category ?? "Value",
-      value: `${cp.value} ${raw.targetUnit ?? ""}`.trim(),
+      value: `${fmt(cp.value, unitDecimals(raw.targetUnit))} ${raw.targetUnit ?? ""}`.trim(),
       date: formatShortDate(cp.createdAt),
       trend,
     };
@@ -390,7 +401,7 @@ export default function GoalDetailScreen() {
               color={goal.color}
               size={180}
               strokeWidth={14}
-              centerLabel={`${goal.progress}%`}
+              centerLabel={`${fmt(goal.progress)}%`}
               centerSublabel="complete"
             />
           </View>
@@ -399,21 +410,21 @@ export default function GoalDetailScreen() {
             <View style={styles.heroValueItem}>
               <Text style={styles.heroValueLabel}>Start</Text>
               <Text style={styles.heroValueText}>
-                {goal.startValue} {goal.unit}
+                {fmt(goal.startValue, unitDecimals(goal.unit))} {goal.unit}
               </Text>
             </View>
             <View style={styles.heroValueDivider} />
             <View style={styles.heroValueItem}>
               <Text style={styles.heroValueLabel}>Current</Text>
               <Text style={[styles.heroValueText, { color: Colors.white }]}>
-                {goal.currentValue} {goal.unit}
+                {fmt(goal.currentValue, unitDecimals(goal.unit))} {goal.unit}
               </Text>
             </View>
             <View style={styles.heroValueDivider} />
             <View style={styles.heroValueItem}>
               <Text style={styles.heroValueLabel}>Target</Text>
               <Text style={[styles.heroValueText, { color: goal.color }]}>
-                {goal.targetValue} {goal.unit}
+                {fmt(goal.targetValue, unitDecimals(goal.unit))} {goal.unit}
               </Text>
             </View>
           </View>

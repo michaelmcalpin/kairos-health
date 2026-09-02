@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { useThemeColors } from "@/lib/theme";
+import { round } from "@/lib/format/number";
 
 /**
  * Lightweight SVG area chart for time-series data.
@@ -110,7 +111,7 @@ export function AreaChart({
       {points.map((p, i) => (
         <g key={i}>
           <circle cx={p.x} cy={p.y} r={3} fill={resolvedStrokeColor}>
-            <title>{`${p.label}: ${p.value}`}</title>
+            <title>{`${p.label}: ${round(p.value, 1)}`}</title>
           </circle>
           {showValues && (
             <text
@@ -121,7 +122,7 @@ export function AreaChart({
               fill={tc.text}
               fontFamily="Open Sans, sans-serif"
             >
-              {p.value >= 1000 ? `${(p.value / 1000).toFixed(1)}k` : p.value}
+              {p.value >= 1000 ? `${(p.value / 1000).toFixed(1)}k` : round(p.value, 1)}
             </text>
           )}
         </g>

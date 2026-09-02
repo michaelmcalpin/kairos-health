@@ -20,6 +20,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { round } from "@/lib/format/number";
 
 const LAB_CATEGORIES = [
   { id: "all", label: "All Markers" },
@@ -613,7 +614,7 @@ export default function LabsPage() {
                 <div className="flex justify-between text-[10px] text-kairos-silver-dark px-2 mb-4">
                   {points.map((p, i) => (
                     <div key={i} className="text-center">
-                      <p className="font-bold text-white text-sm">{p.value}</p>
+                      <p className="font-bold text-white text-sm">{round(p.value, 2)}</p>
                       <p>{new Date(p.date).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}</p>
                     </div>
                   ))}
@@ -669,8 +670,8 @@ export default function LabsPage() {
                     </svg>
                   </div>
                   <div className="flex justify-between text-[10px] text-kairos-silver-dark mt-1">
-                    <span>{marker.points[0]?.value}</span>
-                    <span>{marker.points[marker.points.length - 1]?.value}</span>
+                    <span>{round(marker.points[0]?.value, 2)}</span>
+                    <span>{round(marker.points[marker.points.length - 1]?.value, 2)}</span>
                   </div>
                 </div>
               ))}
@@ -715,12 +716,12 @@ export default function LabsPage() {
                     <div>
                       <h3 className="font-heading font-bold text-white mb-1">{marker.name}</h3>
                       <p className="text-xs text-kairos-silver-dark">
-                        Ref: {marker.refLow ?? "—"}–{marker.refHigh ?? "—"} {marker.unit ?? ""}
+                        Ref: {round(marker.refLow, 2)}–{round(marker.refHigh, 2)} {marker.unit ?? ""}
                       </p>
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold text-white">{marker.value}</span>
+                        <span className="text-2xl font-bold text-white">{round(marker.value, 2)}</span>
                         <span className="text-sm text-kairos-silver-dark">{marker.unit}</span>
                       </div>
                       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-body ${getStatusColor(marker.status ?? "")}`}>

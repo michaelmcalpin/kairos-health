@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { round } from "@/lib/format/number";
 import type { HealthInsight } from "@/lib/ai/types";
 
 // ─── Severity Styles ─────────────────────────────────────────────────────────
@@ -99,7 +100,7 @@ export const InsightCard = React.memo(function InsightCard({ insight, expanded =
             <div key={i} className="rounded-lg bg-white/60 px-3 py-1.5 text-xs">
               <span className="font-medium text-gray-500">{dp.metric}:</span>{" "}
               <span className="font-semibold text-gray-900">
-                {dp.value}{dp.unit.startsWith("/") || dp.unit === "%" ? dp.unit : ` ${dp.unit}`}
+                {round(dp.value, 1)}{dp.unit.startsWith("/") || dp.unit === "%" ? dp.unit : ` ${dp.unit}`}
               </span>
               {dp.context && (
                 <span className="ml-1 text-gray-400">({dp.context})</span>

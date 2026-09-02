@@ -29,6 +29,7 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes } from "@/lib/constants";
+import { fmt } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EntryTypeCard, EntryType } from "@/components/data-entry/EntryTypeCard";
@@ -98,12 +99,12 @@ export default function DataEntryScreen() {
   // Build a summary of today's check-in fields
   const checkinSummary: string[] = [];
   if (todayCheckin) {
-    if (todayCheckin.weight) checkinSummary.push(`Weight: ${todayCheckin.weight} lbs`);
-    if (todayCheckin.sleepHours) checkinSummary.push(`Sleep: ${todayCheckin.sleepHours} hrs`);
-    if (todayCheckin.mood) checkinSummary.push(`Mood: ${todayCheckin.mood}/10`);
-    if (todayCheckin.energy) checkinSummary.push(`Energy: ${todayCheckin.energy}/10`);
-    if (todayCheckin.cardioMinutes) checkinSummary.push(`Exercise: ${todayCheckin.cardioMinutes} min`);
-    if (todayCheckin.waterOz) checkinSummary.push(`Water: ${todayCheckin.waterOz} oz`);
+    if (todayCheckin.weight) checkinSummary.push(`Weight: ${fmt(todayCheckin.weight, 1)} lbs`);
+    if (todayCheckin.sleepHours) checkinSummary.push(`Sleep: ${fmt(todayCheckin.sleepHours, 1)} hrs`);
+    if (todayCheckin.mood) checkinSummary.push(`Mood: ${fmt(todayCheckin.mood)}/10`);
+    if (todayCheckin.energy) checkinSummary.push(`Energy: ${fmt(todayCheckin.energy)}/10`);
+    if (todayCheckin.cardioMinutes) checkinSummary.push(`Exercise: ${fmt(todayCheckin.cardioMinutes)} min`);
+    if (todayCheckin.waterOz) checkinSummary.push(`Water: ${fmt(todayCheckin.waterOz)} oz`);
   }
 
   // Pull-to-refresh

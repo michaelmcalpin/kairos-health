@@ -25,6 +25,7 @@ import {
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
+import { round } from "@/lib/format/number";
 
 // ─── Metabolic Zones ────────────────────────────────────────────────────────
 
@@ -835,7 +836,7 @@ export default function FastingPage() {
           </div>
           <p className="text-xs font-body text-kairos-silver-dark mb-1">Completion Rate</p>
           <p className="text-2xl font-heading font-bold text-kairos-gold">
-            {stats?.completionRate ?? 0}%
+            {round(stats?.completionRate ?? 0, 0)}%
           </p>
         </div>
         <div className="kairos-card text-center">

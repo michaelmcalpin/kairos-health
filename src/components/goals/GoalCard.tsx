@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { round } from "@/lib/format/number";
 import type { HealthGoal, GoalProgress } from "@/lib/goals/types";
 import { useThemeColors } from "@/lib/theme";
 import { GoalProgressRing } from "./GoalProgressRing";
@@ -94,13 +95,13 @@ export const GoalCard = React.memo(function GoalCard({ goal, onAddCheckpoint, on
             <div>
               <span className="text-gray-600">Current: </span>
               <span className="text-white font-semibold">
-                {goal.currentValue} {goal.target.unit}
+                {round(goal.currentValue, 1)} {goal.target.unit}
               </span>
             </div>
             <div>
               <span className="text-gray-600">Target: </span>
               <span className="text-kairos-gold font-semibold">
-                {goal.target.value} {goal.target.unit}
+                {round(goal.target.value, 1)} {goal.target.unit}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -206,7 +207,7 @@ export const GoalCard = React.memo(function GoalCard({ goal, onAddCheckpoint, on
                       {m.label}
                     </span>
                     <span className="text-gray-700">
-                      ({m.targetValue} {goal.target.unit})
+                      ({round(m.targetValue, 1)} {goal.target.unit})
                     </span>
                     {m.reachedAt && (
                       <span className="text-gray-700 ml-auto">
@@ -235,7 +236,7 @@ export const GoalCard = React.memo(function GoalCard({ goal, onAddCheckpoint, on
                         {new Date(cp.date).toLocaleDateString()}
                       </span>
                       <span className="text-white font-semibold">
-                        {cp.value} {goal.target.unit}
+                        {round(cp.value, 1)} {goal.target.unit}
                       </span>
                       {cp.note && <span className="text-gray-600 truncate">— {cp.note}</span>}
                       <span className="text-gray-700 ml-auto capitalize">{cp.source}</span>

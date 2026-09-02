@@ -7,6 +7,7 @@ import { TIER_LABELS, STATUS_LABELS } from "@/lib/coach-clients/types";
 import type { ClientTier, ClientStatus } from "@/lib/coach-clients/types";
 import { ClientCard } from "@/components/coach/ClientCard";
 import { trpc } from "@/lib/trpc";
+import { round } from "@/lib/format/number";
 
 type SortField = "name" | "healthScore" | "alerts" | "adherence";
 type ModalTab = "search" | "code" | "invite" | "create" | "pending";
@@ -132,7 +133,7 @@ export default function CoachClientsPage() {
           <p className="text-[10px] text-gray-500 uppercase">Total</p>
         </div>
         <div className="kairos-card p-3 text-center">
-          <p className="text-2xl font-heading font-bold text-white">{stats?.avgHealthScore ?? "—"}</p>
+          <p className="text-2xl font-heading font-bold text-white">{round(stats?.avgHealthScore, 0)}</p>
           <p className="text-[10px] text-gray-500 uppercase">Avg Score</p>
         </div>
         <div className="kairos-card p-3 text-center">

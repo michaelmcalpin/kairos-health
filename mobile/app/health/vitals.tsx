@@ -27,6 +27,7 @@ import { Activity, Wind, Gauge, Thermometer, Plus, Watch } from "lucide-react-na
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { fmt } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { FormField } from "@/components/data-entry/FormField";
@@ -45,6 +46,8 @@ interface VitalDef {
   color: string;
   icon: React.ReactNode;
   placeholder: string;
+  /** Display precision — SpO2 & respiratory rate 0 dp; VO2max & temp 1 dp. */
+  decimals: number;
 }
 
 const VITALS: VitalDef[] = [
@@ -55,6 +58,7 @@ const VITALS: VitalDef[] = [
     color: "#4A9D5B",
     icon: <Activity size={24} color="#4A9D5B" />,
     placeholder: "98",
+    decimals: 0,
   },
   {
     type: "respiratory_rate",
@@ -63,6 +67,7 @@ const VITALS: VitalDef[] = [
     color: "#4A90D9",
     icon: <Wind size={24} color="#4A90D9" />,
     placeholder: "14",
+    decimals: 0,
   },
   {
     type: "vo2max",
@@ -71,6 +76,7 @@ const VITALS: VitalDef[] = [
     color: "#A78BFA",
     icon: <Gauge size={24} color="#A78BFA" />,
     placeholder: "42",
+    decimals: 1,
   },
   {
     type: "body_temp",
@@ -79,6 +85,7 @@ const VITALS: VitalDef[] = [
     color: "#FB923C",
     icon: <Thermometer size={24} color="#FB923C" />,
     placeholder: "98.6",
+    decimals: 1,
   },
 ];
 
@@ -217,7 +224,7 @@ export default function VitalsScreen() {
               <View style={styles.vitalValueRow}>
                 {num != null ? (
                   <>
-                    <Text style={styles.vitalValue}>{num}</Text>
+                    <Text style={styles.vitalValue}>{fmt(num, v.decimals)}</Text>
                     <Text style={styles.vitalUnit}>{latest?.unit ?? v.unit}</Text>
                   </>
                 ) : (

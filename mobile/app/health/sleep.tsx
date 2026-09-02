@@ -17,6 +17,7 @@ import { Moon, Bed, Watch } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { fmt } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -166,7 +167,7 @@ export default function SleepScreen() {
               </View>
             </View>
             <View style={styles.scoreValueRow}>
-              <Text style={styles.scoreValue}>{latestSleep.score}</Text>
+              <Text style={styles.scoreValue}>{fmt(latestSleep.score)}</Text>
               <Text style={styles.scoreMax}>/100</Text>
             </View>
             <View style={styles.scoreBar}>

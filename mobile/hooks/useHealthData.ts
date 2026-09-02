@@ -14,6 +14,7 @@
  */
 
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { round } from "@/lib/format";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Date range support
@@ -86,13 +87,16 @@ export function useHealthScore(range?: DateRangeDates) {
         trendDelta: 0,
         trendLabel: "",
         subScores: [
+          // Sleep sub-score is in hours → 1 dp. Glucose & HRV → 0 dp.
           data.avgSleep != null
-            ? { label: "Sleep", value: Number(data.avgSleep) }
+            ? { label: "Sleep", value: round(Number(data.avgSleep), 1) as number }
             : null,
           data.avgGlucose != null
-            ? { label: "Glucose", value: Number(data.avgGlucose) }
+            ? { label: "Glucose", value: round(Number(data.avgGlucose), 0) as number }
             : null,
-          data.hrv != null ? { label: "HRV", value: Number(data.hrv) } : null,
+          data.hrv != null
+            ? { label: "HRV", value: round(Number(data.hrv), 0) as number }
+            : null,
         ].filter(Boolean) as { label: string; value: number }[],
       }
     : null;
@@ -126,21 +130,25 @@ export function useDashboardOverview() {
         kpis?.sleep?.duration != null
           ? +(Number(kpis.sleep.duration) / 60).toFixed(1)
           : null,
-      quality: kpis?.sleep?.quality ?? null,
+      // Sleep quality is a 0-100 score → 0 dp.
+      quality: kpis?.sleep?.quality != null ? round(Number(kpis.sleep.quality), 0) : null,
       sparkData: [] as number[],
     },
     heartRate: {
-      bpm: kpis?.heartRate?.value ?? null,
+      // Heart rate → 0 dp.
+      bpm: kpis?.heartRate?.value != null ? round(Number(kpis.heartRate.value), 0) : null,
       resting: null as number | null,
       sparkData: [] as number[],
     },
     steps: {
-      count: kpis?.steps?.value ?? null,
+      // Steps are a count → 0 dp.
+      count: kpis?.steps?.value != null ? round(Number(kpis.steps.value), 0) : null,
       goal: null as number | null,
       sparkData: [] as number[],
     },
     weight: {
-      lbs: kpis?.weight?.value ?? null,
+      // Weight → 1 dp.
+      lbs: kpis?.weight?.value != null ? round(Number(kpis.weight.value), 1) : null,
       trend: null as "up" | "down" | "flat" | null,
       trendValue: null as string | null,
       sparkData: [] as number[],
@@ -149,8 +157,9 @@ export function useDashboardOverview() {
 
   const biometricsData = {
     bloodPressure: {
+      // Blood pressure → 0 dp on each of systolic / diastolic.
       value: kpis?.bloodPressure
-        ? `${kpis.bloodPressure.systolic}/${kpis.bloodPressure.diastolic}`
+        ? `${round(Number(kpis.bloodPressure.systolic), 0)}/${round(Number(kpis.bloodPressure.diastolic), 0)}`
         : null,
       unit: "mmHg",
       status: undefined as undefined,
@@ -159,7 +168,8 @@ export function useDashboardOverview() {
       iconBg: "rgba(198, 93, 93, 0.12)",
     },
     glucose: {
-      value: kpis?.glucose?.value ?? null,
+      // Glucose → 0 dp.
+      value: kpis?.glucose?.value != null ? round(Number(kpis.glucose.value), 0) : null,
       unit: "mg/dL",
       status: undefined as undefined,
       sparkData: [] as number[],
@@ -167,7 +177,8 @@ export function useDashboardOverview() {
       iconBg: "rgba(245, 158, 11, 0.12)",
     },
     sleepScore: {
-      value: kpis?.sleep?.quality ?? null,
+      // Sleep score → 0 dp.
+      value: kpis?.sleep?.quality != null ? round(Number(kpis.sleep.quality), 0) : null,
       unit: "/100",
       status: undefined as undefined,
       sparkData: [] as number[],
@@ -175,7 +186,8 @@ export function useDashboardOverview() {
       iconBg: "rgba(96, 165, 250, 0.12)",
     },
     hrv: {
-      value: kpis?.hrv?.value ?? null,
+      // HRV (ms) → 0 dp.
+      value: kpis?.hrv?.value != null ? round(Number(kpis.hrv.value), 0) : null,
       unit: "ms",
       status: undefined as undefined,
       sparkData: [] as number[],
@@ -183,7 +195,8 @@ export function useDashboardOverview() {
       iconBg: "rgba(167, 139, 250, 0.12)",
     },
     bodyWeight: {
-      value: kpis?.weight?.value ?? null,
+      // Body weight → 1 dp.
+      value: kpis?.weight?.value != null ? round(Number(kpis.weight.value), 1) : null,
       unit: "lbs",
       status: undefined as undefined,
       sparkData: [] as number[],
@@ -191,9 +204,10 @@ export function useDashboardOverview() {
       iconBg: "rgba(74, 144, 217, 0.12)",
     },
     dailySteps: {
+      // Steps are a count → 0 dp (then grouped with thousands separators).
       value:
         kpis?.steps?.value != null
-          ? Number(kpis.steps.value).toLocaleString()
+          ? (round(Number(kpis.steps.value), 0) as number).toLocaleString()
           : null,
       unit: "steps",
       status: undefined as undefined,

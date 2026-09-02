@@ -1,6 +1,7 @@
 "use client";
 
 import { useThemeColors } from "@/lib/theme";
+import { round } from "@/lib/format/number";
 
 /**
  * Lightweight SVG donut chart for percentage breakdowns.
@@ -74,7 +75,7 @@ export function DonutChart({
               transform={`rotate(-90 ${cx} ${cy})`}
               strokeLinecap="butt"
             >
-              <title>{`${segment.label}: ${segment.value} (${Math.round((segment.value / total) * 100)}%)`}</title>
+              <title>{`${segment.label}: ${round(segment.value, 1)} (${Math.round((segment.value / total) * 100)}%)`}</title>
             </circle>
           );
         })}

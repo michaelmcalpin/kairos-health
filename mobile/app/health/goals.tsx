@@ -31,12 +31,20 @@ import {
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
+import { fmt } from "@/lib/format";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/health";
 import { useGoals } from "@/hooks";
 import type { GoalSummary } from "@/hooks/useGoals";
+
+/** Length/weight/time units render at 1 dp; everything else 0 dp (max 2). */
+function unitDecimals(unit?: string | null): number {
+  const u = (unit ?? "").toLowerCase();
+  if (["lbs", "kg", "hrs", "hr", "in", "cm", "°f", "°c"].includes(u)) return 1;
+  return 0;
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Display helpers
@@ -104,10 +112,10 @@ const CATEGORY_STYLES: Record<string, { icon: React.ReactNode; iconBgColor: stri
 function mapGoalToDisplay(goal: GoalSummary): GoalDisplay {
   const catStyle = CATEGORY_STYLES[goal.category ?? "other"] ?? CATEGORY_STYLES.other;
   const targetStr = goal.targetValue != null && goal.targetUnit
-    ? `${goal.targetValue} ${goal.targetUnit}`
+    ? `${fmt(goal.targetValue, unitDecimals(goal.targetUnit))} ${goal.targetUnit}`
     : goal.title;
   const currentStr = goal.currentValue != null && goal.targetUnit
-    ? `${goal.currentValue} ${goal.targetUnit}`
+    ? `${fmt(goal.currentValue, unitDecimals(goal.targetUnit))} ${goal.targetUnit}`
     : "---";
   const deadlineStr = goal.targetDate
     ? formatDeadline(goal.targetDate)
@@ -268,7 +276,7 @@ export default function GoalsScreen() {
                 {/* Progress */}
                 <View style={styles.progressSection}>
                   <View style={styles.progressHeader}>
-                    <Text style={styles.progressPct}>{goal.progress}%</Text>
+                    <Text style={styles.progressPct}>{fmt(goal.progress)}%</Text>
                   </View>
                   <ProgressBar
                     progress={goal.progress}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useThemeColors } from "@/lib/theme";
+import { round } from "@/lib/format/number";
 
 /**
  * Lightweight SVG bar chart.
@@ -83,7 +84,7 @@ export function BarChart({
               fill={color}
               opacity={0.85}
             >
-              <title>{`${d.label}: ${d.value}`}</title>
+              <title>{`${d.label}: ${round(d.value, 1)}`}</title>
             </rect>
 
             {showValues && (
@@ -95,7 +96,7 @@ export function BarChart({
                 fill={tc.text}
                 fontFamily="Open Sans, sans-serif"
               >
-                {d.value >= 1000 ? `${(d.value / 1000).toFixed(1)}k` : d.value}
+                {d.value >= 1000 ? `${(d.value / 1000).toFixed(1)}k` : round(d.value, 1)}
               </text>
             )}
 

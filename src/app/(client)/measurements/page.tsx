@@ -809,7 +809,7 @@ function HistoryTable({ measurements }: { measurements: RawMeasurement[] }) {
                       </td>
                       <td className="py-3 px-2 text-white">
                         {m.weightLbs != null
-                          ? `${m.weightLbs} lbs`
+                          ? `${m.weightLbs.toFixed(1)} lbs`
                           : "--"}
                       </td>
                       <td className="py-3 px-2 text-white">

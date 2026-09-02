@@ -8,6 +8,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 
 import { Colors, FontSizes, Spacing } from "@/lib/constants";
+import { fmt } from "@/lib/format";
 
 interface DonutSegment {
   label: string;
@@ -166,7 +167,7 @@ export function DonutChart({
                 style={[styles.legendDot, { backgroundColor: seg.color }]}
               />
               <Text style={styles.legendLabel}>{seg.label}</Text>
-              <Text style={styles.legendValue}>{seg.value}%</Text>
+              <Text style={styles.legendValue}>{fmt(seg.value)}%</Text>
             </View>
           ))}
         </View>
