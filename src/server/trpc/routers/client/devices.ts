@@ -475,20 +475,26 @@ export const clientDevicesRouter = router({
           }))
           .filter((r) => !isNaN(r.recordedAt.getTime()) && Number.isFinite(r.value));
         if (rows.length === 0) return 0;
-        const { minTs, maxTs } = tsWindow(rows.map((r) => r.recordedAt));
-        await ctx.db.delete(vitalsReadings).where(
-          and(
-            eq(vitalsReadings.clientId, userId),
-            eq(vitalsReadings.type, vitalType),
-            eq(vitalsReadings.source, SOURCE),
-            gte(vitalsReadings.recordedAt, minTs),
-            lte(vitalsReadings.recordedAt, maxTs),
-          ),
-        );
-        for (let i = 0; i < rows.length; i += BATCH) {
-          await ctx.db.insert(vitalsReadings).values(rows.slice(i, i + BATCH));
+        try {
+          const { minTs, maxTs } = tsWindow(rows.map((r) => r.recordedAt));
+          await ctx.db.delete(vitalsReadings).where(
+            and(
+              eq(vitalsReadings.clientId, userId),
+              eq(vitalsReadings.type, vitalType),
+              eq(vitalsReadings.source, SOURCE),
+              gte(vitalsReadings.recordedAt, minTs),
+              lte(vitalsReadings.recordedAt, maxTs),
+            ),
+          );
+          for (let i = 0; i < rows.length; i += BATCH) {
+            await ctx.db.insert(vitalsReadings).values(rows.slice(i, i + BATCH));
+          }
+          return rows.length;
+        } catch {
+          // vitals_readings table may not be migrated onto this DB yet — don't
+          // let it abort the whole sync; the rest of the metrics still save.
+          return 0;
         }
-        return rows.length;
       };
 
       // ── Heart rate (timestamp window dedup) ──
@@ -627,7 +633,16 @@ export const clientDevicesRouter = router({
           ),
         );
         for (let i = 0; i < rows.length; i += BATCH) {
-          await ctx.db.insert(bodyMeasurements).values(rows.slice(i, i + BATCH));
+          const batch = rows.slice(i, i + BATCH);
+          try {
+            await ctx.db.insert(bodyMeasurements).values(batch);
+          } catch {
+            // lean_mass_lbs / bmi may not be migrated onto this DB yet — retry
+            // without them so weight + body-fat still save.
+            await ctx.db.insert(bodyMeasurements).values(
+              batch.map(({ leanMassLbs: _l, bmi: _b, ...rest }) => rest),
+            );
+          }
         }
         counts.weight = rows.length;
       }
@@ -652,7 +667,16 @@ export const clientDevicesRouter = router({
           ),
         );
         for (let i = 0; i < rows.length; i += BATCH) {
-          await ctx.db.insert(activitySummaries).values(rows.slice(i, i + BATCH));
+          const batch = rows.slice(i, i + BATCH);
+          try {
+            await ctx.db.insert(activitySummaries).values(batch);
+          } catch {
+            // distance_meters / flights_climbed may not be migrated onto this DB
+            // yet — retry without them so steps + active calories still save.
+            await ctx.db.insert(activitySummaries).values(
+              batch.map(({ distanceMeters: _d, flightsClimbed: _f, ...rest }) => rest),
+            );
+          }
         }
         counts.activity = rows.length;
       }
