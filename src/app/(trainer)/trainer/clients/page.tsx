@@ -19,6 +19,7 @@ export default function CoachClientsPage() {
   const [sortBy, setSortBy] = useState<SortField>("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [limit, setLimit] = useState(25);
 
   const utils = trpc.useUtils();
 
@@ -30,17 +31,26 @@ export default function CoachClientsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Reset the page size whenever the filters/search/sort change so switching
+  // filters doesn't keep an inflated "Show more" page.
+  useEffect(() => {
+    setLimit(25);
+  }, [debouncedSearch, tierFilter, statusFilter, sortBy, sortOrder]);
+
   // ── tRPC queries — real DB data ──────────────────────────────
-  const { data: clients = [], isLoading } = trpc.coach.clients.list.useQuery(
+  const { data, isLoading } = trpc.coach.clients.list.useQuery(
     {
       search: debouncedSearch || undefined,
       tier: tierFilter,
       status: statusFilter,
       sortBy,
       sortOrder,
+      limit,
+      offset: 0,
     },
     { staleTime: 15_000, refetchOnWindowFocus: false }
   );
+  const clients = data?.clients ?? [];
 
   const { data: stats } = trpc.coach.clients.getStats.useQuery(undefined, {
     staleTime: 30_000,
@@ -103,7 +113,7 @@ export default function CoachClientsPage() {
           </button>
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <Users size={14} />
-            {stats?.totalClients ?? clients.length} clients
+            {stats?.totalClients ?? data?.total ?? clients.length} clients
           </div>
         </div>
       </div>
@@ -111,7 +121,7 @@ export default function CoachClientsPage() {
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="kairos-card p-3 text-center">
-          <p className="text-2xl font-heading font-bold text-kairos-gold">{stats?.totalClients ?? clients.length}</p>
+          <p className="text-2xl font-heading font-bold text-kairos-gold">{stats?.totalClients ?? data?.total ?? clients.length}</p>
           <p className="text-[10px] text-gray-500 uppercase">Total</p>
         </div>
         <div className="kairos-card p-3 text-center">
@@ -212,6 +222,16 @@ export default function CoachClientsPage() {
               <ClientCard client={client} />
             </Link>
           ))
+        )}
+        {data?.hasMore && (
+          <div className="flex justify-center pt-2">
+            <button
+              onClick={() => setLimit((l) => l + 25)}
+              className="px-6 py-2 rounded-xl text-sm font-medium bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600 transition-colors"
+            >
+              Show more
+            </button>
+          </div>
         )}
       </div>
 

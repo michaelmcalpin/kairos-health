@@ -521,10 +521,14 @@ export const coachClientsRouter = router({
         status: z.enum(["stable", "attention", "critical", "all"]).optional(),
         sortBy: z.enum(["name", "healthScore", "alerts", "lastActive", "adherence"]).optional(),
         sortOrder: z.enum(["asc", "desc"]).optional(),
+        limit: z.number().min(1).max(100).optional().default(25),
+        offset: z.number().min(0).optional().default(0),
       }).optional()
     )
     .query(async ({ ctx, input }) => {
       const trainerId = ctx.dbUserId;
+      const limit = input?.limit ?? 25;
+      const offset = input?.offset ?? 0;
 
       // Get active client relationships
       // super_admin sees ALL active relationships, not just their own
@@ -538,30 +542,78 @@ export const coachClientsRouter = router({
       });
 
       const clientIds = relationships.map((r) => r.clientId);
-      if (clientIds.length === 0) return [];
+      if (clientIds.length === 0) return { clients: [], total: 0, hasMore: false };
 
-      // Fetch all client data using batched queries (eliminates N+1)
       const enrollmentDates = new Map(relationships.map((r) => [r.clientId, r.startedAt]));
-      let clients = await fetchClientDataBatch(ctx.db, clientIds, enrollmentDates);
 
-      // Apply filters
+      // ── CHEAP PREFILTER (no biometrics) ─────────────────────────
+      // Fetch only the columns needed to filter by search (name/email) and
+      // tier. This avoids paying the full biometric-history cost for clients
+      // that will be filtered or paged out.
+      const [prefilterUsers, prefilterProfiles] = await Promise.all([
+        ctx.db.query.users.findMany({
+          where: inArray(users.id, clientIds),
+          columns: { id: true, firstName: true, lastName: true, email: true },
+        }),
+        safeQ(() => ctx.db.query.clientProfiles.findMany({
+          where: inArray(clientProfiles.userId, clientIds),
+          columns: { userId: true, tier: true },
+        }), [] as { userId: string; tier: "tier1" | "tier2" | "tier3" }[]),
+      ]);
+
+      const prefilterUserMap = new Map(prefilterUsers.map((u) => [u.id, u]));
+      const prefilterTierMap = new Map(prefilterProfiles.map((p) => [p.userId, p.tier]));
+
+      let filteredIds = clientIds.filter((id) => prefilterUserMap.has(id));
       if (input?.search) {
         const q = input.search.toLowerCase();
-        clients = clients.filter(
-          (c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
-        );
+        filteredIds = filteredIds.filter((id) => {
+          const u = prefilterUserMap.get(id)!;
+          const name = deriveName(u.firstName, u.lastName, u.email).toLowerCase();
+          return name.includes(q) || u.email.toLowerCase().includes(q);
+        });
       }
       if (input?.tier && input.tier !== "all") {
-        clients = clients.filter((c) => c.tier === input.tier);
-      }
-      if (input?.status && input.status !== "all") {
-        clients = clients.filter((c) => c.status === input.status);
+        filteredIds = filteredIds.filter((id) => (prefilterTierMap.get(id) ?? "tier3") === input.tier);
       }
 
-      // Sort
       const sortBy = input?.sortBy ?? "name";
       const sortOrder = input?.sortOrder ?? "asc";
       const mult = sortOrder === "asc" ? 1 : -1;
+
+      // Biometrics are only required to filter by status or to sort by any
+      // biometric-derived field. A plain name-sorted roster does not need them.
+      const needsBiometrics =
+        (!!input?.status && input.status !== "all") || sortBy !== "name";
+
+      if (!needsBiometrics) {
+        // Sort ids by derived name, paginate, then fetch biometrics for ONLY
+        // the visible page.
+        filteredIds.sort((a, b) => {
+          const ua = prefilterUserMap.get(a)!;
+          const ub = prefilterUserMap.get(b)!;
+          const na = deriveName(ua.firstName, ua.lastName, ua.email);
+          const nb = deriveName(ub.firstName, ub.lastName, ub.email);
+          return na.localeCompare(nb) * mult;
+        });
+        const total = filteredIds.length;
+        const pageIds = filteredIds.slice(offset, offset + limit);
+        const fetched = await fetchClientDataBatch(ctx.db, pageIds, enrollmentDates);
+        // Re-order to match page-id order.
+        const byId = new Map(fetched.map((c) => [c.id, c]));
+        const clients = pageIds
+          .map((id) => byId.get(id))
+          .filter((c): c is NonNullable<typeof c> => c != null);
+        return { clients, total, hasMore: offset + limit < total };
+      }
+
+      // needsBiometrics — must fetch biometrics for all filtered ids in order
+      // to filter by status / sort by score/alerts/adherence/lastActive.
+      let clients = await fetchClientDataBatch(ctx.db, filteredIds, enrollmentDates);
+
+      if (input?.status && input.status !== "all") {
+        clients = clients.filter((c) => c.status === input.status);
+      }
 
       clients.sort((a, b) => {
         switch (sortBy) {
@@ -579,7 +631,12 @@ export const coachClientsRouter = router({
         }
       });
 
-      return clients;
+      const total = clients.length;
+      return {
+        clients: clients.slice(offset, offset + limit),
+        total,
+        hasMore: offset + limit < total,
+      };
     }),
 
   // Get detailed view of a single client

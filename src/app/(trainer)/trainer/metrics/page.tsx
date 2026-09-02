@@ -28,7 +28,8 @@ export default function CoachMetricsPage() {
   // by the backend yet, so no date navigator is shown (it would imply filtering
   // that doesn't happen).
   const clientStatsQuery = trpc.coach.clients.getStats.useQuery();
-  const clientsListQuery = trpc.coach.clients.list.useQuery();
+  const clientsListQuery = trpc.coach.clients.list.useQuery({ limit: 100, offset: 0 });
+  const clientsList = clientsListQuery.data?.clients;
   const revenueSummaryQuery = trpc.coach.revenue.getSummary.useQuery();
   const alertsSummaryQuery = trpc.coach.alerts.summary.useQuery();
 
@@ -104,11 +105,11 @@ export default function CoachMetricsPage() {
 
   // Build top clients from list
   const topClients = useMemo(() => {
-    if (!clientsListQuery.data) return [];
+    if (!clientsList) return [];
 
     // Only rank clients who actually have a score — a no-data client can't be
     // "top performing".
-    return clientsListQuery.data
+    return clientsList
       .filter((client) => client.healthScore != null)
       .sort((a, b) => (b.healthScore ?? 0) - (a.healthScore ?? 0))
       .slice(0, 5)
@@ -119,15 +120,15 @@ export default function CoachMetricsPage() {
         lastUpdate: "",
         trend: "stable" as "up" | "down" | "stable",
       }));
-  }, [clientsListQuery.data]);
+  }, [clientsList]);
 
   // Build at-risk clients from list
   const atRiskClients = useMemo(() => {
-    if (!clientsListQuery.data) return [];
+    if (!clientsList) return [];
 
     // A no-data client (null score) is never flagged for "low health score" —
     // only a real sub-60 score or low adherence counts as at-risk.
-    return clientsListQuery.data
+    return clientsList
       .filter((client) => (client.healthScore != null && client.healthScore < 60) || (client.adherence || 0) < 50)
       .slice(0, 5)
       .map((client) => ({
@@ -136,14 +137,14 @@ export default function CoachMetricsPage() {
         issue: client.healthScore != null && client.healthScore < 60 ? "Low health score" : "Low adherence",
         healthScore: client.healthScore,
       }));
-  }, [clientsListQuery.data]);
+  }, [clientsList]);
 
   // Build client segments
   const clientSegments = useMemo(() => {
-    if (!clientStatsQuery.data || !clientsListQuery.data) return { active: 0, onTrack: 0, needsAttention: 0, inactive: 0, total: 0 };
+    if (!clientStatsQuery.data || !clientsList) return { active: 0, onTrack: 0, needsAttention: 0, inactive: 0, total: 0 };
 
     const stats = clientStatsQuery.data;
-    const list = clientsListQuery.data;
+    const list = clientsList;
 
     // Bucket only clients with a real score; no-data clients are excluded from
     // both on-track and needs-attention counts (not treated as 0).
@@ -158,13 +159,13 @@ export default function CoachMetricsPage() {
       inactive: 0,
       total: stats.totalClients,
     };
-  }, [clientStatsQuery.data, clientsListQuery.data]);
+  }, [clientStatsQuery.data, clientsList]);
 
   // Build session metrics from client adherence data
   const sessionMetrics = useMemo(() => {
-    if (!clientsListQuery.data) return { totalClients: 0, avgAdherence: 0, onTrackCount: 0, atRiskCount: 0 };
+    if (!clientsList) return { totalClients: 0, avgAdherence: 0, onTrackCount: 0, atRiskCount: 0 };
 
-    const clients = clientsListQuery.data;
+    const clients = clientsList;
     const avgAdherence = clients.reduce((sum, c) => sum + (c.adherence || 0), 0) / (clients.length || 1);
     const onTrackCount = clients.filter((c) => (c.adherence || 0) >= 75).length;
     const atRiskCount = clients.filter((c) => (c.adherence || 0) < 50).length;
@@ -175,7 +176,7 @@ export default function CoachMetricsPage() {
       onTrackCount,
       atRiskCount,
     };
-  }, [clientsListQuery.data]);
+  }, [clientsList]);
 
   // Monthly trends — placeholder until historical data tracking is built
   const monthlyTrend: { month: string; revenue: number; sessions: number }[] = [];

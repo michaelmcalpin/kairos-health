@@ -31,7 +31,7 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
   const utils = trpc.useUtils();
 
   // For coaches: fetch assigned clients so they can start new conversations
-  const clientsQuery = trpc.coach.clients.list.useQuery(undefined, {
+  const clientsQuery = trpc.coach.clients.list.useQuery({ limit: 100, offset: 0 }, {
     enabled: role === "coach",
   });
 
@@ -129,7 +129,7 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
   });
   const coachStartConv = trpc.coach.messaging.startConversation.useMutation({
     onSuccess: (conv) => {
-      const client = (clientsQuery.data ?? []).find((c: AssignedClient) => c.id === conv.clientId);
+      const client = (clientsQuery.data?.clients ?? []).find((c: AssignedClient) => c.id === conv.clientId);
       const clientName = client?.name || "Client";
       const enriched: Conversation = {
         id: conv.id,
@@ -355,7 +355,7 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
                 autoFocus
               />
               <div className="max-h-64 overflow-y-auto space-y-1">
-                {(clientsQuery.data ?? [])
+                {(clientsQuery.data?.clients ?? [])
                   .filter((c: AssignedClient) => {
                     if (!clientSearch) return true;
                     const q = clientSearch.toLowerCase();
@@ -380,7 +380,7 @@ export function MessagingDashboard({ userId, role, userName, initialConversation
                       </svg>
                     </button>
                   ))}
-                {(clientsQuery.data ?? []).length === 0 && !clientsQuery.isLoading && (
+                {(clientsQuery.data?.clients ?? []).length === 0 && !clientsQuery.isLoading && (
                   <p className="text-center text-gray-500 text-sm py-4">No assigned clients yet.</p>
                 )}
                 {clientsQuery.isLoading && (
