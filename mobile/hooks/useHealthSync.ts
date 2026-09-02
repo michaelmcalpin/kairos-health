@@ -158,6 +158,10 @@ export function useHealthSync() {
         activeEnergy,
         distance,
         flights,
+        oxygenSaturation,
+        respiratoryRate,
+        vo2max,
+        bodyTemperature,
       ] = await Promise.all([
         HealthKit.readHealthData("HKQuantityTypeIdentifierStepCount", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierHeartRate", windowStart),
@@ -175,6 +179,10 @@ export function useHealthSync() {
         HealthKit.readHealthData("HKQuantityTypeIdentifierActiveEnergyBurned", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierDistanceWalkingRunning", windowStart),
         HealthKit.readHealthData("HKQuantityTypeIdentifierFlightsClimbed", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierOxygenSaturation", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierRespiratoryRate", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierVO2Max", windowStart),
+        HealthKit.readHealthData("HKQuantityTypeIdentifierBodyTemperature", windowStart),
       ]);
 
       // ── Heart rate: per-sample, plus resting + walking-average HR folded in ──
@@ -388,6 +396,43 @@ export function useHealthSync() {
         }
       }
 
+      // ── Generic vitals: SpO2, respiratory rate, VO2max, body temp ──
+      // Each is per-sample { timestamp, value, unit? }. Never throws when a
+      // type has no samples — the arrays default to [] from readHealthData.
+      const spo2Payload: { timestamp: string; value: number; unit?: string }[] = [];
+      for (const s of oxygenSaturation) {
+        const raw = Number(s.value);
+        if (s.startDate && raw > 0) {
+          // HealthKit reports oxygen saturation as a 0–1 fraction; normalise to %.
+          const pct = raw <= 1 ? raw * 100 : raw;
+          spo2Payload.push({ timestamp: s.startDate, value: Math.round(pct * 10) / 10, unit: "%" });
+        }
+      }
+
+      const respiratoryPayload: { timestamp: string; value: number; unit?: string }[] = [];
+      for (const s of respiratoryRate) {
+        const v = Number(s.value);
+        if (s.startDate && v > 0) {
+          respiratoryPayload.push({ timestamp: s.startDate, value: Math.round(v * 10) / 10, unit: "br/min" });
+        }
+      }
+
+      const vo2maxPayload: { timestamp: string; value: number; unit?: string }[] = [];
+      for (const s of vo2max) {
+        const v = Number(s.value);
+        if (s.startDate && v > 0) {
+          vo2maxPayload.push({ timestamp: s.startDate, value: Math.round(v * 10) / 10, unit: "mL/kg/min" });
+        }
+      }
+
+      const bodyTempPayload: { timestamp: string; value: number; unit?: string }[] = [];
+      for (const s of bodyTemperature) {
+        const v = Number(s.value);
+        if (s.startDate && v > 0) {
+          bodyTempPayload.push({ timestamp: s.startDate, value: Math.round(v * 10) / 10, unit: "°F" });
+        }
+      }
+
       // ── Build the bulk payload — only include categories with data ──
       const payload: Record<string, unknown> = {};
       if (heartRatePayload.length > 0) payload.heartRate = heartRatePayload.slice(0, 2000);
@@ -397,6 +442,10 @@ export function useHealthSync() {
       if (sleepPayload.length > 0) payload.sleep = sleepPayload.slice(0, 2000);
       if (weightPayload.length > 0) payload.weight = weightPayload.slice(0, 2000);
       if (activityPayload.length > 0) payload.activity = activityPayload.slice(0, 2000);
+      if (spo2Payload.length > 0) payload.spo2 = spo2Payload.slice(0, 2000);
+      if (respiratoryPayload.length > 0) payload.respiratoryRate = respiratoryPayload.slice(0, 2000);
+      if (vo2maxPayload.length > 0) payload.vo2max = vo2maxPayload.slice(0, 2000);
+      if (bodyTempPayload.length > 0) payload.bodyTemp = bodyTempPayload.slice(0, 2000);
 
       if (Object.keys(payload).length === 0) {
         if (!silent) {
@@ -423,6 +472,10 @@ export function useHealthSync() {
         sleep: "sleep",
         weight: "weight",
         activity: "activity",
+        spo2: "blood oxygen",
+        respiratoryRate: "respiratory rate",
+        vo2max: "VO2max",
+        bodyTemp: "body temp",
       };
       const summary = Object.entries(counts)
         .filter(([, n]) => Number(n) > 0)

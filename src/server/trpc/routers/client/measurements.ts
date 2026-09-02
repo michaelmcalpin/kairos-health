@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { bodyMeasurements, heartRateReadings, bloodPressureReadings } from "@/server/db/schema";
+import { bodyMeasurements, heartRateReadings, bloodPressureReadings, hrvReadings, activitySummaries } from "@/server/db/schema";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
@@ -250,5 +250,141 @@ export const clientMeasurementsRouter = router({
         hrStored,
         bpStored,
       };
+    }),
+
+  // ── Manual heart-rate logging → heartRateReadings ──
+  logHeartRate: clientProcedure
+    .input(
+      z.object({
+        bpm: z.number().int().min(20).max(250),
+        recordedAt: z.string().optional(),
+        activityContext: z.string().max(20).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const ts = input.recordedAt ? new Date(input.recordedAt) : new Date();
+      const [result] = await ctx.db
+        .insert(heartRateReadings)
+        .values({
+          clientId: ctx.dbUserId,
+          timestamp: isNaN(ts.getTime()) ? new Date() : ts,
+          bpm: input.bpm,
+          source: "manual",
+          activityContext: input.activityContext ?? null,
+        })
+        .returning();
+      return result;
+    }),
+
+  // ── Manual HRV logging → hrvReadings (rmssd, ms) ──
+  logHrv: clientProcedure
+    .input(
+      z.object({
+        rmssd: z.number().min(1).max(500),
+        recordedAt: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const ts = input.recordedAt ? new Date(input.recordedAt) : new Date();
+      const [result] = await ctx.db
+        .insert(hrvReadings)
+        .values({
+          clientId: ctx.dbUserId,
+          timestamp: isNaN(ts.getTime()) ? new Date() : ts,
+          rmssd: input.rmssd,
+          source: "manual",
+        })
+        .returning();
+      return result;
+    }),
+
+  // ── Manual steps logging → activitySummaries (upsert by clientId+date, manual source) ──
+  logSteps: clientProcedure
+    .input(
+      z.object({
+        steps: z.number().int().min(0).max(200000),
+        date: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const date = input.date ?? new Date().toISOString().split("T")[0];
+
+      // Upsert: update an existing manual row for this date, else insert one.
+      const existing = await safeQ(
+        () =>
+          ctx.db.query.activitySummaries.findFirst({
+            where: and(
+              eq(activitySummaries.clientId, ctx.dbUserId),
+              eq(activitySummaries.date, date),
+              eq(activitySummaries.source, "manual")
+            ),
+          }),
+        undefined
+      );
+
+      if (existing) {
+        const [updated] = await ctx.db
+          .update(activitySummaries)
+          .set({ steps: input.steps })
+          .where(eq(activitySummaries.id, existing.id))
+          .returning();
+        return updated;
+      }
+
+      const [inserted] = await ctx.db
+        .insert(activitySummaries)
+        .values({
+          clientId: ctx.dbUserId,
+          date,
+          steps: input.steps,
+          source: "manual",
+        })
+        .returning();
+      return inserted;
+    }),
+
+  // ── Recent heart-rate readings (newest first) ──
+  recentHeartRate: clientProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(500).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      return await safeQ(
+        () =>
+          ctx.db.query.heartRateReadings.findMany({
+            where: eq(heartRateReadings.clientId, ctx.dbUserId),
+            orderBy: desc(heartRateReadings.timestamp),
+            limit: input?.limit ?? 50,
+          }),
+        []
+      );
+    }),
+
+  // ── Recent HRV readings (newest first) ──
+  recentHrv: clientProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(500).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      return await safeQ(
+        () =>
+          ctx.db.query.hrvReadings.findMany({
+            where: eq(hrvReadings.clientId, ctx.dbUserId),
+            orderBy: desc(hrvReadings.timestamp),
+            limit: input?.limit ?? 50,
+          }),
+        []
+      );
+    }),
+
+  // ── Recent activity summaries (newest first) ──
+  recentActivity: clientProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(500).optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      return await safeQ(
+        () =>
+          ctx.db.query.activitySummaries.findMany({
+            where: eq(activitySummaries.clientId, ctx.dbUserId),
+            orderBy: desc(activitySummaries.date),
+            limit: input?.limit ?? 30,
+          }),
+        []
+      );
     }),
 });

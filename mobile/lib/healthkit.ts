@@ -238,6 +238,8 @@ export async function readHealthData(
       (options as any).unit = "mgPerdL";
     } else if (type === "HKQuantityTypeIdentifierDistanceWalkingRunning") {
       (options as any).unit = "meter";
+    } else if (type === "HKQuantityTypeIdentifierBodyTemperature") {
+      (options as any).unit = "degF";
     }
     // NOTE: HRV (HeartRateVariabilitySDNN) is intentionally left unitless —
     // the native module returns seconds, converted to ms in useHealthSync.

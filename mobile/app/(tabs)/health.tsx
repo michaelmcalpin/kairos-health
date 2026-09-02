@@ -20,6 +20,7 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
+  Pressable,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -32,6 +33,8 @@ import {
   Scale,
   Brain,
   Thermometer,
+  Wind,
+  ChevronRight,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
@@ -221,6 +224,23 @@ export default function HealthScreen() {
           </View>
         )}
 
+        {/* ─── Vitals link (SpO2 / respiratory / VO2max / temp) ─── */}
+        <SectionHeader title="Vitals" />
+        <Pressable onPress={() => router.push("/health/vitals" as any)}>
+          <Card style={styles.vitalsLinkCard}>
+            <View style={styles.vitalsLinkIconWrap}>
+              <Wind size={20} color="#4A90D9" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.vitalsLinkTitle}>Blood oxygen, respiratory rate & more</Text>
+              <Text style={styles.vitalsLinkSubtitle}>
+                View SpO2, VO2max, and body temperature — or log a reading
+              </Text>
+            </View>
+            <ChevronRight size={20} color={Colors.silver} />
+          </Card>
+        </Pressable>
+
         {/* ─── 4. Recent Readings ──────────────────────────── */}
         <SectionHeader
           title="Recent Readings"
@@ -346,6 +366,33 @@ const styles = StyleSheet.create({
     color: Colors.goldLight,
     fontSize: 10,
     fontWeight: "600",
+  },
+
+  // Vitals link card
+  vitalsLinkCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  vitalsLinkIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(74, 144, 217, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  vitalsLinkTitle: {
+    color: Colors.white,
+    fontSize: FontSizes.sm,
+    fontWeight: "700",
+  },
+  vitalsLinkSubtitle: {
+    color: Colors.silver,
+    fontSize: FontSizes.xs,
+    fontWeight: "500",
+    marginTop: 2,
   },
 
   // Recent Readings (kept for future use with real data)

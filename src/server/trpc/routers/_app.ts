@@ -33,6 +33,7 @@ import { clientTodayRouter } from "./client/today";
 import { clientGeneticsRouter } from "./client/genetics";
 import { clientSettingsRouter } from "./client/settings";
 import { clientDevicesRouter } from "./client/devices";
+import { clientVitalsRouter } from "./client/vitals";
 import { clientClinicalDocsRouter } from "./client/clinical-docs";
 import { clientReportsRouter } from "./client/reports";
 import { clientPeptidesRouter } from "./client/peptides";
@@ -103,6 +104,7 @@ export const appRouter = router({
     genetics: clientGeneticsRouter,
     settings: clientSettingsRouter,
     devices: clientDevicesRouter,
+    vitals: clientVitalsRouter,
     clinicalDocs: clientClinicalDocsRouter,
     reports: clientReportsRouter,
     peptides: clientPeptidesRouter,

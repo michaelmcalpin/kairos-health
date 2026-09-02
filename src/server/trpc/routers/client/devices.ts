@@ -12,6 +12,7 @@ import {
   sleepSessions,
   bodyMeasurements,
   activitySummaries,
+  vitalsReadings,
 } from "@/server/db/schema";
 import { eq, and, desc, gte, lte, inArray } from "drizzle-orm";
 import { PROVIDERS } from "@/lib/integrations/devices/providers";
@@ -405,6 +406,27 @@ export const clientDevicesRouter = router({
           distanceMeters: z.number().optional(),
           flightsClimbed: z.number().optional(),
         })).max(2000).optional(),
+        // ── Generic single-value vitals → vitalsReadings ──
+        spo2: z.array(z.object({
+          timestamp: z.string(),
+          value: z.number(),
+          unit: z.string().max(20).optional(),
+        })).max(2000).optional(),
+        respiratoryRate: z.array(z.object({
+          timestamp: z.string(),
+          value: z.number(),
+          unit: z.string().max(20).optional(),
+        })).max(2000).optional(),
+        vo2max: z.array(z.object({
+          timestamp: z.string(),
+          value: z.number(),
+          unit: z.string().max(20).optional(),
+        })).max(2000).optional(),
+        bodyTemp: z.array(z.object({
+          timestamp: z.string(),
+          value: z.number(),
+          unit: z.string().max(20).optional(),
+        })).max(2000).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -426,6 +448,47 @@ export const clientDevicesRouter = router({
         sleep: 0,
         weight: 0,
         activity: 0,
+        spo2: 0,
+        respiratoryRate: 0,
+        vo2max: 0,
+        bodyTemp: 0,
+      };
+
+      /**
+       * Ingest a generic single-value vital into vitalsReadings.
+       * Dedups defensively by deleting existing apple_health rows of the same
+       * type within the incoming timestamp window, then re-inserts in batches.
+       */
+      const ingestVital = async (
+        vitalType: "spo2" | "respiratory_rate" | "vo2max" | "body_temp",
+        samples: { timestamp: string; value: number; unit?: string }[] | undefined,
+      ): Promise<number> => {
+        if (!samples || samples.length === 0) return 0;
+        const rows = samples
+          .map((s) => ({
+            clientId: userId,
+            type: vitalType,
+            value: s.value,
+            unit: s.unit ?? null,
+            source: SOURCE,
+            recordedAt: new Date(s.timestamp),
+          }))
+          .filter((r) => !isNaN(r.recordedAt.getTime()) && Number.isFinite(r.value));
+        if (rows.length === 0) return 0;
+        const { minTs, maxTs } = tsWindow(rows.map((r) => r.recordedAt));
+        await ctx.db.delete(vitalsReadings).where(
+          and(
+            eq(vitalsReadings.clientId, userId),
+            eq(vitalsReadings.type, vitalType),
+            eq(vitalsReadings.source, SOURCE),
+            gte(vitalsReadings.recordedAt, minTs),
+            lte(vitalsReadings.recordedAt, maxTs),
+          ),
+        );
+        for (let i = 0; i < rows.length; i += BATCH) {
+          await ctx.db.insert(vitalsReadings).values(rows.slice(i, i + BATCH));
+        }
+        return rows.length;
       };
 
       // ── Heart rate (timestamp window dedup) ──
@@ -593,6 +656,12 @@ export const clientDevicesRouter = router({
         }
         counts.activity = rows.length;
       }
+
+      // ── Generic vitals: SpO2, respiratory rate, VO2max, body temp ──
+      counts.spo2 = await ingestVital("spo2", input.spo2);
+      counts.respiratoryRate = await ingestVital("respiratory_rate", input.respiratoryRate);
+      counts.vo2max = await ingestVital("vo2max", input.vo2max);
+      counts.bodyTemp = await ingestVital("body_temp", input.bodyTemp);
 
       // ── Record the sync on the apple_health connection ──
       await ctx.db

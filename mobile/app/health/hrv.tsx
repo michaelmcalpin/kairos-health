@@ -10,11 +10,11 @@
  *   - dashboard.getOverview  -> kpis.hrv { value(rmssd, ms), timestamp }
  */
 
-import React from "react";
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
+import React, { useState } from "react";
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Brain, Watch } from "lucide-react-native";
+import { Brain, Watch, Plus } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
@@ -22,6 +22,8 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorView } from "@/components/ui/ErrorView";
+import { Button } from "@/components/ui/Button";
+import { FormField } from "@/components/data-entry/FormField";
 import type { StatusVariant } from "@/lib/types";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -70,11 +72,74 @@ function formatTimestamp(ts?: string | number | Date | null): string | null {
 
 export default function HrvScreen() {
   const router = useRouter();
+  const utils = trpc.useUtils();
 
   // ─── tRPC Query — shared dashboard overview (same source the web uses) ──
   const overviewQuery = trpc.clientPortal.dashboard.getOverview.useQuery(
     undefined,
     DEFAULT_QUERY_OPTIONS,
+  );
+
+  // ─── Manual-entry modal ─────────────────────────────────
+  const logMutation = trpc.clientPortal.measurements.logHrv.useMutation();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [rmssdInput, setRmssdInput] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    const num = Number(rmssdInput);
+    if (!rmssdInput.trim() || isNaN(num) || num < 1 || num > 500) {
+      setFormError("Enter an HRV (RMSSD) between 1 and 500 ms.");
+      return;
+    }
+    setFormError(null);
+    try {
+      await logMutation.mutateAsync({ rmssd: num });
+      setModalVisible(false);
+      setRmssdInput("");
+      utils.clientPortal.dashboard.getOverview.invalidate();
+      utils.clientPortal.measurements.recentHrv.invalidate();
+    } catch {
+      setFormError("Failed to save. Please try again.");
+    }
+  };
+
+  const renderAddModal = () => (
+    <Modal
+      visible={modalVisible}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Pressable style={styles.modalClose} onPress={() => setModalVisible(false)}>
+            <Text style={styles.modalCloseText}>×</Text>
+          </Pressable>
+          <Text style={styles.modalTitle}>Log HRV</Text>
+          <FormField
+            label="HRV (RMSSD)"
+            value={rmssdInput}
+            onChangeText={setRmssdInput}
+            placeholder="55"
+            unit="ms"
+            numeric
+          />
+          {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+          <Button
+            title="Save Reading"
+            variant="primary"
+            size="lg"
+            onPress={handleSave}
+            loading={logMutation.isPending}
+            style={styles.modalBtn}
+          />
+          <Pressable onPress={() => setModalVisible(false)}>
+            <Text style={styles.dismissText}>Cancel</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
   );
 
   // ─── Loading state ──────────────────────────────────────
@@ -114,11 +179,12 @@ export default function HrvScreen() {
           <EmptyState
             icon="activity"
             title="No HRV data yet"
-            message="Connect Apple Health or a wearable to sync your heart rate variability here."
-            actionLabel="Connect a device"
-            onAction={() => router.push("/devices/connect" as any)}
+            message="Connect Apple Health or a wearable to sync your heart rate variability here — or log a reading manually."
+            actionLabel="Add Reading"
+            onAction={() => setModalVisible(true)}
           />
         </View>
+        {renderAddModal()}
       </SafeAreaView>
     );
   }
@@ -173,6 +239,16 @@ export default function HrvScreen() {
           ))}
         </Card>
 
+        {/* ─── Add Reading ──────────────────────────────────── */}
+        <Button
+          title="Add Reading"
+          variant="primary"
+          size="lg"
+          onPress={() => setModalVisible(true)}
+          style={styles.addBtn}
+          icon={<Plus size={18} color={Colors.dark} />}
+        />
+
         {/* ─── Source ───────────────────────────────────────── */}
         {source ? (
           <View style={styles.sourceRow}>
@@ -183,6 +259,7 @@ export default function HrvScreen() {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+      {renderAddModal()}
     </SafeAreaView>
   );
 }
@@ -310,6 +387,59 @@ const styles = StyleSheet.create({
     color: Colors.silver,
     fontSize: FontSizes.xs,
     fontWeight: "500",
+  },
+
+  // Add button
+  addBtn: {
+    marginTop: Spacing.lg,
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: Colors.navy,
+    borderTopLeftRadius: Radii.xl,
+    borderTopRightRadius: Radii.xl,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xxl,
+  },
+  modalClose: {
+    position: "absolute",
+    top: Spacing.md,
+    right: Spacing.md,
+    zIndex: 1,
+    padding: 4,
+  },
+  modalCloseText: {
+    color: Colors.silver,
+    fontSize: 28,
+    fontWeight: "400",
+    lineHeight: 28,
+  },
+  modalTitle: {
+    color: Colors.white,
+    fontSize: FontSizes.lg,
+    fontWeight: "700",
+    marginBottom: Spacing.lg,
+  },
+  errorText: {
+    color: Colors.danger,
+    fontSize: FontSizes.sm,
+    marginBottom: Spacing.sm,
+  },
+  modalBtn: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  dismissText: {
+    color: Colors.silver,
+    fontSize: FontSizes.sm,
+    fontWeight: "500",
+    textAlign: "center",
   },
 
   // Bottom spacer

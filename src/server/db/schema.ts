@@ -268,6 +268,21 @@ export const ketoneReadings = pgTable("ketone_readings", {
   source: varchar("source", { length: 50 }),
 });
 
+// Generic single-value vitals: SpO2, respiratory rate, VO2max, body temperature.
+// `type` discriminates the metric ("spo2" | "respiratory_rate" | "vo2max" | "body_temp").
+export const vitalsReadings = pgTable("vitals_readings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  type: varchar("type", { length: 30 }).notNull(),
+  value: real("value").notNull(),
+  unit: varchar("unit", { length: 20 }),
+  source: varchar("source", { length: 30 }).default("manual"),
+  recordedAt: timestamp("recorded_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("vitals_client_type_ts_idx").on(t.clientId, t.type, t.recordedAt),
+]);
+
 // ======================== CLINICAL: LABS ========================
 export const labOrders = pgTable("lab_orders", {
   id: uuid("id").primaryKey().defaultRandom(),
