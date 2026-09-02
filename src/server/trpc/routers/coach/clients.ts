@@ -92,6 +92,10 @@ async function verifyCoachClientRelationship(
   // super_admin can access any client's data without a relationship
   if (userRole === "super_admin") return;
 
+  // A coach is always allowed to view their own record as a client
+  // (accounts that are both a coach and a client of someone else).
+  if (coachId === clientId) return;
+
   const rel = await db.query.trainerClientRelationships.findFirst({
     where: and(
       eq(trainerClientRelationships.trainerId, coachId),
@@ -1170,9 +1174,11 @@ export const coachClientsRouter = router({
       });
       const existingClientIds = existingRels.map((r) => r.clientId);
 
-      // Search users by email, first name, or last name
+      // Search users by email, first name, or last name.
+      // Any account can also be enrolled as a client (a coach who is also
+      // someone's client), so we don't filter by role here — we only exclude
+      // the searcher themselves and anyone already on their roster.
       const conditions = [
-        eq(users.role, "client"),
         ne(users.id, trainerId),
         or(
           ilike(users.email, q),
@@ -1223,13 +1229,10 @@ export const coachClientsRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
       }
 
-      // Verify user has the "client" role — prevent assigning trainers or admins as clients
-      if (user.role !== "client") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Cannot add a user with role "${user.role}" as a client. Only users with the "client" role can be assigned.`,
-        });
-      }
+      // Any account may also be enrolled as a client — including coaches/admins
+      // who want to be coached themselves (e.g. a coach who is also Walid's client).
+      // We do NOT change their primary role, so they keep their coach access;
+      // this only creates the client-side relationship + profile.
 
       // Check if relationship already exists
       const existing = await ctx.db.query.trainerClientRelationships.findFirst({
@@ -1314,8 +1317,8 @@ export const coachClientsRouter = router({
       const clientId = profile.userId;
 
       const user = await ctx.db.query.users.findFirst({ where: eq(users.id, clientId) });
-      if (!user || user.role !== "client") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "That code isn't for a client account." });
+      if (!user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No client matches that code. Ask them to re-share it." });
       }
 
       const existing = await ctx.db.query.trainerClientRelationships.findFirst({
