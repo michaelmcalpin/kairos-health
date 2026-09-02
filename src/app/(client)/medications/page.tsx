@@ -43,6 +43,7 @@ export default function MedicationsPage() {
 
   const [takenIds, setTakenIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [adherenceError, setAdherenceError] = useState<string | null>(null);
 
   // Seed today's checked state from adherence already logged on the server
   const todayStr = new Date().toISOString().split("T")[0];
@@ -88,6 +89,7 @@ export default function MedicationsPage() {
 
   function toggle(id: string) {
     const wasTaken = takenIds.has(id);
+    setAdherenceError(null);
     setTakenIds((prev) => {
       const next = new Set(prev);
       if (wasTaken) next.delete(id);
@@ -97,7 +99,20 @@ export default function MedicationsPage() {
     // Only log adherence when checking — the backend is insert-only, so
     // unchecking must not create a new "taken" record.
     if (!wasTaken) {
-      logAdherence.mutate({ protocolItemId: id });
+      logAdherence.mutate(
+        { protocolItemId: id },
+        {
+          // Roll back the optimistic check if the write fails.
+          onError: () => {
+            setTakenIds((prev) => {
+              const next = new Set(prev);
+              next.delete(id);
+              return next;
+            });
+            setAdherenceError("Couldn't save your medication. Please try again.");
+          },
+        },
+      );
     }
   }
 
@@ -173,6 +188,9 @@ export default function MedicationsPage() {
                 ? `${pct}% complete — ${totalCount - takenCount} remaining`
                 : "Tap each medication as you take it"}
             </p>
+            {adherenceError && (
+              <p className="text-xs font-body text-red-400 mt-2">{adherenceError}</p>
+            )}
           </div>
 
           {/* Grouped medication list */}

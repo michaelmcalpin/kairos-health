@@ -358,6 +358,7 @@ export const clientLabsRouter = router({
             unit: z.string().optional(),
             refLow: z.number().optional(),
             refHigh: z.number().optional(),
+            status: z.enum(["normal", "low", "high", "critical"]).optional(),
           })
         ),
       })
@@ -392,11 +393,14 @@ export const clientLabsRouter = router({
 
       // Insert biomarker values
       const biomarkerRows = input.biomarkers.map((bm) => {
-        let status = "normal";
-        if (bm.refLow !== undefined && bm.value < bm.refLow) {
-          status = "low";
-        } else if (bm.refHigh !== undefined && bm.value > bm.refHigh) {
-          status = "high";
+        // Prefer the user-provided status; otherwise derive it from the range.
+        let status = bm.status ?? "normal";
+        if (!bm.status) {
+          if (bm.refLow !== undefined && bm.value < bm.refLow) {
+            status = "low";
+          } else if (bm.refHigh !== undefined && bm.value > bm.refHigh) {
+            status = "high";
+          }
         }
 
         return {

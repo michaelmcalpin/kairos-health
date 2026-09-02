@@ -81,27 +81,37 @@ export default function PeptidesPage() {
     (i) => i.category === "peptide" || i.category === "injection"
   ) ?? [];
 
+  // Surface failed writes instead of silently stopping the spinner.
+  const [actionError, setActionError] = useState<string | null>(null);
+
   // Mutations
   const createCycle = trpc.clientPortal.peptides.createCycle.useMutation({
     onSuccess: () => {
+      setActionError(null);
       utils.clientPortal.peptides.getCycles.invalidate();
       setShowNewCycle(false);
     },
+    onError: () => setActionError("Couldn't create the cycle. Please try again."),
   });
   const updateStatus = trpc.clientPortal.peptides.updateCycleStatus.useMutation({
-    onSuccess: () => utils.clientPortal.peptides.getCycles.invalidate(),
+    onSuccess: () => { setActionError(null); utils.clientPortal.peptides.getCycles.invalidate(); },
+    onError: () => setActionError("Couldn't update the cycle. Please try again."),
   });
   const deleteCycle = trpc.clientPortal.peptides.deleteCycle.useMutation({
-    onSuccess: () => utils.clientPortal.peptides.getCycles.invalidate(),
+    onSuccess: () => { setActionError(null); utils.clientPortal.peptides.getCycles.invalidate(); },
+    onError: () => setActionError("Couldn't delete the cycle. Please try again."),
   });
   const logDose = trpc.clientPortal.peptides.logDose.useMutation({
     onSuccess: () => {
+      setActionError(null);
       utils.clientPortal.peptides.getRecentLogs.invalidate();
       setShowLogDose(false);
     },
+    onError: () => setActionError("Couldn't log the dose. Please try again."),
   });
   const deleteLog = trpc.clientPortal.peptides.deleteLog.useMutation({
-    onSuccess: () => utils.clientPortal.peptides.getRecentLogs.invalidate(),
+    onSuccess: () => { setActionError(null); utils.clientPortal.peptides.getRecentLogs.invalidate(); },
+    onError: () => setActionError("Couldn't delete the log. Please try again."),
   });
 
   // New cycle form state
@@ -204,6 +214,12 @@ export default function PeptidesPage() {
           </button>
         </div>
       </div>
+
+      {actionError && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-body text-red-400">
+          {actionError}
+        </div>
+      )}
 
       {/* Quick Links */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

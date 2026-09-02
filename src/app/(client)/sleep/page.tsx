@@ -45,6 +45,7 @@ export default function SleepPage() {
   // Manual sleep entry state
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     bedtime: "22:00",
@@ -83,6 +84,7 @@ export default function SleepPage() {
   };
 
   const handleSaveEntry = async () => {
+    setFormError(null);
     try {
       // Prepare data for mutation - convert hours (string/number) to minutes
       const totalMinutes = formData.totalSleep
@@ -130,13 +132,15 @@ export default function SleepPage() {
 
       // Clear success message after 3 seconds
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (error) {
-      // Error is already shown via mutation's onError or to user
+    } catch {
+      // Surface the failure inline instead of swallowing it silently.
+      setFormError("Failed to save sleep entry. Please try again.");
     }
   };
 
   const handleCancel = () => {
     setShowManualEntry(false);
+    setFormError(null);
     setFormData({
       date: new Date().toISOString().split('T')[0],
       bedtime: "22:00",
@@ -318,6 +322,12 @@ export default function SleepPage() {
                 className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none resize-none"
               />
             </div>
+
+            {formError && (
+              <div className="p-3 rounded-kairos-sm bg-red-500/10 border border-red-500/30 text-sm font-body text-red-400">
+                {formError}
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Dumbbell,
   Heart,
@@ -24,26 +24,8 @@ import { useWorkouts } from "@/hooks/client/useWorkouts";
 import { trpc } from "@/lib/trpc";
 
 // ─── Workout schedule data (local constants) ────────────────────
-interface TodaysWorkout { name: string; duration: number; targetZone: string; time: string; }
 interface WeeklyScheduleItem { day: string; type: string; color: string; }
 interface HeartRateZone { zone: string; name: string; description: string; hrRange: string; benefits: string; }
-
-const WORKOUT_TYPES = [
-  { name: "Zone 2 Aerobic Base", duration: 45, zone: "Zone 2 (120-140 bpm)", time: "6:00 AM - 6:45 AM" },
-  { name: "Upper Body Strength", duration: 55, zone: "Zone 3 (140-155 bpm)", time: "6:00 AM - 6:55 AM" },
-  { name: "Rest & Recovery", duration: 20, zone: "Zone 1 (<120 bpm)", time: "7:00 AM - 7:20 AM" },
-  { name: "HIIT Intervals", duration: 30, zone: "Zone 4-5 (155-180 bpm)", time: "6:00 AM - 6:30 AM" },
-  { name: "Zone 2 Cardio", duration: 45, zone: "Zone 2 (120-140 bpm)", time: "6:00 AM - 6:45 AM" },
-  { name: "Yoga & Mobility", duration: 40, zone: "Zone 1 (<120 bpm)", time: "7:00 AM - 7:40 AM" },
-  { name: "Lower Body Strength", duration: 55, zone: "Zone 3 (140-155 bpm)", time: "6:00 AM - 6:55 AM" },
-];
-
-function getTodaysWorkout(dateRef: Date): TodaysWorkout {
-  const dow = dateRef.getDay();
-  const idx = dow === 0 ? 6 : dow - 1;
-  const wt = WORKOUT_TYPES[idx];
-  return { name: wt.name, duration: wt.duration, targetZone: wt.zone, time: wt.time };
-}
 
 function getWeeklySchedule(): WeeklyScheduleItem[] {
   return [
@@ -72,7 +54,9 @@ export default function WorkoutsPage() {
     useDateRange({ initialPeriod: "week" });
 
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
-  const [workoutCompleted, setWorkoutCompleted] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [programError, setProgramError] = useState<string | null>(null);
   const [showLogForm, setShowLogForm] = useState(false);
   const [formData, setFormData] = useState({
     type: "",
@@ -86,14 +70,39 @@ export default function WorkoutsPage() {
   const { records: workouts, stats: workoutStats } = useWorkouts(dateRange);
   const stats = workoutStats;
 
-  const todaysWorkout = getTodaysWorkout(new Date());
   const weeklySchedule = getWeeklySchedule();
   const heartRateZones = getHeartRateZones();
+
+  // Today's date + real assigned session drive both logging and completion,
+  // so we never fabricate a workout and never allow duplicate logs on refresh.
+  const todayStr = new Date().toISOString().split("T")[0];
+  const activeProgramQuery = trpc.clientPortal.workouts.getActiveProgram.useQuery(undefined, { staleTime: 30_000 });
+  const todayLogsQuery = trpc.clientPortal.workouts.list.useQuery({ startDate: todayStr, endDate: todayStr });
+
+  // Pick the real session assigned for today by rotating through the active
+  // program's sessions from its start date. Returns null if none can be resolved.
+  const todaySession = useMemo(() => {
+    const prog = activeProgramQuery.data;
+    const sessions = prog?.sessions ?? [];
+    if (sessions.length === 0) return null;
+    const start = prog?.startDate ? new Date(prog.startDate) : null;
+    let idx = 0;
+    if (start && !Number.isNaN(start.getTime())) {
+      const days = Math.floor((Date.now() - start.getTime()) / 86400000);
+      idx = ((days % sessions.length) + sessions.length) % sessions.length;
+    }
+    return sessions[idx] ?? null;
+  }, [activeProgramQuery.data]);
+
+  // Completion is derived from the server (any workout already logged today),
+  // so the button stays hidden after a refresh instead of allowing re-logging.
+  const completedToday = (todayLogsQuery.data ?? []).length > 0;
 
   // tRPC mutation for saving workouts
   const utils = trpc.useUtils();
   const saveWorkoutMutation = trpc.clientPortal.workouts.quickLog.useMutation({
     onSuccess: () => {
+      setSaveError(null);
       // Refresh the workout list and stats so the new log appears immediately
       void utils.clientPortal.workouts.list.invalidate();
       void utils.clientPortal.workouts.stats.invalidate();
@@ -108,6 +117,7 @@ export default function WorkoutsPage() {
       });
       setShowLogForm(false);
     },
+    onError: () => setSaveError("Couldn't save your workout. Please try again."),
   });
 
   const handleSaveWorkout = () => {
@@ -142,30 +152,42 @@ export default function WorkoutsPage() {
     setShowLogForm(false);
   };
 
-  // "Complete Workout" persists the scheduled workout via the real quickLog
-  // mutation (prefilled from today's scheduled workout) so it survives a refresh.
-  const completeWorkoutMutation = trpc.clientPortal.workouts.quickLog.useMutation({
+  // "Complete Workout" logs the user's REAL assigned session (from the active
+  // program) via logWorkout, tied to the real sessionId and its actual
+  // exercises — no fabricated names/durations. Completion is derived from the
+  // server, so a refresh reflects reality and duplicate logs are prevented.
+  const completeWorkoutMutation = trpc.clientPortal.workouts.logWorkout.useMutation({
     onSuccess: () => {
+      setCompleteError(null);
       void utils.clientPortal.workouts.list.invalidate();
       void utils.clientPortal.workouts.stats.invalidate();
-      setWorkoutCompleted(true);
     },
+    onError: () => setCompleteError("Couldn't log your workout. Please try again."),
   });
 
   const handleCompleteWorkout = () => {
-    const name = todaysWorkout.name.toLowerCase();
-    const workoutType = (name.includes("strength") ? "strength" :
-      name.includes("hiit") ? "hiit" :
-      name.includes("cardio") || name.includes("zone 2") || name.includes("aerobic") ? "cardio" :
-      name.includes("yoga") || name.includes("mobility") ? "yoga" :
-      name.includes("rest") || name.includes("recovery") || name.includes("stretch") ? "stretching" : "other") as
-      "strength" | "cardio" | "hiit" | "yoga" | "stretching" | "sports" | "other";
+    if (completedToday || completeWorkoutMutation.isPending) return;
 
-    completeWorkoutMutation.mutate({
-      workoutType,
-      durationMinutes: todaysWorkout.duration,
-      notes: `Completed: ${todaysWorkout.name}`,
-    });
+    if (todaySession) {
+      // Log the real assigned session with its own exercises (metrics zeroed —
+      // the user hasn't entered per-set data here, but the names are real).
+      completeWorkoutMutation.mutate({
+        sessionId: todaySession.id,
+        date: todayStr,
+        exercisesCompleted: (todaySession.exercises ?? []).map((ex) => ({
+          exerciseId: ex.exerciseId,
+          sets: Array.from({ length: Math.max(1, ex.sets ?? 1) }, () => ({ weight: 0, reps: 0, rpe: 0 })),
+        })),
+        notes: `Completed: ${todaySession.name ?? activeProgram?.name ?? "workout"}`,
+      });
+    } else {
+      // No resolvable session — log a neutral entry without fabricated data.
+      completeWorkoutMutation.mutate({
+        date: todayStr,
+        exercisesCompleted: [],
+        notes: activeProgram ? `Completed workout: ${activeProgram.name}` : "Completed workout",
+      });
+    }
   };
 
   // ── Saved Exercise Protocols ──────────────────────────────────
@@ -175,10 +197,12 @@ export default function WorkoutsPage() {
   const [expandedProgram, setExpandedProgram] = useState<string | null>(null);
 
   const activateMutation = trpc.clientPortal.workouts.setActiveProgram.useMutation({
-    onSuccess: () => programsQuery.refetch(),
+    onSuccess: () => { setProgramError(null); programsQuery.refetch(); },
+    onError: () => setProgramError("Couldn't activate that program. Please try again."),
   });
   const deleteMutation = trpc.clientPortal.workouts.deleteProgram.useMutation({
-    onSuccess: () => programsQuery.refetch(),
+    onSuccess: () => { setProgramError(null); programsQuery.refetch(); },
+    onError: () => setProgramError("Couldn't delete that program. Please try again."),
   });
   const programDetailQuery = trpc.clientPortal.workouts.getProgram.useQuery(
     { programId: expandedProgram! },
@@ -235,6 +259,9 @@ export default function WorkoutsPage() {
               + Build New in Chat
             </a>
           </div>
+          {programError && (
+            <p className="text-sm font-body text-red-400 mb-3">{programError}</p>
+          )}
           <div className="space-y-2">
             {programs.map((prog) => {
               const isExpanded = expandedProgram === prog.id;
@@ -343,19 +370,24 @@ export default function WorkoutsPage() {
             </div>
             <Zap className="w-6 h-6 text-kairos-gold" />
           </div>
-          <div className="flex gap-3">
-            {workoutCompleted ? (
-              <span className="px-6 py-2 rounded-kairos-sm font-heading font-semibold text-green-400 bg-green-500/10 border border-green-500/20 inline-flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" /> Completed Today
-              </span>
-            ) : (
-              <button
-                onClick={handleCompleteWorkout}
-                disabled={completeWorkoutMutation.isPending}
-                className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {completeWorkoutMutation.isPending ? "Saving..." : "Complete Workout"}
-              </button>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-3">
+              {completedToday ? (
+                <span className="px-6 py-2 rounded-kairos-sm font-heading font-semibold text-green-400 bg-green-500/10 border border-green-500/20 inline-flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" /> Completed Today
+                </span>
+              ) : (
+                <button
+                  onClick={handleCompleteWorkout}
+                  disabled={completeWorkoutMutation.isPending}
+                  className="kairos-btn-gold px-6 py-2 rounded-kairos-sm font-heading font-semibold transition-all hover:shadow-lg hover:shadow-kairos-gold/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {completeWorkoutMutation.isPending ? "Saving..." : "Complete Workout"}
+                </button>
+              )}
+            </div>
+            {completeError && (
+              <p className="text-xs font-body text-red-400">{completeError}</p>
             )}
           </div>
         </div>
@@ -543,6 +575,10 @@ export default function WorkoutsPage() {
                   className="bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm px-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none w-full resize-none"
                 />
               </div>
+
+              {saveError && (
+                <p className="text-sm font-body text-red-400">{saveError}</p>
+              )}
 
               {/* Buttons */}
               <div className="flex gap-3 pt-4">

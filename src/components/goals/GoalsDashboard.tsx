@@ -157,6 +157,7 @@ function summarizeGoals(goals: HealthGoal[]): GoalsSummary {
 export function GoalsDashboard() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [filterStatus, setFilterStatus] = useState<GoalStatus | "all">("all");
+  const [actionError, setActionError] = useState<string | null>(null);
   const utils = trpc.useUtils();
 
   // ── tRPC queries ──────────────────────────────────────────────────
@@ -166,15 +167,18 @@ export function GoalsDashboard() {
 
   // ── tRPC mutations ────────────────────────────────────────────────
   const createMutation = trpc.clientPortal.goals.create.useMutation({
-    onSuccess: () => utils.clientPortal.goals.list.invalidate(),
+    onSuccess: () => { setActionError(null); utils.clientPortal.goals.list.invalidate(); },
+    onError: () => setActionError("Couldn't create the goal. Please try again."),
   });
 
   const addCheckpointMutation = trpc.clientPortal.goals.addCheckpoint.useMutation({
-    onSuccess: () => utils.clientPortal.goals.list.invalidate(),
+    onSuccess: () => { setActionError(null); utils.clientPortal.goals.list.invalidate(); },
+    onError: () => setActionError("Couldn't save your check-in. Please try again."),
   });
 
   const updateStatusMutation = trpc.clientPortal.goals.updateStatus.useMutation({
-    onSuccess: () => utils.clientPortal.goals.list.invalidate(),
+    onSuccess: () => { setActionError(null); utils.clientPortal.goals.list.invalidate(); },
+    onError: () => setActionError("Couldn't update the goal. Please try again."),
   });
 
   const summary = summarizeGoals(goals);
@@ -254,6 +258,12 @@ export function GoalsDashboard() {
 
   return (
     <div>
+      {actionError && (
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {actionError}
+        </div>
+      )}
+
       {/* Summary Stats */}
       {goals.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">

@@ -97,11 +97,13 @@ function LogMealModal({
   onClose,
   onSave,
   isSaving,
+  error,
 }: {
   planMeals: PlanMeal[];
   onClose: () => void;
   onSave: (data: { mealType: MealCategory; items: { foodId: string; name: string; quantity: number; unit: string; calories: number; protein: number; carbs: number; fat: number }[] }) => void;
   isSaving: boolean;
+  error?: string | null;
 }) {
   const [mealType, setMealType] = useState<MealCategory>("breakfast");
   const [mode, setMode] = useState<"manual" | "plan">("manual");
@@ -198,6 +200,8 @@ function LogMealModal({
               ))}
             </div>
           )}
+
+          {error && <p className="text-sm font-body text-red-400">{error}</p>}
         </div>
 
         {mode === "manual" && (
@@ -225,6 +229,7 @@ export default function NutritionPage() {
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [logMealError, setLogMealError] = useState<string | null>(null);
 
   // ─── Date range for tRPC ───────────────────────────────────
   const range = useMemo(() => ({
@@ -240,10 +245,12 @@ export default function NutritionPage() {
   // ─── tRPC Mutations ────────────────────────────────────────
   const logMealMut = trpc.clientPortal.nutrition.logMeal.useMutation({
     onSuccess: () => {
+      setLogMealError(null);
       setShowLogModal(false);
       utils.clientPortal.nutrition.listMeals.invalidate();
       utils.clientPortal.nutrition.dailySummary.invalidate();
     },
+    onError: () => setLogMealError("Couldn't log your meal. Please try again."),
   });
 
   const savePlanMut = trpc.clientPortal.nutrition.savePlan.useMutation({
@@ -254,8 +261,10 @@ export default function NutritionPage() {
 
   const deletePlanMut = trpc.clientPortal.nutrition.deletePlan.useMutation({
     onSuccess: () => {
+      setGenError(null);
       utils.clientPortal.nutrition.getActivePlan.invalidate();
     },
+    onError: () => setGenError("Couldn't delete the plan. Please try again."),
   });
 
   // ─── Derived data ──────────────────────────────────────────
@@ -286,6 +295,7 @@ export default function NutritionPage() {
 
   // ─── Handlers ──────────────────────────────────────────────
   const handleLogMeal = (data: { mealType: MealCategory; items: { foodId: string; name: string; quantity: number; unit: string; calories: number; protein: number; carbs: number; fat: number }[] }) => {
+    setLogMealError(null);
     logMealMut.mutate({ date: range.startDate, mealType: data.mealType, items: data.items });
   };
 
@@ -702,9 +712,10 @@ export default function NutritionPage() {
       {showLogModal && (
         <LogMealModal
           planMeals={planMeals}
-          onClose={() => setShowLogModal(false)}
+          onClose={() => { setLogMealError(null); setShowLogModal(false); }}
           onSave={handleLogMeal}
           isSaving={logMealMut.isPending}
+          error={logMealError}
         />
       )}
     </div>

@@ -18,15 +18,18 @@ export default function ProgressPhotosPage() {
 
   const addPhoto = trpc.clientPortal.progressPhotos.add.useMutation({
     onSuccess: () => {
+      setFormError(null);
       utils.clientPortal.progressPhotos.getRecent.invalidate();
       setShowUpload(false);
       setPreviewUrl(null);
       setSelectedPose("front");
     },
+    onError: () => setFormError("Failed to save photo. Please try again."),
   });
 
   const deletePhoto = trpc.clientPortal.progressPhotos.delete.useMutation({
     onSuccess: () => utils.clientPortal.progressPhotos.getRecent.invalidate(),
+    onError: () => setFormError("Failed to delete photo. Please try again."),
   });
 
   const [formError, setFormError] = useState<string | null>(null);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ShoppingCart, Star, Plus } from "lucide-react";
+import { ShoppingCart, Star } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 // Local constants that were in client-ops/types
@@ -15,11 +15,24 @@ const CATEGORY_LABELS: Record<string, string> = {
   Books: "Books & Education",
 };
 
+// Map a raw item category (typically lowercase / singular, e.g. "supplement",
+// "injection") onto the capitalized-plural vocabulary used by the filter
+// buttons, so filtering compares like-for-like.
+function normalizeCategory(raw: string): string {
+  const c = raw.trim().toLowerCase();
+  if (c.startsWith("supplement")) return "Supplements";
+  if (c.startsWith("peptide") || c.startsWith("injection")) return "Peptides";
+  if (c.startsWith("diagnostic") || c.startsWith("lab")) return "Diagnostics";
+  if (c.startsWith("equipment") || c.startsWith("device")) return "Equipment";
+  if (c.startsWith("book")) return "Books";
+  return raw;
+}
+
 export default function Page() {
   const [selectedCategory, setSelectedCategory] = useState("All");
 
   // Query active protocol items from DB
-  const { data: protocolData } = trpc.clientPortal.protocol.getActive.useQuery(undefined, { staleTime: 30_000 });
+  const { data: protocolData, isLoading } = trpc.clientPortal.protocol.getActive.useQuery(undefined, { staleTime: 30_000 });
 
   // Map protocol items to product-like display
   const products = (protocolData?.items ?? []).map((item) => ({
@@ -35,7 +48,7 @@ export default function Page() {
 
   const filteredProducts = selectedCategory === "All"
     ? products
-    : products.filter((p) => p.category === selectedCategory);
+    : products.filter((p) => normalizeCategory(p.category) === selectedCategory);
 
   return (
     <div className="space-y-6 animate-fade-in pb-24">
@@ -91,16 +104,18 @@ export default function Page() {
                 <span className="font-body text-xs text-kairos-silver-dark ml-1">{product.rating}</span>
               </div>
             </div>
-
-            <button className="w-full bg-kairos-gold hover:opacity-90 text-gray-900 font-heading font-semibold py-2 rounded-kairos-sm flex items-center justify-center gap-2 transition-opacity">
-              <Plus className="w-4 h-4" />
-              View Details
-            </button>
           </div>
         ))}
       </div>
 
-      {filteredProducts.length === 0 && (
+      {isLoading && (
+        <div className="kairos-card text-center py-10">
+          <ShoppingCart size={32} className="text-kairos-silver-dark mx-auto mb-3 animate-pulse" />
+          <p className="text-sm font-body text-kairos-silver-dark">Loading your protocol…</p>
+        </div>
+      )}
+
+      {!isLoading && filteredProducts.length === 0 && (
         <div className="kairos-card text-center py-10">
           <ShoppingCart size={32} className="text-kairos-silver-dark mx-auto mb-3" />
           <p className="text-sm font-body text-kairos-silver-dark">No products available in this category yet.</p>

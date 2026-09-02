@@ -239,11 +239,33 @@ export default function LabsPage() {
         const biomarkers = manualForm.tests.map((test) => {
           const valueMatch = test.resultValue.match(/^([\d.]+)/);
           const numericValue = valueMatch ? parseFloat(valueMatch[1]) : 0;
+          // Parse a reference range like "70-100", "70 – 100", "<200", ">40".
+          let refLow: number | undefined;
+          let refHigh: number | undefined;
+          const range = (test.referenceRange ?? "").trim();
+          const between = range.match(/([\d.]+)\s*[-–—to]+\s*([\d.]+)/i);
+          if (between) {
+            refLow = parseFloat(between[1]);
+            refHigh = parseFloat(between[2]);
+          } else {
+            const lt = range.match(/[<≤]\s*([\d.]+)/);
+            const gt = range.match(/[>≥]\s*([\d.]+)/);
+            if (lt) refHigh = parseFloat(lt[1]);
+            if (gt) refLow = parseFloat(gt[1]);
+          }
+          const status = (["normal", "low", "high", "critical"] as const).includes(
+            test.resultStatus as "normal" | "low" | "high" | "critical",
+          )
+            ? (test.resultStatus as "normal" | "low" | "high" | "critical")
+            : undefined;
           return {
             code: test.testName.toUpperCase().replace(/\s+/g, "_"),
             name: test.testName,
             value: numericValue,
             unit: test.resultValue.replace(/^[\d.]+\s*/, ""),
+            refLow,
+            refHigh,
+            status,
           };
         });
         await addManualResultsMutation.mutateAsync({

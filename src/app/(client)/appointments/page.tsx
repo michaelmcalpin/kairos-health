@@ -55,6 +55,7 @@ export default function AppointmentsPage() {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"upcoming" | "past" | "all">("upcoming");
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -97,9 +98,14 @@ export default function AppointmentsPage() {
 
   const cancelMutation = trpc.clientPortal.scheduling.cancelAppointment.useMutation({
     onSuccess: () => {
+      setCancelError(null);
       utils.clientPortal.scheduling.listAppointments.invalidate();
       setView("list");
       setSelectedAppointmentId(null);
+    },
+    onError: (error) => {
+      // Keep the user on the detail view and surface why the cancel failed.
+      setCancelError(error.message || "Unable to cancel this appointment. Please try again.");
     },
   });
 
@@ -157,6 +163,12 @@ export default function AppointmentsPage() {
         </>
       )}
 
+      {view === "detail" && cancelError && (
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {cancelError}
+        </div>
+      )}
+
       {view === "detail" && selectedAppointment && (
         <AppointmentDetail
           appointment={{
@@ -174,6 +186,7 @@ export default function AppointmentsPage() {
           role="client"
           onUpdateStatus={(status, reason) => {
             if (status === "cancelled" && selectedAppointmentId) {
+              setCancelError(null);
               cancelMutation.mutate({ appointmentId: selectedAppointmentId, reason });
             }
           }}

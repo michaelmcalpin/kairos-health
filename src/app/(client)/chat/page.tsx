@@ -713,6 +713,7 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
   const [input, setInput] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -739,9 +740,11 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
 
   const sendMessage = trpc.clientPortal.messaging.sendMessage.useMutation({
     onSuccess: () => {
+      setSendError(null);
       utils.clientPortal.messaging.getMessages.invalidate();
       utils.clientPortal.messaging.listConversations.invalidate();
     },
+    onError: () => setSendError("Message failed to send. Please try again."),
   });
 
   const markAsRead = trpc.clientPortal.messaging.markAsRead.useMutation();
@@ -766,15 +769,23 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
       const conv = await startConversation.mutateAsync({ coachId, coachName, isAiCoach: false });
       convId = conv.id;
     }
-    sendMessage.mutate({ conversationId: convId, body });
+    // Await the send so callers can react to failures instead of firing and forgetting.
+    await sendMessage.mutateAsync({ conversationId: convId, body });
   }, [coachConv?.id, coachId, coachName, startConversation, sendMessage]);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text) return;
+    setSendError(null);
     setInput("");
-    await sendToCoach(text);
-    inputRef.current?.focus();
+    try {
+      await sendToCoach(text);
+      inputRef.current?.focus();
+    } catch {
+      // Restore the typed text so it isn't lost on a failed send.
+      setInput(text);
+      setSendError("Message failed to send. Please try again.");
+    }
   }, [input, sendToCoach]);
 
   // Upload a file via /api/upload, then share the resulting link with the coach.
@@ -942,6 +953,9 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
         />
         {uploadError && (
           <p className="text-xs font-body text-red-400 mb-2">{uploadError}</p>
+        )}
+        {sendError && (
+          <p className="text-xs font-body text-red-400 mb-2">{sendError}</p>
         )}
         <div className="flex items-center gap-2">
           <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="p-2 rounded-lg text-kairos-silver-dark hover:text-kairos-gold hover:bg-kairos-royal-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Attach file">

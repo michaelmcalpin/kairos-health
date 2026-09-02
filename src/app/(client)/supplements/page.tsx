@@ -34,6 +34,7 @@ export default function SupplementsPage() {
   });
 
   const [takenIds, setTakenIds] = useState<Set<string>>(new Set());
+  const [adherenceError, setAdherenceError] = useState<string | null>(null);
 
   // Seed today's checked state from adherence already logged on the server
   const todayStr = new Date().toISOString().split("T")[0];
@@ -78,6 +79,7 @@ export default function SupplementsPage() {
 
   function toggle(id: string) {
     const wasTaken = takenIds.has(id);
+    setAdherenceError(null);
     setTakenIds((prev) => {
       const next = new Set(prev);
       if (wasTaken) {
@@ -90,7 +92,20 @@ export default function SupplementsPage() {
     // Only log adherence when checking — the backend is insert-only, so
     // unchecking must not create a new "taken" record.
     if (!wasTaken) {
-      logAdherenceMutation.mutate({ protocolItemId: id });
+      logAdherenceMutation.mutate(
+        { protocolItemId: id },
+        {
+          // Roll back the optimistic check if the write fails.
+          onError: () => {
+            setTakenIds((prev) => {
+              const next = new Set(prev);
+              next.delete(id);
+              return next;
+            });
+            setAdherenceError("Couldn't save your supplement. Please try again.");
+          },
+        },
+      );
     }
   }
 
@@ -134,6 +149,9 @@ export default function SupplementsPage() {
           <div className="h-full bg-kairos-gold rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
         </div>
         <p className="text-xs font-body text-kairos-silver-dark mt-1">{pct}% adherence today</p>
+        {adherenceError && (
+          <p className="text-xs font-body text-red-400 mt-2">{adherenceError}</p>
+        )}
       </div>
 
       {/* Protocol Items by Time of Day */}

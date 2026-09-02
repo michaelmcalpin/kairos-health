@@ -551,12 +551,15 @@ function AddMeasurementForm({
   onSuccess: () => void;
 }) {
   const [form, setForm] = useState(EMPTY_FORM);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const createMutation = trpc.clientPortal.measurements.create.useMutation({
     onSuccess: () => {
+      setSaveError(null);
       setForm(EMPTY_FORM);
       onSuccess();
       onClose();
     },
+    onError: () => setSaveError("Couldn't save your measurement. Please try again."),
   });
 
   const onChange = (
@@ -584,6 +587,7 @@ function AddMeasurementForm({
 
     if (!hasAtLeastOne) return;
 
+    setSaveError(null);
     createMutation.mutate({
       date: form.date || undefined,
       weightLbs: toNum(form.weightLbs),
@@ -692,6 +696,10 @@ function AddMeasurementForm({
           className={cn(inputCls, "resize-none")}
         />
       </div>
+
+      {saveError && (
+        <p className="text-sm font-body text-red-400 mb-3 text-right">{saveError}</p>
+      )}
 
       {/* Actions */}
       <div className="flex gap-3 justify-end">

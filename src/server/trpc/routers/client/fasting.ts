@@ -97,7 +97,10 @@ export const clientFastingRouter = router({
     .input(z.object({
       type: z.string(),
       feedingStartHour: z.number().min(0).max(23).optional(),
-      feedingEndHour: z.number().min(0).max(23).optional(),
+      // Feeding-window end hour is normally 0–23, but extended "custom" fasts
+      // (24/48/72h) persist their target length here as a distinct identity, so
+      // allow the larger encoded values through.
+      feedingEndHour: z.number().min(0).max(72).optional(),
       activeDays: z.array(z.number()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {

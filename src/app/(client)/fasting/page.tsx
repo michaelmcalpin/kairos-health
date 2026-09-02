@@ -57,10 +57,15 @@ const protocolPresets: ProtocolPreset[] = [
   { id: "18_6", label: "18:6", subtitle: "Feed 12pm–6pm", dbType: "custom", feedingStartHour: 12, feedingEndHour: 18, fastHours: 18, isExtended: false },
   { id: "20_4", label: "20:4", subtitle: "Feed 2pm–6pm", dbType: "20_4", feedingStartHour: 14, feedingEndHour: 18, fastHours: 20, isExtended: false },
   { id: "omad", label: "OMAD", subtitle: "One meal/day", dbType: "omad", feedingStartHour: 17, feedingEndHour: 18, fastHours: 23, isExtended: false },
-  { id: "24hr", label: "24hr", subtitle: "Full day fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 0, fastHours: 24, isExtended: true },
+  // Extended custom fasts share dbType "custom" (the fasting_type enum has no
+  // 24/48/72 members), so we persist their target length in feedingEndHour to
+  // give each a distinct, decodable identity. Values > 23 can never collide
+  // with a real feeding-window end hour (0–23), so getActivePresetId /
+  // getTargetHoursForProtocol round-trip the correct protocol on reload.
+  { id: "24hr", label: "24hr", subtitle: "Full day fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 24, fastHours: 24, isExtended: true },
   { id: "36hr", label: "36hr", subtitle: "Extended fast", dbType: "36hr", feedingStartHour: 0, feedingEndHour: 0, fastHours: 36, isExtended: true },
-  { id: "48hr", label: "48hr", subtitle: "Deep fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 0, fastHours: 48, isExtended: true },
-  { id: "72hr", label: "72hr", subtitle: "Prolonged fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 0, fastHours: 72, isExtended: true },
+  { id: "48hr", label: "48hr", subtitle: "Deep fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 48, fastHours: 48, isExtended: true },
+  { id: "72hr", label: "72hr", subtitle: "Prolonged fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 72, fastHours: 72, isExtended: true },
 ];
 
 function getTargetHoursForProtocol(
@@ -160,26 +165,35 @@ export default function FastingPage() {
   const logsQuery = trpc.clientPortal.fasting.listLogs.useQuery(dateRangeInput);
   const statsQuery = trpc.clientPortal.fasting.stats.useQuery(dateRangeInput);
 
+  // Surface failed writes instead of silently stopping the spinner.
+  const [actionError, setActionError] = useState<string | null>(null);
+
   // ─── tRPC Mutations ────────────────────────────────────────────────────
   const setProtocolMutation = trpc.clientPortal.fasting.setProtocol.useMutation({
     onSuccess: () => {
+      setActionError(null);
       utils.clientPortal.fasting.getProtocol.invalidate();
     },
+    onError: () => setActionError("Couldn't update your protocol. Please try again."),
   });
 
   const startFastMutation = trpc.clientPortal.fasting.startFast.useMutation({
     onSuccess: () => {
+      setActionError(null);
       utils.clientPortal.fasting.getActiveFast.invalidate();
       utils.clientPortal.fasting.listLogs.invalidate();
     },
+    onError: () => setActionError("Couldn't start your fast. Please try again."),
   });
 
   const endFastMutation = trpc.clientPortal.fasting.endFast.useMutation({
     onSuccess: () => {
+      setActionError(null);
       utils.clientPortal.fasting.getActiveFast.invalidate();
       utils.clientPortal.fasting.listLogs.invalidate();
       utils.clientPortal.fasting.stats.invalidate();
     },
+    onError: () => setActionError("Couldn't save your fast. Please try again."),
   });
 
   // ─── Local State ──────────────────────────────────────────────────────
@@ -304,6 +318,12 @@ export default function FastingPage() {
           </div>
         )}
       </div>
+
+      {actionError && (
+        <div className="p-3 rounded-kairos-sm bg-red-500/10 border border-red-500/30 text-sm font-body text-red-400">
+          {actionError}
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════════════════════════
           PROTOCOL SELECTOR

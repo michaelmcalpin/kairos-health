@@ -67,13 +67,21 @@ export default function GlucosePage() {
     else if (formData.timing === "bedtime") timingContext = "bedtime";
     else timingContext = "other";
 
+    // Combine the meal description into notes so it is preserved without
+    // clobbering the `source` column (which records the reading's origin).
+    const combinedNotes = [
+      formData.mealDescription.trim() ? `Meal: ${formData.mealDescription.trim()}` : "",
+      formData.notes.trim(),
+    ]
+      .filter(Boolean)
+      .join("\n");
+
     try {
       await createGlucose.mutateAsync({
         valueMgdl: glucoseValue,
         timestamp,
         timingContext,
-        notes: formData.notes || undefined,
-        source: formData.mealDescription || undefined,
+        notes: combinedNotes || undefined,
       });
 
       // Invalidate cache so new reading appears immediately
