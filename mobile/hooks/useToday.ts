@@ -28,7 +28,13 @@ export type TodayData = {
 };
 
 function localDate(): string {
-  return new Date().toISOString().slice(0, 10);
+  // Client-LOCAL calendar date (not UTC) — avoids marking tomorrow's checklist
+  // as today's for users behind/ahead of UTC.
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export function useToday() {

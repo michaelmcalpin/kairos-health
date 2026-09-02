@@ -180,11 +180,7 @@ const INTEGRATION_CONFIGS: IntegrationStatus[] = [
     connected: false, lastSyncAt: null,
     recordsSynced: 0, status: "idle", dataTypes: ["steps", "heart_rate", "sleep", "activity"],
   },
-  {
-    provider: "hume", name: "Hume Health", description: "Body composition from the Hume Band & Body Pod",
-    connected: false, lastSyncAt: null,
-    recordsSynced: 0, status: "idle", dataTypes: ["emotional_state", "voice_analysis"],
-  },
+  // Hume integration sidelined — not shown as a connectable source for now.
 ];
 
 export function IntegrationDashboard() {

@@ -98,7 +98,6 @@ function formatDataType(dt: string): string {
 const SUPPORTED_DEVICES: SupportedDevice[] = [
   { id: "apple-health", name: "Apple Health", iconType: "health", iconColor: "#C65D5D" },
   { id: "oura", name: "Oura Ring", iconType: "ring", iconColor: "#A78BFA" },
-  { id: "hume", name: "Hume Health", iconType: "fitness", iconColor: "#E879A8" },
   { id: "google-fit", name: "Google Fit", iconType: "fitness", iconColor: "#4A9D5B", comingSoon: true },
   { id: "garmin", name: "Garmin", iconType: "garmin", iconColor: "#4A90D9", comingSoon: true },
   { id: "fitbit", name: "Fitbit", iconType: "fitbit", iconColor: "#06B6D4" },
@@ -195,7 +194,7 @@ export default function DevicesScreen() {
   };
 
   // OAuth providers that should go through the connect flow (not BLE pairing)
-  const OAUTH_PROVIDERS = new Set(["oura", "garmin", "whoop", "dexcom", "fitbit", "withings", "hume"]);
+  const OAUTH_PROVIDERS = new Set(["oura", "garmin", "whoop", "dexcom", "fitbit", "withings"]);
 
   const handleConnect = (device: SupportedDevice) => {
     if (device.id === "apple-health") {

@@ -151,22 +151,23 @@ export const clientTodayRouter = router({
         [] as Array<{ id: string; title: string; notes: string | null; dueDate: string | null; completed: boolean | null }>,
       );
       const taskItems: TodayItem[] = tasks
-        // Due today (keep visible even when done), or overdue/undated + not done.
-        .filter(
-          (t) =>
-            t.dueDate === date ||
-            (!t.completed && (t.dueDate == null || t.dueDate < date)),
-        )
-        .map((t) => ({
-          key: `task:${t.id}`,
-          kind: "task" as const,
-          title: t.title,
-          subtitle: t.notes ?? (t.dueDate ? `Due ${t.dueDate}` : null),
-          time: null,
-          completable: true,
-          done: !!t.completed,
-          protocolItemId: null,
-        }));
+        // Undated tasks recur every day; dated tasks show only on their due date.
+        // Completion is tracked PER-DAY (daily_checklist_completions), so each
+        // day starts fresh — a task done today is not pre-checked tomorrow.
+        .filter((t) => t.dueDate == null || t.dueDate === date)
+        .map((t) => {
+          const key = `task:${t.id}`;
+          return {
+            key,
+            kind: "task" as const,
+            title: t.title,
+            subtitle: t.notes ?? (t.dueDate ? `Due ${t.dueDate}` : null),
+            time: null,
+            completable: true,
+            done: doneKeys.has(key),
+            protocolItemId: null,
+          };
+        });
       if (taskItems.length > 0) sections.unshift({ key: "tasks", label: "Tasks", items: taskItems });
 
       // Peptides (peptideCycles) ---------------------------------------------
@@ -467,22 +468,8 @@ export const clientTodayRouter = router({
         return { ok: true };
       }
 
-      // Coach tasks → clientTasks.completed.
-      if (input.key.startsWith("task:")) {
-        const taskId = input.key.slice("task:".length);
-        const task = await ctx.db.query.clientTasks.findFirst({
-          where: and(eq(clientTasks.id, taskId), eq(clientTasks.clientId, ctx.dbUserId)),
-        });
-        if (task) {
-          await ctx.db
-            .update(clientTasks)
-            .set({ completed: input.done, completedAt: input.done ? new Date() : null })
-            .where(eq(clientTasks.id, taskId));
-        }
-        return { ok: true };
-      }
-
-      // Everything else → daily_checklist_completions.
+      // Everything else (incl. coach tasks) → daily_checklist_completions,
+      // keyed by (date, itemKey) so completion is tracked per day.
       const existing = await ctx.db.query.dailyChecklistCompletions.findFirst({
         where: and(
           eq(dailyChecklistCompletions.clientId, ctx.dbUserId),
