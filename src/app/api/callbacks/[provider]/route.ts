@@ -7,6 +7,7 @@ import { eq, and } from "drizzle-orm";
 import { logger } from "@/lib/middleware/logger";
 import { env } from "@/lib/config/env";
 import { encryptToken } from "@/lib/crypto";
+import { syncProviderData } from "@/server/services/device-sync";
 
 const MAX_STATE_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -193,6 +194,7 @@ export async function GET(
     const encryptedAccessToken = encryptToken(accessToken);
     const encryptedRefreshToken = refreshToken ? encryptToken(refreshToken) : null;
 
+    let connectionId: string;
     if (existingConnection.length > 0) {
       // Update existing connection
       await db
@@ -205,11 +207,12 @@ export async function GET(
           status: "connected",
         })
         .where(eq(deviceConnections.id, existingConnection[0].id));
+      connectionId = existingConnection[0].id;
 
       logger.info("oauth", "Updated device connection", { provider: providerId, userId });
     } else {
       // Insert new connection
-      await db.insert(deviceConnections).values({
+      const [inserted] = await db.insert(deviceConnections).values({
         clientId: userId,
         provider: typedProvider,
         accessTokenEnc: encryptedAccessToken,
@@ -217,9 +220,23 @@ export async function GET(
         scopes: typedScopes,
         tokenExpiresAt,
         status: "connected",
-      });
+      }).returning({ id: deviceConnections.id });
+      connectionId = inserted.id;
 
       logger.info("oauth", "Created device connection", { provider: providerId, userId });
+    }
+
+    // Pull an initial batch of data right away so the user sees metrics on
+    // connect instead of waiting for the next daily sync cron. Bounded and
+    // best-effort — a failure here must not break the successful connection.
+    try {
+      await syncProviderData(userId, providerId, encryptedAccessToken, encryptedRefreshToken, connectionId);
+    } catch (syncErr) {
+      logger.warn("oauth", "Initial post-connect sync failed", {
+        provider: providerId,
+        userId,
+        error: syncErr instanceof Error ? syncErr.message : String(syncErr),
+      });
     }
 
     // Try to redirect to the mobile app first via deep link, with web fallback
