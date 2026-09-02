@@ -610,8 +610,8 @@ function ApplyModal({
   onClose: () => void;
   onApplied: () => void;
 }) {
-  const { data: clientsData, isLoading } = trpc.coach.clients.list.useQuery({ limit: 100, offset: 0 }, { refetchOnWindowFocus: false });
-  const clients = clientsData?.clients ?? [];
+  const { data: clientsData, isLoading } = trpc.coach.clients.listAll.useQuery(undefined, { refetchOnWindowFocus: false });
+  const clients = clientsData ?? [];
 
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());

@@ -639,6 +639,27 @@ export const coachClientsRouter = router({
       };
     }),
 
+  // Full roster (no pagination) for aggregate views — metrics, program/booking
+  // pickers, messaging. Returns the complete client array; callers filter/sort
+  // client-side. The paginated `list` is for the roster page.
+  listAll: trainerProcedure.query(async ({ ctx }) => {
+    const trainerId = ctx.dbUserId;
+    const relationships = await ctx.db.query.trainerClientRelationships.findMany({
+      where: ctx.userRole === "super_admin"
+        ? eq(trainerClientRelationships.status, "active")
+        : and(
+            eq(trainerClientRelationships.trainerId, trainerId),
+            eq(trainerClientRelationships.status, "active"),
+          ),
+    });
+    const clientIds = relationships.map((r) => r.clientId);
+    if (clientIds.length === 0) return [];
+    const enrollmentDates = new Map(relationships.map((r) => [r.clientId, r.startedAt]));
+    const clients = await fetchClientDataBatch(ctx.db, clientIds, enrollmentDates);
+    clients.sort((a, b) => a.name.localeCompare(b.name));
+    return clients;
+  }),
+
   // Get detailed view of a single client
   getDetail: trainerProcedure
     .input(z.object({ clientId: z.string() }))

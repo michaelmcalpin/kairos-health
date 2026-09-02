@@ -28,8 +28,8 @@ export default function CoachMetricsPage() {
   // by the backend yet, so no date navigator is shown (it would imply filtering
   // that doesn't happen).
   const clientStatsQuery = trpc.coach.clients.getStats.useQuery();
-  const clientsListQuery = trpc.coach.clients.list.useQuery({ limit: 100, offset: 0 });
-  const clientsList = clientsListQuery.data?.clients;
+  const clientsListQuery = trpc.coach.clients.listAll.useQuery();
+  const clientsList = clientsListQuery.data;
   const revenueSummaryQuery = trpc.coach.revenue.getSummary.useQuery();
   const alertsSummaryQuery = trpc.coach.alerts.summary.useQuery();
 

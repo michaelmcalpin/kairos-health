@@ -90,8 +90,8 @@ export default function CoachSchedulePage() {
   // Fetch calendar, stats, and clients data
   const { data: calendarData, isLoading: isCalendarLoading } = trpc.coach.schedule.getCalendarWeek.useQuery({ weekStart });
   const { data: statsData, isLoading: isStatsLoading } = trpc.coach.schedule.getStats.useQuery();
-  const { data: clientsListData, isLoading: isClientsLoading } = trpc.coach.clients.list.useQuery({ limit: 100, offset: 0 });
-  const clientsList = clientsListData?.clients;
+  const { data: clientsListData, isLoading: isClientsLoading } = trpc.coach.clients.listAll.useQuery();
+  const clientsList = clientsListData;
 
   // Fetch saved session notes for the selected appointment (disabled until one is selected)
   const { data: sessionNotesData } = trpc.coach.schedule.getSessionNotes.useQuery(

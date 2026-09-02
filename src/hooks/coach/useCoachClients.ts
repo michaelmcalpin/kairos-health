@@ -10,10 +10,10 @@ import { CoachClient } from "./useCoachDashboard";
  *   trpc.coach.clients.getDetail → single client detail
  */
 export function useCoachClients(): { clients: CoachClient[]; isLoading: boolean } {
-  const listQuery = trpc.coach.clients.list.useQuery({ limit: 100, offset: 0 });
+  const listQuery = trpc.coach.clients.listAll.useQuery();
 
   const clients = useMemo<CoachClient[]>(() => {
-    const rawClients = listQuery.data?.clients ?? [];
+    const rawClients = listQuery.data ?? [];
 
     return rawClients.map((client: any) => ({
       id: client.id,
