@@ -148,6 +148,8 @@ export default function GeneticsPage() {
     onSuccess: () => utils.clientPortal.genetics.getProfile.invalidate(),
   });
 
+  const addMarkersMutation = trpc.clientPortal.genetics.addMarkers.useMutation();
+
   // ── Derived markers ─────────────────────────────────────────
   const markers: GeneVariant[] = useMemo(() => {
     if (!profileData?.markers?.length) return [];
@@ -377,40 +379,40 @@ export default function GeneticsPage() {
         );
       });
 
-      // Add markers sequentially (avoids overwhelming the API)
+      // Add all markers in a single batched insert (avoids N serial requests)
+      const markersToAdd = pathways.flatMap((pathway) =>
+        (pathway.variants ?? []).map((variant) => ({
+          gene: variant.gene,
+          rsId: variant.rsid || "",
+          section: pathway.name,
+          pathway: pathway.name,
+          mutation: variant.genotype || "",
+          function: variant.description || "",
+          clinicalPriority: (
+            variant.impact === "high" ? "high" :
+            variant.impact === "moderate" || variant.impact === "medium" ? "medium" :
+            "low"
+          ) as "high" | "medium" | "low",
+        }))
+      );
+
       let addedCount = 0;
-      for (const pathway of pathways) {
-        if (!pathway.variants?.length) continue;
-        for (const variant of pathway.variants) {
-          setParseProgress(`Adding variant ${addedCount + 1}/${totalVariants}: ${variant.gene}...`);
-          try {
-            await new Promise<void>((resolve, reject) => {
-              addMarkerMutation.mutate(
-                {
-                  profileId: newProfile.id,
-                  gene: variant.gene,
-                  rsId: variant.rsid || "",
-                  section: pathway.name,
-                  pathway: pathway.name,
-                  mutation: variant.genotype || "",
-                  function: variant.description || "",
-                  clinicalPriority: (
-                    variant.impact === "high" ? "high" :
-                    variant.impact === "moderate" || variant.impact === "medium" ? "medium" :
-                    "low"
-                  ) as "high" | "medium" | "low",
-                },
-                {
-                  onSuccess: () => resolve(),
-                  onError: (e) => reject(e),
-                }
-              );
-            });
-            addedCount++;
-          } catch {
-            // Continue with remaining markers if one fails
-            console.warn(`Failed to add marker ${variant.gene}`);
-          }
+      if (markersToAdd.length > 0) {
+        setParseProgress(`Adding ${markersToAdd.length} variants...`);
+        try {
+          const inserted = await new Promise<unknown[]>((resolve, reject) => {
+            addMarkersMutation.mutate(
+              { profileId: newProfile.id, markers: markersToAdd },
+              {
+                onSuccess: (rows) => resolve(rows),
+                onError: (e) => reject(e),
+              }
+            );
+          });
+          addedCount = Array.isArray(inserted) ? inserted.length : markersToAdd.length;
+        } catch {
+          // Leave addedCount at 0 so the user is told nothing was imported
+          console.warn("Failed to add markers batch");
         }
       }
 
@@ -436,7 +438,7 @@ export default function GeneticsPage() {
     } finally {
       setUploading(false);
     }
-  }, [uploadMutation, addMarkerMutation, utils]);
+  }, [uploadMutation, addMarkersMutation, utils]);
 
   // ── Manual entry ────────────────────────────────────────────
   const [manualForm, setManualForm] = useState({

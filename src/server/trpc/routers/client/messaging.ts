@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import { conversations, messages, users } from "@/server/db/schema";
-import { eq, and, desc, sql, isNull, ilike, or } from "drizzle-orm";
+import { eq, and, desc, sql, isNull, ilike, or, inArray } from "drizzle-orm";
 
 export const clientMessagingRouter = router({
   // List all conversations for the client
@@ -37,46 +37,68 @@ export const clientMessagingRouter = router({
         ? `${clientUser.firstName ?? ""} ${clientUser.lastName ?? ""}`.trim() || clientUser.email
         : "Client";
 
-      // Enrich with coach names
-      const enriched = await Promise.all(
-        convs.map(async (c) => {
-          let coachName = "AI Coach";
-          if (c.trainerId) {
-            const coach = await ctx.db.query.users.findFirst({
-              where: eq(users.id, c.trainerId),
-            });
-            if (coach) coachName = `${coach.firstName ?? ""} ${coach.lastName ?? ""}`.trim() || coach.email;
-          }
-
-          // Get last message preview
-          const lastMsg = await ctx.db.query.messages.findFirst({
-            where: eq(messages.conversationId, c.id),
-            orderBy: desc(messages.createdAt),
-          });
-
-          const lastMessage = lastMsg
-            ? {
-                body: lastMsg.body,
-                senderName: lastMsg.senderRole === "client" ? clientName : coachName,
-                senderRole: lastMsg.senderRole as "client" | "coach" | "ai_coach" | "system",
-                createdAt: lastMsg.createdAt?.toISOString() ?? new Date().toISOString(),
-              }
-            : null;
-
-          return {
-            id: c.id,
-            coachId: c.trainerId ?? null,
-            clientId: c.clientId,
-            coachName,
-            clientName,
-            isAiCoach: c.isAiTrainer ?? false,
-            unreadCount: c.unreadCountClient ?? 0,
-            lastMessage,
-            createdAt: c.lastMessageAt?.toISOString() ?? new Date().toISOString(),
-            updatedAt: c.lastMessageAt?.toISOString() ?? new Date().toISOString(),
-          };
-        })
+      // Batch coach lookups + last-message previews to avoid per-conversation N+1.
+      const trainerIds = Array.from(
+        new Set(convs.map((c) => c.trainerId).filter((id): id is string => !!id)),
       );
+      const convIds = convs.map((c) => c.id);
+
+      const [coachUsers, lastMsgRows] = await Promise.all([
+        trainerIds.length > 0
+          ? ctx.db.query.users.findMany({ where: inArray(users.id, trainerIds) })
+          : Promise.resolve([]),
+        convIds.length > 0
+          ? ctx.db
+              // DISTINCT ON (conversation) ordered by createdAt desc yields the
+              // latest message per conversation — same as the per-conv findFirst.
+              .selectDistinctOn([messages.conversationId], {
+                conversationId: messages.conversationId,
+                body: messages.body,
+                senderRole: messages.senderRole,
+                createdAt: messages.createdAt,
+              })
+              .from(messages)
+              .where(inArray(messages.conversationId, convIds))
+              .orderBy(messages.conversationId, desc(messages.createdAt))
+          : Promise.resolve([]),
+      ]);
+
+      const coachMap = new Map(coachUsers.map((u) => [u.id, u]));
+      const lastMsgMap = new Map(lastMsgRows.map((m) => [m.conversationId, m]));
+
+      // Enrich with coach names
+      const enriched = convs.map((c) => {
+        let coachName = "AI Coach";
+        if (c.trainerId) {
+          const coach = coachMap.get(c.trainerId);
+          if (coach) coachName = `${coach.firstName ?? ""} ${coach.lastName ?? ""}`.trim() || coach.email;
+        }
+
+        // Get last message preview
+        const lastMsg = lastMsgMap.get(c.id);
+
+        const lastMessage = lastMsg
+          ? {
+              body: lastMsg.body,
+              senderName: lastMsg.senderRole === "client" ? clientName : coachName,
+              senderRole: lastMsg.senderRole as "client" | "coach" | "ai_coach" | "system",
+              createdAt: lastMsg.createdAt?.toISOString() ?? new Date().toISOString(),
+            }
+          : null;
+
+        return {
+          id: c.id,
+          coachId: c.trainerId ?? null,
+          clientId: c.clientId,
+          coachName,
+          clientName,
+          isAiCoach: c.isAiTrainer ?? false,
+          unreadCount: c.unreadCountClient ?? 0,
+          lastMessage,
+          createdAt: c.lastMessageAt?.toISOString() ?? new Date().toISOString(),
+          updatedAt: c.lastMessageAt?.toISOString() ?? new Date().toISOString(),
+        };
+      });
 
       return enriched;
     }),

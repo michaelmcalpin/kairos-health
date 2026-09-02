@@ -1,6 +1,6 @@
 import { router, trainerProcedure } from "@/server/trpc";
 import { trainerClientRelationships, users, clientProfiles } from "@/server/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 // Tier pricing for revenue *estimates* — no real billing system yet.
 // These are the list prices per tier; actual revenue tracking will
@@ -31,22 +31,27 @@ export const coachRevenueRouter = router({
       };
     }
 
-    // Get each client's tier
-    const clients = await Promise.all(
-      clientIds.map(async (clientId) => {
-        const profile = await ctx.db.query.clientProfiles.findFirst({
-          where: eq(clientProfiles.userId, clientId),
-        });
-        const user = await ctx.db.query.users.findFirst({
-          where: eq(users.id, clientId),
-        });
-        return {
-          id: clientId,
-          name: user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "Unknown",
-          tier: profile?.tier ?? "tier3",
-        };
-      })
-    );
+    // Get each client's tier — batched to avoid per-client N+1 round-trips
+    const [profileRows, userRows] = await Promise.all([
+      ctx.db.query.clientProfiles.findMany({
+        where: inArray(clientProfiles.userId, clientIds),
+      }),
+      ctx.db.query.users.findMany({
+        where: inArray(users.id, clientIds),
+      }),
+    ]);
+    const profileMap = new Map(profileRows.map((p) => [p.userId, p]));
+    const userMap = new Map(userRows.map((u) => [u.id, u]));
+
+    const clients = clientIds.map((clientId) => {
+      const profile = profileMap.get(clientId);
+      const user = userMap.get(clientId);
+      return {
+        id: clientId,
+        name: user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "Unknown",
+        tier: profile?.tier ?? "tier3",
+      };
+    });
 
     // Calculate revenue by tier
     const tierCounts: Record<string, { count: number; revenue: number }> = {};
@@ -88,28 +93,34 @@ export const coachRevenueRouter = router({
     const clientIds = relationships.map((r) => r.clientId);
     if (clientIds.length === 0) return [];
 
-    const clients = await Promise.all(
-      clientIds.map(async (clientId) => {
-        const user = await ctx.db.query.users.findFirst({
-          where: eq(users.id, clientId),
-        });
-        const profile = await ctx.db.query.clientProfiles.findFirst({
-          where: eq(clientProfiles.userId, clientId),
-        });
+    // Batched lookups to avoid per-client N+1 round-trips
+    const [userRows, profileRows] = await Promise.all([
+      ctx.db.query.users.findMany({
+        where: inArray(users.id, clientIds),
+      }),
+      ctx.db.query.clientProfiles.findMany({
+        where: inArray(clientProfiles.userId, clientIds),
+      }),
+    ]);
+    const userMap = new Map(userRows.map((u) => [u.id, u]));
+    const profileMap = new Map(profileRows.map((p) => [p.userId, p]));
 
-        const tier = profile?.tier ?? "tier3";
-        const pricing = tierPricing[tier] ?? tierPricing.tier3;
+    const clients = clientIds.map((clientId) => {
+      const user = userMap.get(clientId);
+      const profile = profileMap.get(clientId);
 
-        return {
-          id: clientId,
-          name: user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "Unknown",
-          tier,
-          tierLabel: pricing.label,
-          coachingFee: pricing.coaching,
-          totalMonthly: pricing.coaching,
-        };
-      })
-    );
+      const tier = profile?.tier ?? "tier3";
+      const pricing = tierPricing[tier] ?? tierPricing.tier3;
+
+      return {
+        id: clientId,
+        name: user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "Unknown",
+        tier,
+        tierLabel: pricing.label,
+        coachingFee: pricing.coaching,
+        totalMonthly: pricing.coaching,
+      };
+    });
 
     return clients.sort((a, b) => b.totalMonthly - a.totalMonthly);
   }),

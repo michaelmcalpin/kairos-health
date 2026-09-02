@@ -169,6 +169,73 @@ export const clientGeneticsRouter = router({
       return marker[0];
     }),
 
+  // Add multiple genetic markers in a single insert (batch of addMarker).
+  // Used when importing a parsed profile with many variants at once — avoids
+  // dozens/hundreds of serial addMarker round-trips.
+  addMarkers: clientProcedure
+    .input(
+      z.object({
+        profileId: z.string(),
+        markers: z
+          .array(
+            z.object({
+              section: z.string().optional(),
+              gene: z.string(),
+              rsId: z.string().optional(),
+              pathway: z.string().optional(),
+              function: z.string().optional(),
+              mutation: z.string().optional(),
+              symptoms: z.string().optional(),
+              supplementProtocol: z.string().optional(),
+              peptideSupport: z.string().optional(),
+              dietStrategy: z.string().optional(),
+              lifestyleStrategy: z.string().optional(),
+              labTests: z.string().optional(),
+              clinicalPriority: z.enum(["high", "medium", "low"]).optional(),
+            })
+          )
+          .min(1),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Verify the profile belongs to this client (once, not per-marker)
+      const profile = await ctx.db.query.geneticProfiles.findFirst({
+        where: and(
+          eq(geneticProfiles.id, input.profileId),
+          eq(geneticProfiles.clientId, ctx.dbUserId)
+        ),
+      });
+
+      if (!profile) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Profile not found or unauthorized" });
+      }
+
+      const inserted = await ctx.db
+        .insert(geneticMarkers)
+        .values(
+          input.markers.map((m) => ({
+            profileId: input.profileId,
+            clientId: ctx.dbUserId,
+            section: m.section,
+            gene: m.gene,
+            rsId: m.rsId,
+            pathway: m.pathway,
+            function: m.function,
+            mutation: m.mutation,
+            symptoms: m.symptoms,
+            supplementProtocol: m.supplementProtocol,
+            peptideSupport: m.peptideSupport,
+            dietStrategy: m.dietStrategy,
+            lifestyleStrategy: m.lifestyleStrategy,
+            labTests: m.labTests,
+            clinicalPriority: m.clinicalPriority,
+          }))
+        )
+        .returning();
+
+      return inserted;
+    }),
+
   // Get all markers for a client, optionally filtered by section
   getMarkers: clientProcedure
     .input(

@@ -22,7 +22,7 @@ import {
   coachThreads,
   coachThreadMessages,
 } from "@/server/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { getCoachAccess, requireCoachAccess } from "@/lib/access/coach-access";
 
 export const coachSharedAccessRouter = router({
@@ -182,12 +182,16 @@ export const coachSharedAccessRouter = router({
         limit: input.limit,
       });
 
-      // Attach sender names
+      // Attach sender names — batched to avoid per-sender N+1 round-trips
       const senderIds = Array.from(new Set(msgs.map((m) => m.senderCoachId)));
       const senders = new Map<string, { firstName: string | null; lastName: string | null }>();
-      for (const id of senderIds) {
-        const u = await ctx.db.query.users.findFirst({ where: eq(users.id, id) });
-        if (u) senders.set(id, { firstName: u.firstName, lastName: u.lastName });
+      if (senderIds.length > 0) {
+        const senderUsers = await ctx.db.query.users.findMany({
+          where: inArray(users.id, senderIds),
+        });
+        for (const u of senderUsers) {
+          senders.set(u.id, { firstName: u.firstName, lastName: u.lastName });
+        }
       }
 
       return msgs.map((m) => ({

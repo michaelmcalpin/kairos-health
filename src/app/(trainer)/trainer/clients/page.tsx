@@ -13,6 +13,7 @@ type ModalTab = "search" | "code" | "invite" | "create" | "pending";
 
 export default function CoachClientsPage() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [tierFilter, setTierFilter] = useState<ClientTier | "all">("all");
   const [statusFilter, setStatusFilter] = useState<ClientStatus | "all">("all");
   const [sortBy, setSortBy] = useState<SortField>("name");
@@ -21,10 +22,18 @@ export default function CoachClientsPage() {
 
   const utils = trpc.useUtils();
 
+  // Debounce the search term so each keystroke doesn't re-run the batched
+  // roster fetch — the query only re-fires ~300ms after typing pauses. The
+  // input stays bound to `search` for instant responsiveness.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   // ── tRPC queries — real DB data ──────────────────────────────
   const { data: clients = [], isLoading } = trpc.coach.clients.list.useQuery(
     {
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       tier: tierFilter,
       status: statusFilter,
       sortBy,

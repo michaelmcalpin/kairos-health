@@ -62,14 +62,18 @@ export default function PeptidesPage() {
   const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
 
   // Queries
-  const { data: activeCycles = [], isLoading: loadingActive } =
-    trpc.clientPortal.peptides.getCycles.useQuery({ status: "active" });
-  const { data: plannedCycles = [] } =
-    trpc.clientPortal.peptides.getCycles.useQuery({ status: "planned" });
-  const { data: completedCycles = [], isLoading: loadingHistory } =
-    trpc.clientPortal.peptides.getCycles.useQuery({ status: "completed" });
-  const { data: pausedCycles = [] } =
-    trpc.clientPortal.peptides.getCycles.useQuery({ status: "paused" });
+  // Fetch every cycle in one query (status is a server-side filter that only
+  // changes which rows return) and partition by status client-side. The server
+  // orders by startDate desc, so each partition keeps the same order as the
+  // former per-status queries.
+  const { data: allCycles = [], isLoading: loadingCycles } =
+    trpc.clientPortal.peptides.getCycles.useQuery({});
+  const activeCycles = allCycles.filter((c) => c.status === "active");
+  const plannedCycles = allCycles.filter((c) => c.status === "planned");
+  const completedCycles = allCycles.filter((c) => c.status === "completed");
+  const pausedCycles = allCycles.filter((c) => c.status === "paused");
+  const loadingActive = loadingCycles;
+  const loadingHistory = loadingCycles;
   const { data: recentLogs = [], isLoading: loadingLogs } =
     trpc.clientPortal.peptides.getRecentLogs.useQuery({ limit: 30 });
 
