@@ -57,6 +57,8 @@ const exerciseInput = z.object({
   reps: z.string(),
   tempo: z.string().optional(),
   restSeconds: z.number().optional(),
+  notes: z.string().optional(),
+  videoUrl: z.string().optional(),
 });
 
 const sessionInput = z.object({
@@ -74,6 +76,8 @@ const templateExerciseInput = z.object({
   reps: z.string(),
   tempo: z.string().optional(),
   restSeconds: z.number().optional(),
+  notes: z.string().optional(),
+  videoUrl: z.string().optional(),
 });
 
 const templateSessionInput = z.object({
@@ -133,6 +137,8 @@ export const coachPlansRouter = router({
               reps: e.reps,
               tempo: e.tempo ?? "",
               restSeconds: e.restSeconds ?? 0,
+              notes: e.notes ?? "",
+              videoUrl: e.videoUrl ?? "",
             })),
           }))
         );
@@ -279,6 +285,8 @@ export const coachPlansRouter = router({
               reps: e.reps,
               tempo: e.tempo ?? "",
               restSeconds: e.restSeconds ?? 0,
+              notes: e.notes ?? "",
+              videoUrl: e.videoUrl ?? "",
             })),
           }))
         );
@@ -411,6 +419,8 @@ export const coachPlansRouter = router({
                 reps: e.reps,
                 tempo: e.tempo ?? "",
                 restSeconds: e.restSeconds ?? 0,
+                notes: e.notes ?? "",
+                videoUrl: e.videoUrl ?? "",
               })),
             }))
           );

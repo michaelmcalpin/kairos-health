@@ -2609,7 +2609,7 @@ function todayISO(): string {
 
 // ─── Training Programs (coach.plans) ────────────────────────────
 
-type ExerciseDraft = { name: string; muscleGroup: string; sets: string; reps: string; restSeconds: string };
+type ExerciseDraft = { name: string; muscleGroup: string; sets: string; reps: string; restSeconds: string; notes: string; videoUrl: string };
 type SessionDraft = { name: string; exercises: ExerciseDraft[] };
 
 function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
@@ -2756,7 +2756,7 @@ function TrainingProgramModal({
     description?: string;
     durationWeeks?: number;
     startDate: string;
-    sessions?: Array<{ dayNumber: number; name?: string; exercises: Array<{ name: string; muscleGroup?: string; sets: number; reps: string; restSeconds?: number }> }>;
+    sessions?: Array<{ dayNumber: number; name?: string; exercises: Array<{ name: string; muscleGroup?: string; sets: number; reps: string; restSeconds?: number; notes?: string; videoUrl?: string }> }>;
     activate?: boolean;
   }) => void;
 }) {
@@ -2765,15 +2765,15 @@ function TrainingProgramModal({
   const [durationWeeks, setDurationWeeks] = useState("");
   const [startDate, setStartDate] = useState(todayISO());
   const [sessions, setSessions] = useState<SessionDraft[]>([
-    { name: "", exercises: [{ name: "", muscleGroup: "", sets: "3", reps: "10", restSeconds: "" }] },
+    { name: "", exercises: [{ name: "", muscleGroup: "", sets: "3", reps: "10", restSeconds: "", notes: "", videoUrl: "" }] },
   ]);
 
-  const addSession = () => setSessions((s) => [...s, { name: "", exercises: [{ name: "", muscleGroup: "", sets: "3", reps: "10", restSeconds: "" }] }]);
+  const addSession = () => setSessions((s) => [...s, { name: "", exercises: [{ name: "", muscleGroup: "", sets: "3", reps: "10", restSeconds: "", notes: "", videoUrl: "" }] }]);
   const removeSession = (i: number) => setSessions((s) => s.filter((_, idx) => idx !== i));
   const updateSession = (i: number, key: keyof SessionDraft, value: string) =>
     setSessions((s) => s.map((sess, idx) => (idx === i ? { ...sess, [key]: value } : sess)));
   const addExercise = (si: number) =>
-    setSessions((s) => s.map((sess, idx) => (idx === si ? { ...sess, exercises: [...sess.exercises, { name: "", muscleGroup: "", sets: "3", reps: "10", restSeconds: "" }] } : sess)));
+    setSessions((s) => s.map((sess, idx) => (idx === si ? { ...sess, exercises: [...sess.exercises, { name: "", muscleGroup: "", sets: "3", reps: "10", restSeconds: "", notes: "", videoUrl: "" }] } : sess)));
   const removeExercise = (si: number, ei: number) =>
     setSessions((s) => s.map((sess, idx) => (idx === si ? { ...sess, exercises: sess.exercises.filter((_, x) => x !== ei) } : sess)));
   const updateExercise = (si: number, ei: number, key: keyof ExerciseDraft, value: string) =>
@@ -2793,6 +2793,8 @@ function TrainingProgramModal({
             sets: Number(ex.sets) || 0,
             reps: ex.reps.trim() || "0",
             restSeconds: ex.restSeconds.trim() ? Number(ex.restSeconds) : undefined,
+            notes: ex.notes.trim() || undefined,
+            videoUrl: ex.videoUrl.trim() || undefined,
           })),
       }))
       .filter((sess) => sess.exercises.length > 0);
@@ -2847,13 +2849,19 @@ function TrainingProgramModal({
                 </div>
                 <div className="space-y-1.5">
                   {sess.exercises.map((ex, ei) => (
-                    <div key={ei} className="flex items-center gap-1.5">
-                      <ExercisePicker value={ex.name} onChange={(name, group) => { updateExercise(si, ei, "name", name); updateExercise(si, ei, "muscleGroup", group ?? ""); }} className="flex-1" placeholder="Exercise" />
-                      <input type="number" min={1} value={ex.sets} onChange={(e) => updateExercise(si, ei, "sets", e.target.value)} placeholder="Sets" title="Sets" className="kairos-input w-14 py-1 text-xs" />
-                      <input type="text" value={ex.reps} onChange={(e) => updateExercise(si, ei, "reps", e.target.value)} placeholder="Reps" title="Reps" className="kairos-input w-16 py-1 text-xs" />
-                      {sess.exercises.length > 1 && (
-                        <button onClick={() => removeExercise(si, ei)} className="p-1 text-gray-500 hover:text-red-400"><X size={12} /></button>
-                      )}
+                    <div key={ei} className="space-y-1 pb-1.5 border-b border-gray-800/40 last:border-0">
+                      <div className="flex items-center gap-1.5">
+                        <ExercisePicker value={ex.name} onChange={(name, group) => { updateExercise(si, ei, "name", name); updateExercise(si, ei, "muscleGroup", group ?? ""); }} className="flex-1" placeholder="Exercise" />
+                        <input type="number" min={1} value={ex.sets} onChange={(e) => updateExercise(si, ei, "sets", e.target.value)} placeholder="Sets" title="Sets" className="kairos-input w-14 py-1 text-xs" />
+                        <input type="text" value={ex.reps} onChange={(e) => updateExercise(si, ei, "reps", e.target.value)} placeholder="Reps" title="Reps" className="kairos-input w-16 py-1 text-xs" />
+                        {sess.exercises.length > 1 && (
+                          <button onClick={() => removeExercise(si, ei)} className="p-1 text-gray-500 hover:text-red-400"><X size={12} /></button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 pl-0.5">
+                        <input type="url" value={ex.videoUrl} onChange={(e) => updateExercise(si, ei, "videoUrl", e.target.value)} placeholder="Video link (YouTube/AI demo)" title="Exercise demo video URL" className="kairos-input flex-1 py-1 text-[11px]" />
+                        <input type="text" value={ex.notes} onChange={(e) => updateExercise(si, ei, "notes", e.target.value)} placeholder="Notes (tempo, cues...)" title="Coaching notes" className="kairos-input flex-1 py-1 text-[11px]" />
+                      </div>
                     </div>
                   ))}
                   <button onClick={() => addExercise(si)} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-kairos-gold"><Plus size={10} /> Add Exercise</button>
