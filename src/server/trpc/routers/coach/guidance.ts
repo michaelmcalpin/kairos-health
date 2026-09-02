@@ -13,22 +13,34 @@ import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
 import { clientDailyAdvice, clientTasks } from "@/server/db/schema";
 import { eq, and, isNull, desc } from "drizzle-orm";
-import { getCoachAccess } from "@/lib/access/coach-access";
+import { getCoachAccess, hasAnyWriteAccess } from "@/lib/access/coach-access";
 
 type Database = typeof import("@/server/db").db;
 
-async function assertAccess(db: Database, coachId: string, clientId: string, role?: string) {
-  if (role === "super_admin") return;
-  const access = await getCoachAccess(db, coachId, clientId);
+/** Read gate: any access (primary, granted, self, or super_admin). */
+async function assertRead(db: Database, coachId: string, clientId: string, role?: string) {
+  const access = await getCoachAccess(db, coachId, clientId, role);
   if (!access.hasAnyAccess) {
     throw new TRPCError({ code: "FORBIDDEN", message: "No access to this client" });
+  }
+}
+
+/** Write gate: advice/tasks are client-facing writes — require write access,
+ *  not merely a read-only grant on some category. */
+async function assertWrite(db: Database, coachId: string, clientId: string, role?: string) {
+  const access = await getCoachAccess(db, coachId, clientId, role);
+  if (!hasAnyWriteAccess(access)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "You have read-only access to this client and can't change their tasks or advice.",
+    });
   }
 }
 
 async function assertTaskOwner(db: Database, coachId: string, taskId: string, role?: string) {
   const task = await db.query.clientTasks.findFirst({ where: eq(clientTasks.id, taskId) });
   if (!task) throw new TRPCError({ code: "NOT_FOUND", message: "Task not found" });
-  await assertAccess(db, coachId, task.clientId, role);
+  await assertWrite(db, coachId, task.clientId, role);
   return task;
 }
 
@@ -36,7 +48,7 @@ export const coachGuidanceRouter = router({
   getGuidance: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
-      await assertAccess(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await assertRead(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       const advice = await ctx.db.query.clientDailyAdvice.findFirst({
         where: eq(clientDailyAdvice.clientId, input.clientId),
         orderBy: desc(clientDailyAdvice.updatedAt),
@@ -54,7 +66,7 @@ export const coachGuidanceRouter = router({
   setAdvice: trainerProcedure
     .input(z.object({ clientId: z.string(), message: z.string(), date: z.string().nullish() }))
     .mutation(async ({ ctx, input }) => {
-      await assertAccess(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await assertWrite(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       const dateCond = input.date
         ? eq(clientDailyAdvice.date, input.date)
         : isNull(clientDailyAdvice.date);
@@ -93,7 +105,7 @@ export const coachGuidanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      await assertAccess(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await assertWrite(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       const [task] = await ctx.db
         .insert(clientTasks)
         .values({

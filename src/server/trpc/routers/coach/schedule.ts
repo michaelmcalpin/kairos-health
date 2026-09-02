@@ -288,7 +288,7 @@ export const coachScheduleRouter = router({
       // Verify the coach is actually connected to this client before booking:
       // either an active primary relationship, or an active shared-access grant
       // with at least one category above "none". super_admin bypasses.
-      if (ctx.userRole !== "super_admin") {
+      if (ctx.userRole !== "super_admin" && ctx.dbUserId !== input.clientId) {
         const [rel, accessGrant] = await Promise.all([
           ctx.db.query.trainerClientRelationships.findFirst({
             where: and(
@@ -306,12 +306,14 @@ export const coachScheduleRouter = router({
           }),
         ]);
 
+        // Booking writes an appointment + client alert + message, so require a
+        // WRITE-level grant on some category (not merely read-only access).
         const hasGrantAccess =
           !!accessGrant &&
-          (accessGrant.dietAccess !== "none" ||
-            accessGrant.exerciseAccess !== "none" ||
-            accessGrant.labsAccess !== "none" ||
-            accessGrant.healthDataAccess !== "none");
+          (accessGrant.dietAccess === "write" ||
+            accessGrant.exerciseAccess === "write" ||
+            accessGrant.labsAccess === "write" ||
+            accessGrant.healthDataAccess === "write");
 
         if (!rel && !hasGrantAccess) {
           throw new TRPCError({ code: "FORBIDDEN", message: "You are not connected to this client." });

@@ -59,7 +59,12 @@ export async function getCoachAccess(
   db: typeof Database,
   coachId: string,
   clientId: string,
+  role?: string,
 ): Promise<CoachAccess> {
+  // A coach is always allowed full access to their OWN record (dual-role:
+  // a coach who is also a client of someone else). super_admin sees all.
+  if (coachId === clientId || role === "super_admin") return FULL_ACCESS;
+
   // Primary relationship → full access
   const primary = await db.query.trainerClientRelationships.findFirst({
     where: and(
@@ -127,4 +132,20 @@ export function hasCategoryAccess(
   const level = access[category];
   if (minLevel === "read") return level === "read" || level === "write";
   return level === "write";
+}
+
+/**
+ * True when the coach may WRITE coaching content for this client — the primary
+ * coach, or any coach the client granted write on at least one category. Used
+ * for cross-category coaching actions (daily advice, tasks) that aren't tied to
+ * one data category.
+ */
+export function hasAnyWriteAccess(access: CoachAccess): boolean {
+  return (
+    access.isPrimary ||
+    access.diet === "write" ||
+    access.exercise === "write" ||
+    access.labs === "write" ||
+    access.healthData === "write"
+  );
 }

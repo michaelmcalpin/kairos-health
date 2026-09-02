@@ -30,6 +30,8 @@ async function verifyCoachClientRelationship(
   minLevel: "read" | "write" = "write",
 ) {
   if (userRole === "super_admin") return;
+  // A coach is always allowed to view/edit their own record (dual-role).
+  if (coachId === clientId) return;
   const rel = await db.query.trainerClientRelationships.findFirst({
     where: and(
       eq(trainerClientRelationships.trainerId, coachId),

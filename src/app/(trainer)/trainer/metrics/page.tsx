@@ -92,11 +92,13 @@ export default function CoachMetricsPage() {
     const stats = clientStatsQuery.data;
     const total = stats.totalClients || 1;
 
+    // Tier distribution only — these three are mutually exclusive and sum to
+    // the roster. (Health status like "critical" overlaps tiers, so mixing it
+    // in here double-counted clients and could exceed 100%.)
     return [
       { range: "Tier 1", count: stats.tier1Count, percentage: Math.round((stats.tier1Count / total) * 100) },
       { range: "Tier 2", count: stats.tier2Count, percentage: Math.round((stats.tier2Count / total) * 100) },
       { range: "Tier 3", count: stats.tier3Count, percentage: Math.round((stats.tier3Count / total) * 100) },
-      { range: "Critical", count: stats.criticalCount, percentage: Math.round((stats.criticalCount / total) * 100) },
     ];
   }, [clientStatsQuery.data]);
 
@@ -250,7 +252,7 @@ export default function CoachMetricsPage() {
           <div className="kairos-card p-8 border border-kairos-border animate-fade-in">
             <div className="flex items-center gap-3 mb-6">
               <BarChart3 className="w-6 h-6 text-kairos-gold" />
-              <h2 className="text-xl font-bold font-heading text-white">Client Health Score Distribution</h2>
+              <h2 className="text-xl font-bold font-heading text-white">Client Tier Distribution</h2>
             </div>
             {isLoading ? (
               <div className="space-y-4">
