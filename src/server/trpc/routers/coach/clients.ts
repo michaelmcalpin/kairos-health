@@ -1176,10 +1176,10 @@ export const coachClientsRouter = router({
 
       // Search users by email, first name, or last name.
       // Any account can also be enrolled as a client (a coach who is also
-      // someone's client), so we don't filter by role here — we only exclude
-      // the searcher themselves and anyone already on their roster.
+      // someone's client — including enrolling YOURSELF), so we don't filter
+      // by role and we do NOT exclude the searcher. We only exclude people
+      // already on this coach's roster.
       const conditions = [
-        ne(users.id, trainerId),
         or(
           ilike(users.email, q),
           ilike(users.firstName, q),
