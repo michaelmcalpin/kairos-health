@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
 import { sendInvitationEmail, sendClientCreatedEmail } from "@/lib/email";
 import { normalizeCoachAddCode } from "@/lib/coach-add-code";
+import { computeAdherence } from "@/server/trpc/routers/client/today";
 import {
   trainerClientRelationships,
   clientInvitations,
@@ -724,6 +725,21 @@ export const coachClientsRouter = router({
         alerts: mappedAlerts,
         recentActivity,
       };
+    }),
+
+  // Daily-task adherence history for a client — powers the coach accountability
+  // card. Same computation (and shape) as the client's own adherence strip.
+  getClientAdherence: trainerProcedure
+    .input(
+      z.object({
+        clientId: z.string(),
+        days: z.number().int().min(1).max(31).optional().default(14),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      const endDate = new Date().toISOString().slice(0, 10);
+      return computeAdherence(ctx.db, input.clientId, input.days, endDate);
     }),
 
   // Get roster stats

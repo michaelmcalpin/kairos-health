@@ -54,6 +54,7 @@ import { useDashboardProtocol } from "@/hooks/useProtocols";
 import { useToday, useViewMode } from "@/hooks/useToday";
 import { TodayChecklist } from "@/components/today/TodayChecklist";
 import { ModeToggle } from "@/components/today/ModeToggle";
+import { AdherenceStrip } from "@/components/today/AdherenceStrip";
 import GuidedHome from "@/components/today/GuidedHome";
 
 // Protocol data is now fetched via the useDashboardProtocol hook below.
@@ -278,6 +279,11 @@ function FullDashboard() {
 
         {/* ─── 3. Today's Plan (shared checklist) ──────────── */}
         <SectionHeader title="Today's Plan" />
+        {(() => {
+          const p = todayHook.data?.progress;
+          const todayPct = p && p.total > 0 ? Math.round((p.done / p.total) * 100) : null;
+          return <AdherenceStrip todayPct={todayPct} />;
+        })()}
         {todayHook.data?.advice ? (
           <Card style={styles.todayAdviceCard}>
             <Text style={styles.todayAdviceText}>{todayHook.data.advice}</Text>

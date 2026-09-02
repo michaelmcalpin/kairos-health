@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { SummitGlyph } from "@/components/brand";
 import { TodayChecklist } from "@/components/today/TodayChecklist";
 import { ModeToggle } from "@/components/today/ModeToggle";
+import { AdherenceStrip } from "@/components/today/AdherenceStrip";
 import { useToday, useViewMode } from "@/hooks/useToday";
 
 export default function GuidedHome() {
@@ -75,6 +76,9 @@ export default function GuidedHome() {
             </View>
           )}
         </Card>
+
+        {/* Adherence strip — today's %, 7-day history, streak */}
+        <AdherenceStrip todayPct={progress.total > 0 ? pct : null} />
 
         {/* Checklist */}
         {data ? <TodayChecklist sections={data.sections} onToggle={toggleItem} /> : null}

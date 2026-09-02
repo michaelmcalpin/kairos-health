@@ -198,6 +198,87 @@ function PeptidesPanel({ clientId }: { clientId: string }) {
   );
 }
 
+// ─── Adherence card (daily-task completion) ─────────────────────
+// Shows the client's current streak, today's completion %, and a 14-bar
+// mini chart of daily completion for accountability/reporting.
+function AdherenceCard({ clientId }: { clientId: string }) {
+  const q = trpc.coach.clients.getClientAdherence.useQuery(
+    { clientId, days: 14 },
+    { staleTime: 30_000, refetchOnWindowFocus: false, retry: false },
+  );
+
+  if (q.isLoading) {
+    return (
+      <div className="kairos-card">
+        <h2 className="text-sm font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+          <ClipboardList size={14} /> Adherence
+        </h2>
+        <div className="h-24 animate-pulse bg-gray-800/50 rounded-lg" />
+      </div>
+    );
+  }
+
+  const data = q.data;
+  const days = data?.days ?? [];
+  const hasAny = days.some((d) => d.total > 0);
+
+  return (
+    <div className="kairos-card">
+      <h2 className="text-sm font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+        <ClipboardList size={14} /> Adherence
+      </h2>
+      {!hasAny ? (
+        <p className="text-xs text-gray-500 text-center py-4">No daily-task activity yet</p>
+      ) : (
+        <>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-2xl font-heading font-bold text-white">
+                {data?.todayPct != null ? `${data.todayPct}%` : "—"}
+              </p>
+              <p className="text-[10px] text-gray-500 uppercase">Today</p>
+            </div>
+            {data && data.streak > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-500/10 text-orange-400 border border-orange-500/30">
+                🔥 {data.streak}-day streak
+              </span>
+            )}
+          </div>
+          <div className="flex items-end justify-between gap-1 h-14">
+            {days.map((d) => {
+              const h = d.pct != null ? Math.max(6, Math.round((d.pct / 100) * 48)) : 0;
+              const color =
+                d.pct == null
+                  ? "bg-gray-700/40"
+                  : d.pct >= 80
+                  ? "bg-green-500"
+                  : d.pct >= 50
+                  ? "bg-kairos-gold"
+                  : d.pct > 0
+                  ? "bg-yellow-500"
+                  : "bg-red-500/70";
+              return (
+                <div
+                  key={d.date}
+                  className="flex-1 flex flex-col items-center justify-end h-full"
+                  title={`${d.date}: ${d.pct != null ? `${d.pct}%` : "no tasks"} (${d.done}/${d.total})`}
+                >
+                  {d.pct != null ? (
+                    <div className={`w-full rounded-sm ${color}`} style={{ height: h }} />
+                  ) : (
+                    <div className="w-full h-1 rounded-full bg-gray-700/40" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-gray-500 text-center mt-2">Last {days.length} days</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const tc = useThemeColors();
@@ -716,6 +797,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
         {/* Right Sidebar: Alerts, Notes, Upcoming */}
         <div className="space-y-6">
+          {/* Daily-task adherence */}
+          <AdherenceCard clientId={params.id} />
+
           {/* Upcoming Appointments */}
           {health?.upcomingAppointments && health.upcomingAppointments.length > 0 && (
             <div className="kairos-card">
