@@ -1,122 +1,73 @@
 /**
- * Hume AI API client.
+ * Hume Health API client — Band + Body Pod body-composition & vitals.
  *
- * Fetches emotion analysis data from the Hume platform.
- * Hume provides voice prosody analysis, facial expression measurement,
- * and emotional wellbeing scores.
+ * NOTE: This is a corrected scaffold. The previous version targeted Hume *AI*
+ * (voice/emotion), which is a different company and does not return body data.
  *
- * API docs: https://dev.hume.ai/docs
+ * The real Hume Health partner API (base URL, auth model, endpoints, response
+ * shape) is pending. Until it's wired, `fetchHumeHealthData` returns [] so the
+ * device sync no-ops gracefully. When the spec is available, fill in the single
+ * marked request block and the field mapping — everything downstream (storage
+ * into body_measurements, cron, initial-sync-on-connect) is already in place.
+ *
+ * Hume Health: https://humehealth.com  ·  Clinics: https://humehealthprofessionals.com
  */
 
 import { env } from "@/lib/config/env";
 
-const HUME_API_BASE = "https://api.hume.ai/v0";
-
-interface HumeEmotionScore {
-  name: string;
-  score: number;
+/** One normalized body-composition reading, ready for body_measurements. */
+export interface HumeHealthReading {
+  /** Measurement date, YYYY-MM-DD (client-local). */
+  date: string;
+  weightLbs?: number | null;
+  bodyFatPct?: number | null;
+  leanMassLbs?: number | null;
+  bmi?: number | null;
 }
 
-interface HumeMeasurement {
-  id: string;
-  timestamp: string;
-  emotions: HumeEmotionScore[];
-  overall_sentiment: number;
-  wellbeing_score: number | null;
+/** True once credentials are present (auth model TBD: API key vs OAuth). */
+export function isHumeHealthConfigured(): boolean {
+  return Boolean(env.HUME_API_KEY || (env.HUME_CLIENT_ID && env.HUME_CLIENT_SECRET));
 }
 
-interface HumeAnalysisResult {
-  measurements: HumeMeasurement[];
-  summary: {
-    dominant_emotion: string;
-    average_sentiment: number;
-    wellbeing_trend: "improving" | "stable" | "declining" | null;
-  };
+export interface FetchHumeHealthParams {
+  /** Per-user OAuth access token, if Hume Health uses per-user OAuth. */
+  accessToken?: string | null;
+  /** External identifier for the member in Hume (email or Hume patient id). */
+  externalUserId?: string | null;
+  /** Only fetch readings on/after this time. */
+  since?: Date;
 }
 
 /**
- * Fetch recent emotion measurements from Hume AI.
+ * Fetch recent body-composition readings from Hume Health.
+ *
+ * Returns [] until the real endpoint/auth is wired (see file header), so callers
+ * degrade gracefully. Do NOT fabricate data here.
  */
-export async function fetchHumeEmotionData(
-  accessToken: string,
-  since?: Date,
-): Promise<HumeAnalysisResult> {
-  const params = new URLSearchParams();
-  if (since) {
-    params.set("start_time", since.toISOString());
-  }
-  params.set("limit", "100");
-
-  const response = await fetch(
-    `${HUME_API_BASE}/measurements?${params.toString()}`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`Hume API error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-
-  // Transform Hume's response format to our internal structure
-  const measurements: HumeMeasurement[] = (data.results ?? data.data ?? []).map(
-    (item: any) => ({
-      id: item.id ?? crypto.randomUUID(),
-      timestamp: item.created_at ?? item.timestamp ?? new Date().toISOString(),
-      emotions: (item.predictions?.emotions ?? item.emotions ?? []).map(
-        (e: any) => ({
-          name: e.name,
-          score: e.score,
-        }),
-      ),
-      overall_sentiment: item.sentiment_score ?? 0,
-      wellbeing_score: item.wellbeing_score ?? null,
-    }),
-  );
-
-  // Calculate summary
-  const allEmotions = new Map<string, number[]>();
-  for (const m of measurements) {
-    for (const e of m.emotions) {
-      const existing = allEmotions.get(e.name) ?? [];
-      existing.push(e.score);
-      allEmotions.set(e.name, existing);
-    }
-  }
-
-  let dominantEmotion = "neutral";
-  let highestAvg = 0;
-  allEmotions.forEach((scores: number[], name: string) => {
-    const avg = scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
-    if (avg > highestAvg) {
-      highestAvg = avg;
-      dominantEmotion = name;
-    }
-  });
-
-  const avgSentiment =
-    measurements.length > 0
-      ? measurements.reduce((sum, m) => sum + m.overall_sentiment, 0) /
-        measurements.length
-      : 0;
-
-  return {
-    measurements,
-    summary: {
-      dominant_emotion: dominantEmotion,
-      average_sentiment: avgSentiment,
-      wellbeing_trend: null,
-    },
-  };
+export async function fetchHumeHealthData(
+  _params: FetchHumeHealthParams,
+): Promise<HumeHealthReading[]> {
+  // ── PENDING REAL API SPEC ────────────────────────────────────────────────
+  // Replace this block once Hume Health's docs are in hand:
+  //   const res = await fetch(`${env.HUME_API_BASE}/<endpoint>?...`, {
+  //     headers: { "X-Hume-Api-Key": env.HUME_API_KEY }  // or Bearer accessToken
+  //   });
+  //   const json = await res.json();
+  //   return json.<rows>.map((r) => ({
+  //     date: r.<date>.slice(0, 10),
+  //     weightLbs: r.<weight_lb> ?? null,
+  //     bodyFatPct: r.<body_fat_pct> ?? null,
+  //     leanMassLbs: r.<lean_mass_lb> ?? null,
+  //     bmi: r.<bmi> ?? null,
+  //   }));
+  // ─────────────────────────────────────────────────────────────────────────
+  return [];
 }
 
 /**
- * Refresh an expired Hume OAuth token.
+ * Refresh an expired Hume OAuth token (only used if Hume Health turns out to be
+ * per-user OAuth; harmless otherwise). Endpoint pending confirmation.
  */
 export async function refreshHumeToken(
   refreshToken: string,
@@ -131,11 +82,9 @@ export async function refreshHumeToken(
       client_secret: env.HUME_CLIENT_SECRET,
     }),
   });
-
   if (!response.ok) {
     throw new Error(`Hume token refresh failed: ${response.status}`);
   }
-
   const data = await response.json();
   return {
     accessToken: data.access_token,

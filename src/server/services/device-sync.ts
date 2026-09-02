@@ -22,6 +22,7 @@ import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { PROVIDERS, getProviderEnvKeys } from "@/lib/integrations/devices/providers";
 import { logger } from "@/lib/middleware/logger";
 import { decryptToken, encryptToken } from "@/lib/crypto";
+import { fetchHumeHealthData } from "@/lib/integrations/devices/clients/hume";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -779,8 +780,26 @@ export async function syncProviderData(
 
       // ── Hume (voice/emotion analysis, not periodic health data) ──
       case "hume": {
+        // Hume Health (Band + Body Pod) → body composition. The client returns
+        // [] until the real partner API endpoint/auth is wired, so this no-ops
+        // gracefully; once wired it inserts weight/body-fat into body_measurements.
+        const readings = await fetchHumeHealthData({ accessToken });
+        if (readings.length === 0) {
+          result.success = true;
+          result.note = "Hume Health: no new readings (partner API not yet configured).";
+          break;
+        }
+        result.recordsSynced = await insertBodyMeasurements(
+          db,
+          userId,
+          readings.map((r) => ({
+            date: r.date,
+            weightLbs: r.weightLbs ?? undefined,
+            bodyFatPct: r.bodyFatPct ?? undefined,
+            source: "hume",
+          })),
+        );
         result.success = true;
-        result.note = "Hume AI provides voice/emotion analysis on demand, not periodic health data. No data to pull.";
         break;
       }
 

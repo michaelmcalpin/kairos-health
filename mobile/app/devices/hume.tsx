@@ -1,9 +1,8 @@
 /**
- * Hume AI Integration screen.
+ * Hume Health Integration screen.
  *
- * Manages the Hume AI OAuth connection for emotional wellbeing
- * tracking. Hume AI analyzes voice and facial expressions to provide
- * emotional wellness insights.
+ * Manages the Hume Health OAuth connection for body composition tracking. Hume Health analyzes voice and facial expressions to provide
+ * body-composition insights.
  *
  * Uses the same `useDeviceConnection` hook as other OAuth providers
  * (Oura, Garmin, etc.) for connect/disconnect/sync lifecycle.
@@ -98,7 +97,7 @@ export default function HumeScreen() {
       <SafeAreaView style={styles.container} edges={["bottom"]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={HUME_ACCENT} />
-          <Text style={styles.loadingText}>Loading Hume AI connection...</Text>
+          <Text style={styles.loadingText}>Loading Hume Health connection...</Text>
         </View>
       </SafeAreaView>
     );
@@ -118,7 +117,7 @@ export default function HumeScreen() {
             <Brain size={28} color={HUME_ACCENT} />
           </View>
           <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>Hume AI</Text>
+            <Text style={styles.headerTitle}>Hume Health</Text>
             <Text style={styles.headerSubtitle}>
               Emotional wellbeing analysis
             </Text>
@@ -178,7 +177,7 @@ export default function HumeScreen() {
             />
           ) : (
             <Button
-              title={isConnecting ? "Connecting..." : "Connect Hume AI"}
+              title={isConnecting ? "Connecting..." : "Connect Hume Health"}
               variant="primary"
               size="sm"
               onPress={connect}
@@ -198,8 +197,8 @@ export default function HumeScreen() {
                 <Shield size={16} color={HUME_ACCENT} />
               </View>
               <Text style={styles.oauthInfoText}>
-                Connecting opens the Hume AI website where you authorize Everist
-                to access your emotional wellbeing data. Your Hume credentials
+                Connecting opens the Hume Health website where you authorize Everist
+                to access your body-composition data. Your Hume credentials
                 are never shared with us.
               </Text>
             </View>
@@ -212,26 +211,26 @@ export default function HumeScreen() {
         {isConnected && (
           <>
             <Card style={styles.categoryCard}>
-              <Text style={styles.categoryTitle}>Data from Hume AI</Text>
+              <Text style={styles.categoryTitle}>Data from Hume Health</Text>
               <Text style={styles.categorySubtitle}>
-                Choose which Hume AI data to import into Everist
+                Choose which Hume Health data to import into Everist
               </Text>
 
               <DataRow
                 icon={<Smile size={18} color="#F59E0B" />}
-                label="Emotional State"
+                label="Weight"
                 value={readEmotionalState}
                 onValueChange={setReadEmotionalState}
               />
               <DataRow
                 icon={<Mic size={18} color="#8B5CF6" />}
-                label="Voice Analysis"
+                label="Body Fat %"
                 value={readVoiceAnalysis}
                 onValueChange={setReadVoiceAnalysis}
               />
               <DataRow
                 icon={<Eye size={18} color="#06B6D4" />}
-                label="Expression Metrics"
+                label="Lean Mass"
                 value={readExpressionMetrics}
                 onValueChange={setReadExpressionMetrics}
               />
@@ -313,8 +312,8 @@ export default function HumeScreen() {
                   <Brain size={16} color={HUME_ACCENT} />
                 </View>
                 <Text style={styles.dataInfoText}>
-                  Hume AI analyzes voice and facial expressions to track
-                  emotional patterns. Data syncs happen server-side through the
+                  Hume Health analyzes voice and facial expressions to track
+                  body-composition trends. Data syncs happen server-side through the
                   Hume API.
                 </Text>
               </View>
@@ -340,7 +339,7 @@ export default function HumeScreen() {
             {/* DISCONNECT                                             */}
             {/* ═══════════════════════════════════════════════════════ */}
             <Button
-              title="Disconnect Hume AI"
+              title="Disconnect Hume Health"
               variant="danger"
               size="lg"
               onPress={disconnect}

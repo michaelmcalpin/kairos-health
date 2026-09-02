@@ -35,12 +35,11 @@ export type DataType =
   | "strain"
   | "weight"
   | "body_composition"
+  | "body_fat"
+  | "lean_mass"
+  | "bmi"
   | "blood_pressure"
-  | "lab_results"
-  | "emotional_state"
-  | "voice_analysis"
-  | "expression_metrics"
-  | "wellbeing_score";
+  | "lab_results";
 
 // ─── Sync State ─────────────────────────────────────────────────────────────
 

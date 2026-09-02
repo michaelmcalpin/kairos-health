@@ -181,7 +181,7 @@ const INTEGRATION_CONFIGS: IntegrationStatus[] = [
     recordsSynced: 0, status: "idle", dataTypes: ["steps", "heart_rate", "sleep", "activity"],
   },
   {
-    provider: "hume", name: "Hume AI", description: "Emotional state and voice analysis",
+    provider: "hume", name: "Hume Health", description: "Body composition from the Hume Band & Body Pod",
     connected: false, lastSyncAt: null,
     recordsSynced: 0, status: "idle", dataTypes: ["emotional_state", "voice_analysis"],
   },

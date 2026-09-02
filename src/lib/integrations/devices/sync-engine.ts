@@ -28,7 +28,7 @@ import { fetchOuraSleep, fetchOuraHeartRate, fetchOuraHRV, refreshOuraToken } fr
 import { fetchDexcomGlucose, refreshDexcomToken } from "./clients/dexcom";
 import { fetchWhoopSleep, fetchWhoopRecovery, refreshWhoopToken } from "./clients/whoop";
 import { refreshFitbitToken } from "./clients/fitbit";
-import { fetchHumeEmotionData, refreshHumeToken } from "./clients/hume";
+import { fetchHumeHealthData, refreshHumeToken } from "./clients/hume";
 
 // ─── Sync Engine ────────────────────────────────────────────────────────────
 
@@ -299,10 +299,11 @@ export class DeviceSyncEngine {
         }
 
         case "hume": {
-          const humeData = await fetchHumeEmotionData(accessToken, connection.lastSyncAt ?? undefined);
-          recordsProcessed = humeData.measurements.length;
-          recordsInserted = humeData.measurements.length;
-          // Hume emotion data stored via provider-specific handling
+          // Hume Health body composition. Client returns [] until the partner
+          // API endpoint/auth is wired (see clients/hume.ts).
+          const readings = await fetchHumeHealthData({ accessToken });
+          recordsProcessed = readings.length;
+          recordsInserted = readings.length;
           break;
         }
 
