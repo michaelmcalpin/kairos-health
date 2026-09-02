@@ -52,6 +52,13 @@ export default function CoachClientsPage() {
   );
   const clients = data?.clients ?? [];
 
+  // Today's daily-task adherence for the visible page only (lazy, cached).
+  const visibleIds = clients.map((c) => c.id);
+  const { data: rosterAdherence } = trpc.coach.clients.getRosterAdherence.useQuery(
+    { clientIds: visibleIds },
+    { enabled: visibleIds.length > 0, staleTime: 60_000, refetchOnWindowFocus: false },
+  );
+
   const { data: stats } = trpc.coach.clients.getStats.useQuery(undefined, {
     staleTime: 30_000,
     refetchOnWindowFocus: false,
@@ -219,7 +226,7 @@ export default function CoachClientsPage() {
         ) : (
           clients.map((client) => (
             <Link key={client.id} href={`/trainer/clients/${client.id}`}>
-              <ClientCard client={client} />
+              <ClientCard client={client} todayPct={rosterAdherence?.[client.id]?.todayPct ?? undefined} />
             </Link>
           ))
         )}

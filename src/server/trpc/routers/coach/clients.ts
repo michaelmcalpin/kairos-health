@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
 import { sendInvitationEmail, sendClientCreatedEmail } from "@/lib/email";
 import { normalizeCoachAddCode } from "@/lib/coach-add-code";
-import { computeAdherence } from "@/server/trpc/routers/client/today";
+import { computeAdherence, computeToday } from "@/server/trpc/routers/client/today";
 import {
   trainerClientRelationships,
   clientInvitations,
@@ -740,6 +740,45 @@ export const coachClientsRouter = router({
       await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
       const endDate = new Date().toISOString().slice(0, 10);
       return computeAdherence(ctx.db, input.clientId, input.days, endDate);
+    }),
+
+  // Today's task-adherence % for a set of roster clients — powers an at-a-glance
+  // badge on the client list. Lazily called with just the VISIBLE page's ids so
+  // the main roster query stays cheap. Returns a map keyed by clientId.
+  getRosterAdherence: trainerProcedure
+    .input(z.object({ clientIds: z.array(z.string()).max(60) }))
+    .query(async ({ ctx, input }) => {
+      if (input.clientIds.length === 0) return {} as Record<string, { todayPct: number | null; done: number; total: number }>;
+
+      // Restrict to clients this coach may see (super_admin sees all).
+      let allowed = input.clientIds;
+      if (ctx.userRole !== "super_admin") {
+        const rels = await ctx.db.query.trainerClientRelationships.findMany({
+          where: and(
+            eq(trainerClientRelationships.trainerId, ctx.dbUserId),
+            eq(trainerClientRelationships.status, "active"),
+            inArray(trainerClientRelationships.clientId, input.clientIds),
+          ),
+        });
+        const ok = new Set(rels.map((r) => r.clientId));
+        // A coach may always see their own record (dual-role).
+        ok.add(ctx.dbUserId);
+        allowed = input.clientIds.filter((id) => ok.has(id));
+      }
+
+      const date = new Date().toISOString().slice(0, 10);
+      const results = await Promise.all(
+        allowed.map(async (clientId) => {
+          try {
+            const t = await computeToday(ctx.db, clientId, date);
+            const { done, total } = t.progress;
+            return [clientId, { todayPct: total > 0 ? Math.round((done / total) * 100) : null, done, total }] as const;
+          } catch {
+            return [clientId, { todayPct: null, done: 0, total: 0 }] as const;
+          }
+        }),
+      );
+      return Object.fromEntries(results) as Record<string, { todayPct: number | null; done: number; total: number }>;
     }),
 
   // Get roster stats

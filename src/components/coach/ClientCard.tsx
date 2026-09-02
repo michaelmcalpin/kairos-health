@@ -12,9 +12,18 @@ import {
 interface ClientCardProps {
   client: CoachClientSummary;
   onClick?: () => void;
+  /** Today's daily-task completion %, or null when nothing is scheduled today. */
+  todayPct?: number | null;
 }
 
-export const ClientCard = React.memo(function ClientCard({ client, onClick }: ClientCardProps) {
+/** Tailwind classes for the "Today" task-adherence pill, by completion band. */
+function todayPctColor(pct: number): string {
+  if (pct >= 80) return "bg-green-500/15 text-green-300 border-green-500/30";
+  if (pct >= 50) return "bg-yellow-500/15 text-yellow-300 border-yellow-500/30";
+  return "bg-red-500/15 text-red-300 border-red-500/30";
+}
+
+export const ClientCard = React.memo(function ClientCard({ client, onClick, todayPct }: ClientCardProps) {
   const trendIcon = client.scoreTrend === "up" ? "↑" : client.scoreTrend === "down" ? "↓" : "→";
   const trendColor = client.scoreTrend === "up" ? "text-green-400" : client.scoreTrend === "down" ? "text-red-400" : "text-gray-400";
   const noData = client.healthScore === null || client.status === "insufficient_data";
@@ -53,6 +62,14 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick }: Cl
               )}
               <span className="text-xs text-gray-600">•</span>
               <span className="text-xs text-gray-500">{client.lastActive}</span>
+              {typeof todayPct === "number" && (
+                <span
+                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${todayPctColor(todayPct)}`}
+                  title="Today's daily-task completion"
+                >
+                  Today {todayPct}%
+                </span>
+              )}
             </div>
           </div>
         </div>
