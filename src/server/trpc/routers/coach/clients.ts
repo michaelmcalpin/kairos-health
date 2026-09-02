@@ -119,8 +119,10 @@ async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 async function fetchClientData(db: typeof import("@/server/db").db, clientId: string, enrolledAt?: Date) {
   const [user, profile, alertRows, recentGlucose, recentSleep, recentHrv, recentWeight, recentCheckins, protocol, adherenceCount] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, clientId) }),
-    db.query.clientProfiles.findFirst({ where: eq(clientProfiles.userId, clientId) }),
-    db.select({ count: sql<number>`count(*)` }).from(alerts).where(and(eq(alerts.clientId, clientId), eq(alerts.status, "active"))),
+    // Select only the columns we use — avoids 500s if a newer client_profiles
+    // column (e.g. coach_add_code) hasn't been migrated onto this database yet.
+    safeQ(() => db.query.clientProfiles.findFirst({ where: eq(clientProfiles.userId, clientId), columns: { userId: true, tier: true } }), undefined),
+    safeQ(() => db.select({ count: sql<number>`count(*)` }).from(alerts).where(and(eq(alerts.clientId, clientId), eq(alerts.status, "active"))), [{ count: 0 }]),
     safeQ(() => db.query.glucoseReadings.findMany({ where: eq(glucoseReadings.clientId, clientId), orderBy: desc(glucoseReadings.timestamp), limit: 7 }), []),
     safeQ(() => db.query.sleepSessions.findMany({ where: eq(sleepSessions.clientId, clientId), orderBy: desc(sleepSessions.date), limit: 7 }), []),
     safeQ(() => db.query.hrvReadings.findMany({ where: eq(hrvReadings.clientId, clientId), orderBy: desc(hrvReadings.timestamp), limit: 7 }), []),
@@ -288,13 +290,15 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
     activeProtocols,
     adherenceCounts,
   ] = await Promise.all([
-    db.query.users.findMany({ where: inArray(users.id, clientIds) }),
-    db.query.clientProfiles.findMany({ where: inArray(clientProfiles.userId, clientIds) }),
-    db
+    safeQ(() => db.query.users.findMany({ where: inArray(users.id, clientIds) }), []),
+    // Select only the columns we use — avoids 500s if a newer client_profiles
+    // column (e.g. coach_add_code) hasn't been migrated onto this database yet.
+    safeQ(() => db.query.clientProfiles.findMany({ where: inArray(clientProfiles.userId, clientIds), columns: { userId: true, tier: true } }), []),
+    safeQ(() => db
       .select({ clientId: alerts.clientId, count: sql<number>`count(*)` })
       .from(alerts)
       .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")))
-      .groupBy(alerts.clientId),
+      .groupBy(alerts.clientId), []),
     safeQ(() => db.query.glucoseReadings.findMany({
       where: inArray(glucoseReadings.clientId, clientIds),
       orderBy: desc(glucoseReadings.timestamp),
