@@ -309,6 +309,7 @@ function AddClientModal({
   onClose: () => void;
   onClientAdded: () => void;
 }) {
+  const me = trpc.auth.me.useQuery();
   const [tab, setTab] = useState<ModalTab>("search");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -506,14 +507,26 @@ function AddClientModal({
         {/* Tab Content */}
         <div className="p-6 min-h-[320px] max-h-[400px] overflow-y-auto">
           {tab === "search" && (
-            <SearchTab
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              results={searchResults}
-              isSearching={isSearching}
-              onAdd={handleAddClient}
-              isAdding={addClientMutation.isPending}
-            />
+            <div className="space-y-3">
+              {/* Enroll your own account as a client (coach who is also a client) */}
+              {me.data?.id && (
+                <button
+                  onClick={() => handleAddClient(me.data!.id)}
+                  disabled={addClientMutation.isPending}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium bg-kairos-gold/10 border border-kairos-gold/30 text-kairos-gold hover:bg-kairos-gold/20 disabled:opacity-50 transition-colors"
+                >
+                  <UserPlus size={15} /> Add myself as a client
+                </button>
+              )}
+              <SearchTab
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                results={searchResults}
+                isSearching={isSearching}
+                onAdd={handleAddClient}
+                isAdding={addClientMutation.isPending}
+              />
+            </div>
           )}
           {tab === "code" && (
             <div className="space-y-3">
