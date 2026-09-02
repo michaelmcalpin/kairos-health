@@ -104,10 +104,12 @@ export const env = {
   WITHINGS_WEBHOOK_SECRET: getEnvVar("WITHINGS_WEBHOOK_SECRET", ""),
   HUME_CLIENT_ID: getEnvVar("HUME_CLIENT_ID", ""),
   HUME_CLIENT_SECRET: getEnvVar("HUME_CLIENT_SECRET", ""),
-  // Hume Health (Band + Body Pod) partner API. Auth model TBD — API key or
-  // OAuth. Base + key placeholders so the client can read them once wired.
+  // Hume AI (EVI voice) API + webhook verification.
   HUME_API_KEY: getEnvVar("HUME_API_KEY", ""),
-  HUME_API_BASE: getEnvVar("HUME_API_BASE", "https://api.humehealth.com"),
+  HUME_API_BASE: getEnvVar("HUME_API_BASE", "https://api.hume.ai"),
+  // Per-account signing key for verifying inbound EVI webhook payloads
+  // (X-Hume-AI-Webhook-Signature / -Timestamp). From app.hume.ai settings.
+  HUME_WEBHOOK_SIGNING_KEY: getEnvVar("HUME_WEBHOOK_SIGNING_KEY", ""),
 
   // Google Calendar (coach calendar integration — Calendly-style busy-time
   // conflict blocking). Redirect URI: ${APP_URL}/api/integrations/google/callback
