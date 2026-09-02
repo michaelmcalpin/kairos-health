@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "if [ -n \"$DATABASE_URL\" ]; then npx drizzle-kit push --force; fi && next build",
+    "build": "node scripts/db-migrate.mjs && next build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "npx drizzle-kit generate",
@@ -15,7 +15,8 @@
     "db:push": "npx drizzle-kit push",
     "db:studio": "npx drizzle-kit studio",
     "db:seed": "npx tsx src/server/db/seed.ts",
-    "build:vercel": "npx drizzle-kit push --force && next build",
+    "build:vercel": "node scripts/db-migrate.mjs && next build",
+    "db:deploy": "node scripts/db-migrate.mjs",
     "build:azure": "next build",
     "start:azure": "node server.js",
     "test": "vitest run",
