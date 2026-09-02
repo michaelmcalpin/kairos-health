@@ -57,7 +57,7 @@ export function FeedbackButton() {
   };
 
   return (
-    <>
+    <div className="relative">
       <button
         onClick={() => {
           setOpen((v) => !v);
@@ -65,13 +65,13 @@ export function FeedbackButton() {
         }}
         title="Send feedback"
         aria-label="Send feedback"
-        className="fixed bottom-5 right-5 z-50 h-12 w-12 rounded-full bg-kairos-gold/15 border border-kairos-gold/40 text-kairos-gold flex items-center justify-center shadow-lg hover:bg-kairos-gold/25 hover:border-kairos-gold transition-colors"
+        className="text-kairos-silver-dark hover:text-white transition-colors p-2"
       >
-        <MessageSquarePlus size={20} />
+        <MessageSquarePlus size={18} />
       </button>
 
       {open && (
-        <div className="fixed bottom-20 right-5 z-50 w-80 bg-kairos-card border border-kairos-border rounded-kairos shadow-kairos p-4">
+        <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-kairos-card border border-kairos-border rounded-kairos shadow-kairos p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-heading font-semibold text-white text-sm">Send Feedback</h3>
             <button
@@ -130,6 +130,6 @@ export function FeedbackButton() {
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }

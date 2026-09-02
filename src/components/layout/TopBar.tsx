@@ -6,6 +6,7 @@ import { Bell, Search, LogOut } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { trpc } from "@/lib/trpc";
 import { NotificationBell } from "@/components/realtime";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 interface TopBarProps {
   title: string;
@@ -88,6 +89,10 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
             <Search size={18} />
           </button>
         )}
+
+        {/* Send-feedback (bug/feature/redesign) — lives in the top bar so it
+            never covers the client quick-chat launcher in the bottom corner. */}
+        <FeedbackButton />
 
         {/* In-app notifications feed (protocol updates, coach messages, etc.).
             clientPortal.notifications is a clientProcedure, so only mount it for

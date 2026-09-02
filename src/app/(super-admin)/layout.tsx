@@ -4,7 +4,6 @@ import { Sidebar, superAdminNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { trpc } from "@/lib/trpc";
-import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 export default function SuperAdminLayout({
   children,
@@ -24,7 +23,6 @@ export default function SuperAdminLayout({
           <TopBar title="EVERIST.ai" subtitle="Platform Administration" />
           <main className="p-6">{children}</main>
         </div>
-        <FeedbackButton />
       </div>
     </RoleGuard>
   );

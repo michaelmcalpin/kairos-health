@@ -3,7 +3,6 @@
 import { Sidebar, adminNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { RoleGuard } from "@/components/auth/RoleGuard";
-import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 
 export default function AdminLayout({
   children,
@@ -18,7 +17,6 @@ export default function AdminLayout({
           <TopBar title="EVERIST.ai" subtitle="Administration" />
           <main className="p-6">{children}</main>
         </div>
-        <FeedbackButton />
       </div>
     </RoleGuard>
   );
