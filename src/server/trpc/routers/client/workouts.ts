@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
-import { workoutLogs, clientWorkoutAssignments, workoutPrograms, workoutSessions, exerciseScreenings } from "@/server/db/schema";
+import { workoutLogs, clientWorkoutAssignments, workoutPrograms, workoutSessions, exerciseScreenings, activitySummaries } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
 
@@ -333,6 +333,31 @@ export const clientWorkoutsRouter = router({
 
       return { success: true };
     }),
+
+  // Today's imported Apple Health activity summary (or null if none).
+  todayActivity: clientProcedure.query(async ({ ctx }) => {
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const row = await ctx.db.query.activitySummaries.findFirst({
+        where: and(
+          eq(activitySummaries.clientId, ctx.dbUserId),
+          eq(activitySummaries.date, todayStr),
+          eq(activitySummaries.source, "apple_health"),
+        ),
+      });
+      if (!row) return null;
+      return {
+        exerciseMinutes: row.exerciseMinutes,
+        caloriesActive: row.caloriesActive,
+        steps: row.steps,
+        distanceMeters: row.distanceMeters,
+        flightsClimbed: row.flightsClimbed,
+      };
+    } catch {
+      // Table may not exist yet
+      return null;
+    }
+  }),
 
   // Get saved exercise screening data
   getScreening: clientProcedure.query(async ({ ctx }) => {

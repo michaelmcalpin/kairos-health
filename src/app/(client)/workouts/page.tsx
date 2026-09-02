@@ -17,11 +17,14 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  Circle,
+  Play,
 } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useWorkouts } from "@/hooks/client/useWorkouts";
 import { trpc } from "@/lib/trpc";
+import { round } from "@/lib/format/number";
 
 // ─── Workout schedule data (local constants) ────────────────────
 interface WeeklyScheduleItem { day: string; type: string; color: string; }
@@ -55,6 +58,7 @@ export default function WorkoutsPage() {
 
   const [selectedZone, setSelectedZone] = useState<number | null>(null);
   const [completeError, setCompleteError] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [programError, setProgramError] = useState<string | null>(null);
   const [showLogForm, setShowLogForm] = useState(false);
@@ -100,6 +104,38 @@ export default function WorkoutsPage() {
 
   // tRPC mutation for saving workouts
   const utils = trpc.useUtils();
+
+  // ── Today's per-exercise checklist (from the shared "Today" aggregator) ──
+  // Use the client's LOCAL calendar date so the day boundary matches the user,
+  // not UTC.
+  const localToday = new Date();
+  const localDateStr = `${localToday.getFullYear()}-${String(localToday.getMonth() + 1).padStart(2, "0")}-${String(localToday.getDate()).padStart(2, "0")}`;
+
+  const getTodayQuery = trpc.clientPortal.today.getToday.useQuery({ date: localDateStr });
+  const todayActivityQuery = trpc.clientPortal.workouts.todayActivity.useQuery();
+
+  const workoutSection = getTodayQuery.data?.sections.find((s) => s.key === "workout");
+  const todayExercises = workoutSection?.items ?? [];
+  const todayDoneCount = todayExercises.filter((i) => i.done).length;
+
+  const toggleExerciseMutation = trpc.clientPortal.today.toggleComplete.useMutation({
+    onSuccess: () => {
+      setToggleError(null);
+      void utils.clientPortal.today.getToday.invalidate();
+    },
+    onError: () => setToggleError("Couldn't update that exercise. Please try again."),
+  });
+
+  // Compact Apple Health summary — only the metrics that are actually present.
+  const appleHealth = todayActivityQuery.data;
+  const appleMetrics: string[] = [];
+  if (appleHealth) {
+    if (appleHealth.exerciseMinutes != null) appleMetrics.push(`${round(appleHealth.exerciseMinutes)} min exercise`);
+    if (appleHealth.caloriesActive != null) appleMetrics.push(`${round(appleHealth.caloriesActive)} active cal`);
+    if (appleHealth.steps != null) appleMetrics.push(`${round(appleHealth.steps).toLocaleString()} steps`);
+    if (appleHealth.distanceMeters != null) appleMetrics.push(`${round(appleHealth.distanceMeters).toLocaleString()} m`);
+    if (appleHealth.flightsClimbed != null) appleMetrics.push(`${round(appleHealth.flightsClimbed)} flights`);
+  }
   const saveWorkoutMutation = trpc.clientPortal.workouts.quickLog.useMutation({
     onSuccess: () => {
       setSaveError(null);
@@ -245,6 +281,86 @@ export default function WorkoutsPage() {
             <p className="text-kairos-gold text-xs font-body">{stat.unit}</p>
           </div>
         ))}
+      </div>
+
+      {/* Today's Activities — per-exercise checklist + Apple Health */}
+      <div className="kairos-card">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Zap size={18} className="text-kairos-gold" />
+            <h2 className="font-heading font-bold text-lg text-white">Today&apos;s Activities</h2>
+          </div>
+          {todayExercises.length > 0 && (
+            <span className="text-xs text-kairos-silver-dark font-body">
+              {todayDoneCount} of {todayExercises.length} done
+            </span>
+          )}
+        </div>
+
+        {appleMetrics.length > 0 && (
+          <div className="mb-4 flex items-center gap-3 rounded-kairos-sm border border-kairos-border bg-kairos-royal-surface/40 px-4 py-3">
+            <Heart className="w-4 h-4 text-kairos-gold flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wide text-kairos-silver-dark">From Apple Health today</p>
+              <p className="text-sm text-white font-body">{appleMetrics.join(" · ")}</p>
+            </div>
+          </div>
+        )}
+
+        {getTodayQuery.isLoading ? (
+          <p className="text-sm text-kairos-silver-dark font-body py-2">Loading today&apos;s exercises...</p>
+        ) : todayExercises.length === 0 ? (
+          <p className="text-sm text-kairos-silver-dark font-body py-2">No exercises scheduled today.</p>
+        ) : (
+          <div className="space-y-2">
+            {todayExercises.map((item) => (
+              <div
+                key={item.key}
+                className="flex items-start gap-3 rounded-kairos-sm border border-kairos-border p-3 hover:border-kairos-gold/50 transition-colors"
+              >
+                <button
+                  onClick={() =>
+                    toggleExerciseMutation.mutate({
+                      date: localDateStr,
+                      key: item.key,
+                      done: !item.done,
+                      protocolItemId: null,
+                    })
+                  }
+                  disabled={toggleExerciseMutation.isPending || !item.completable}
+                  className="mt-0.5 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label={item.done ? "Mark exercise incomplete" : "Mark exercise complete"}
+                >
+                  {item.done ? (
+                    <CheckCircle className="w-5 h-5 text-kairos-gold" />
+                  ) : (
+                    <Circle className="w-5 h-5 text-kairos-silver-dark" />
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className={`font-heading font-semibold text-sm ${item.done ? "text-kairos-silver-dark line-through" : "text-white"}`}>
+                    {item.title}
+                  </p>
+                  {item.subtitle && (
+                    <p className="text-xs text-kairos-silver-dark font-body mt-0.5">{item.subtitle}</p>
+                  )}
+                </div>
+                {item.link && (
+                  <a
+                    href={item.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-shrink-0 inline-flex items-center gap-1 text-xs text-kairos-gold hover:text-kairos-gold/80 transition-colors"
+                  >
+                    <Play className="w-3 h-3" /> Watch
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {toggleError && <p className="text-xs font-body text-red-400 mt-3">{toggleError}</p>}
       </div>
 
       {/* My Exercise Protocols */}
