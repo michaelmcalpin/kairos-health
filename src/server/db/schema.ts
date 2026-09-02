@@ -471,6 +471,10 @@ export const fastingProtocols = pgTable("fasting_protocols", {
   type: fastingTypeEnum("type").notNull(),
   feedingStartHour: integer("feeding_start_hour"),
   feedingEndHour: integer("feeding_end_hour"),
+  // Total fasting length in hours (16, 18, 20, 24, 36, 48, 72…). Lets extended
+  // fasts (which have no daily feeding window) keep a distinct identity without
+  // overloading feeding_end_hour.
+  targetHours: integer("target_hours"),
   activeDays: jsonb("active_days").$type<number[]>().default([0, 1, 2, 3, 4, 5, 6]),
   status: varchar("status", { length: 20 }).default("active"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

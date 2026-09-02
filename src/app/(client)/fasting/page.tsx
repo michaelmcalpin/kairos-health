@@ -58,20 +58,26 @@ const protocolPresets: ProtocolPreset[] = [
   { id: "20_4", label: "20:4", subtitle: "Feed 2pm–6pm", dbType: "20_4", feedingStartHour: 14, feedingEndHour: 18, fastHours: 20, isExtended: false },
   { id: "omad", label: "OMAD", subtitle: "One meal/day", dbType: "omad", feedingStartHour: 17, feedingEndHour: 18, fastHours: 23, isExtended: false },
   // Extended custom fasts share dbType "custom" (the fasting_type enum has no
-  // 24/48/72 members), so we persist their target length in feedingEndHour to
-  // give each a distinct, decodable identity. Values > 23 can never collide
-  // with a real feeding-window end hour (0–23), so getActivePresetId /
-  // getTargetHoursForProtocol round-trip the correct protocol on reload.
-  { id: "24hr", label: "24hr", subtitle: "Full day fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 24, fastHours: 24, isExtended: true },
+  // 24/48/72 members). Their identity is carried by the dedicated targetHours
+  // column (= fastHours), so getActivePresetId / getTargetHoursForProtocol
+  // round-trip the correct protocol on reload without abusing the feeding window.
+  { id: "24hr", label: "24hr", subtitle: "Full day fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 0, fastHours: 24, isExtended: true },
   { id: "36hr", label: "36hr", subtitle: "Extended fast", dbType: "36hr", feedingStartHour: 0, feedingEndHour: 0, fastHours: 36, isExtended: true },
-  { id: "48hr", label: "48hr", subtitle: "Deep fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 48, fastHours: 48, isExtended: true },
-  { id: "72hr", label: "72hr", subtitle: "Prolonged fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 72, fastHours: 72, isExtended: true },
+  { id: "48hr", label: "48hr", subtitle: "Deep fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 0, fastHours: 48, isExtended: true },
+  { id: "72hr", label: "72hr", subtitle: "Prolonged fast", dbType: "custom", feedingStartHour: 0, feedingEndHour: 0, fastHours: 72, isExtended: true },
 ];
 
-function getTargetHoursForProtocol(
-  protocol: { type: string; feedingStartHour: number | null; feedingEndHour: number | null } | null | undefined,
-): number {
+type StoredProtocol = {
+  type: string;
+  feedingStartHour: number | null;
+  feedingEndHour: number | null;
+  targetHours?: number | null;
+} | null | undefined;
+
+function getTargetHoursForProtocol(protocol: StoredProtocol): number {
   if (!protocol) return 16;
+  // The dedicated targetHours column is authoritative when present.
+  if (protocol.targetHours != null) return protocol.targetHours;
   const match = protocolPresets.find((p) => {
     if (p.dbType === protocol.type) {
       if (protocol.type === "custom") {
@@ -89,10 +95,13 @@ function getTargetHoursForProtocol(
   return 16;
 }
 
-function getActivePresetId(
-  protocol: { type: string; feedingStartHour: number | null; feedingEndHour: number | null } | null | undefined,
-): string | null {
+function getActivePresetId(protocol: StoredProtocol): string | null {
   if (!protocol) return null;
+  // Prefer matching on the dedicated targetHours (identifies extended fasts).
+  if (protocol.targetHours != null) {
+    const byHours = protocolPresets.find((p) => p.fastHours === protocol.targetHours);
+    if (byHours) return byHours.id;
+  }
   for (const p of protocolPresets) {
     if (p.dbType === protocol.type) {
       if (protocol.type === "custom") {
@@ -260,6 +269,7 @@ export default function FastingPage() {
       type: preset.dbType,
       feedingStartHour: preset.feedingStartHour,
       feedingEndHour: preset.feedingEndHour,
+      targetHours: preset.fastHours,
     });
     setShowCustom(false);
   }
@@ -269,6 +279,7 @@ export default function FastingPage() {
       type: "custom",
       feedingStartHour: customFeedStart,
       feedingEndHour: customFeedEnd,
+      targetHours: customFeedEnd > customFeedStart ? 24 - (customFeedEnd - customFeedStart) : undefined,
     });
     setShowCustom(false);
   }

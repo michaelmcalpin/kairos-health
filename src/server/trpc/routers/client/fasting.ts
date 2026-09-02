@@ -25,6 +25,7 @@ export const clientFastingRouter = router({
           type: protocol.type,
           feedingStartHour: protocol.feedingStartHour,
           feedingEndHour: protocol.feedingEndHour,
+          targetHours: protocol.targetHours,
           activeDays: protocol.activeDays,
           isAiGenerated: protocol.isAiGenerated,
           createdAt: protocol.createdAt,
@@ -97,10 +98,9 @@ export const clientFastingRouter = router({
     .input(z.object({
       type: z.string(),
       feedingStartHour: z.number().min(0).max(23).optional(),
-      // Feeding-window end hour is normally 0–23, but extended "custom" fasts
-      // (24/48/72h) persist their target length here as a distinct identity, so
-      // allow the larger encoded values through.
-      feedingEndHour: z.number().min(0).max(72).optional(),
+      feedingEndHour: z.number().min(0).max(23).optional(),
+      // Total fast length in hours (identifies extended fasts with no window).
+      targetHours: z.number().min(1).max(168).optional(),
       activeDays: z.array(z.number()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -116,6 +116,7 @@ export const clientFastingRouter = router({
         type: input.type as "16_8",
         feedingStartHour: input.feedingStartHour,
         feedingEndHour: input.feedingEndHour,
+        targetHours: input.targetHours,
         activeDays: input.activeDays ?? [0, 1, 2, 3, 4, 5, 6],
         status: "active",
       }).returning();

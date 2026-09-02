@@ -57,6 +57,13 @@
       "when": 1788300000000,
       "tag": "0007_sync_schema_drift",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788400000000,
+      "tag": "0008_fasting_target_hours",
+      "breakpoints": true
     }
   ]
 }
