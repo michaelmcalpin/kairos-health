@@ -9,7 +9,7 @@ import {
   Droplets, Moon, Heart, Scale, Dumbbell, Target, FlaskConical,
   Apple, Pill, Zap, ClipboardList, ChevronRight, Timer, Footprints,
   Dna, FileText, Lock, MessagesSquare, Users, ShieldCheck,
-  Plus, Pencil, Archive, Syringe,
+  Plus, Pencil, Archive, Syringe, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { useThemeColors } from "@/lib/theme";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
@@ -2717,21 +2717,6 @@ function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEd
     onSuccess: () => invalidate(),
     onError: (e) => setErrorMsg(e.message),
   });
-  const assignTemplateMutation = trpc.coach.plans.assignTemplateToClients.useMutation({
-    onSuccess: (res) => {
-      invalidate();
-      setShowTemplateModal(false);
-      const skippedReasons = res.skipped.map((s) => s.reason).join(", ");
-      if (res.assigned === 0 && skippedReasons) {
-        setErrorMsg(`Program not assigned — ${skippedReasons.replace(/_/g, " ")}.`);
-      } else if (skippedReasons) {
-        setErrorMsg(`Program assigned. Skipped: ${skippedReasons.replace(/_/g, " ")}.`);
-      } else {
-        setErrorMsg(null);
-      }
-    },
-    onError: (e) => setErrorMsg(e.message),
-  });
 
   const programs = listQuery.data ?? [];
 
@@ -2819,10 +2804,11 @@ function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEd
       )}
 
       {showTemplateModal && (
-        <ApplyTemplateModal
-          saving={assignTemplateMutation.isPending}
+        <ApplyProgramTemplateModal
+          clientId={clientId}
+          type="workouts"
           onClose={() => setShowTemplateModal(false)}
-          onSubmit={(programId, startDate) => assignTemplateMutation.mutate({ programId, clientIds: [clientId], startDate })}
+          onApplied={invalidate}
         />
       )}
     </div>
@@ -2967,73 +2953,163 @@ function TrainingProgramModal({
 }
 
 /** Apply one of the coach's saved workout templates to this client. */
-function ApplyTemplateModal({
-  saving,
+/**
+ * Apply a saved PROGRAM TEMPLATE (from the Programs page — coach.programTemplates)
+ * to THIS one client, OVERWRITING their live workout or diet. Same template
+ * library the Programs page builds, so the two places stay in sync. Two steps:
+ * pick a template → confirm the overwrite (it's destructive + notifies the client).
+ */
+function ApplyProgramTemplateModal({
+  clientId,
+  type,
   onClose,
-  onSubmit,
+  onApplied,
 }: {
-  saving: boolean;
+  clientId: string;
+  type: "workouts" | "diet";
   onClose: () => void;
-  onSubmit: (programId: string, startDate: string) => void;
+  onApplied: () => void;
 }) {
-  const templatesQuery = trpc.coach.plans.listWorkoutTemplates.useQuery(undefined, {
-    staleTime: 10_000,
-    refetchOnWindowFocus: false,
-    retry: false,
-  });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState(todayISO());
-
+  const templatesQuery = trpc.coach.programTemplates.list.useQuery(
+    { type },
+    { staleTime: 10_000, refetchOnWindowFocus: false, retry: false },
+  );
   const templates = templatesQuery.data ?? [];
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [result, setResult] = useState<{
+    applied: number;
+    skipped: Array<{ clientId: string; reason: string }>;
+  } | null>(null);
 
-  const handleSubmit = () => {
-    if (!selectedId || !startDate) return;
-    onSubmit(selectedId, startDate);
-  };
+  const applyMutation = trpc.coach.programTemplates.apply.useMutation({
+    onSuccess: (res) => {
+      setResult(res);
+      onApplied();
+    },
+  });
 
+  const isDiet = type === "diet";
+  const title = isDiet ? "Apply Diet Template" : "Apply Exercise Template";
+  const overwrites = isDiet ? "current diet" : "current workout";
+  const selectedName = templates.find((t) => t.id === selectedId)?.name;
+
+  // Result view.
+  if (result) {
+    const skippedReason = result.skipped[0]?.reason;
+    return (
+      <Modal title={title} onClose={onClose}>
+        {result.applied > 0 ? (
+          <div className="text-center py-4">
+            <CheckCircle2 size={32} className="mx-auto mb-2 text-green-400" />
+            <p className="text-sm text-white font-medium mb-1">Template applied</p>
+            <p className="text-xs text-gray-500">
+              This client&apos;s {overwrites} was replaced and they were notified.
+            </p>
+          </div>
+        ) : (
+          <div className="text-center py-4">
+            <AlertCircle size={32} className="mx-auto mb-2 text-yellow-400" />
+            <p className="text-sm text-white font-medium mb-1">Not applied</p>
+            <p className="text-xs text-gray-500">
+              {skippedReason === "no_access"
+                ? "You don't have edit access for this client."
+                : "Something went wrong applying the template."}
+            </p>
+          </div>
+        )}
+        <button onClick={onClose} className="kairos-btn-gold w-full mt-2">Done</button>
+      </Modal>
+    );
+  }
+
+  // Confirm overwrite.
+  if (confirming) {
+    return (
+      <Modal title={title} onClose={onClose}>
+        <div className="flex items-start gap-3 mb-4">
+          <AlertTriangle size={22} className="text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-gray-300">
+            Applying &ldquo;{selectedName}&rdquo; will replace this client&apos;s {overwrites} with the template. Their
+            previous plan will be overwritten and they&apos;ll be notified. This can&apos;t be undone.
+          </p>
+        </div>
+        {applyMutation.isError && (
+          <div className="px-3 py-2 mb-3 rounded-lg text-xs bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-2">
+            <AlertCircle size={13} /> {applyMutation.error.message}
+          </div>
+        )}
+        <div className="flex gap-3">
+          <button
+            onClick={() => setConfirming(false)}
+            disabled={applyMutation.isPending}
+            className="kairos-btn-outline flex-1 disabled:opacity-50"
+          >
+            Back
+          </button>
+          <button
+            onClick={() => applyMutation.mutate({ id: selectedId!, clientIds: [clientId] })}
+            disabled={applyMutation.isPending}
+            className="flex-1 rounded-xl px-4 py-2 text-sm font-medium bg-amber-500/90 hover:bg-amber-500 text-white transition-colors disabled:opacity-50"
+          >
+            {applyMutation.isPending ? "Overwriting..." : "Overwrite & notify"}
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
+  // Template selection.
   return (
-    <Modal title="Apply Saved Program" onClose={onClose}>
-      <div className="space-y-3 mb-4">
-        <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Program</label>
-          {templatesQuery.isLoading ? (
-            <p className="text-xs text-gray-500 text-center py-6">Loading programs...</p>
-          ) : templates.length === 0 ? (
-            <p className="text-xs text-gray-500 text-center py-6">No saved programs yet — create one on the Programs page.</p>
-          ) : (
-            <div className="space-y-1.5 max-h-64 overflow-y-auto">
-              {templates.map((t) => {
-                const isSelected = t.id === selectedId;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setSelectedId(t.id)}
-                    className={`w-full text-left p-2.5 rounded-lg border transition-colors ${
-                      isSelected
-                        ? "border-kairos-gold/50 bg-kairos-gold/10"
-                        : "border-gray-800 bg-gray-800/20 hover:bg-gray-800/40"
-                    }`}
-                  >
-                    <p className="text-sm text-white font-medium">{t.name}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">
-                      {t.sessionCount} day{t.sessionCount === 1 ? "" : "s"} · {t.exerciseCount} exercise{t.exerciseCount === 1 ? "" : "s"}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Start Date *</label>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="kairos-input w-full" />
-        </div>
+    <Modal title={title} onClose={onClose}>
+      <div className="mb-4">
+        <label className="text-[10px] text-gray-500 uppercase mb-1 block">
+          {isDiet ? "Diet template" : "Exercise template"}
+        </label>
+        {templatesQuery.isLoading ? (
+          <p className="text-xs text-gray-500 text-center py-6">Loading templates...</p>
+        ) : templates.length === 0 ? (
+          <p className="text-xs text-gray-500 text-center py-6">
+            No saved {isDiet ? "diet" : "exercise"} templates yet — create one on the Programs page.
+          </p>
+        ) : (
+          <div className="space-y-1.5 max-h-64 overflow-y-auto">
+            {templates.map((t) => {
+              const isSelected = t.id === selectedId;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setSelectedId(t.id)}
+                  className={`w-full text-left p-2.5 rounded-lg border transition-colors ${
+                    isSelected
+                      ? "border-kairos-gold/50 bg-kairos-gold/10"
+                      : "border-gray-800 bg-gray-800/20 hover:bg-gray-800/40"
+                  }`}
+                >
+                  <p className="text-sm text-white font-medium">{t.name}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">
+                    {t.rowCount} {isDiet ? "meal" : "exercise"}{t.rowCount === 1 ? "" : "s"}
+                    {type === "workouts" && t.dayCount != null ? ` · ${t.dayCount} day${t.dayCount === 1 ? "" : "s"}` : ""}
+                    {isDiet && t.planType ? ` · ${t.planType}` : ""}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
+      <p className="text-[11px] text-amber-400/90 flex items-center gap-1.5 mb-3">
+        <AlertTriangle size={12} className="shrink-0" /> Applying replaces this client&apos;s {overwrites}.
+      </p>
       <div className="flex gap-3">
         <button onClick={onClose} className="kairos-btn-outline flex-1">Cancel</button>
-        <button onClick={handleSubmit} disabled={!selectedId || !startDate || saving} className="kairos-btn-gold flex-1 disabled:opacity-50">
-          {saving ? "Applying..." : "Apply Template"}
+        <button
+          onClick={() => selectedId && setConfirming(true)}
+          disabled={!selectedId}
+          className="kairos-btn-gold flex-1 disabled:opacity-50"
+        >
+          Apply Template
         </button>
       </div>
     </Modal>
@@ -3045,6 +3121,7 @@ function ApplyTemplateModal({
 function MealPlanManager({ clientId, canEdit }: { clientId: string; canEdit: boolean }) {
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const listQuery = trpc.coach.plans.listMealPlans.useQuery(
@@ -3058,7 +3135,12 @@ function MealPlanManager({ clientId, canEdit }: { clientId: string; canEdit: boo
   );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dietRows = ((dietGrid.data as any)?.rows ?? []) as Array<Record<string, unknown>>;
-  const invalidate = () => utils.coach.plans.listMealPlans.invalidate({ clientId });
+  // Applying a diet template overwrites the meals grid AND may create/replace the
+  // active meal plan, so refresh both views.
+  const invalidate = () => {
+    utils.coach.plans.listMealPlans.invalidate({ clientId });
+    utils.coach.protocolBulk.getGrid.invalidate({ clientId, type: "diet" });
+  };
 
   const createMutation = trpc.coach.plans.createMealPlan.useMutation({
     onSuccess: () => { invalidate(); setShowModal(false); setErrorMsg(null); },
@@ -3079,12 +3161,20 @@ function MealPlanManager({ clientId, canEdit }: { clientId: string; canEdit: boo
           <Apple size={16} /> Meal Plans
         </h2>
         {canEdit && (
-          <button
-            onClick={() => { setErrorMsg(null); setShowModal(true); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
-          >
-            <Plus size={12} /> Create / Assign Meal Plan
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => { setErrorMsg(null); setShowTemplateModal(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+            >
+              <ClipboardList size={12} /> Apply Template
+            </button>
+            <button
+              onClick={() => { setErrorMsg(null); setShowModal(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+            >
+              <Plus size={12} /> Create / Assign Meal Plan
+            </button>
+          </div>
         )}
       </div>
 
@@ -3176,6 +3266,15 @@ function MealPlanManager({ clientId, canEdit }: { clientId: string; canEdit: boo
           saving={createMutation.isPending}
           onClose={() => setShowModal(false)}
           onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+        />
+      )}
+
+      {showTemplateModal && (
+        <ApplyProgramTemplateModal
+          clientId={clientId}
+          type="diet"
+          onClose={() => setShowTemplateModal(false)}
+          onApplied={invalidate}
         />
       )}
     </div>
