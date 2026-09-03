@@ -2,6 +2,7 @@ import { router, clientProcedure } from "@/server/trpc";
 import { sleepSessions } from "@/server/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { dateRangeInput } from "@/server/trpc/shared";
+import { mergeSleepNights } from "@/lib/health/sleep";
 import { z } from "zod";
 
 // Only swallow "relation/table does not exist" errors (e.g. a table that has
@@ -34,7 +35,9 @@ export const clientSleepRouter = router({
         orderBy: desc(sleepSessions.date),
       }), []);
 
-      return results.map((s) => ({
+      // A night synced by more than one source (Apple Health + Oura) has one row
+      // each — merge to a single best-of-source night so it isn't double-counted.
+      return mergeSleepNights(results).map((s) => ({
         id: s.id,
         date: s.date,
         bedtime: s.bedtime,
@@ -50,48 +53,46 @@ export const clientSleepRouter = router({
       }));
     }),
 
-  // Aggregate sleep statistics
+  // Aggregate sleep statistics — averaged over merged nights (one per date), so
+  // a night synced by two sources isn't double-counted in the averages.
   stats: clientProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
-      const result = await safeQ(() => ctx.db
-        .select({
-          count: sql<number>`count(*)`,
-          avgScore: sql<number>`avg(${sleepSessions.score})`,
-          avgDuration: sql<number>`avg(${sleepSessions.totalMinutes})`,
-          avgDeep: sql<number>`avg(${sleepSessions.deepMinutes})`,
-          avgRem: sql<number>`avg(${sleepSessions.remMinutes})`,
-          avgLight: sql<number>`avg(${sleepSessions.lightMinutes})`,
-          avgAwake: sql<number>`avg(${sleepSessions.awakeMinutes})`,
-        })
-        .from(sleepSessions)
-        .where(
-          and(
-            eq(sleepSessions.clientId, ctx.dbUserId),
-            gte(sleepSessions.date, input.startDate),
-            lte(sleepSessions.date, input.endDate)
-          )
-        ), []);
+      const rows = await safeQ(() => ctx.db.query.sleepSessions.findMany({
+        where: and(
+          eq(sleepSessions.clientId, ctx.dbUserId),
+          gte(sleepSessions.date, input.startDate),
+          lte(sleepSessions.date, input.endDate),
+        ),
+      }), []);
+      const nights = mergeSleepNights(rows);
 
-      const row = result[0];
+      const avg = (pick: (n: (typeof nights)[number]) => number | null | undefined) => {
+        const vals = nights.map(pick).filter((v): v is number => v != null && v !== 0);
+        if (vals.length === 0) return null;
+        return Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+      };
+
       return {
-        count: Number(row?.count ?? 0),
-        avgScore: row?.avgScore ? Math.round(Number(row.avgScore)) : null,
-        avgDuration: row?.avgDuration ? Math.round(Number(row.avgDuration)) : null,
-        avgDeep: row?.avgDeep ? Math.round(Number(row.avgDeep)) : null,
-        avgRem: row?.avgRem ? Math.round(Number(row.avgRem)) : null,
-        avgLight: row?.avgLight ? Math.round(Number(row.avgLight)) : null,
-        avgAwake: row?.avgAwake ? Math.round(Number(row.avgAwake)) : null,
+        count: nights.length,
+        avgScore: avg((n) => n.score),
+        avgDuration: avg((n) => n.totalMinutes),
+        avgDeep: avg((n) => n.deepMinutes),
+        avgRem: avg((n) => n.remMinutes),
+        avgLight: avg((n) => n.lightMinutes),
+        avgAwake: avg((n) => n.awakeMinutes),
       };
     }),
 
-  // Get the most recent sleep session
+  // Get the most recent sleep NIGHT (merged across sources). Pull a few recent
+  // rows so both sources for the latest night are merged, not one arbitrary row.
   latest: clientProcedure.query(async ({ ctx }) => {
-    const result = await safeQ(() => ctx.db.query.sleepSessions.findFirst({
+    const recent = await safeQ(() => ctx.db.query.sleepSessions.findMany({
       where: eq(sleepSessions.clientId, ctx.dbUserId),
       orderBy: desc(sleepSessions.date),
-    }), undefined);
-    return result ?? null;
+      limit: 6,
+    }), []);
+    return mergeSleepNights(recent)[0] ?? null;
   }),
 
   // Create a new sleep session

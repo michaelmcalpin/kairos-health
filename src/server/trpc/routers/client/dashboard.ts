@@ -18,6 +18,7 @@ import {
   workoutPrograms,
   clientWorkoutAssignments,
 } from "@/server/db/schema";
+import { mergeSleepNights } from "@/lib/health/sleep";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 
 // Helper: safely query a table that may not exist yet.
@@ -74,10 +75,16 @@ export const clientDashboardRouter = router({
         where: eq(hrvReadings.clientId, ctx.dbUserId),
         orderBy: desc(hrvReadings.timestamp),
       }), undefined),
-      safeQ(() => ctx.db.query.sleepSessions.findFirst({
-        where: eq(sleepSessions.clientId, ctx.dbUserId),
-        orderBy: desc(sleepSessions.date),
-      }), undefined),
+      safeQ(async () => {
+        // Merge the latest night across sources (Apple Health + Oura) instead of
+        // returning one arbitrary row.
+        const recent = await ctx.db.query.sleepSessions.findMany({
+          where: eq(sleepSessions.clientId, ctx.dbUserId),
+          orderBy: desc(sleepSessions.date),
+          limit: 6,
+        });
+        return mergeSleepNights(recent)[0] ?? undefined;
+      }, undefined),
       ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(alerts)
@@ -338,7 +345,7 @@ export const clientDashboardRouter = router({
         .groupBy(sql`DATE(${glucoseReadings.timestamp})`)
         .orderBy(sql`DATE(${glucoseReadings.timestamp})`), []);
 
-      const sleepDaily = await safeQ(() => ctx.db.query.sleepSessions.findMany({
+      const sleepDailyRows = await safeQ(() => ctx.db.query.sleepSessions.findMany({
         where: and(
           eq(sleepSessions.clientId, ctx.dbUserId),
           gte(sleepSessions.date, startDate),
@@ -346,6 +353,8 @@ export const clientDashboardRouter = router({
         ),
         orderBy: sleepSessions.date,
       }), []);
+      // One merged night per date (Apple Health + Oura collapsed), ascending.
+      const sleepDaily = mergeSleepNights(sleepDailyRows).sort((a, b) => a.date.localeCompare(b.date));
 
       const protocol = await safeQ(() => ctx.db.query.supplementProtocols.findFirst({
         where: and(
@@ -468,19 +477,19 @@ export const clientDashboardRouter = router({
       : (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d; })();
     const sevenDaysStr = sevenDaysAgo.toISOString().split("T")[0];
 
-    const [avgGlucoseResult, avgSleepResult, latestHrv] = await Promise.all([
+    const [avgGlucoseResult, sleepRows, latestHrv] = await Promise.all([
       safeQ(() => ctx.db
         .select({ avg: sql<number>`ROUND(AVG(${glucoseReadings.valueMgdl}))` })
         .from(glucoseReadings)
         .where(
           and(eq(glucoseReadings.clientId, ctx.dbUserId), gte(glucoseReadings.timestamp, sevenDaysAgo)),
         ), []),
-      safeQ(() => ctx.db
-        .select({ avg: sql<number>`ROUND(AVG(${sleepSessions.score}))` })
-        .from(sleepSessions)
-        .where(
-          and(eq(sleepSessions.clientId, ctx.dbUserId), gte(sleepSessions.date, sevenDaysStr)),
-        ), []),
+      // Fetch raw rows (not a SQL AVG) so a night synced by two sources
+      // (Apple Health + Oura) is merged to ONE best-of-source night before we
+      // average — a SQL AVG would double-count that night.
+      safeQ(() => ctx.db.query.sleepSessions.findMany({
+        where: and(eq(sleepSessions.clientId, ctx.dbUserId), gte(sleepSessions.date, sevenDaysStr)),
+      }), []),
       safeQ(() => ctx.db.query.hrvReadings.findFirst({
         where: eq(hrvReadings.clientId, ctx.dbUserId),
         orderBy: desc(hrvReadings.timestamp),
@@ -489,9 +498,15 @@ export const clientDashboardRouter = router({
 
     // Only use components that actually have data — no fabricated defaults.
     const avgGlucoseRaw = avgGlucoseResult[0]?.avg;
-    const avgSleepRaw = avgSleepResult[0]?.avg;
     const avgGlucose = avgGlucoseRaw != null ? Number(avgGlucoseRaw) : null;
-    const avgSleep = avgSleepRaw != null ? Number(avgSleepRaw) : null;
+
+    const sleepNights = mergeSleepNights(sleepRows);
+    const sleepScores = sleepNights
+      .map((n) => n.score)
+      .filter((s): s is number => s != null && s !== 0);
+    const avgSleep = sleepScores.length > 0
+      ? Math.round(sleepScores.reduce((a, b) => a + b, 0) / sleepScores.length)
+      : null;
     const hrv = latestHrv?.rmssd ?? null;
 
     if (avgGlucose === null && avgSleep === null && hrv === null) {

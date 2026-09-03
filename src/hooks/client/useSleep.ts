@@ -133,7 +133,10 @@ export function useSleep(dateRange: DateRange): UseSleepReturn {
     return weeks;
   }, [records]);
 
-  const lastRecord = records.length > 0 ? records[records.length - 1] : null;
+  // `records` are newest-first (server returns merged nights sorted desc), so the
+  // headline "last sleep" is records[0] — last night, not the oldest in range or
+  // today (which hasn't happened yet).
+  const lastRecord = records.length > 0 ? records[0] : null;
 
   const stats = useMemo<SleepStats>(() => {
     if (!rawStats || records.length === 0) {
