@@ -1,461 +1,226 @@
 /**
- * Protocols tab -- Full daily protocol tracker.
+ * Protocols tab — the full daily plan as a one-tap checklist, mirroring the
+ * Guided home view: EVERY item for the day (coach tasks, meetings, workout,
+ * meals, supplements, medications, peptides, fasting), grouped and completable.
  *
- * Displays a circular progress ring, time-of-day grouped protocol items
- * (supplements, medications, peptides, exercises), weekly adherence chart,
- * and action buttons.
- *
- * Data sourced from useActiveProtocol, useProtocolAdherence, and
- * useWeeklyAdherence hooks (with sample-data fallback built into the hooks).
+ * Unlike the home view it's day-navigable: step back to complete something you
+ * forgot to mark yesterday, or step forward to preview tomorrow's plan. Both the
+ * data and the complete/undo mutation are keyed by the selected date server-side
+ * (clientPortal.today.getToday / toggleComplete), so past + future days work.
  */
 
 import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import {
-  TrendingUp,
-  ClipboardList,
-  Plus,
-} from "lucide-react-native";
+import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import {
-  ProgressRing,
-  ProtocolCheckItem,
-  TimeSection,
-  WeeklyAdherenceChart,
-} from "@/components/protocols";
-import type { ItemCategory } from "@/components/protocols";
-import {
-  useActiveProtocol,
-  useProtocolAdherence,
-  useLogAdherence,
-  useWeeklyAdherence,
-} from "@/hooks";
+import { TodayChecklist } from "@/components/today/TodayChecklist";
+import { AdherenceStrip } from "@/components/today/AdherenceStrip";
+import { useToday, localDate, type TodayData } from "@/hooks/useToday";
 
-// ================================================================
-// Types
-// ================================================================
-
-interface ProtocolItemData {
-  id: string;
-  title: string;
-  dosage: string;
-  form?: string;
-  category: ItemCategory;
-  timeSlot: "morning" | "afternoon" | "evening" | "bedtime";
-  hasNotes?: boolean;
+// Local (not UTC) YYYY-MM-DD for a given Date.
+function toDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-// ================================================================
-// Time slot configuration
-// ================================================================
-
-const TIME_SLOTS = [
-  {
-    key: "morning" as const,
-    icon: "☀️", // sun
-    label: "Morning",
-    timeRange: "6:00 AM - 12:00 PM",
-  },
-  {
-    key: "afternoon" as const,
-    icon: "🌤️", // sun behind cloud
-    label: "Afternoon",
-    timeRange: "12:00 PM - 5:00 PM",
-  },
-  {
-    key: "evening" as const,
-    icon: "🌅", // sunset
-    label: "Evening",
-    timeRange: "5:00 PM - 9:00 PM",
-  },
-  {
-    key: "bedtime" as const,
-    icon: "🌙", // crescent moon
-    label: "Bedtime",
-    timeRange: "9:00 PM+",
-  },
-];
-
-// ================================================================
-// Screen Component
-// ================================================================
-
 export default function ProtocolsScreen() {
-  const router = useRouter();
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
 
-  // ---- Hook data ----
-  const {
-    items: protocolItems,
-    isLoading: protocolLoading,
-    refetch: refetchProtocol,
-  } = useActiveProtocol();
+  const dateStr = toDateStr(selectedDate);
+  const todayStr = localDate();
+  const isToday = dateStr === todayStr;
 
-  const {
-    completedIds: hookCompletedIds,
-    isLoading: adherenceLoading,
-    refetch: refetchAdherence,
-  } = useProtocolAdherence();
-
-  const { logItem } = useLogAdherence();
-
-  const {
-    weeklyData: hookWeeklyData,
-    isLoading: weeklyLoading,
-    refetch: refetchWeekly,
-  } = useWeeklyAdherence();
-
-  // Local optimistic state layered on top of the hook data
-  const [localOverrides, setLocalOverrides] = useState<Record<string, boolean>>({});
-
-  const completedIds = useMemo(() => {
-    const base = new Set(hookCompletedIds);
-    for (const [id, completed] of Object.entries(localOverrides)) {
-      if (completed) {
-        base.add(id);
-      } else {
-        base.delete(id);
-      }
-    }
-    return base;
-  }, [hookCompletedIds, localOverrides]);
-
-  const isLoading = protocolLoading || adherenceLoading;
+  const { data, isLoading, refetch, toggleItem } = useToday(dateStr);
+  const today = data as TodayData | undefined;
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchProtocol(), refetchAdherence(), refetchWeekly()]);
-    setLocalOverrides({});
+    await refetch();
     setRefreshing(false);
-  }, [refetchProtocol, refetchAdherence, refetchWeekly]);
+  }, [refetch]);
 
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const shiftDay = (delta: number) =>
+    setSelectedDate((d) => {
+      const n = new Date(d);
+      n.setDate(n.getDate() + delta);
+      return n;
+    });
 
-  const toggleItem = useCallback(
-    (id: string) => {
-      setLocalOverrides((prev) => {
-        const wasDone = hookCompletedIds.has(id)
-          ? prev[id] !== false
-          : !!prev[id];
-        return { ...prev, [id]: !wasDone };
-      });
-      // Fire-and-forget mutation to persist on backend
-      const wasDone = completedIds.has(id);
-      logItem(id, !wasDone);
-    },
-    [hookCompletedIds, completedIds, logItem],
-  );
+  // Relative label ("Today"/"Yesterday"/"Tomorrow") + the full calendar date.
+  const { relLabel, fullLabel } = useMemo(() => {
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    const rel = isToday
+      ? "Today"
+      : dateStr === toDateStr(y)
+        ? "Yesterday"
+        : dateStr === toDateStr(t)
+          ? "Tomorrow"
+          : selectedDate.toLocaleDateString("en-US", { weekday: "long" });
+    const full = selectedDate.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+    return { relLabel: rel, fullLabel: full };
+  }, [dateStr, isToday, selectedDate]);
 
-  // Cast hook items to local ProtocolItemData shape (they already match)
-  const items = protocolItems as ProtocolItemData[];
-
-  // Group items by time slot
-  const grouped = useMemo(() => {
-    const groups: Record<string, ProtocolItemData[]> = {};
-    for (const item of items) {
-      if (!groups[item.timeSlot]) groups[item.timeSlot] = [];
-      groups[item.timeSlot].push(item);
-    }
-    return groups;
-  }, [items]);
-
-  const totalItems = items.length;
-  const completedCount = items.filter((i) =>
-    completedIds.has(i.id)
-  ).length;
-
-  // Per-section counts
-  const sectionCounts = useMemo(() => {
-    const counts: Record<string, { completed: number; total: number }> = {};
-    for (const slot of TIME_SLOTS) {
-      const slotItems = grouped[slot.key] ?? [];
-      counts[slot.key] = {
-        total: slotItems.length,
-        completed: slotItems.filter((i) => completedIds.has(i.id)).length,
-      };
-    }
-    return counts;
-  }, [completedIds, grouped]);
-
-  // Merge today's live percentage into the weekly chart data
-  const weeklyData = useMemo(() => {
-    const todayPercent =
-      totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
-    return hookWeeklyData.map((d) =>
-      d.isToday ? { ...d, percent: todayPercent } : d
-    );
-  }, [completedCount, totalItems, hookWeeklyData]);
+  const progress = today?.progress ?? { done: 0, total: 0 };
+  const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
+      {isLoading && !refreshing && (
+        <View style={styles.loadingBar}>
+          <ActivityIndicator size="small" color={Colors.gold} />
+        </View>
+      )}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.gold}
-            colors={[Colors.gold]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.gold} colors={[Colors.gold]} />
         }
       >
-        {/* ---- Header ---- */}
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.headerTitle}>Today's Protocol</Text>
-            <Text style={styles.headerDate}>{today}</Text>
+        {/* Title */}
+        <Text style={styles.headerTitle}>Protocol</Text>
+
+        {/* Day stepper */}
+        <View style={styles.dayNav}>
+          <Pressable onPress={() => shiftDay(-1)} hitSlop={10} style={styles.navBtn}>
+            <ChevronLeft size={22} color={Colors.gold} />
+          </Pressable>
+          <View style={styles.dayNavCenter}>
+            <Text style={styles.dayRel}>{relLabel}</Text>
+            <Text style={styles.dayFull}>{fullLabel}</Text>
           </View>
-          <View style={styles.activeBadge}>
-            <ClipboardList size={12} color={Colors.gold} />
-            <Text style={styles.activeBadgeText}>Active</Text>
-          </View>
+          <Pressable onPress={() => shiftDay(1)} hitSlop={10} style={styles.navBtn}>
+            <ChevronRight size={22} color={Colors.gold} />
+          </Pressable>
         </View>
 
-        {/* ---- Loading indicator ---- */}
-        {isLoading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.gold} />
-          </View>
+        {/* Jump back to today when viewing another day */}
+        {!isToday && (
+          <Pressable onPress={() => setSelectedDate(new Date())} style={styles.jumpToday} hitSlop={6}>
+            <CalendarDays size={13} color={Colors.gold} />
+            <Text style={styles.jumpTodayText}>Back to today</Text>
+          </Pressable>
         )}
 
-        {/* ---- Progress Ring Hero ---- */}
-        <Card style={styles.heroCard}>
-          <ProgressRing
-            completed={completedCount}
-            total={totalItems}
-            size={130}
-            strokeWidth={11}
-          />
-          <Text style={styles.heroSubtitle}>Daily Completion</Text>
-          <View style={styles.heroStatsRow}>
-            <View style={styles.heroStat}>
-              <Text style={styles.heroStatValue}>{totalItems}</Text>
-              <Text style={styles.heroStatLabel}>Total</Text>
-            </View>
-            <View style={styles.heroDivider} />
-            <View style={styles.heroStat}>
-              <Text style={[styles.heroStatValue, { color: Colors.success }]}>
-                {completedCount}
+        {/* Advice + progress (advice only meaningful for today) */}
+        <Card style={styles.adviceCard}>
+          {isToday && today?.advice ? (
+            <>
+              <Text style={styles.adviceLabel}>Today's focus</Text>
+              <Text style={styles.adviceText}>{today.advice}</Text>
+            </>
+          ) : (
+            <Text style={styles.adviceLabel}>
+              {isToday ? "Your plan" : relLabel === "Tomorrow" ? "Coming up" : `${relLabel}'s plan`}
+            </Text>
+          )}
+          {progress.total > 0 && (
+            <View style={styles.progressWrap}>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${pct}%` }]} />
+              </View>
+              <Text style={styles.progressText}>
+                {progress.done}/{progress.total} done
               </Text>
-              <Text style={styles.heroStatLabel}>Done</Text>
             </View>
-            <View style={styles.heroDivider} />
-            <View style={styles.heroStat}>
-              <Text style={[styles.heroStatValue, { color: Colors.warning }]}>
-                {totalItems - completedCount}
-              </Text>
-              <Text style={styles.heroStatLabel}>Remaining</Text>
-            </View>
-          </View>
+          )}
         </Card>
 
-        {/* ---- Time-of-Day Sections ---- */}
-        {TIME_SLOTS.map((slot) => {
-          const items = grouped[slot.key];
-          if (!items || items.length === 0) return null;
-          const counts = sectionCounts[slot.key];
+        {/* Adherence strip — only for today (7-day history + streak) */}
+        {isToday && <AdherenceStrip todayPct={progress.total > 0 ? pct : null} />}
 
-          return (
-            <TimeSection
-              key={slot.key}
-              icon={slot.icon}
-              label={slot.label}
-              timeRange={slot.timeRange}
-              completed={counts.completed}
-              total={counts.total}
-            >
-              {items.map((item) => (
-                <ProtocolCheckItem
-                  key={item.id}
-                  title={item.title}
-                  dosage={item.dosage}
-                  form={item.form}
-                  category={item.category}
-                  completed={completedIds.has(item.id)}
-                  hasNotes={item.hasNotes}
-                  onToggle={() => toggleItem(item.id)}
-                />
-              ))}
-            </TimeSection>
-          );
-        })}
+        {/* The full checklist for the selected day */}
+        {today ? (
+          <TodayChecklist sections={today.sections} onToggle={toggleItem} />
+        ) : !isLoading ? (
+          <Card style={styles.emptyCard}>
+            <Text style={styles.emptyText}>Nothing on your plan for this day.</Text>
+          </Card>
+        ) : null}
 
-        {/* ---- Weekly Adherence Chart ---- */}
-        <View style={styles.sectionHeaderRow}>
-          <TrendingUp size={16} color={Colors.gold} />
-          <Text style={styles.sectionTitle}>Weekly Adherence</Text>
-        </View>
-        <Card style={styles.chartCard}>
-          <WeeklyAdherenceChart data={weeklyData} />
-        </Card>
-
-        {/* ---- Bottom Actions ---- */}
-        <View style={styles.actionsRow}>
-          <Button
-            title="View Full Protocol"
-            variant="secondary"
-            size="md"
-            onPress={() => router.push("/protocols/supplements")}
-            style={styles.actionButton}
-            icon={<ClipboardList size={16} color={Colors.gold} />}
-          />
-          <Button
-            title="Log Custom Item"
-            variant="tertiary"
-            size="md"
-            onPress={() => router.push("/protocols/add-item" as any)}
-            style={styles.actionButton}
-            icon={<Plus size={16} color={Colors.silverLight} />}
-          />
-        </View>
-
-        {/* Bottom spacer for tab bar */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ================================================================
-// Styles
-// ================================================================
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.dark,
-  },
-  scrollContent: {
-    padding: Spacing.md,
-  },
-
-  // Loading
-  loadingContainer: {
+  container: { flex: 1, backgroundColor: Colors.dark },
+  scrollContent: { padding: Spacing.md },
+  loadingBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.lg,
+    paddingVertical: 4,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
+  headerTitle: { color: Colors.white, fontSize: FontSizes.xxl, fontWeight: "800", marginBottom: Spacing.sm },
 
-  // Header
-  headerRow: {
+  // Day stepper
+  dayNav: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: Spacing.md,
+    backgroundColor: Colors.navyLight,
+    borderRadius: Radii.lg,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
-  headerTitle: {
-    color: Colors.white,
-    fontSize: FontSizes.xxl,
-    fontWeight: "800",
-  },
-  headerDate: {
-    color: Colors.silver,
-    fontSize: FontSizes.sm,
-    marginTop: 2,
-  },
-  activeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(74, 144, 217, 0.12)",
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: Radii.full,
-  },
-  activeBadgeText: {
-    color: Colors.gold,
-    fontSize: FontSizes.xs,
-    fontWeight: "700",
-  },
-
-  // Hero card
-  heroCard: {
-    alignItems: "center",
-    paddingVertical: Spacing.lg,
-    marginBottom: Spacing.lg,
-  },
-  heroSubtitle: {
-    color: Colors.silver,
-    fontSize: FontSizes.xs,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  heroStatsRow: {
-    flexDirection: "row",
+  navBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    width: "100%",
-    paddingTop: Spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
   },
-  heroStat: {
+  dayNavCenter: { alignItems: "center", flex: 1 },
+  dayRel: { color: Colors.white, fontSize: FontSizes.md, fontWeight: "700" },
+  dayFull: { color: Colors.silver, fontSize: FontSizes.xs, marginTop: 1 },
+  jumpToday: {
+    flexDirection: "row",
     alignItems: "center",
-    flex: 1,
+    alignSelf: "center",
+    gap: 5,
+    marginTop: Spacing.sm,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
   },
-  heroStatValue: {
-    color: Colors.white,
-    fontSize: FontSizes.lg,
+  jumpTodayText: { color: Colors.gold, fontSize: FontSizes.xs, fontWeight: "600" },
+
+  adviceCard: { marginTop: Spacing.md, marginBottom: Spacing.md },
+  adviceLabel: {
+    color: Colors.gold,
+    fontSize: 11,
     fontWeight: "700",
-  },
-  heroStatLabel: {
-    color: Colors.silver,
-    fontSize: 10,
-    fontWeight: "500",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: 2,
+    letterSpacing: 1,
+    marginBottom: 6,
   },
-  heroDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 28,
-    backgroundColor: Colors.border,
-  },
-
-  // Section header
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  sectionTitle: {
-    color: Colors.white,
-    fontSize: FontSizes.lg,
-    fontWeight: "700",
-  },
-
-  // Chart card
-  chartCard: {
-    marginBottom: Spacing.md,
-  },
-
-  // Actions
-  actionsRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    marginTop: Spacing.sm,
-  },
-  actionButton: {
+  adviceText: { color: Colors.white, fontSize: FontSizes.md, fontWeight: "600", lineHeight: 22 },
+  progressWrap: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginTop: Spacing.md },
+  progressTrack: {
     flex: 1,
+    height: 6,
+    backgroundColor: Colors.dark,
+    borderRadius: Radii.full,
+    overflow: "hidden",
   },
+  progressFill: { height: "100%", backgroundColor: Colors.gold, borderRadius: Radii.full },
+  progressText: { color: Colors.gold, fontSize: 11, fontWeight: "600" },
 
-  // Bottom spacer
-  bottomSpacer: {
-    height: Spacing.xxl,
-  },
+  emptyCard: { alignItems: "center", paddingVertical: Spacing.lg },
+  emptyText: { color: Colors.silver, fontSize: FontSizes.sm },
+  bottomSpacer: { height: Spacing.xxl },
 });

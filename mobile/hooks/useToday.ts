@@ -27,7 +27,7 @@ export type TodayData = {
   progress: { done: number; total: number };
 };
 
-function localDate(): string {
+export function localDate(): string {
   // Client-LOCAL calendar date (not UTC) — avoids marking tomorrow's checklist
   // as today's for users behind/ahead of UTC.
   const d = new Date();
@@ -37,8 +37,14 @@ function localDate(): string {
   return `${y}-${m}-${day}`;
 }
 
-export function useToday() {
-  const date = localDate();
+/**
+ * Today's plan for a given calendar date (defaults to the client's local today).
+ * Pass an explicit YYYY-MM-DD to view/edit another day — the Protocols tab uses
+ * this to step back/forward through days (preview tomorrow, complete yesterday).
+ * Both getToday and toggleComplete are keyed by this date server-side.
+ */
+export function useToday(dateArg?: string) {
+  const date = dateArg ?? localDate();
   const utils = trpc.useUtils();
   const query = trpc.clientPortal.today.getToday.useQuery({ date }, DEFAULT_QUERY_OPTIONS);
 
@@ -72,10 +78,11 @@ export function useToday() {
   });
 
   // Schedule a local "meeting in 5 minutes" reminder for each of today's coach
-  // meetings whenever today's data changes.
+  // meetings whenever today's data changes. Only for the REAL today — we don't
+  // want to schedule reminders while previewing another day on the Protocols tab.
   useEffect(() => {
     const data = query.data as TodayData | undefined;
-    if (!data) return;
+    if (!data || date !== localDate()) return;
     const meetings = data.sections
       .filter((s) => s.key === "appointments")
       .flatMap((s) => s.items)
@@ -88,7 +95,7 @@ export function useToday() {
         link: it.link ?? null,
       }));
     void scheduleMeetingReminders(meetings);
-  }, [query.data]);
+  }, [query.data, date]);
 
   const toggleItem = (item: TodayItem) => {
     if (!item.completable) return;
