@@ -52,7 +52,7 @@ import { findExerciseVideo } from "@/lib/ai/exercise-video";
 type Database = typeof import("@/server/db").db;
 
 // ─── Types ──────────────────────────────────────────────────
-type ProtocolType = "diet" | "supplements" | "peptides" | "workouts";
+export type ProtocolType = "diet" | "supplements" | "peptides" | "workouts";
 type GridRow = Record<string, string | number | null>;
 type ColumnType = "text" | "number";
 interface Column {
@@ -88,7 +88,7 @@ function accessCategoryFor(type: ProtocolType): "diet" | "exercise" {
 }
 
 // ─── Column definitions (stable per type, for the grid headers) ──────────────
-const COLUMNS: Record<ProtocolType, Column[]> = {
+export const COLUMNS: Record<ProtocolType, Column[]> = {
   supplements: [
     { key: "name", label: "Name", type: "text" },
     { key: "dosage", label: "Dosage", type: "text" },
@@ -379,7 +379,7 @@ async function readWorkoutRows(db: Database, clientId: string): Promise<GridRow[
   return rows;
 }
 
-async function readGrid(
+export async function readGrid(
   db: Database,
   type: ProtocolType,
   clientId: string,
@@ -683,7 +683,7 @@ async function applyWorkouts(
   return readWorkoutRows(db, clientId);
 }
 
-async function applyReplace(
+export async function applyReplace(
   db: Database,
   coachId: string,
   type: ProtocolType,
@@ -717,7 +717,7 @@ const planInput = z
   })
   .optional();
 
-function normalizePlanMeta(input: z.infer<typeof planInput>): PlanMeta | undefined {
+export function normalizePlanMeta(input: z.infer<typeof planInput>): PlanMeta | undefined {
   if (!input) return undefined;
   return {
     planType: toStrMax(input.planType, 80),
@@ -725,6 +725,86 @@ function normalizePlanMeta(input: z.infer<typeof planInput>): PlanMeta | undefin
     endDate: toStrMax(input.endDate, 40),
     cyclePattern: toStrMax(input.cyclePattern, 120),
   };
+}
+
+// ─── Client notification (shared by publish + template apply) ───────────────
+/**
+ * Summarize a before→after protocol change and alert the client through every
+ * channel they've enabled (in-app / push / SMS via the notification service, and
+ * a send-as-coach email). Best-effort: a delivery hiccup never throws, so the
+ * caller's write is never rolled back by a notification failure. Returns the
+ * AI summary + bullets so the caller can surface them.
+ */
+export async function notifyClientProtocolChange(
+  db: Database,
+  coachId: string,
+  clientId: string,
+  type: ProtocolType,
+  before: GridRow[],
+  after: GridRow[],
+  note?: string,
+): Promise<{ summary: string; bullets: string[] }> {
+  const client = await db.query.users.findFirst({
+    where: eq(users.id, clientId),
+    columns: { firstName: true, email: true },
+  });
+  const { summary, bullets } = await summarizeProtocolChange({
+    type,
+    clientFirstName: client?.firstName ?? undefined,
+    before,
+    after,
+  });
+
+  const label = NOTIF_LABELS[type];
+  // In-app / push / sms (email handled separately below to send AS THE COACH).
+  try {
+    const clientPrefs = await getUserPreferences(db, clientId);
+    const nonEmailChannels = getEnabledChannels(clientPrefs, "protocol_update", "high").filter(
+      (c) => c !== "email",
+    );
+    await dispatchNotification(db, {
+      userId: clientId,
+      category: "protocol_update",
+      priority: "high",
+      title: `Your coach updated your ${label}`,
+      body: summary,
+      actionUrl: CLIENT_ROUTES[type],
+      actionLabel: "View",
+      metadata: { type, bullets, note: note ?? undefined },
+      channelOverride: nonEmailChannels.length > 0 ? nonEmailChannels : ["in_app"],
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[Protocol notify] dispatch failed", msg);
+  }
+
+  // Client email — from the coach's own Gmail when connected, else system sender.
+  if (client?.email) {
+    try {
+      const coach = await db.query.users.findFirst({
+        where: eq(users.id, coachId),
+        columns: { firstName: true, lastName: true },
+      });
+      const coachName =
+        [coach?.firstName, coach?.lastName].filter(Boolean).join(" ") || "Your coach";
+      const esc = (s: string) =>
+        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const bulletsHtml =
+        bullets.length > 0 ? `<ul>${bullets.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>` : "";
+      const html = `<p>${esc(summary)}</p>${bulletsHtml}`;
+      await sendCoachEmail(db, coachId, {
+        to: client.email,
+        subject: `Your coach updated your ${label}`,
+        html,
+        fromName: coachName,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[Protocol notify] send-as-coach email failed", msg);
+    }
+  }
+
+  return { summary, bullets };
 }
 
 // ─── Router ─────────────────────────────────────────────────
@@ -829,83 +909,19 @@ export const coachProtocolBulkRouter = router({
         ),
       );
 
-      // c. Summarize the change (never throws; deterministic fallback).
-      const client = await ctx.db.query.users.findFirst({
-        where: eq(users.id, input.clientId),
-        columns: { firstName: true, email: true },
-      });
-      const { summary, bullets } = await summarizeProtocolChange({
-        type: input.type,
-        clientFirstName: client?.firstName ?? undefined,
+      // c. Summarize + alert the client across their enabled channels
+      // (best-effort; a delivery hiccup can't fail publish).
+      const { summary, bullets } = await notifyClientProtocolChange(
+        ctx.db,
+        ctx.dbUserId,
+        input.clientId,
+        input.type,
         before,
         after,
-      });
+        input.note,
+      );
 
-      // d. Alert the client — best-effort so a delivery hiccup can't fail publish.
-      // The EMAIL channel is handled separately below via sendCoachEmail (so the
-      // update lands in the client's inbox FROM the coach's own Gmail when
-      // connected). We therefore EXCLUDE "email" from the dispatch channels here
-      // — in-app / push / sms still fire per the client's prefs — to avoid a
-      // duplicate system email.
-      const label = NOTIF_LABELS[input.type];
-      try {
-        const clientPrefs = await getUserPreferences(ctx.db, input.clientId);
-        const nonEmailChannels = getEnabledChannels(
-          clientPrefs,
-          "protocol_update",
-          "high",
-        ).filter((c) => c !== "email");
-        await dispatchNotification(ctx.db, {
-          userId: input.clientId,
-          category: "protocol_update",
-          // "high" so SMS is reachable for clients who opt in (SMS only fires
-          // at high/urgent); in-app/push still respect their prefs.
-          priority: "high",
-          title: `Your coach updated your ${label}`,
-          body: summary,
-          actionUrl: CLIENT_ROUTES[input.type],
-          actionLabel: "View",
-          metadata: { type: input.type, bullets, note: input.note ?? undefined },
-          channelOverride: nonEmailChannels.length > 0 ? nonEmailChannels : ["in_app"],
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error("[Protocol Bulk Publish] notification dispatch failed", msg);
-      }
-
-      // d.2 Client email — sent AS THE COACH (from their Gmail when connected +
-      // scoped), else via the system sender. Best-effort; publish must succeed.
-      if (client?.email) {
-        try {
-          const coach = await ctx.db.query.users.findFirst({
-            where: eq(users.id, ctx.dbUserId),
-            columns: { firstName: true, lastName: true },
-          });
-          const coachName =
-            [coach?.firstName, coach?.lastName].filter(Boolean).join(" ") || "Your coach";
-          const esc = (s: string) =>
-            s
-              .replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;");
-          const bulletsHtml =
-            bullets.length > 0
-              ? `<ul>${bullets.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>`
-              : "";
-          const html = `<p>${esc(summary)}</p>${bulletsHtml}`;
-          await sendCoachEmail(ctx.db, ctx.dbUserId, {
-            to: client.email,
-            subject: `Your coach updated your ${label}`,
-            html,
-            fromName: coachName,
-          });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error("[Protocol Bulk Publish] client send-as-coach email failed", msg);
-        }
-      }
-
-      // e. Result.
+      // d. Result.
       return { summary, bullets, itemCount: after.length };
     }),
 });

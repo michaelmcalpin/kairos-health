@@ -50,7 +50,8 @@ const PLAN_TYPE_SUGGESTIONS = [
 ];
 
 type Props = {
-  clientId: string;
+  /** Client mode: whose protocol is being edited. Unused in template mode. */
+  clientId?: string;
   type: ProtocolType;
   columns: Column[];
   initialRows: GridRow[];
@@ -60,6 +61,17 @@ type Props = {
   autoImportFile?: File | null;
   onAutoImportConsumed?: () => void;
   onPublished?: () => void;
+  /**
+   * "client" (default) edits a client's live protocol and notifies them on
+   * publish. "template" edits a reusable program template (no client, no
+   * notification) — the grid, paste, CSV import, and AI import are identical;
+   * only the save target and the action bar differ.
+   */
+  mode?: "client" | "template";
+  /** Required in template mode: the program_templates row being edited. */
+  templateId?: string;
+  /** Fired after a template save succeeds. */
+  onSaved?: () => void;
 };
 
 // Primary field(s) that make a row meaningful (and are required by the backend).
@@ -285,7 +297,7 @@ function seedPlanMeta(meta?: PlanMeta): PlanMeta {
 }
 
 export default function ProtocolBulkEditor({
-  clientId,
+  clientId = "",
   type,
   columns,
   initialRows,
@@ -293,7 +305,11 @@ export default function ProtocolBulkEditor({
   autoImportFile,
   onAutoImportConsumed,
   onPublished,
+  mode = "client",
+  templateId,
+  onSaved,
 }: Props) {
+  const isTemplate = mode === "template";
   const [rows, setRows] = useState<EditRow[]>(() => seedRows(columns, initialRows));
   const [planMeta, setPlanMeta] = useState<PlanMeta>(() => seedPlanMeta(initialPlanMeta));
   const [activeCell, setActiveCell] = useState<{ r: number; c: number } | null>(null);
@@ -334,6 +350,14 @@ export default function ProtocolBulkEditor({
       setPublished(res);
       setPreview(null);
       onPublished?.();
+    },
+  });
+  // Template mode saves rows onto the program_templates row (no client, no notify).
+  const saveTemplateMutation = trpc.coach.programTemplates.saveRows.useMutation({
+    onSuccess: (res) => {
+      setPublished({ summary: "Template saved.", bullets: [], itemCount: res.rowCount });
+      setPreview(null);
+      onSaved?.();
     },
   });
 
@@ -554,6 +578,12 @@ export default function ProtocolBulkEditor({
     publishMutation.mutate({ clientId, type, rows: buildPayload(type, columns, rows), plan: planPayload });
   };
 
+  // Template mode: save rows onto the template (no client, no confirm needed).
+  const handleSaveTemplate = () => {
+    if (!templateId) return;
+    saveTemplateMutation.mutate({ id: templateId, rows: buildPayload(type, columns, rows), plan: planPayload });
+  };
+
   const payloadCount = buildPayload(type, columns, rows).length;
   // Rows the coach typed into that will NOT publish because they're missing a
   // required field (e.g. a supplement with no Name) — surfaced so nothing is
@@ -565,7 +595,7 @@ export default function ProtocolBulkEditor({
     columns.some((c) => (r[c.key] ?? "").trim() !== ""),
   ).length;
   const skippedCount = Math.max(0, nonEmptyRowCount - payloadCount);
-  const busy = previewMutation.isPending || publishMutation.isPending;
+  const busy = previewMutation.isPending || publishMutation.isPending || saveTemplateMutation.isPending;
 
   // When the page hands us a file (after the coach confirms which tab in the
   // "detect type" flow), run the AI import on it once per distinct file.
@@ -865,23 +895,37 @@ export default function ProtocolBulkEditor({
 
       {/* Action bar */}
       <div className="flex flex-wrap items-center gap-2 pt-1">
-        <button
-          onClick={handlePreview}
-          disabled={busy}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-gray-800 border border-gray-700 text-kairos-silver hover:text-white hover:border-gray-600 transition-colors disabled:opacity-50"
-        >
-          {previewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />}
-          Preview changes
-        </button>
-        <button
-          onClick={() => setShowPublishConfirm(true)}
-          disabled={busy || payloadCount === 0}
-          title={payloadCount === 0 ? "Add at least one complete row before publishing" : undefined}
-          className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium bg-kairos-gold text-kairos-royal-dark border border-kairos-gold hover:bg-kairos-gold-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {publishMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-          Publish &amp; notify client
-        </button>
+        {!isTemplate && (
+          <button
+            onClick={handlePreview}
+            disabled={busy}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-gray-800 border border-gray-700 text-kairos-silver hover:text-white hover:border-gray-600 transition-colors disabled:opacity-50"
+          >
+            {previewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />}
+            Preview changes
+          </button>
+        )}
+        {isTemplate ? (
+          <button
+            onClick={handleSaveTemplate}
+            disabled={busy || payloadCount === 0}
+            title={payloadCount === 0 ? "Add at least one complete row before saving" : undefined}
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium bg-kairos-gold text-kairos-royal-dark border border-kairos-gold hover:bg-kairos-gold-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saveTemplateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            Save template
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowPublishConfirm(true)}
+            disabled={busy || payloadCount === 0}
+            title={payloadCount === 0 ? "Add at least one complete row before publishing" : undefined}
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium bg-kairos-gold text-kairos-royal-dark border border-kairos-gold hover:bg-kairos-gold-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {publishMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            Publish &amp; notify client
+          </button>
+        )}
         <span className="text-[11px] text-kairos-silver-dark">
           {payloadCount} row{payloadCount === 1 ? "" : "s"} ready
         </span>
@@ -905,6 +949,11 @@ export default function ProtocolBulkEditor({
       {publishMutation.isError && (
         <div className="px-3 py-2 rounded-lg text-xs bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-2">
           <AlertCircle size={13} /> {publishMutation.error.message}
+        </div>
+      )}
+      {saveTemplateMutation.isError && (
+        <div className="px-3 py-2 rounded-lg text-xs bg-red-500/10 border border-red-500/30 text-red-400 flex items-center gap-2">
+          <AlertCircle size={13} /> {saveTemplateMutation.error.message}
         </div>
       )}
 
@@ -933,7 +982,7 @@ export default function ProtocolBulkEditor({
       {published && (
         <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-4">
           <h3 className="text-sm font-heading font-semibold text-green-400 mb-2 flex items-center gap-2">
-            <CheckCircle2 size={14} /> Client notified:
+            <CheckCircle2 size={14} /> {isTemplate ? "Template saved:" : "Client notified:"}
           </h3>
           <p className="text-sm text-gray-200 mb-2">{published.summary}</p>
           {published.bullets.length > 0 && (
@@ -947,7 +996,9 @@ export default function ProtocolBulkEditor({
             </ul>
           )}
           <p className="text-[11px] text-kairos-silver-dark">
-            {published.itemCount} item{published.itemCount === 1 ? "" : "s"} now saved. The client has been alerted.
+            {isTemplate
+              ? `${published.itemCount} row${published.itemCount === 1 ? "" : "s"} saved to this template. Apply it to a client to overwrite their plan.`
+              : `${published.itemCount} item${published.itemCount === 1 ? "" : "s"} now saved. The client has been alerted.`}
           </p>
         </div>
       )}
@@ -1012,7 +1063,7 @@ export default function ProtocolBulkEditor({
               <h2 className="text-lg font-heading font-bold text-white">Clear all rows?</h2>
             </div>
             <p className="text-sm text-gray-400 mb-5">
-              This empties the grid you&apos;re editing. It will not change the client&apos;s saved protocol until you publish.
+              This empties the grid you&apos;re editing. Nothing is saved until you {isTemplate ? "save the template" : "publish"}.
             </p>
             <div className="flex gap-2">
               <button

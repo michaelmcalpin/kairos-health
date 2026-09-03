@@ -51,6 +51,7 @@ import { coachMarketplaceRouter } from "./coach/marketplace";
 import { coachProtocolsRouter } from "./coach/protocols";
 import { coachDataRouter } from "./coach/data";
 import { coachPlansRouter } from "./coach/plans";
+import { coachProgramTemplatesRouter } from "./coach/program-templates";
 import { coachMetricsRouter } from "./coach/metrics";
 import { coachProtocolBulkRouter } from "./coach/protocol-bulk";
 import { coachGuidanceRouter } from "./coach/guidance";
@@ -121,6 +122,7 @@ export const appRouter = router({
     protocols: coachProtocolsRouter,
     data: coachDataRouter,
     plans: coachPlansRouter,
+    programTemplates: coachProgramTemplatesRouter,
     metrics: coachMetricsRouter,
     protocolBulk: coachProtocolBulkRouter,
     guidance: coachGuidanceRouter,

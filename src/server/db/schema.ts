@@ -462,6 +462,24 @@ export const clientWorkoutAssignments = pgTable("client_workout_assignments", {
   status: varchar("status", { length: 20 }).default("active"),
 });
 
+// Reusable exercise / diet TEMPLATES a coach builds once (manually, by CSV, or by
+// AI reading a document) and applies to any client to OVERWRITE that client's
+// live exercise or diet. Rows are stored in the same grid shape the per-client
+// bulk editor uses (protocol-bulk COLUMNS), so the same editor + apply logic is
+// reused. `type` is "workouts" or "diet"; `planMeta` carries diet plan-level
+// metadata (planType/start/end/cycle) and is null for workout templates.
+export const programTemplates = pgTable("program_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  trainerId: uuid("trainer_id").notNull().references(() => users.id),
+  type: varchar("type", { length: 20 }).notNull(), // 'workouts' | 'diet'
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  rows: jsonb("rows").$type<Record<string, string | number | null>[]>().default([]).notNull(),
+  planMeta: jsonb("plan_meta").$type<Record<string, string | null> | null>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [index("program_templates_trainer_idx").on(t.trainerId, t.type)]);
+
 // ======================== FASTING ========================
 export const fastingProtocols = pgTable("fasting_protocols", {
   id: uuid("id").primaryKey().defaultRandom(),
