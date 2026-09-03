@@ -476,7 +476,7 @@ function ApplyTemplateModal({
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const applyMutation = trpc.coach.programTemplates.apply.useMutation({
+  const applyMutation = trpc.coach.programTemplates.applyToClients.useMutation({
     onSuccess: (res) => setResult(res),
     onError: (e) => {
       setError(e.message);

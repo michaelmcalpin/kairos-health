@@ -2982,7 +2982,7 @@ function ApplyProgramTemplateModal({
     skipped: Array<{ clientId: string; reason: string }>;
   } | null>(null);
 
-  const applyMutation = trpc.coach.programTemplates.apply.useMutation({
+  const applyMutation = trpc.coach.programTemplates.applyToClients.useMutation({
     onSuccess: (res) => {
       setResult(res);
       onApplied();

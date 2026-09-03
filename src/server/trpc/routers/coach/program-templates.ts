@@ -219,7 +219,7 @@ export const coachProgramTemplatesRouter = router({
    * exercise or diet with the template's rows, then notifying each client.
    * Per-client access is enforced; clients the coach can't write to are skipped.
    */
-  apply: trainerProcedure
+  applyToClients: trainerProcedure
     .input(
       z.object({
         id: z.string(),
