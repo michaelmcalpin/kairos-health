@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { trpc, getTRPCClient } from "@/lib/trpc";
 
 export function TRPCProvider({ children }: { children: React.ReactNode }) {
+  // Mint a fresh Clerk token per request so long editing sessions don't hit a
+  // stale-token 401 on save. getToken reads the live session each call.
+  const { getToken } = useAuth();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -21,7 +25,7 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
         },
       })
   );
-  const [trpcClient] = useState(() => getTRPCClient());
+  const [trpcClient] = useState(() => getTRPCClient(() => getToken()));
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>

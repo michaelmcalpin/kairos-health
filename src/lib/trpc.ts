@@ -12,15 +12,34 @@ function getBaseUrl() {
   return `http://localhost:${process.env.PORT ?? 3000}`;
 }
 
-export function getTRPCClient() {
+/**
+ * Build the tRPC client.
+ *
+ * `getToken` (Clerk's useAuth().getToken) is passed in so every request carries
+ * a FRESHLY minted session token as `Authorization: Bearer …`. Relying on the
+ * Clerk session cookie alone means a long-lived editing session (e.g. filling in
+ * a full diet plan over several minutes) can send a lapsed short-lived token and
+ * get a spurious 401/"Unauthorized" on save. getToken refreshes from the live
+ * session on each call, so writes keep working as long as the user is signed in.
+ * The server's Clerk auth() reads this bearer OR the cookie, so no server change
+ * is needed.
+ */
+export function getTRPCClient(getToken?: () => Promise<string | null>) {
   return trpc.createClient({
     links: [
       httpBatchLink({
         url: `${getBaseUrl()}/api/trpc`,
-        headers() {
-          return {
-            "x-trpc-source": "react",
-          };
+        async headers() {
+          const headers: Record<string, string> = { "x-trpc-source": "react" };
+          if (getToken) {
+            try {
+              const token = await getToken();
+              if (token) headers["Authorization"] = `Bearer ${token}`;
+            } catch {
+              // No token (signed out / refresh failed) — fall back to the cookie.
+            }
+          }
+          return headers;
         },
       }),
     ],
