@@ -172,8 +172,11 @@ export async function notifyAppointmentCreated(
       const [h, m] = appt.startTime.split(":");
       const hour = parseInt(h, 10);
       const displayTime = `${hour > 12 ? hour - 12 : hour || 12}:${m} ${hour >= 12 ? "PM" : "AM"}`;
-      const tzSuffix = ` (${timezoneLabel(coachTz)})`;
-      coachWhen = `${displayDate} at ${displayTime}${tzSuffix}`;
+      const zonedTime = `${displayTime} (${timezoneLabel(coachTz)})`;
+      // Always carry a timezone label, even on the legacy wall-clock fallback.
+      coachFmt = { date: displayDate, time: zonedTime };
+      clientFmt = coachFmt;
+      coachWhen = `${displayDate} at ${zonedTime}`;
       clientWhen = coachWhen;
     }
 
