@@ -18,6 +18,8 @@ export type TodayItem = {
   done: boolean;
   protocolItemId: string | null;
   link?: string | null;
+  // Absolute UTC instant for meetings — rendered in the device timezone.
+  startAtUtc?: string | null;
 };
 export type TodaySection = { key: string; label: string; items: TodayItem[] };
 export type TodayData = {
@@ -92,6 +94,9 @@ export function useToday(dateArg?: string) {
         title: it.title,
         date: data.date,
         startTime: it.time as string,
+        // Absolute instant when available — fires the reminder at the correct
+        // moment regardless of the coach's vs the device's timezone.
+        startAtUtc: it.startAtUtc ?? null,
         link: it.link ?? null,
       }));
     void scheduleMeetingReminders(meetings);

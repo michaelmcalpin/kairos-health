@@ -16,6 +16,7 @@ import {
   getMicrosoftBusyIntervals,
 } from "@/lib/integrations/microsoft-calendar";
 import { notifyAppointmentCreated } from "@/lib/scheduling/notify";
+import { appointmentStartsAt, DEFAULT_TZ } from "@/lib/scheduling/tz";
 
 const SESSION_TYPES = [
   { id: "initial_consultation", label: "Initial Consultation", duration: 60, description: "First meeting to discuss goals and health history" },
@@ -329,6 +330,11 @@ export const clientSchedulingRouter = router({
         });
       }
 
+      // The submitted startTime is the coach-local slot value, so derive the
+      // canonical UTC instant using the coach's booking timezone.
+      const bookingTimezone = avail?.timezone ?? DEFAULT_TZ;
+      const startsAt = appointmentStartsAt(input.date, input.startTime, bookingTimezone);
+
       const [created] = await ctx.db
         .insert(appointments)
         .values({
@@ -341,6 +347,8 @@ export const clientSchedulingRouter = router({
           date: input.date,
           startTime: input.startTime,
           endTime: addMinutes(input.startTime, duration),
+          startsAt,
+          bookingTimezone,
           durationMinutes: duration,
           notes: input.notes,
         })

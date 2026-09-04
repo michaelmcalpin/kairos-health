@@ -289,6 +289,9 @@ export async function sendAppointmentConfirmationEmail(params: {
   meetingLink?: string | null;
   notes?: string | null;
   icsContent: string;      // Pre-generated .ics file content
+  // Recipient-timezone pre-formatted date/time (each recipient sees their zone).
+  displayDateOverride?: string;
+  displayTimeOverride?: string;
   brand?: Partial<EmailBrandConfig>;
 }): Promise<SendEmailResult> {
   const html = buildAppointmentConfirmationEmail(params);

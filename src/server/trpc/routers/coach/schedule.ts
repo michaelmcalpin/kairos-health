@@ -7,6 +7,7 @@ import { isGoogleConfigured } from "@/lib/integrations/google-calendar";
 import { isMicrosoftConfigured } from "@/lib/integrations/microsoft-calendar";
 import { createZoomMeeting, deleteZoomMeeting } from "@/lib/zoom";
 import { notifyAppointmentCreated } from "@/lib/scheduling/notify";
+import { getCoachTimezone, appointmentStartsAt } from "@/lib/scheduling/tz";
 import { sendSms, isSmsConfigured, smsConfigDiagnostics } from "@/lib/notifications/sms";
 
 const SESSION_DURATIONS: Record<string, number> = {
@@ -330,6 +331,10 @@ export const coachScheduleRouter = router({
       const duration = SESSION_DURATIONS[input.sessionType] ?? 30;
       const endTime = addMinutes(input.startTime, duration);
 
+      // Canonical UTC instant, from the coach-local wall-clock in the coach's zone.
+      const bookingTimezone = await getCoachTimezone(ctx.db, ctx.dbUserId);
+      const startsAt = appointmentStartsAt(input.date, input.startTime, bookingTimezone);
+
       // Check for overlapping appointments on the same date for this coach
       try {
         const [overlapping] = await ctx.db
@@ -374,6 +379,8 @@ export const coachScheduleRouter = router({
             date: input.date,
             startTime: input.startTime,
             endTime,
+            startsAt,
+            bookingTimezone,
             durationMinutes: duration,
             notes: input.notes,
           })
@@ -533,6 +540,9 @@ export const coachScheduleRouter = router({
 
       const duration = appt.durationMinutes ?? 60;
       const newEndTime = addMinutes(input.newStartTime, duration);
+      // Re-derive the UTC instant for the new coach-local wall-clock.
+      const bookingTimezone = appt.bookingTimezone ?? (await getCoachTimezone(ctx.db, ctx.dbUserId));
+      const startsAt = appointmentStartsAt(input.newDate, input.newStartTime, bookingTimezone);
 
       // Check for overlapping appointments (exclude the current one)
       try {
@@ -566,6 +576,8 @@ export const coachScheduleRouter = router({
           date: input.newDate,
           startTime: input.newStartTime,
           endTime: newEndTime,
+          startsAt,
+          bookingTimezone,
           updatedAt: new Date(),
         })
         .where(eq(appointments.id, input.appointmentId))

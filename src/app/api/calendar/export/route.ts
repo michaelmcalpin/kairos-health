@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
       date: dateStr,
       startTime,
       endTime,
+      startsAt: appt.startsAt ?? null,
       durationMinutes: appt.durationMinutes,
       sessionType: appt.sessionType ?? "session",
       meetingType: appt.meetingType ?? "video",

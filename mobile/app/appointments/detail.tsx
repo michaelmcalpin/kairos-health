@@ -177,13 +177,36 @@ export default function AppointmentDetailScreen() {
   const title = titleCase(appt.sessionType);
   const status = appt.status ?? "confirmed";
   const meetingType = meetingTypeLabel(appt.meetingType);
-  const timeText = [
-    formatTime(appt.startTime),
-    appt.endTime ? `– ${formatTime(appt.endTime)}` : null,
-    appt.durationMinutes ? `(${appt.durationMinutes} min)` : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  // Prefer the absolute instant so the client sees the meeting in THEIR own
+  // timezone (with a zone label). Fall back to coach-local wall-clock for old rows.
+  const startInstant = appt.startsAt ? new Date(appt.startsAt) : null;
+  const validInstant = startInstant && !Number.isNaN(startInstant.getTime()) ? startInstant : null;
+  const dateText = validInstant
+    ? validInstant.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : formatDate(appt.date);
+  const timeText = validInstant
+    ? [
+        validInstant.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZoneName: "short",
+        }),
+        appt.durationMinutes ? `(${appt.durationMinutes} min)` : null,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : [
+        formatTime(appt.startTime),
+        appt.endTime ? `– ${formatTime(appt.endTime)}` : null,
+        appt.durationMinutes ? `(${appt.durationMinutes} min)` : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
 
   const isCancelled = status === "cancelled";
 

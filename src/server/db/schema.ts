@@ -814,9 +814,17 @@ export const appointments = pgTable("appointments", {
   clientName: varchar("client_name", { length: 255 }),
   sessionType: sessionTypeEnum("session_type").notNull().default("follow_up"),
   meetingType: meetingTypeEnum("meeting_type").notNull().default("video"),
+  // `date` + `startTime` are the COACH-LOCAL wall-clock (kept for coach-facing
+  // views + booking/conflict math, which all run in the coach's zone).
   date: date("date").notNull(),
-  startTime: varchar("start_time", { length: 5 }).notNull(), // "09:00"
+  startTime: varchar("start_time", { length: 5 }).notNull(), // "09:00" (coach-local)
   endTime: varchar("end_time", { length: 5 }),
+  // Canonical absolute instant (UTC) of the appointment start, derived from
+  // date+startTime in `bookingTimezone`. This is the source of truth for
+  // translating the meeting into each viewer's own timezone, for .ics, and for
+  // reminders. `bookingTimezone` is the coach's IANA zone the wall-clock is in.
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  bookingTimezone: varchar("booking_timezone", { length: 64 }),
   durationMinutes: integer("duration_minutes").default(60),
   status: appointmentStatusEnum("status").notNull().default("pending"),
   notes: text("notes"),

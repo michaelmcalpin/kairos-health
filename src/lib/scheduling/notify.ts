@@ -15,7 +15,7 @@
 
 import { eq } from "drizzle-orm";
 import type { Database } from "@/server/db";
-import { users, coachAvailability, calendarConnections } from "@/server/db/schema";
+import { users, coachAvailability, calendarConnections, userContactInfo } from "@/server/db/schema";
 import { dispatchNotification, getUserPreferences } from "@/lib/notifications/service";
 import type { DeliveryChannel } from "@/lib/notifications/types";
 import { generateIcsContent } from "@/lib/calendar/ics";
@@ -64,9 +64,30 @@ export interface AppointmentForNotify {
   date: string;
   startTime: string;
   endTime?: string | null;
+  // Absolute UTC instant of the start — used to translate the time into each
+  // recipient's own timezone and to encode the .ics absolutely.
+  startsAt?: string | Date | null;
   durationMinutes?: number | null;
   meetingLink?: string | null;
   notes?: string | null;
+}
+
+/** Format an absolute instant into {date, time} strings in a given IANA zone. */
+function formatInZone(instant: Date, tz: string): { date: string; time: string } {
+  const date = instant.toLocaleDateString("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const time = instant.toLocaleTimeString("en-US", {
+    timeZone: tz,
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+  return { date, time };
 }
 
 function addMinutes(time: string, minutes: number): string {
@@ -112,28 +133,49 @@ export async function notifyAppointmentCreated(
     const clientName = appt.clientName ?? "Your client";
     const coachName = appt.coachName ?? "your coach";
 
-    // Look up both users + the coach's timezone in parallel.
-    const [coachUser, clientUser, avail] = await Promise.all([
+    // Look up both users, the coach's timezone, and the client's saved timezone.
+    const [coachUser, clientUser, avail, clientContact] = await Promise.all([
       db.query.users.findFirst({ where: eq(users.id, appt.coachId) }),
       db.query.users.findFirst({ where: eq(users.id, appt.clientId) }),
       db.query.coachAvailability.findFirst({ where: eq(coachAvailability.coachId, appt.coachId) }),
+      db.query.userContactInfo.findFirst({ where: eq(userContactInfo.userId, appt.clientId) }),
     ]);
 
-    const coachTz = avail?.timezone ?? null;
+    const coachTz = avail?.timezone ?? "America/Denver";
+    // The client's zone for their email/notification. We can't read the client's
+    // live device zone server-side, so use their saved timezone if set, else the
+    // coach's zone. The .ics is absolute, so their calendar is always correct.
+    const clientTz = clientContact?.timezone || coachTz;
 
-    // Human date/time (coach wall-clock — start times are stored in coach tz).
-    const dateObj = new Date(`${appt.date}T12:00:00`);
-    const displayDate = dateObj.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-    const [h, m] = appt.startTime.split(":");
-    const hour = parseInt(h, 10);
-    const displayTime = `${hour > 12 ? hour - 12 : hour || 12}:${m} ${hour >= 12 ? "PM" : "AM"}`;
-    const tzSuffix = coachTz ? ` (${timezoneLabel(coachTz)})` : "";
-    const whenText = `${displayDate} at ${displayTime}${tzSuffix}`;
+    // Per-recipient "when" strings from the absolute instant, each in that
+    // recipient's OWN timezone. Fall back to coach wall-clock for legacy rows.
+    const instant = appt.startsAt ? new Date(appt.startsAt) : null;
+    const validInstant = instant && !Number.isNaN(instant.getTime()) ? instant : null;
+
+    let coachWhen: string;
+    let clientWhen: string;
+    let coachFmt: { date: string; time: string } | null = null;
+    let clientFmt: { date: string; time: string } | null = null;
+    if (validInstant) {
+      coachFmt = formatInZone(validInstant, coachTz);
+      clientFmt = formatInZone(validInstant, clientTz);
+      coachWhen = `${coachFmt.date} at ${coachFmt.time}`;
+      clientWhen = `${clientFmt.date} at ${clientFmt.time}`;
+    } else {
+      const dateObj = new Date(`${appt.date}T12:00:00`);
+      const displayDate = dateObj.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      const [h, m] = appt.startTime.split(":");
+      const hour = parseInt(h, 10);
+      const displayTime = `${hour > 12 ? hour - 12 : hour || 12}:${m} ${hour >= 12 ? "PM" : "AM"}`;
+      const tzSuffix = ` (${timezoneLabel(coachTz)})`;
+      coachWhen = `${displayDate} at ${displayTime}${tzSuffix}`;
+      clientWhen = coachWhen;
+    }
 
     // ── 1. Notify the COACH ──────────────────────────────────────────────
     // Email is delivered via the .ics confirmation email below, so exclude it
@@ -146,7 +188,7 @@ export async function notifyAppointmentCreated(
         category: "appointment",
         priority: clientInitiated ? "high" : "normal",
         title: `New booking: ${clientName} — ${label}`,
-        body: `${clientName} ${clientInitiated ? "requested" : "is booked for"} a ${label.toLowerCase()} (${meeting.toLowerCase()}) on ${whenText}.`,
+        body: `${clientName} ${clientInitiated ? "requested" : "is booked for"} a ${label.toLowerCase()} (${meeting.toLowerCase()}) on ${coachWhen}.`,
         actionUrl: "/trainer/schedule",
         actionLabel: "View",
         metadata: {
@@ -166,7 +208,7 @@ export async function notifyAppointmentCreated(
     try {
       const clientPrefs = await getUserPreferences(db, appt.clientId);
       const requested = opts.bookedByRole === "client";
-      let body = `Your ${label.toLowerCase()} (${meeting.toLowerCase()}) with ${coachName} is ${requested ? "requested" : "confirmed"} for ${whenText}.`;
+      let body = `Your ${label.toLowerCase()} (${meeting.toLowerCase()}) with ${coachName} is ${requested ? "requested" : "confirmed"} for ${clientWhen}.`;
       if (appt.meetingLink) body += `\n\nJoin: ${appt.meetingLink}`;
       await dispatchNotification(db, {
         userId: appt.clientId,
@@ -195,6 +237,7 @@ export async function notifyAppointmentCreated(
         date: appt.date,
         startTime: appt.startTime,
         endTime,
+        startsAt: appt.startsAt ?? null,
         durationMinutes: duration,
         sessionType: appt.sessionType,
         meetingType: appt.meetingType,
@@ -224,6 +267,9 @@ export async function notifyAppointmentCreated(
           to: coachUser.email,
           recipientName: coachUser.firstName ?? coachName,
           recipientRole: "coach",
+          // Coach sees the time in their own timezone.
+          displayDateOverride: coachFmt?.date,
+          displayTimeOverride: coachFmt?.time,
           ...emailParams,
         }).catch((err) => console.error("[Scheduling] Coach .ics email failed (non-fatal):", err));
       }
@@ -232,10 +278,11 @@ export async function notifyAppointmentCreated(
       // when connected + scoped), falling back to the system sender otherwise.
       // sendCoachEmail replaces the previous system send here — no double-send.
       if (clientUser?.email) {
-        const shortDate = dateObj.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        });
+        // Short date for the subject, in the client's zone when we have the
+        // instant, else from the stored calendar date.
+        const shortDate = validInstant
+          ? validInstant.toLocaleDateString("en-US", { timeZone: clientTz, month: "short", day: "numeric" })
+          : new Date(`${appt.date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
         const clientHtml = buildAppointmentConfirmationEmail({
           recipientName: clientUser.firstName ?? clientName,
           recipientRole: "client",
@@ -249,6 +296,9 @@ export async function notifyAppointmentCreated(
           clientName,
           meetingLink: appt.meetingLink ?? null,
           notes: appt.notes ?? null,
+          // Client sees the time in their own timezone.
+          displayDateOverride: clientFmt?.date,
+          displayTimeOverride: clientFmt?.time,
         });
         sendCoachEmail(db, appt.coachId, {
           to: clientUser.email,

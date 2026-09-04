@@ -50,6 +50,18 @@ function formatTimeDisplay(time: string): string {
   return `${display}:${m} ${suffix}`;
 }
 
+// Render an absolute instant in the viewer's (browser) local timezone.
+function formatInstantTime(value: string | Date): string {
+  return new Date(value).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
+function formatInstantDate(value: string | Date): string {
+  return new Date(value).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
 export default function AppointmentsPage() {
   const [view, setView] = useState<"list" | "book" | "detail">("list");
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
@@ -268,10 +280,19 @@ export default function AppointmentsPage() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-white">{formatDateDisplay(dateStr)}</p>
-                        <p className="text-xs text-gray-400">
-                          {formatTimeDisplay(appt.startTime)} — {appt.endTime ? formatTimeDisplay(appt.endTime) : ""}
-                        </p>
+                        {appt.startsAt ? (
+                          <>
+                            <p className="text-sm text-white">{formatInstantDate(appt.startsAt)}</p>
+                            <p className="text-xs text-gray-400">{formatInstantTime(appt.startsAt)}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm text-white">{formatDateDisplay(dateStr)}</p>
+                            <p className="text-xs text-gray-400">
+                              {formatTimeDisplay(appt.startTime)} — {appt.endTime ? formatTimeDisplay(appt.endTime) : ""}
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </button>

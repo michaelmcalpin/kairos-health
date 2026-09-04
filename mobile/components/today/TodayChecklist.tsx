@@ -19,7 +19,7 @@ import {
 } from "lucide-react-native";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
-import { formatClockTime } from "@/lib/format";
+import { formatClockTime, formatInstant } from "@/lib/format";
 import type { TodayItem, TodaySection } from "@/hooks/useToday";
 
 function kindIcon(kind: TodayItem["kind"], color: string) {
@@ -49,7 +49,11 @@ function Row({ item, onToggle }: { item: TodayItem; onToggle: (i: TodayItem) => 
   // Meeting times are stored as 24h "HH:MM" — show them as 12-hour + timezone
   // (e.g. "2:30 PM PST"). Other item times (e.g. "AM with food") pass through.
   const isAppt = item.kind === "appointment";
-  const timeLabel = isAppt ? formatClockTime(item.time) : item.time;
+  // Meetings: prefer the absolute UTC instant rendered in the device timezone
+  // (e.g. "2:30 PM PST"); fall back to the coach-local wall-clock for old rows.
+  const timeLabel = isAppt
+    ? formatInstant(item.startAtUtc) || formatClockTime(item.time)
+    : item.time;
   // For a meeting with a "Join" button the time can't sit on the right, so fold
   // it into the subtitle line instead.
   const subtitleText =

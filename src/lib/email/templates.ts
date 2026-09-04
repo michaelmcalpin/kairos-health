@@ -355,13 +355,14 @@ export function buildAppointmentConfirmationEmail(params: {
   clientName: string;
   meetingLink?: string | null;
   notes?: string | null;
+  // Pre-formatted date/time in the RECIPIENT's timezone (e.g. "Mon, Sep 7" /
+  // "2:30 PM EST"). When provided these override the coach-local formatting so
+  // each recipient sees the meeting in their own zone.
+  displayDateOverride?: string;
+  displayTimeOverride?: string;
   brand?: Partial<EmailBrandConfig>;
 }): string {
   const b = resolveBrand(params.brand);
-
-  // Format date for display
-  const dateObj = new Date(params.date + "T12:00:00");
-  const displayDate = dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   // Format time for display
   const fmtTime = (t: string) => {
@@ -371,7 +372,12 @@ export function buildAppointmentConfirmationEmail(params: {
     const display = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
     return `${display}:${mm} ${suffix}`;
   };
-  const displayTime = `${fmtTime(params.startTime)} — ${fmtTime(params.endTime)}`;
+
+  // Format date for display (recipient-zone override wins)
+  const dateObj = new Date(params.date + "T12:00:00");
+  const displayDate = params.displayDateOverride
+    ?? dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const displayTime = params.displayTimeOverride ?? `${fmtTime(params.startTime)} — ${fmtTime(params.endTime)}`;
 
   // Session type label
   const sessionLabel = params.sessionType
@@ -421,7 +427,7 @@ export function buildAppointmentConfirmationEmail(params: {
     emailParagraph(`<span style="font-size: 13px; color: #9E9E9E;">A calendar invite (.ics) is attached to this email. Open it to add this session to your calendar.</span>`) +
     emailButton("View Appointments", "{{baseUrl}}/appointments", b.accentColor),
     {
-      preheader: `${sessionLabel} with ${otherPerson} on ${displayDate} at ${fmtTime(params.startTime)}`,
+      preheader: `${sessionLabel} with ${otherPerson} on ${displayDate} at ${params.displayTimeOverride ?? fmtTime(params.startTime)}`,
       brand: b,
     }
   );

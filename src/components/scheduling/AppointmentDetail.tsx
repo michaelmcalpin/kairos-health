@@ -16,6 +16,8 @@ interface AppointmentData {
   date: string;
   startTime: string;
   endTime: string | null;
+  // Absolute UTC instant — rendered in the viewer's own (browser) timezone.
+  startsAt?: string | Date | null;
   durationMinutes?: number | null;
   status: string;
   notes: string | null;
@@ -179,12 +181,18 @@ export function AppointmentDetail({
       <div className="space-y-3 mb-6">
         <div className="flex justify-between py-2 border-b border-gray-800">
           <span className="text-sm text-gray-400">Date</span>
-          <span className="text-sm text-white">{formatDateDisplay(appointment.date)}</span>
+          <span className="text-sm text-white">
+            {appointment.startsAt
+              ? new Date(appointment.startsAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+              : formatDateDisplay(appointment.date)}
+          </span>
         </div>
         <div className="flex justify-between py-2 border-b border-gray-800">
           <span className="text-sm text-gray-400">Time</span>
           <span className="text-sm text-white">
-            {formatTimeDisplay(appointment.startTime)}{appointment.endTime ? ` — ${formatTimeDisplay(appointment.endTime)}` : ""}
+            {appointment.startsAt
+              ? new Date(appointment.startsAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" })
+              : `${formatTimeDisplay(appointment.startTime)}${appointment.endTime ? ` — ${formatTimeDisplay(appointment.endTime)}` : ""}`}
           </span>
         </div>
         <div className="flex justify-between py-2 border-b border-gray-800">

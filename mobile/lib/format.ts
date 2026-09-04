@@ -71,3 +71,24 @@ export function formatClockTime(value: string | null | undefined): string {
     return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   }
 }
+
+/**
+ * Format an absolute UTC instant (ISO string) as 12-hour time in the DEVICE's
+ * timezone with a short zone label, e.g. "2:30 PM PST". Used for meeting times
+ * so a client always sees them in their own zone regardless of the coach's.
+ * Returns "" for a missing/invalid value.
+ */
+export function formatInstant(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  try {
+    return d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    });
+  } catch {
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+}

@@ -49,6 +49,9 @@ type TodayItem = {
   done: boolean;
   protocolItemId: string | null;
   link?: string | null;
+  // Absolute UTC instant for meetings (ISO). The client renders it in the
+  // viewer's own timezone; `time` stays the coach-local wall-clock fallback.
+  startAtUtc?: string | null;
 };
 
 type TodaySection = { key: string; label: string; items: TodayItem[] };
@@ -150,6 +153,7 @@ export async function computeToday(
           a.meetingType as string,
         ]),
         time: (a.startTime as string) ?? null,
+        startAtUtc: a.startsAt ? new Date(a.startsAt as string | Date).toISOString() : null,
         completable: true,
         done: doneKeys.has(key),
         protocolItemId: null,

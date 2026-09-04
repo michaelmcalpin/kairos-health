@@ -69,8 +69,10 @@ export type MeetingReminder = {
   title: string;
   /** Client-local date "YYYY-MM-DD". */
   date: string;
-  /** Start time "HH:MM" in the client's local timezone. */
+  /** Coach-local start time "HH:MM" (fallback when startAtUtc is absent). */
   startTime: string;
+  /** Absolute UTC instant (ISO) of the meeting start — preferred, tz-correct. */
+  startAtUtc?: string | null;
   link?: string | null;
 };
 
@@ -106,17 +108,28 @@ export async function scheduleMeetingReminders(meetings: MeetingReminder[]): Pro
 
     const now = Date.now();
     for (const m of meetings) {
-      if (!m.startTime) continue;
-      // Local-time parse (no trailing Z) — device timezone matches the client's.
-      const start = new Date(`${m.date}T${m.startTime}:00`);
+      // Prefer the absolute UTC instant (correct across coach/client timezones);
+      // fall back to parsing the wall-clock in the device zone for legacy rows.
+      let start: Date;
+      if (m.startAtUtc) {
+        start = new Date(m.startAtUtc);
+      } else {
+        if (!m.startTime) continue;
+        start = new Date(`${m.date}T${m.startTime}:00`);
+      }
       if (Number.isNaN(start.getTime())) continue;
       const fireAt = new Date(start.getTime() - REMINDER_LEAD_MS);
       if (fireAt.getTime() <= now + 1000) continue; // already passed
 
+      // Reminder body shows the meeting time in the device's local timezone.
+      const bodyTime = m.startAtUtc
+        ? start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+        : formatClock(m.startTime);
+
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "Meeting in 5 minutes",
-          body: `${m.title} at ${formatClock(m.startTime)}`,
+          body: `${m.title} at ${bodyTime}`,
           sound: true,
           data: { kind: MEETING_REMINDER_KIND, link: m.link ?? null },
         },
