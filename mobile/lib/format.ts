@@ -44,3 +44,30 @@ export function fmt(n: number | null | undefined, dp = 0): string {
   const places = Math.min(Math.max(0, Math.trunc(dp)), 2);
   return String(Number(r.toFixed(places)));
 }
+
+/**
+ * Format a stored 24-hour "HH:MM" wall-clock string into a friendly 12-hour
+ * label with the device's timezone, e.g. "2:30 PM PST". Meeting times are
+ * stored as bare local clock strings, so we render them in the device's zone.
+ * Returns the input unchanged if it isn't an "HH:MM" value.
+ */
+export function formatClockTime(value: string | null | undefined): string {
+  if (!value) return "";
+  const m = /^(\d{1,2}):(\d{2})/.exec(value.trim());
+  if (!m) return value;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(min) || h > 23 || min > 59) return value;
+  const d = new Date();
+  d.setHours(h, min, 0, 0);
+  try {
+    return d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    });
+  } catch {
+    // Fallback without timezone if the runtime lacks Intl tz support.
+    return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+}

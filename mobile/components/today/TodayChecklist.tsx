@@ -19,6 +19,7 @@ import {
 } from "lucide-react-native";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { Card } from "@/components/ui/Card";
+import { formatClockTime } from "@/lib/format";
 import type { TodayItem, TodaySection } from "@/hooks/useToday";
 
 function kindIcon(kind: TodayItem["kind"], color: string) {
@@ -45,6 +46,16 @@ function kindIcon(kind: TodayItem["kind"], color: string) {
 function Row({ item, onToggle }: { item: TodayItem; onToggle: (i: TodayItem) => void }) {
   const done = item.done;
   const toggle = () => item.completable && onToggle(item);
+  // Meeting times are stored as 24h "HH:MM" — show them as 12-hour + timezone
+  // (e.g. "2:30 PM PST"). Other item times (e.g. "AM with food") pass through.
+  const isAppt = item.kind === "appointment";
+  const timeLabel = isAppt ? formatClockTime(item.time) : item.time;
+  // For a meeting with a "Join" button the time can't sit on the right, so fold
+  // it into the subtitle line instead.
+  const subtitleText =
+    isAppt && timeLabel
+      ? [item.subtitle, timeLabel].filter(Boolean).join(" · ")
+      : item.subtitle;
   // Not a single full-row Pressable: the checkbox + text toggle completion,
   // while the "Watch demo" link is its own separate tap target so it opens the
   // video instead of toggling the task.
@@ -67,9 +78,9 @@ function Row({ item, onToggle }: { item: TodayItem; onToggle: (i: TodayItem) => 
         <Text style={[styles.rowTitle, done && styles.rowTitleDone]} numberOfLines={1}>
           {item.title}
         </Text>
-        {item.subtitle ? (
+        {subtitleText ? (
           <Text style={styles.rowSubtitle} numberOfLines={2}>
-            {item.subtitle}
+            {subtitleText}
           </Text>
         ) : null}
       </Pressable>
@@ -91,8 +102,8 @@ function Row({ item, onToggle }: { item: TodayItem; onToggle: (i: TodayItem) => 
           <PlayCircle size={16} color={Colors.gold} />
           <Text style={styles.watchText}>Watch</Text>
         </Pressable>
-      ) : item.time ? (
-        <Text style={styles.rowTime}>{item.time}</Text>
+      ) : timeLabel ? (
+        <Text style={styles.rowTime}>{timeLabel}</Text>
       ) : null}
     </View>
   );

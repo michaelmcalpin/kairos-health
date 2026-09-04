@@ -143,10 +143,11 @@ export async function computeToday(
         key,
         kind: "appointment" as const,
         title: coachName ? `Meeting with ${coachName}` : (prettySession(a.sessionType) || "Coach meeting"),
+        // The raw start time is intentionally omitted here — the client formats
+        // `time` into a friendly 12-hour + timezone label for display.
         subtitle: joinParts([
           prettySession(a.sessionType),
           a.meetingType as string,
-          (a.startTime as string) ?? null,
         ]),
         time: (a.startTime as string) ?? null,
         completable: true,
