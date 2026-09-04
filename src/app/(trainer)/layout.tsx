@@ -19,13 +19,13 @@ function TrainerShell({ children }: { children: React.ReactNode }) {
         companyBrandColor={isWhiteLabel ? brand.brandColor : undefined}
         showPoweredBy={isWhiteLabel}
       />
-      <div className="flex-1 ml-64">
+      <div className="flex-1 min-w-0 ml-0 lg:ml-64">
         <TopBar
           title={isWhiteLabel ? brand.name : "EVERIST.ai"}
           subtitle="Coach Portal"
           brandColor={isWhiteLabel ? brand.brandColor : undefined}
         />
-        <main className="p-6">{children}</main>
+        <main className="p-6 overflow-x-hidden">{children}</main>
       </div>
     </div>
   );

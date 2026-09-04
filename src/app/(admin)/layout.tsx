@@ -13,9 +13,9 @@ export default function AdminLayout({
     <RoleGuard allowedRole="super_admin">
       <div className="flex min-h-screen">
         <Sidebar items={adminNavItems} userName="Admin" />
-        <div className="flex-1 ml-64">
+        <div className="flex-1 min-w-0 ml-0 lg:ml-64">
           <TopBar title="EVERIST.ai" subtitle="Administration" />
-          <main className="p-6">{children}</main>
+          <main className="p-6 overflow-x-hidden">{children}</main>
         </div>
       </div>
     </RoleGuard>

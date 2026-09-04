@@ -32,6 +32,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Menu,
+  X,
   Settings,
   ClipboardCheck,
   Building2,
@@ -77,6 +79,12 @@ interface SidebarProps {
 export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl, companyBrandColor, showPoweredBy }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  // Below lg the sidebar is an off-canvas drawer (so the content fills the
+  // screen on tablets/phones); this tracks whether the drawer is open.
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close the drawer whenever the route changes (a nav item was tapped).
+  const closeMobile = () => setMobileOpen(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
     // Default: expand the section containing the active route
     const initial: Record<string, boolean> = {};
@@ -120,12 +128,43 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
   };
 
   return (
+    <>
+      {/* Mobile/tablet hamburger — opens the drawer. Hidden at lg+ where the
+          sidebar is always visible. */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        aria-label="Open menu"
+        className="lg:hidden fixed top-3 left-3 z-50 p-2 rounded-lg bg-kairos-royal/90 border border-kairos-border text-white backdrop-blur-md shadow-lg"
+      >
+        <Menu size={20} />
+      </button>
+
+      {/* Backdrop behind the open drawer (below lg only). */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/60 z-40"
+          onClick={closeMobile}
+          aria-hidden="true"
+        />
+      )}
+
     <aside
       className={cn(
-        "fixed left-0 top-0 h-screen bg-kairos-royal border-r border-kairos-border flex flex-col transition-all duration-200 z-40",
-        collapsed ? "w-16" : "w-64"
+        "fixed left-0 top-0 h-screen bg-kairos-royal border-r border-kairos-border flex flex-col transition-transform duration-200 z-40",
+        // Width: collapsible rail on desktop; always full width as a drawer.
+        collapsed ? "lg:w-16 w-64" : "w-64",
+        // Off-canvas below lg unless opened; always on-screen at lg+.
+        mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}
     >
+      {/* Close button inside the drawer (below lg only). */}
+      <button
+        onClick={closeMobile}
+        aria-label="Close menu"
+        className="lg:hidden absolute top-3 right-3 z-10 p-1.5 rounded-lg text-kairos-silver-dark hover:text-white"
+      >
+        <X size={18} />
+      </button>
       {/* Brand Header */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-kairos-border">
         {collapsed && (
@@ -233,10 +272,11 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
                       <li key={item.href}>
                         <Link
                           href={item.href}
+                          onClick={closeMobile}
                           className={cn(
                             "kairos-sidebar-item",
                             isActive && "active",
-                            collapsed ? "justify-center px-2" : "pl-5"
+                            collapsed ? "lg:justify-center lg:px-2 pl-5" : "pl-5"
                           )}
                           title={collapsed ? item.label : undefined}
                         >
@@ -275,6 +315,7 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
         </div>
       )}
     </aside>
+    </>
   );
 }
 

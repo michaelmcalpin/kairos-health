@@ -76,7 +76,7 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick, toda
         </div>
 
         {/* Metrics */}
-        <div className="flex items-center gap-5 shrink-0">
+        <div className="flex items-center gap-3 sm:gap-5 shrink-0">
           {/* Health Score */}
           <div className="text-center">
             <p className="text-lg font-heading font-bold text-kairos-gold">{round(client.healthScore, 0)}</p>

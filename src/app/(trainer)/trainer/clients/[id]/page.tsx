@@ -717,7 +717,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
 
       {/* Tab Content + Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 min-w-0">
           {activeTab === "discussion" ? (
             <CoachDiscussion clientId={params.id} />
           ) : !canViewTab(activeTab) ? (
@@ -3329,7 +3329,7 @@ function MealPlanModal({
         </div>
         <div>
           <label className="text-[10px] text-gray-500 uppercase mb-1 block">Macro Targets (optional)</label>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
             <input type="number" min={0} value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="kcal" title="Calories" className="kairos-input w-full py-1 text-xs" />
             <input type="number" min={0} value={protein} onChange={(e) => setProtein(e.target.value)} placeholder="P (g)" title="Protein" className="kairos-input w-full py-1 text-xs" />
             <input type="number" min={0} value={carbs} onChange={(e) => setCarbs(e.target.value)} placeholder="C (g)" title="Carbs" className="kairos-input w-full py-1 text-xs" />

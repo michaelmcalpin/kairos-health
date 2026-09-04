@@ -230,7 +230,7 @@ export default function CoachSchedulePage() {
         )}
 
         {activeTab === "calendar" && (
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="kairos-card p-6">
             <div className="flex items-start justify-between mb-2">
               <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Upcoming</p>

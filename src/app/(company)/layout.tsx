@@ -23,13 +23,13 @@ function CompanyShell({ children }: { children: React.ReactNode }) {
         companyBrandColor={brand.brandColor}
         showPoweredBy
       />
-      <div className="flex-1 ml-64">
+      <div className="flex-1 min-w-0 ml-0 lg:ml-64">
         <TopBar
           title={brand.name}
           subtitle="Company Portal"
           brandColor={brand.brandColor}
         />
-        <main className="p-6">{children}</main>
+        <main className="p-6 overflow-x-hidden">{children}</main>
       </div>
     </div>
   );

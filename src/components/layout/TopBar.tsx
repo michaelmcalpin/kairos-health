@@ -62,7 +62,8 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
   return (
     <header
       className={cn(
-        "sticky top-0 z-30 bg-kairos-royal-dark/80 backdrop-blur-md border-b border-kairos-border px-6 py-3 flex items-center justify-between",
+        // Extra left padding below lg leaves room for the sidebar hamburger.
+        "sticky top-0 z-30 bg-kairos-royal-dark/80 backdrop-blur-md border-b border-kairos-border pl-16 lg:pl-6 pr-6 py-3 flex items-center justify-between",
         className
       )}
     >
