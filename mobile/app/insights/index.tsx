@@ -13,36 +13,40 @@ import {
   Pressable,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useAuth } from "@clerk/clerk-expo";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   Sparkles,
   ChevronDown,
   FileText,
-  TrendingUp,
-  Brain,
+  Clock,
+  Droplets,
   Moon,
-  Heart,
+  Dna,
   ArrowRight,
 } from "lucide-react-native";
 
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
+import { REPORT_TYPES, generateReport, type ReportTypeId } from "@/lib/reports";
 
 /* ------------------------------------------------------------------ */
-/* Sample data                                                        */
+/* Report types (mirror the web dashboard)                            */
 /* ------------------------------------------------------------------ */
 
-const REPORT_OPTIONS = [
-  { id: "full", label: "Full Health Analysis", icon: Brain },
-  { id: "cardio", label: "Cardiovascular Focus", icon: Heart },
-  { id: "metabolic", label: "Metabolic Health", icon: TrendingUp },
-  { id: "sleep", label: "Sleep & Recovery", icon: Moon },
-] as const;
+const ICON_MAP = { clock: Clock, file: FileText, droplets: Droplets, moon: Moon, dna: Dna } as const;
+
+const REPORT_OPTIONS = REPORT_TYPES.map((rt) => ({
+  id: rt.id,
+  label: rt.title,
+  description: rt.description,
+  icon: ICON_MAP[rt.icon],
+}));
 
 // Reports are now fetched from the backend via reports.listAll
 
@@ -52,8 +56,11 @@ const REPORT_OPTIONS = [
 
 export default function InsightsScreen() {
   const router = useRouter();
+  const { getToken } = useAuth();
+  const utils = trpc.useUtils();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<(typeof REPORT_OPTIONS)[number]>(REPORT_OPTIONS[0]);
+  const [generating, setGenerating] = useState(false);
 
   // Fetch reports from backend
   const reportsQuery = trpc.clientPortal.reports.listAll.useQuery(
@@ -61,11 +68,38 @@ export default function InsightsScreen() {
     DEFAULT_QUERY_OPTIONS,
   );
 
+  const saveReport = trpc.clientPortal.reports.save.useMutation();
+
+  // Generate a report on the server (AI, 15–30s), save it, then open the viewer.
+  const handleGenerate = async () => {
+    if (generating) return;
+    setGenerating(true);
+    try {
+      const report = await generateReport(selectedOption.id as ReportTypeId, () => getToken());
+      await saveReport.mutateAsync({
+        reportType: selectedOption.id,
+        title: selectedOption.label,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        reportData: report as any,
+      });
+      await utils.clientPortal.reports.listAll.invalidate();
+      router.push({ pathname: "/insights/view" as never, params: { type: selectedOption.id } });
+    } catch (err) {
+      Alert.alert(
+        "Report generation failed",
+        err instanceof Error ? err.message : "Please try again.",
+      );
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   // Backend returns: Array<{ id, clientId, reportType, title, reportData, createdAt, expiresAt }>
   const reportsData = reportsQuery.data as any[] | undefined;
   const RECENT_REPORTS = reportsData && reportsData.length > 0
     ? reportsData.map((r: any) => ({
         id: r.id,
+        reportType: r.reportType as string,
         title: r.title ?? r.reportType ?? "Report",
         date: r.createdAt
           ? new Date(r.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
@@ -154,23 +188,17 @@ export default function InsightsScreen() {
           )}
 
           <Button
-            title="Generate Report"
-            onPress={() => {
-              Alert.alert(
-                "Generate Report",
-                `Generating a "${selectedOption.label}" report. This will analyze your health data and create a detailed assessment.`,
-                [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Generate",
-                    onPress: () => router.push("/insights/analyze"),
-                  },
-                ],
-              );
-            }}
-            icon={<Sparkles size={16} color={Colors.dark} />}
+            title={generating ? "Analyzing your data…" : "Generate Report"}
+            onPress={handleGenerate}
+            disabled={generating}
+            icon={generating
+              ? <ActivityIndicator size="small" color={Colors.dark} />
+              : <Sparkles size={16} color={Colors.dark} />}
             style={styles.generateBtn}
           />
+          <Text style={styles.generateHint}>
+            Pulls from your health profile to create a personalized report. Takes 15–30 seconds.
+          </Text>
         </Card>
 
         {/* ---- Recent Reports ---- */}
@@ -193,7 +221,7 @@ export default function InsightsScreen() {
         {RECENT_REPORTS.map((report) => (
           <Pressable
             key={report.id}
-            onPress={() => router.push({ pathname: "/insights/report", params: { id: report.id } })}
+            onPress={() => router.push({ pathname: "/insights/view" as never, params: { type: report.reportType } })}
           >
             <Card style={styles.reportCard}>
               <View style={styles.reportHeader}>
@@ -218,7 +246,7 @@ export default function InsightsScreen() {
                   title="View Report"
                   variant="secondary"
                   size="sm"
-                  onPress={() => router.push({ pathname: "/insights/report", params: { id: report.id } })}
+                  onPress={() => router.push({ pathname: "/insights/view" as never, params: { type: report.reportType } })}
                   icon={<ArrowRight size={14} color={Colors.gold} />}
                 />
               </View>
@@ -331,6 +359,12 @@ const styles = StyleSheet.create({
   },
   generateBtn: {
     marginTop: Spacing.md,
+  },
+  generateHint: {
+    color: Colors.silver,
+    fontSize: FontSizes.xs,
+    marginTop: Spacing.sm,
+    textAlign: "center",
   },
 
   /* AI insight banner */
