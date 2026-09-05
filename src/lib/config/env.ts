@@ -74,8 +74,10 @@ export const env = {
   STRIPE_WEBHOOK_SECRET: requireInProd("STRIPE_WEBHOOK_SECRET"),
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: getEnvVar("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", ""),
 
-  // Redis (optional — falls back to in-memory cache)
-  REDIS_URL: getEnvVar("REDIS_URL", ""),
+  // Upstash Redis (optional — falls back to in-memory cache/rate-limit).
+  // Both are auto-injected by the Vercel ↔ Upstash integration.
+  UPSTASH_REDIS_REST_URL: getEnvVar("UPSTASH_REDIS_REST_URL", ""),
+  UPSTASH_REDIS_REST_TOKEN: getEnvVar("UPSTASH_REDIS_REST_TOKEN", ""),
 
   // Webhooks — required in production
   CLERK_WEBHOOK_SECRET: requireInProd("CLERK_WEBHOOK_SECRET"),

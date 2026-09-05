@@ -107,8 +107,9 @@ class RedisRateLimiter {
     const windowSec = Math.ceil(config.windowMs / 1000);
 
     try {
-      // Atomic increment + TTL set using a Lua script
-      const result = await redis.eval(
+      // Atomic increment + TTL set using a Lua script. Upstash's eval takes
+      // (script, keys[], args[]) and returns the script's result.
+      const result = (await redis.eval(
         `
         local current = redis.call('INCR', KEYS[1])
         if current == 1 then
@@ -117,10 +118,9 @@ class RedisRateLimiter {
         local ttl = redis.call('TTL', KEYS[1])
         return {current, ttl}
         `,
-        1,
-        redisKey,
-        windowSec,
-      ) as [number, number];
+        [redisKey],
+        [windowSec],
+      )) as [number, number];
 
       const count = Number(result[0]);
       const ttl = Number(result[1]);
