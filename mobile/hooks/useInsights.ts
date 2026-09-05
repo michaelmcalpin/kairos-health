@@ -95,8 +95,10 @@ export function useHealthAnalysis(
   range: AnalysisRange = "30d",
 ) {
   const days = rangeToDays(range);
-  const endDate = new Date().toISOString();
-  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  // The backend expects calendar dates ("YYYY-MM-DD"), not full ISO timestamps —
+  // a full timestamp breaks the date-column comparisons in insights.getAll.
+  const endDate = new Date().toISOString().split("T")[0];
+  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   const query = trpc.clientPortal.insights.getAll.useQuery(
     { startDate, endDate },
@@ -121,9 +123,10 @@ export function useHealthAnalysis(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 export function useAnalysisHistory() {
-  // Use insights.getAll with a 90-day window to build history from real insights
-  const endDate = new Date().toISOString();
-  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  // Use insights.getAll with a 90-day window to build history from real insights.
+  // Calendar dates ("YYYY-MM-DD"), not ISO timestamps (see useHealthAnalysis).
+  const endDate = new Date().toISOString().split("T")[0];
+  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   const query = trpc.clientPortal.insights.getAll.useQuery(
     { startDate, endDate },
