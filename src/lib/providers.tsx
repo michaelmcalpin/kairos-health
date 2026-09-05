@@ -16,7 +16,14 @@ export function TRPCProvider({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 5 * 60 * 1000, // 5 minutes
             refetchOnWindowFocus: false,
-            retry: 2,                  // max 2 retries (prevents infinite request storm)
+            // Don't retry client errors (4xx) — retrying a 429/401/403 just
+            // hammers the server and can trip the rate limiter harder. Only
+            // retry transient network/5xx failures, at most twice.
+            retry: (failureCount, error) => {
+              const status = (error as { data?: { httpStatus?: number } })?.data?.httpStatus;
+              if (typeof status === "number" && status >= 400 && status < 500) return false;
+              return failureCount < 2;
+            },
             retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 10000),
           },
           mutations: {

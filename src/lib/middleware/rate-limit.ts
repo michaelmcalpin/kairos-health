@@ -162,8 +162,15 @@ const redisLimiter = redis ? new RedisRateLimiter() : null;
 // ─── Preset Configurations ──────────────────────────────────────────────────
 
 export const RATE_LIMITS = {
-  /** Standard API: 100 requests per minute */
-  standard: { maxRequests: 100, windowMs: 60000 } as RateLimitConfig,
+  /**
+   * Standard API: 600 requests per minute per IP.
+   * The web/mobile apps use tRPC httpBatchLink and load pages that fire many
+   * queries at once (dashboards, insights), so a low ceiling caused spurious
+   * 429s on normal authenticated use — especially when Redis is down and each
+   * serverless instance keeps its own in-memory counter. 600/min leaves ample
+   * headroom for legitimate bursts while still stopping abuse.
+   */
+  standard: { maxRequests: 600, windowMs: 60000 } as RateLimitConfig,
 
   /** Auth endpoints: 10 requests per minute */
   auth: { maxRequests: 10, windowMs: 60000 } as RateLimitConfig,

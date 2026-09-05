@@ -258,8 +258,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Gather all health data — truncate if too long to avoid token limits
-    let healthContext = await getClientContext(dbUser.id);
+    // Gather all health data — truncate if too long to avoid token limits.
+    // A failure here (e.g. a transient DB error) must not 500 the whole report;
+    // fall back to a minimal context so the AI can still produce a useful
+    // (if more general) report instead of failing outright.
+    let healthContext: string;
+    try {
+      healthContext = await getClientContext(dbUser.id);
+    } catch (ctxErr) {
+      console.error("[Everist Report] health context failed, using minimal context:", ctxErr);
+      healthContext =
+        "Limited health data was available at report time. Base the report on general best practices and note where specific data was unavailable.";
+    }
     if (healthContext.length > 50000) {
       healthContext = healthContext.slice(0, 50000) + "\n\n[... health context truncated for report generation ...]";
     }

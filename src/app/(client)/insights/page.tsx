@@ -842,25 +842,6 @@ export default function InsightsPage() {
     }
   }, [currentReport]);
 
-  if (insightsQuery.isError) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center max-w-sm space-y-3">
-          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
-            <Brain size={24} className="text-red-400" />
-          </div>
-          <h3 className="font-heading font-semibold text-white">Unable to load insights</h3>
-          <p className="text-sm font-body text-kairos-silver-dark">
-            We couldn&apos;t fetch your health insights. Please try again.
-          </p>
-          <button onClick={() => insightsQuery.refetch()} className="kairos-btn-gold text-sm px-6 py-2">
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -995,7 +976,24 @@ export default function InsightsPage() {
       )}
 
       {/* ━━━ Data Insights Tab ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      {activeTab === "insights" && (
+      {activeTab === "insights" && insightsQuery.isError && (
+        <div className="flex items-center justify-center min-h-[300px]">
+          <div className="text-center max-w-sm space-y-3">
+            <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center mx-auto">
+              <Brain size={24} className="text-red-400" />
+            </div>
+            <h3 className="font-heading font-semibold text-white">Unable to load data insights</h3>
+            <p className="text-sm font-body text-kairos-silver-dark">
+              We couldn&apos;t fetch your data insights right now. Please try again.
+            </p>
+            <button onClick={() => insightsQuery.refetch()} className="kairos-btn-gold text-sm px-6 py-2">
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "insights" && !insightsQuery.isError && (
         <>
           <DateRangeNavigator
             availablePeriods={["week", "month"]}
