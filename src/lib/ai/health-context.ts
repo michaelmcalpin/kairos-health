@@ -34,8 +34,13 @@ import {
   peptideCycles,
   peptideLogs,
   appointments,
+  sessionNotes,
+  clientDailyAdvice,
+  clientTasks,
+  vitalsReadings,
 } from "@/server/db/schema";
 import { eq, desc, and, gte, ne } from "drizzle-orm";
+import { computeAdherence } from "@/server/trpc/routers/client/today";
 
 // ---------------------------------------------------------------------------
 // Comprehensive health context builder — shared by chat + report generation
@@ -224,6 +229,45 @@ export async function getClientContext(dbUserId: string) {
     adherenceStats.taken = recentAdherence.filter((a) => !a.skipped).length;
   }
 
+  // ── Batch 4: Trainer feedback + wearable vitals + daily-plan adherence ──
+  const [coachAdvice, coachTasks, coachSessionNotes, recentVitals, dailyAdherence] = await Promise.all([
+    // Coach's daily advice messages
+    db.query.clientDailyAdvice.findMany({
+      where: eq(clientDailyAdvice.clientId, dbUserId),
+      orderBy: desc(clientDailyAdvice.date),
+      limit: 5,
+    }).catch(() => [] as typeof clientDailyAdvice.$inferSelect[]),
+    // Coach-assigned tasks
+    db.query.clientTasks.findMany({
+      where: eq(clientTasks.clientId, dbUserId),
+      orderBy: desc(clientTasks.createdAt),
+      limit: 10,
+    }).catch(() => [] as typeof clientTasks.$inferSelect[]),
+    // Coach session notes (from this client's appointments)
+    db
+      .select({
+        summary: sessionNotes.summary,
+        keyFindings: sessionNotes.keyFindings,
+        actionItems: sessionNotes.actionItems,
+        nextSessionFocus: sessionNotes.nextSessionFocus,
+        date: appointments.date,
+      })
+      .from(sessionNotes)
+      .innerJoin(appointments, eq(sessionNotes.appointmentId, appointments.id))
+      .where(eq(appointments.clientId, dbUserId))
+      .orderBy(desc(appointments.date))
+      .limit(5)
+      .catch(() => [] as { summary: string | null; keyFindings: string[] | null; actionItems: string[] | null; nextSessionFocus: string | null; date: string }[]),
+    // Wearable/manual vitals not covered above (SpO2, respiratory rate, VO2max, temp)
+    db.query.vitalsReadings.findMany({
+      where: and(eq(vitalsReadings.clientId, dbUserId), gte(vitalsReadings.recordedAt, thirtyDaysAgo)),
+      orderBy: desc(vitalsReadings.recordedAt),
+      limit: 40,
+    }).catch(() => [] as typeof vitalsReadings.$inferSelect[]),
+    // Daily-plan adherence over the last 7 days (whole checklist, not just doses)
+    computeAdherence(db, dbUserId, 7, now.toISOString().split("T")[0]).catch(() => null),
+  ]);
+
   // ─────────────────────────────────────────────────────────
   // Build the context string
   // ─────────────────────────────────────────────────────────
@@ -276,8 +320,10 @@ export async function getClientContext(dbUserId: string) {
       if (s.awakeMinutes) parts.push(`awake=${s.awakeMinutes}min`);
       return parts.join(", ");
     });
+    const sleepSources = Array.from(new Set(recentSleep.map((s) => s.source).filter(Boolean)));
     let sleepSection = `## SLEEP (Last 7 Days)\nAvg duration: ${(avgDur / 60).toFixed(1)} hrs`;
     if (avgScore) sleepSection += ` | Avg score: ${Math.round(avgScore)}/100`;
+    if (sleepSources.length > 0) sleepSection += ` | Source(s): ${sleepSources.join(", ")}`;
     sleepSection += `\nRecent nights:\n${details.join("\n")}`;
     sections.push(sleepSection);
   }
@@ -320,8 +366,10 @@ export async function getClientContext(dbUserId: string) {
       hrParts.push(`Avg HR (7d): ${Math.round(avgHR)} bpm | Range: ${Math.min(...recentHR.map((r) => r.bpm))}-${Math.max(...recentHR.map((r) => r.bpm))} bpm`);
     }
     if (latestHRV) {
-      hrParts.push(`Latest HRV (RMSSD): ${latestHRV.rmssd} ms`);
+      hrParts.push(`Latest HRV (RMSSD): ${latestHRV.rmssd} ms${latestHRV.source ? ` (source: ${latestHRV.source})` : ""}`);
     }
+    const hrSources = Array.from(new Set(recentHR.map((r) => r.source).filter(Boolean)));
+    if (hrSources.length > 0) hrParts.push(`Source(s): ${hrSources.join(", ")}`);
     sections.push(`## HEART RATE & HRV\n${hrParts.join("\n")}`);
   }
 
@@ -736,7 +784,9 @@ export async function getClientContext(dbUserId: string) {
       if (a.caloriesActive) parts.push(`${a.caloriesActive} active cal`);
       return `  ${parts.join(" | ")}`;
     });
-    sections.push(`## DAILY ACTIVITY (Last 7 Days)\n${actLines.join("\n")}`);
+    const actSources = Array.from(new Set(recentActivity.map((a) => a.source).filter(Boolean)));
+    const actHeader = actSources.length > 0 ? ` — Source(s): ${actSources.join(", ")}` : "";
+    sections.push(`## DAILY ACTIVITY (Last 7 Days${actHeader})\n${actLines.join("\n")}`);
   }
 
   // ── 21. Active Peptide Cycles ──────────────────────────
@@ -753,6 +803,73 @@ export async function getClientContext(dbUserId: string) {
       return `  ${a.date} ${a.startTime ?? ""}: ${a.sessionType?.replace(/_/g, " ") ?? "session"} (${a.meetingType ?? "video"})${a.coachName ? ` with ${a.coachName}` : ""}`;
     });
     sections.push(`## UPCOMING APPOINTMENTS\n${apptLines.join("\n")}`);
+  }
+
+  // ── 23. Daily-Plan Adherence (whole checklist, not just supplement doses) ──
+  if (dailyAdherence && dailyAdherence.days.length > 0) {
+    const withData = dailyAdherence.days.filter((d) => d.total > 0);
+    if (withData.length > 0) {
+      const avgPct = Math.round(
+        withData.reduce((s, d) => s + (d.pct ?? 0), 0) / withData.length,
+      );
+      const recent = dailyAdherence.days
+        .slice(-7)
+        .map((d) => `${d.date}: ${d.total > 0 ? `${d.done}/${d.total} (${d.pct}%)` : "no plan"}`)
+        .join("\n  ");
+      sections.push(
+        `## DAILY PLAN ADHERENCE (Last 7 Days)\n` +
+        `Avg completion: ${avgPct}% | Today: ${dailyAdherence.todayPct ?? "n/a"}% | Current streak: ${dailyAdherence.streak} day(s)\n` +
+        `This measures completion of the client's full daily plan (meals, workout, supplements, peptides, coach tasks, fasting), not just supplement doses.\n  ${recent}`,
+      );
+    }
+  }
+
+  // ── 24. Trainer / Coach Feedback ────────────────────────
+  {
+    const feedbackLines: string[] = [];
+    if (coachAdvice.length > 0) {
+      feedbackLines.push("**Coach daily advice (most recent):**");
+      for (const a of coachAdvice) {
+        feedbackLines.push(`  ${a.date ?? ""}: ${a.message}`);
+      }
+    }
+    if (coachTasks.length > 0) {
+      feedbackLines.push("**Coach-assigned tasks:**");
+      for (const t of coachTasks) {
+        const status = t.completed ? "done" : "open";
+        feedbackLines.push(
+          `  [${status}] ${t.title}${t.dueDate ? ` (due ${t.dueDate})` : ""}${t.notes ? ` — ${t.notes}` : ""}`,
+        );
+      }
+    }
+    if (coachSessionNotes.length > 0) {
+      feedbackLines.push("**Recent session notes from the coach:**");
+      for (const n of coachSessionNotes) {
+        const parts: string[] = [];
+        if (n.summary) parts.push(n.summary);
+        if (n.keyFindings?.length) parts.push(`Key findings: ${n.keyFindings.join("; ")}`);
+        if (n.actionItems?.length) parts.push(`Action items: ${n.actionItems.join("; ")}`);
+        if (n.nextSessionFocus) parts.push(`Next focus: ${n.nextSessionFocus}`);
+        if (parts.length > 0) feedbackLines.push(`  ${n.date}: ${parts.join(" | ")}`);
+      }
+    }
+    if (feedbackLines.length > 0) {
+      sections.push(`## TRAINER / COACH FEEDBACK\n${feedbackLines.join("\n")}`);
+    }
+  }
+
+  // ── 25. Additional Wearable Vitals (SpO2, respiratory rate, VO2max, temp) ──
+  if (recentVitals.length > 0) {
+    // Latest reading per vital type, with its source (Apple Health / Oura / etc.).
+    const latestByType = new Map<string, (typeof recentVitals)[number]>();
+    for (const v of recentVitals) {
+      if (!latestByType.has(v.type)) latestByType.set(v.type, v);
+    }
+    const vitalLines = Array.from(latestByType.values()).map((v) => {
+      const when = v.recordedAt ? new Date(v.recordedAt).toISOString().split("T")[0] : "";
+      return `  ${v.type}: ${v.value}${v.unit ? ` ${v.unit}` : ""} (${when}${v.source ? `, source: ${v.source}` : ""})`;
+    });
+    sections.push(`## ADDITIONAL WEARABLE VITALS (Latest)\n${vitalLines.join("\n")}`);
   }
 
   return sections.length > 0 ? sections.join("\n\n") : "No health data available yet.";
