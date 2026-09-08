@@ -215,6 +215,19 @@ function FullDashboard() {
           </Card>
         </Pressable>
 
+        {/* ─── 1b. LifeScore daily check-in prompt ─────────── */}
+        <Pressable onPress={() => router.push("/insights/lifescore" as never)}>
+          <Card style={styles.lifeScorePrompt}>
+            <View style={styles.lifeScorePromptIcon}>
+              <Activity size={18} color={Colors.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.lifeScorePromptTitle}>How are you today?</Text>
+              <Text style={styles.lifeScorePromptSub}>Quick LifeScore check-in — body, mind, purpose, relationships, work</Text>
+            </View>
+          </Card>
+        </Pressable>
+
         {/* ─── 2. KPI Cards Row ───────────────────────────── */}
         <SectionHeader title="Key Metrics" />
         <ScrollView
@@ -504,6 +517,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.lg,
     marginBottom: Spacing.sm,
+  },
+  lifeScorePrompt: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  lifeScorePromptIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: "rgba(74, 144, 217, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lifeScorePromptTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: "600",
+    color: Colors.white,
+  },
+  lifeScorePromptSub: {
+    fontSize: FontSizes.xs,
+    color: Colors.silver,
+    marginTop: 2,
   },
   heroLabel: {
     color: Colors.silver,

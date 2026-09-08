@@ -5,6 +5,7 @@ import { router, trainerProcedure } from "@/server/trpc";
 import { sendInvitationEmail, sendClientCreatedEmail } from "@/lib/email";
 import { normalizeCoachAddCode } from "@/lib/coach-add-code";
 import { computeAdherence, computeToday } from "@/server/trpc/routers/client/today";
+import { computeLifeScore } from "@/lib/lifescore/score";
 import {
   trainerClientRelationships,
   clientInvitations,
@@ -20,6 +21,7 @@ import {
   protocolItems,
   adherenceLogs,
   dailyCheckins,
+  lifeScoreWeights,
   coachNotes,
   bloodPressureReadings,
   workoutLogs,
@@ -1751,5 +1753,59 @@ export const coachClientsRouter = router({
       }
 
       return { success: true, clientId: newUser.id };
+    }),
+
+  // ── Everist LifeScore (coach view) ──
+  // Returns ONLY the composite score + per-dimension score and directional
+  // sentiment (well / steady / struggling). No journal text, no themes, no
+  // personal detail — the coach sees whether each area is going well or
+  // struggling, nothing more.
+  getClientLifeScore: trainerProcedure
+    .input(z.object({ clientId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      const endDate = new Date().toISOString().slice(0, 10);
+      const result = await computeLifeScore(ctx.db, input.clientId, endDate);
+      // Defensive: strip anything but the whitelisted fields.
+      return {
+        score: result.score,
+        hasData: result.hasData,
+        dimensions: result.dimensions.map((d) => ({
+          dimension: d.dimension,
+          score: d.score,
+          sentiment: d.sentiment,
+          weight: d.weight,
+        })),
+      };
+    }),
+
+  // Coach-adjustable LifeScore weights for a client (sum normalized at read).
+  setClientLifeScoreWeights: trainerProcedure
+    .input(z.object({
+      clientId: z.string(),
+      body: z.number().int().min(0).max(100),
+      mind: z.number().int().min(0).max(100),
+      purpose: z.number().int().min(0).max(100),
+      relationships: z.number().int().min(0).max(100),
+      work: z.number().int().min(0).max(100),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      const total = input.body + input.mind + input.purpose + input.relationships + input.work;
+      if (total === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "At least one dimension must have weight." });
+      }
+      await ctx.db.insert(lifeScoreWeights).values({
+        clientId: input.clientId, coachId: ctx.dbUserId,
+        body: input.body, mind: input.mind, purpose: input.purpose,
+        relationships: input.relationships, work: input.work,
+      }).onConflictDoUpdate({
+        target: lifeScoreWeights.clientId,
+        set: {
+          coachId: ctx.dbUserId, body: input.body, mind: input.mind, purpose: input.purpose,
+          relationships: input.relationships, work: input.work, updatedAt: new Date(),
+        },
+      });
+      return { ok: true };
     }),
 });

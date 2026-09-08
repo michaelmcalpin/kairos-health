@@ -38,9 +38,12 @@ import {
   clientDailyAdvice,
   clientTasks,
   vitalsReadings,
+  lifeScoreJournalEntries,
+  taskMissReasons,
 } from "@/server/db/schema";
-import { eq, desc, and, gte, ne } from "drizzle-orm";
+import { eq, desc, and, gte, ne, lte } from "drizzle-orm";
 import { computeAdherence } from "@/server/trpc/routers/client/today";
+import { computeLifeScore } from "@/lib/lifescore/score";
 
 // ---------------------------------------------------------------------------
 // Comprehensive health context builder — shared by chat + report generation
@@ -266,6 +269,28 @@ export async function getClientContext(dbUserId: string) {
     }).catch(() => [] as typeof vitalsReadings.$inferSelect[]),
     // Daily-plan adherence over the last 7 days (whole checklist, not just doses)
     computeAdherence(db, dbUserId, 7, now.toISOString().split("T")[0]).catch(() => null),
+  ]);
+
+  // ── Batch 5: Everist LifeScore (whole-person wellbeing) ──
+  // Scores + directional sentiment + reflection valence tallies + miss reasons.
+  // NO raw journal text and NO specific theme phrases are included, so nothing
+  // personal leaks into any coach-visible report — only whether each life
+  // dimension is going well or struggling.
+  const nowStr = now.toISOString().split("T")[0];
+  const journalWindowStart = new Date(now.getTime() - 7 * 86400000).toISOString().split("T")[0];
+  const missWindowStart = new Date(now.getTime() - 14 * 86400000).toISOString().split("T")[0];
+  const [lifeScore, journalRows, missRows] = await Promise.all([
+    computeLifeScore(db, dbUserId, nowStr).catch(() => null),
+    db.select().from(lifeScoreJournalEntries).where(and(
+      eq(lifeScoreJournalEntries.clientId, dbUserId),
+      gte(lifeScoreJournalEntries.date, journalWindowStart),
+      lte(lifeScoreJournalEntries.date, nowStr),
+    )).catch(() => [] as typeof lifeScoreJournalEntries.$inferSelect[]),
+    db.select().from(taskMissReasons).where(and(
+      eq(taskMissReasons.clientId, dbUserId),
+      gte(taskMissReasons.date, missWindowStart),
+      lte(taskMissReasons.date, nowStr),
+    )).catch(() => [] as typeof taskMissReasons.$inferSelect[]),
   ]);
 
   // ─────────────────────────────────────────────────────────
@@ -870,6 +895,44 @@ export async function getClientContext(dbUserId: string) {
       return `  ${v.type}: ${v.value}${v.unit ? ` ${v.unit}` : ""} (${when}${v.source ? `, source: ${v.source}` : ""})`;
     });
     sections.push(`## ADDITIONAL WEARABLE VITALS (Latest)\n${vitalLines.join("\n")}`);
+  }
+
+  // ── 26. Everist LifeScore (whole-person wellbeing) ──
+  // Directional only: score + well/steady/struggling per dimension, plus how
+  // many reflections leaned positive vs. challenging in each area. No specifics.
+  if (lifeScore?.hasData) {
+    const lsLines: string[] = [];
+    lsLines.push(`Composite LifeScore: ${lifeScore.score ?? "—"}/100 (5 dimensions: body, mind, purpose, relationships, work)`);
+    // Valence tallies per dimension from this week's private reflections.
+    const valence: Record<string, { pos: number; neg: number }> = {};
+    for (const j of journalRows) {
+      for (const t of (j.themes ?? [])) {
+        const v = (valence[t.dimension] ??= { pos: 0, neg: 0 });
+        if (t.valence === "positive") v.pos++;
+        else if (t.valence === "negative") v.neg++;
+      }
+    }
+    for (const d of lifeScore.dimensions) {
+      const label = d.dimension.charAt(0).toUpperCase() + d.dimension.slice(1);
+      const parts = [`${label}: ${d.score ?? "no data"}${d.score != null ? "/100" : ""}`, `trend ${d.sentiment}`];
+      const v = valence[d.dimension];
+      if (v && (v.pos || v.neg)) {
+        const notes: string[] = [];
+        if (v.neg) notes.push(`${v.neg} challenging`);
+        if (v.pos) notes.push(`${v.pos} positive`);
+        parts.push(`reflections this week: ${notes.join(", ")}`);
+      }
+      lsLines.push(`  ${parts.join(" | ")}`);
+    }
+    // Why planned tasks were missed (aggregated reasons, last 14 days).
+    if (missRows.length > 0) {
+      const reasonCounts: Record<string, number> = {};
+      for (const m of missRows) reasonCounts[m.reason] = (reasonCounts[m.reason] ?? 0) + 1;
+      const top = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1])
+        .map(([r, c]) => `${r.replace(/_/g, " ")} (${c}×)`);
+      lsLines.push(`Missed-task reasons (14d): ${top.join(", ")}`);
+    }
+    sections.push(`## EVEREST LIFESCORE (Whole-Person Wellbeing)\n${lsLines.join("\n")}`);
   }
 
   return sections.length > 0 ? sections.join("\n\n") : "No health data available yet.";

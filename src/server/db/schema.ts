@@ -1321,3 +1321,69 @@ export const feedback = pgTable("feedback", {
   index("feedback_created_idx").on(t.createdAt),
   index("feedback_status_idx").on(t.status),
 ]);
+
+// ======================== EVEREST LIFESCORE ========================
+// Whole-person wellbeing across five dimensions: body, mind, purpose,
+// relationships, work. Body is auto-derived from health data; the other four
+// are self-reported. See docs/lifescore-spec.md. Dimension stored as varchar
+// (not a pg enum) to keep the migration simple + idempotent.
+export type LifeDimension = "body" | "mind" | "purpose" | "relationships" | "work";
+export const LIFE_DIMENSIONS: LifeDimension[] = ["body", "mind", "purpose", "relationships", "work"];
+
+// One row per (client, date, dimension). rating 1..5; null note optional.
+export const lifeScoreCheckins = pgTable("lifescore_dimension_checkins", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  date: date("date").notNull(),
+  dimension: varchar("dimension", { length: 20 }).notNull(), // LifeDimension
+  rating: integer("rating"), // 1..5, null = skipped
+  note: text("note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("lifescore_checkin_unique_idx").on(t.clientId, t.date, t.dimension),
+  index("lifescore_checkin_client_date_idx").on(t.clientId, t.date),
+]);
+
+// Free-form journal entries. Raw `text` is CLIENT-PRIVATE and never surfaced to
+// coaches; only `themes` (AI-derived {dimension, theme, valence}) is shared.
+export const lifeScoreJournalEntries = pgTable("lifescore_journal_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  date: date("date").notNull(),
+  text: text("text").notNull(),
+  themes: jsonb("themes").$type<Array<{ dimension: LifeDimension; theme: string; valence: "positive" | "neutral" | "negative" }>>().default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("lifescore_journal_client_date_idx").on(t.clientId, t.date),
+]);
+
+// Per-client dimension weights for the composite LifeScore. Coach-adjustable;
+// default 20 each (equal). Sum is normalized at read time.
+export const lifeScoreWeights = pgTable("lifescore_weights", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  coachId: uuid("coach_id").references(() => users.id),
+  body: integer("body").notNull().default(20),
+  mind: integer("mind").notNull().default(20),
+  purpose: integer("purpose").notNull().default(20),
+  relationships: integer("relationships").notNull().default(20),
+  work: integer("work").notNull().default(20),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("lifescore_weights_client_idx").on(t.clientId),
+]);
+
+// Why a scheduled daily task was missed — reflection tied to the checklist.
+export const taskMissReasons = pgTable("task_miss_reasons", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  date: date("date").notNull(),
+  itemKey: varchar("item_key", { length: 160 }).notNull(),
+  reason: varchar("reason", { length: 40 }).notNull(), // too_tired | no_time | forgot | pain | not_feeling_it | other
+  note: text("note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("task_miss_unique_idx").on(t.clientId, t.date, t.itemKey),
+  index("task_miss_client_date_idx").on(t.clientId, t.date),
+]);

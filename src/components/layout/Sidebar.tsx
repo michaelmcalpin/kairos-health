@@ -325,6 +325,7 @@ export const clientNavItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
   { label: "Chat", href: "/chat", icon: <MessageSquare size={18} />, section: "Overview" },
   { label: "Insight Sherpa", href: "/insights", icon: <Brain size={18} />, section: "Overview" },
+  { label: "LifeScore", href: "/lifescore", icon: <Activity size={18} />, section: "Overview" },
   { label: "Goals", href: "/goals", icon: <Target size={18} />, section: "Overview" },
   { label: "Appointments", href: "/appointments", icon: <CalendarCheck size={18} />, section: "Overview" },
 

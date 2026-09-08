@@ -280,6 +280,83 @@ function AdherenceCard({ clientId }: { clientId: string }) {
   );
 }
 
+const LIFE_DIM_META: { key: string; label: string }[] = [
+  { key: "body", label: "Body" },
+  { key: "mind", label: "Mind" },
+  { key: "purpose", label: "Purpose" },
+  { key: "relationships", label: "Relationships" },
+  { key: "work", label: "Work" },
+];
+
+function lifeSentiment(s: string): { label: string; cls: string } {
+  if (s === "well") return { label: "Going well", cls: "text-green-400" };
+  if (s === "struggling") return { label: "Struggling", cls: "text-yellow-400" };
+  if (s === "steady") return { label: "Steady", cls: "text-gray-300" };
+  return { label: "No data", cls: "text-gray-600" };
+}
+
+// Coach LifeScore snapshot — composite + per-dimension score and directional
+// sentiment ONLY. No journal text, no themes, no personal detail: the coach
+// sees whether each area is going well or struggling, nothing more.
+function LifeScoreCard({ clientId }: { clientId: string }) {
+  const q = trpc.coach.clients.getClientLifeScore.useQuery(
+    { clientId },
+    { staleTime: 30_000, refetchOnWindowFocus: false, retry: false },
+  );
+
+  if (q.isLoading) {
+    return (
+      <div className="kairos-card">
+        <h2 className="text-sm font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+          <Activity size={14} /> Everist LifeScore
+        </h2>
+        <div className="h-24 animate-pulse bg-gray-800/50 rounded-lg" />
+      </div>
+    );
+  }
+
+  const data = q.data;
+  const byDim = new Map<string, { dimension: string; score: number | null; sentiment: string; weight: number }>(
+    (data?.dimensions ?? []).map((d) => [d.dimension as string, d]),
+  );
+
+  return (
+    <div className="kairos-card">
+      <h2 className="text-sm font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
+        <Activity size={14} /> Everist LifeScore
+      </h2>
+      {!data?.hasData ? (
+        <p className="text-xs text-gray-500 text-center py-4">No LifeScore activity yet</p>
+      ) : (
+        <>
+          <div className="flex items-baseline gap-2 mb-3">
+            <p className="text-2xl font-heading font-bold text-white">{data.score ?? "—"}</p>
+            <p className="text-[10px] text-gray-500 uppercase">Composite</p>
+          </div>
+          <div className="space-y-2">
+            {LIFE_DIM_META.map((m) => {
+              const d = byDim.get(m.key);
+              const sent = lifeSentiment(d?.sentiment ?? "no_data");
+              return (
+                <div key={m.key} className="flex items-center justify-between">
+                  <span className="text-xs text-gray-300">{m.label}</span>
+                  <span className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold ${sent.cls}`}>{sent.label}</span>
+                    <span className="text-xs text-gray-500 w-6 text-right">{d?.score ?? "—"}</span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-gray-500 mt-3 leading-relaxed">
+            Scores and direction only — journal reflections stay private to your client.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function ClientDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const tc = useThemeColors();
@@ -800,6 +877,8 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
         <div className="space-y-6">
           {/* Daily-task adherence */}
           <AdherenceCard clientId={params.id} />
+
+          <LifeScoreCard clientId={params.id} />
 
           {/* Upcoming Appointments */}
           {health?.upcomingAppointments && health.upcomingAppointments.length > 0 && (

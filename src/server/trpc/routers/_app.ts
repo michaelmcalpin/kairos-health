@@ -38,6 +38,7 @@ import { clientClinicalDocsRouter } from "./client/clinical-docs";
 import { clientReportsRouter } from "./client/reports";
 import { clientPeptidesRouter } from "./client/peptides";
 import { clientCoachAccessRouter } from "./client/coach-access";
+import { clientLifeScoreRouter } from "./client/lifescore";
 import { coachSharedAccessRouter } from "./coach/shared-access";
 
 // Coach routers
@@ -110,6 +111,7 @@ export const appRouter = router({
     reports: clientReportsRouter,
     peptides: clientPeptidesRouter,
     coachAccess: clientCoachAccessRouter,
+    lifeScore: clientLifeScoreRouter,
   }),
   coach: router({
     dashboard: coachDashboardRouter,
