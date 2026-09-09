@@ -44,6 +44,7 @@ import {
 import { eq, desc, and, gte, ne, lte } from "drizzle-orm";
 import { computeAdherence } from "@/server/trpc/routers/client/today";
 import { computeLifeScore } from "@/lib/lifescore/score";
+import { mergeSleepNights } from "@/lib/health/sleep";
 
 // ---------------------------------------------------------------------------
 // Comprehensive health context builder — shared by chat + report generation
@@ -334,10 +335,13 @@ export async function getClientContext(dbUserId: string) {
 
   // ── 3. Sleep Data ───────────────────────────────────────
   if (recentSleep.length > 0) {
-    const avgDur = recentSleep.reduce((s: number, r) => s + (r.totalMinutes ?? 0), 0) / recentSleep.length;
-    const scored = recentSleep.filter((s) => s.score != null);
+    // Collapse multi-source nights (Apple Health + Oura) to one best-of night
+    // per date so a night synced by two devices isn't double-counted.
+    const mergedSleep = mergeSleepNights(recentSleep);
+    const avgDur = mergedSleep.reduce((s: number, r) => s + (r.totalMinutes ?? 0), 0) / mergedSleep.length;
+    const scored = mergedSleep.filter((s) => s.score != null);
     const avgScore = scored.length > 0 ? scored.reduce((s: number, r) => s + (r.score ?? 0), 0) / scored.length : null;
-    const details = recentSleep.slice(0, 5).map((s) => {
+    const details = mergedSleep.slice(0, 5).map((s) => {
       const parts = [`${s.date}: ${s.totalMinutes ? (s.totalMinutes / 60).toFixed(1) : "?"}hrs`];
       if (s.score) parts.push(`score=${s.score}`);
       if (s.deepMinutes) parts.push(`deep=${s.deepMinutes}min`);
@@ -387,7 +391,17 @@ export async function getClientContext(dbUserId: string) {
   if (recentHR.length > 0 || latestHRV) {
     const hrParts: string[] = [];
     if (recentHR.length > 0) {
-      const avgHR = recentHR.reduce((s: number, r) => s + r.bpm, 0) / recentHR.length;
+      // Average by day first, then across days, so a source that samples HR far
+      // more frequently doesn't dominate the mean (and overlapping-source days
+      // aren't double-weighted).
+      const byDay = new Map<string, { sum: number; n: number }>();
+      for (const r of recentHR) {
+        const day = r.timestamp ? new Date(r.timestamp).toISOString().slice(0, 10) : "unknown";
+        const acc = byDay.get(day) ?? { sum: 0, n: 0 };
+        acc.sum += r.bpm; acc.n += 1; byDay.set(day, acc);
+      }
+      const dailyAvgs = Array.from(byDay.values()).map((a) => a.sum / a.n);
+      const avgHR = dailyAvgs.reduce((s, v) => s + v, 0) / dailyAvgs.length;
       hrParts.push(`Avg HR (7d): ${Math.round(avgHR)} bpm | Range: ${Math.min(...recentHR.map((r) => r.bpm))}-${Math.max(...recentHR.map((r) => r.bpm))} bpm`);
     }
     if (latestHRV) {

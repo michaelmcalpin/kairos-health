@@ -253,7 +253,7 @@ export async function fetchFitbitBody(
 ): Promise<{
   measurements: Array<{
     date: string;
-    weightKg: number;
+    weightLbs: number;
     bmi: number;
     bodyFatPct: number;
   }>;
@@ -264,9 +264,11 @@ export async function fetchFitbitBody(
   );
 
   return {
+    // Fitbit returns weight in kg; the app stores pounds. Convert here so any
+    // future persistence writes the correct unit (kg → lbs).
     measurements: response.weight.map((r) => ({
       date: r.date,
-      weightKg: r.weight,
+      weightLbs: Math.round(r.weight * 2.20462 * 10) / 10,
       bmi: r.bmi,
       bodyFatPct: r.fat,
     })),

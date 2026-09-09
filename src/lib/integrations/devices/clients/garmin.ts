@@ -261,10 +261,10 @@ export async function fetchGarminBodyComposition(
 ): Promise<{
   measurements: Array<{
     date: string;
-    weightKg: number;
+    weightLbs: number;
     bmi: number;
     bodyFatPct: number;
-    muscleMassKg: number;
+    leanMassLbs: number;
     bodyWaterPct: number;
   }>;
 }> {
@@ -275,13 +275,16 @@ export async function fetchGarminBodyComposition(
     { startDate, endDate },
   );
 
+  // Garmin returns weight/muscle mass in grams; the app stores pounds. Convert
+  // here (g → kg → lbs) so any future persistence writes the correct unit.
+  const gramsToLbs = (g: number) => Math.round((g / 1000) * 2.20462 * 10) / 10;
   return {
     measurements: response.map((r) => ({
       date: r.calendarDate,
-      weightKg: r.weight / 1000, // Garmin returns grams
+      weightLbs: gramsToLbs(r.weight),
       bmi: r.bmi,
       bodyFatPct: r.bodyFatPercentage,
-      muscleMassKg: r.muscleMass / 1000,
+      leanMassLbs: gramsToLbs(r.muscleMass),
       bodyWaterPct: r.bodyWater,
     })),
   };
