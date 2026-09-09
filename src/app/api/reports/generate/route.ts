@@ -8,7 +8,11 @@ import { eq } from "drizzle-orm";
 import { getClientContext } from "@/lib/ai/health-context";
 import { callWithRetry } from "@/lib/ai/retry";
 
-export const maxDuration = 120;
+// The Comprehensive report generates close to the full token budget, which can
+// take well over two minutes end-to-end. Give the function the max headroom the
+// plan allows so it finishes instead of hitting a gateway timeout (which returns
+// a non-JSON body the client can't parse).
+export const maxDuration = 300;
 
 // ---------------------------------------------------------------------------
 // Report type definitions

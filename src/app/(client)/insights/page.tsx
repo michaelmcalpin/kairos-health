@@ -695,18 +695,37 @@ export default function InsightsPage() {
   const generateReport = useCallback(async (reportType: string) => {
     setGeneratingReport(reportType);
     setReportError(null);
+    // Long reports (esp. Comprehensive) can take minutes; abort before the
+    // browser gives up so we surface a clean message.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 290_000);
     try {
       const res = await fetch("/api/reports/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reportType }),
+        signal: controller.signal,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error ?? "Failed to generate report");
+
+      // Parse defensively: a gateway timeout or crash returns a non-JSON body,
+      // and res.json() would otherwise throw a cryptic browser error
+      // ("The string did not match the expected pattern").
+      const raw = await res.text();
+      let parsed: { report?: ReportData; error?: string } = {};
+      try {
+        parsed = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new Error(
+          res.status === 504 || res.status === 502
+            ? "The report took too long and timed out. Please try again."
+            : "The report service returned an unexpected response. Please try again.",
+        );
       }
-      const data = await res.json();
-      const report = data.report as ReportData;
+
+      if (!res.ok || !parsed.report) {
+        throw new Error(parsed.error ?? "Failed to generate report. Please try again.");
+      }
+      const report = parsed.report;
       setCurrentReport({ data: report, type: reportType });
 
       // Save to DB with 60-day expiry
@@ -717,8 +736,13 @@ export default function InsightsPage() {
         reportData: report,
       });
     } catch (err) {
-      setReportError(err instanceof Error ? err.message : "Failed to generate report");
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setReportError("The report took too long and timed out. Please try again.");
+      } else {
+        setReportError(err instanceof Error ? err.message : "Failed to generate report");
+      }
     } finally {
+      clearTimeout(timer);
       setGeneratingReport(null);
     }
   }, [saveReportMutation]);
