@@ -16,6 +16,7 @@ import {
   lifeScoreJournalEntries,
   lifeScoreWeights,
   taskMissReasons,
+  dailyChecklistCompletions,
   LIFE_DIMENSIONS,
 } from "@/server/db/schema";
 import { computeLifeScore } from "@/lib/lifescore/score";
@@ -79,6 +80,25 @@ export const clientLifeScoreRouter = router({
           set: { rating: r.rating, note: r.note ?? null, updatedAt: new Date() },
         });
       }
+
+      // Mark the day's "LifeScore check-in" to-do complete so it counts toward
+      // the daily plan progress (same mechanism as other checklist items).
+      // No unique constraint on the table, so check-then-insert like toggleComplete.
+      try {
+        const key = `lifescore:${date}`;
+        const existing = await ctx.db.query.dailyChecklistCompletions.findFirst({
+          where: and(
+            eq(dailyChecklistCompletions.clientId, ctx.dbUserId),
+            eq(dailyChecklistCompletions.date, date),
+            eq(dailyChecklistCompletions.itemKey, key),
+          ),
+        });
+        if (!existing) {
+          await ctx.db.insert(dailyChecklistCompletions).values({
+            clientId: ctx.dbUserId, date, itemKey: key,
+          });
+        }
+      } catch { /* non-fatal: the check-in itself already saved */ }
 
       // Decide whether the data clearly warrants a tailored follow-up.
       const low = input.ratings

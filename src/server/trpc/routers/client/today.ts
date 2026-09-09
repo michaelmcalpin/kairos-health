@@ -412,6 +412,30 @@ export async function computeToday(
     }
   }
 
+  // Everist LifeScore daily check-in — a completable to-do that sits at the
+  // bottom of the day. Marked done via daily_checklist_completions (written when
+  // the client submits their check-in), so it counts toward the day's progress.
+  {
+    const key = `lifescore:${date}`;
+    sections.push({
+      key: "lifescore",
+      label: "Wellbeing",
+      items: [
+        {
+          key,
+          kind: "task",
+          title: "Everist LifeScore check-in",
+          subtitle: "Rate body, mind, purpose, relationships, work",
+          time: null,
+          completable: true,
+          done: doneKeys.has(key),
+          protocolItemId: null,
+          link: "/lifescore",
+        },
+      ],
+    });
+  }
+
   // Advice line — a coach-authored line wins over the rule-based one.
   const adviceParts: string[] = [];
   if (library.planType) adviceParts.push(`${library.planType} day.`);

@@ -4,11 +4,13 @@
  * Rendered as its own bottom-tab screen and reused elsewhere.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View, Text, ScrollView, StyleSheet, TextInput, Alert, ActivityIndicator,
+  KeyboardAvoidingView, Platform, Keyboard, Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import Svg, { Circle } from "react-native-svg";
 import { Lock } from "lucide-react-native";
 
@@ -70,6 +72,17 @@ export default function LifeScoreView() {
 
   const history = (historyQuery.data as { id: string; date: string; text: string; themes: { dimension: string; theme: string; valence: string }[] }[] | undefined) ?? [];
 
+  // Refetch whenever the screen regains focus so an update made elsewhere
+  // (or on a previous visit) is reflected when the user returns.
+  const refetchScore = scoreQuery.refetch;
+  const refetchHistory = historyQuery.refetch;
+  useFocusEffect(
+    useCallback(() => {
+      refetchScore();
+      refetchHistory();
+    }, [refetchScore, refetchHistory]),
+  );
+
   const handleSaveJournal = async () => {
     if (!journal.trim()) return;
     setSavingJournal(true);
@@ -86,7 +99,17 @@ export default function LifeScoreView() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
         <Text style={styles.tagline}>
           Your health is more than your body. LifeScore measures the five dimensions that shape how well you&apos;re living.
         </Text>
@@ -139,8 +162,13 @@ export default function LifeScoreView() {
             multiline
           />
           <View style={styles.privacyRow}>
-            <Lock size={13} color={Colors.silver} />
-            <Text style={styles.privacyText}>Private — your coach sees themes, not the words.</Text>
+            <View style={styles.privacyLeft}>
+              <Lock size={13} color={Colors.silver} />
+              <Text style={styles.privacyText}>Private — your coach sees themes, not the words.</Text>
+            </View>
+            <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
+              <Text style={styles.doneText}>Done</Text>
+            </Pressable>
           </View>
           <Button
             title={savingJournal ? "Saving…" : "Save entry"}
@@ -173,6 +201,7 @@ export default function LifeScoreView() {
           </>
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -200,8 +229,13 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border, borderRadius: Radii.md,
     padding: Spacing.md, textAlignVertical: "top",
   },
-  privacyRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: Spacing.sm },
-  privacyText: { fontSize: FontSizes.xs, color: Colors.silver },
+  privacyRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    gap: 6, marginTop: Spacing.sm,
+  },
+  privacyLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
+  privacyText: { fontSize: FontSizes.xs, color: Colors.silver, flexShrink: 1 },
+  doneText: { fontSize: FontSizes.sm, color: Colors.gold, fontWeight: "700", paddingLeft: 8 },
 
   histDate: { fontSize: FontSizes.xs, color: Colors.gold, marginBottom: 4 },
   histText: { fontSize: FontSizes.sm, color: Colors.white, lineHeight: 20 },

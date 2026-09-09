@@ -41,6 +41,9 @@ export function LifeScoreCheckinCard({ onSaved }: { onSaved?: () => void }) {
       await Promise.all([
         utils.clientPortal.lifeScore.getScore.invalidate(),
         utils.clientPortal.lifeScore.getPrompt.invalidate(),
+        // Refresh the daily plan so the "LifeScore check-in" to-do flips to done.
+        utils.clientPortal.today.getToday.invalidate(),
+        utils.clientPortal.today.getAdherence.invalidate(),
       ]);
       onSaved?.();
     } catch (err) {

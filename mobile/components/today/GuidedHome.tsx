@@ -66,9 +66,6 @@ export default function GuidedHome() {
           <DayNav nav={nav} />
         </View>
 
-        {/* Daily LifeScore check-in — today only */}
-        {nav.isToday && <LifeScoreCheckinCard />}
-
         {/* Advice + progress (advice only meaningful for today) */}
         <Card style={styles.adviceCard}>
           {nav.isToday && data?.advice ? (
@@ -102,6 +99,14 @@ export default function GuidedHome() {
             <Text style={styles.emptyText}>Nothing on your plan for this day.</Text>
           </Card>
         ) : null}
+
+        {/* Daily LifeScore check-in — at the bottom of the day, today only.
+            Completing it marks the "LifeScore check-in" to-do above as done. */}
+        {nav.isToday && (
+          <View style={{ marginTop: Spacing.sm }}>
+            <LifeScoreCheckinCard onSaved={refetch} />
+          </View>
+        )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
