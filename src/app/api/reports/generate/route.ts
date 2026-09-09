@@ -14,6 +14,81 @@ import { callWithRetry } from "@/lib/ai/retry";
 // a non-JSON body the client can't parse).
 export const maxDuration = 300;
 
+/**
+ * Parse the model's report output into an object. Handles code fences, leading/
+ * trailing prose, and trailing commas. If the JSON is truncated, attempts to
+ * repair it by closing any still-open strings/objects/arrays. Returns undefined
+ * if nothing usable can be recovered.
+ */
+function parseReportJson(text: string): unknown {
+  let s = text.trim();
+  // Strip markdown code fences if present.
+  if (s.startsWith("```")) {
+    s = s.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  }
+  // Narrow to the outermost JSON object (drop any prose before/after).
+  const start = s.indexOf("{");
+  if (start > 0) s = s.slice(start);
+
+  const attempt = (candidate: string): unknown => {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Remove trailing commas (…,} or …,]) and retry.
+      const cleaned = candidate.replace(/,(\s*[}\]])/g, "$1");
+      try {
+        return JSON.parse(cleaned);
+      } catch {
+        return undefined;
+      }
+    }
+  };
+
+  // 1) As-is (to the last closing brace).
+  const lastBrace = s.lastIndexOf("}");
+  if (lastBrace !== -1) {
+    const direct = attempt(s.slice(0, lastBrace + 1));
+    if (direct !== undefined) return direct;
+  }
+
+  // 2) Repair a truncated object: close open strings/brackets in order.
+  const repaired = repairTruncatedJson(s);
+  if (repaired) {
+    const fixed = attempt(repaired);
+    if (fixed !== undefined) return fixed;
+  }
+
+  return undefined;
+}
+
+/** Best-effort close of an unterminated JSON object/array (truncated output). */
+function repairTruncatedJson(s: string): string | null {
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{" || c === "[") stack.push(c);
+    else if (c === "}" || c === "]") stack.pop();
+  }
+  if (!inString && stack.length === 0) return null; // not actually truncated
+  let out = s;
+  // Drop a dangling partial token after the last complete value.
+  out = out.replace(/,\s*"[^"]*$/, "").replace(/,\s*$/, "");
+  if (inString) out += '"';
+  for (let i = stack.length - 1; i >= 0; i--) {
+    out += stack[i] === "{" ? "}" : "]";
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Report type definitions
 // ---------------------------------------------------------------------------
@@ -285,7 +360,9 @@ export async function POST(req: NextRequest) {
       () =>
         anthropic.messages.create({
           model: ANTHROPIC_MODEL,
-          max_tokens: 8192,
+          // The Comprehensive report's JSON is large; 8192 truncated it mid-object
+          // ("Failed to parse report"). Give it ample room to finish the object.
+          max_tokens: 16000,
           system: `You are EVERIST AI, an advanced health analytics engine. You generate structured clinical health reports based on comprehensive client data. You must respond ONLY with valid JSON — no markdown, no code fences, no explanatory text before or after the JSON.
 
 ${reportConfig.systemAddendum}
@@ -308,18 +385,18 @@ ${healthContext}`,
       return new Response(JSON.stringify({ error: "No response from AI" }), { status: 500 });
     }
 
-    // Parse and validate JSON
-    let reportData: unknown;
-    try {
-      // Strip any markdown code fences if present
-      let jsonStr = textBlock.text.trim();
-      if (jsonStr.startsWith("```")) {
-        jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
-      }
-      reportData = JSON.parse(jsonStr);
-    } catch {
+    // Parse and validate JSON — robustly, since the model can wrap output in
+    // prose/fences or (if truncated) emit slightly malformed JSON.
+    const reportData = parseReportJson(textBlock.text);
+    if (reportData === undefined) {
+      const truncated = response.stop_reason === "max_tokens";
       return new Response(
-        JSON.stringify({ error: "Failed to parse report", raw: textBlock.text.slice(0, 500) }),
+        JSON.stringify({
+          error: truncated
+            ? "The report was too long to finish generating. Please try again."
+            : "Failed to parse report. Please try again.",
+          raw: textBlock.text.slice(0, 500),
+        }),
         { status: 500 }
       );
     }
