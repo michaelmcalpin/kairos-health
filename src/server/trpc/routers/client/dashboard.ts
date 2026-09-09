@@ -40,9 +40,14 @@ async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 
 export const clientDashboardRouter = router({
   // ── Dashboard overview KPIs ──────────────────────────────
-  getOverview: clientProcedure.query(async ({ ctx }) => {
+  getOverview: clientProcedure
+    .input(z.object({ date: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
+    // "Today" is the client's LOCAL calendar date (passed from the device/
+    // browser). Apple Health + Oura key their step rows by local/provider day,
+    // so reading by server-UTC "today" missed them for any non-UTC user.
+    const todayStr = input?.date ?? now.toISOString().split("T")[0];
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     // Batch-load everything in parallel
@@ -59,6 +64,7 @@ export const clientDashboardRouter = router({
       latestBP,
       todayGlucoseRows,
       todayActivityRows,
+      latestActivity,
     ] = await Promise.all([
       ctx.db.query.clientProfiles.findFirst({
         where: eq(clientProfiles.userId, ctx.dbUserId),
@@ -125,14 +131,27 @@ export const clientDashboardRouter = router({
           eq(activitySummaries.date, todayStr),
         ),
       }), []),
+      // Most recent activity row overall — a fallback so steps still show the
+      // latest synced value at a timezone boundary or before today has synced.
+      safeQ(() => ctx.db.query.activitySummaries.findFirst({
+        where: eq(activitySummaries.clientId, ctx.dbUserId),
+        orderBy: desc(activitySummaries.date),
+      }), undefined),
     ]);
 
     // Steps KPI: prefer TODAY's activity summary (highest step count across
-    // sources); fall back to the latest check-in ONLY if it is from today.
+    // sources). If today has no row yet, fall back to the most recent activity
+    // row within the last 2 days, then to a same-day check-in.
     const todaySteps = todayActivityRows.reduce<number | null>(
       (best, row) => (row.steps != null && (best === null || row.steps > best) ? row.steps : best),
       null,
     );
+    const daysBetween = (a: string, b: string) =>
+      Math.abs(Math.round((Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86400000));
+    const recentSteps =
+      latestActivity?.steps != null && daysBetween(String(latestActivity.date), todayStr) <= 2
+        ? { value: latestActivity.steps, date: String(latestActivity.date) }
+        : null;
 
     // Glucose spike analysis: count readings >140 mg/dL as spikes
     const SPIKE_THRESHOLD = 140;
@@ -192,9 +211,10 @@ export const clientDashboardRouter = router({
           : null,
         steps: todaySteps != null
           ? { value: todaySteps, date: todayStr }
-          : latestCheckin?.steps && latestCheckin.date === todayStr
-            ? { value: latestCheckin.steps, date: latestCheckin.date }
-            : null,
+          : recentSteps
+            ?? (latestCheckin?.steps && latestCheckin.date === todayStr
+              ? { value: latestCheckin.steps, date: latestCheckin.date }
+              : null),
         bmCount: todayCheckin?.bmCount ?? null,
         unreadAlerts: Number(unreadAlertRows[0]?.count ?? 0),
         checkedInToday: !!todayCheckin,

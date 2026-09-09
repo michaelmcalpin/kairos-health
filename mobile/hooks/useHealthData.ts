@@ -114,9 +114,17 @@ export function useHealthScore(range?: DateRangeDates) {
 // useDashboardOverview
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/** Device-local YYYY-MM-DD so "today's steps" matches the local calendar day. */
+function localToday(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 export function useDashboardOverview() {
   const query = trpc.clientPortal.dashboard.getOverview.useQuery(
-    undefined,
+    { date: localToday() },
     DEFAULT_QUERY_OPTIONS,
   );
 

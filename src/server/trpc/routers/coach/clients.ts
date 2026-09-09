@@ -134,9 +134,12 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
     safeQ(() => db.query.supplementProtocols.findFirst({
       where: and(eq(supplementProtocols.clientId, clientId), eq(supplementProtocols.status, "active")),
     }), undefined),
-    safeQ(() => db.select({ count: sql<number>`count(*)` }).from(adherenceLogs).where(
+    safeQ(() => db.select({
+      total: sql<number>`count(*)`,
+      taken: sql<number>`count(*) filter (where ${adherenceLogs.takenAt} is not null and ${adherenceLogs.skipped} = false)`,
+    }).from(adherenceLogs).where(
       and(eq(adherenceLogs.clientId, clientId), gte(adherenceLogs.date, new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0]))
-    ), [{ count: 0 }]),
+    ), [{ total: 0, taken: 0 }]),
   ]);
 
   if (!user) return null;
@@ -190,13 +193,12 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
   const weight = weightValues.length > 0 ? weightValues[weightValues.length - 1] : null;
   const bodyFat = recentWeight[0]?.bodyFatPct ? Number(recentWeight[0].bodyFatPct) : null;
 
-  // Adherence (percentage based on enrollment duration, capped at 30 days)
-  const adherenceTotal = Number(adherenceCount[0]?.count ?? 0);
-  const daysSinceEnrollment = enrolledAt
-    ? Math.max(1, Math.floor((Date.now() - enrolledAt.getTime()) / 86400000))
-    : 30;
-  const adherenceDenominator = Math.min(daysSinceEnrollment, 30);
-  const adherence = Math.min(100, Math.round((adherenceTotal / adherenceDenominator) * 100));
+  // Adherence: of the protocol doses the client actually logged over the last
+  // 30 days, the share they took (vs skipped). Dose-count ÷ day-count was wrong
+  // and pinned multi-dose clients at 100%.
+  const loggedDoses = Number(adherenceCount[0]?.total ?? 0);
+  const takenDoses = Number(adherenceCount[0]?.taken ?? 0);
+  const adherence = loggedDoses > 0 ? Math.round((takenDoses / loggedDoses) * 100) : 0;
 
   // Check-in streak
   let checkInStreak = 0;
@@ -331,7 +333,11 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
       where: and(inArray(supplementProtocols.clientId, clientIds), eq(supplementProtocols.status, "active")),
     }), []),
     safeQ(() => db
-      .select({ clientId: adherenceLogs.clientId, count: sql<number>`count(*)` })
+      .select({
+        clientId: adherenceLogs.clientId,
+        total: sql<number>`count(*)`,
+        taken: sql<number>`count(*) filter (where ${adherenceLogs.takenAt} is not null and ${adherenceLogs.skipped} = false)`,
+      })
       .from(adherenceLogs)
       .where(and(inArray(adherenceLogs.clientId, clientIds), gte(adherenceLogs.date, thirtyDaysAgo)))
       .groupBy(adherenceLogs.clientId), []),
@@ -342,7 +348,7 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
   const profileMap = new Map(allProfiles.map((p) => [p.userId, p]));
   const alertCountMap = new Map(alertCounts.map((a) => [a.clientId, Number(a.count)]));
   const protocolMap = new Map(activeProtocols.map((p) => [p.clientId, p]));
-  const adherenceMap = new Map(adherenceCounts.map((a) => [a.clientId, Number(a.count)]));
+  const adherenceMap = new Map(adherenceCounts.map((a) => [a.clientId, { total: Number(a.total), taken: Number(a.taken) }]));
 
   // Group per-client arrays (take first N per client from sorted results)
   function groupByClient<T extends { clientId: string }>(items: T[], limit: number): Map<string, T[]> {
@@ -377,7 +383,7 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
     const recentWeight = weightByClient.get(clientId) ?? [];
     const recentCheckins = checkinsByClient.get(clientId) ?? [];
     const protocol = protocolMap.get(clientId) ?? null;
-    const adherenceTotal = adherenceMap.get(clientId) ?? 0;
+    const adherenceAgg = adherenceMap.get(clientId) ?? { total: 0, taken: 0 };
 
     const name = deriveName(user.firstName, user.lastName, user.email);
     const initials = getInitials(user.firstName, user.lastName, user.email);
@@ -427,13 +433,10 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
     const weight = weightValues.length > 0 ? weightValues[weightValues.length - 1] : null;
     const bodyFat = recentWeight[0]?.bodyFatPct ? Number(recentWeight[0].bodyFatPct) : null;
 
-    // Adherence (percentage based on enrollment duration, capped at 30 days)
-    const enrolledAt = enrollmentDates?.get(clientId);
-    const daysSinceEnrollment = enrolledAt
-      ? Math.max(1, Math.floor((Date.now() - enrolledAt.getTime()) / 86400000))
-      : 30;
-    const adherenceDenominator = Math.min(daysSinceEnrollment, 30);
-    const adherence = Math.min(100, Math.round((adherenceTotal / adherenceDenominator) * 100));
+    // Adherence: share of logged protocol doses (last 30d) that were taken.
+    const adherence = adherenceAgg.total > 0
+      ? Math.round((adherenceAgg.taken / adherenceAgg.total) * 100)
+      : 0;
 
     // Check-in streak
     let checkInStreak = 0;

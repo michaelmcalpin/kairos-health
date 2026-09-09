@@ -37,6 +37,11 @@ export default function BodyScreen() {
     { startDate: rangeStart, endDate: rangeEnd },
     DEFAULT_QUERY_OPTIONS,
   );
+  // Height (for BMI, which isn't stored for manually-logged measurements).
+  const settingsQuery = trpc.clientPortal.settings.getSettings.useQuery(
+    undefined,
+    DEFAULT_QUERY_OPTIONS,
+  );
 
   // ── Map real API data ONLY — no sample fallbacks ──
   const latestRaw = latestQuery.data as any;
@@ -44,6 +49,18 @@ export default function BodyScreen() {
 
   const isLoading = latestQuery.isLoading;
   const hasData = !!latestRaw;
+
+  // BMI: use the stored value if present, else compute from height + weight
+  // (703 × lbs / inches²) so manually-logged clients still see it.
+  const heightInches = (settingsQuery.data as any)?.clientProfile?.heightInches ?? null;
+  const bmiValue =
+    latestRaw?.bmi != null
+      ? Number(latestRaw.bmi)
+      : heightInches && latestRaw?.weightLbs != null
+        ? (latestRaw.weightLbs / (heightInches * heightInches)) * 703
+        : null;
+  // Lean/muscle mass field is leanMassLbs (only the `latest` query returns it).
+  const leanMassLbs = latestRaw?.leanMassLbs ?? latestRaw?.muscleMassLbs ?? null;
 
   // Current stats cards — real values, "—" when a field is absent
   const currentStats = [
@@ -57,7 +74,7 @@ export default function BodyScreen() {
     {
       label: "BMI",
       // BMI → 1 dp.
-      value: fmt(latestRaw?.bmi, 1),
+      value: fmt(bmiValue, 1),
       unit: "",
       color: Colors.info,
     },
@@ -71,8 +88,8 @@ export default function BodyScreen() {
     {
       label: "Muscle Mass",
       // Lean / muscle mass → 1 dp.
-      value: fmt(latestRaw?.muscleMassLbs, 1),
-      unit: latestRaw?.muscleMassLbs != null ? "lbs" : "",
+      value: fmt(leanMassLbs, 1),
+      unit: leanMassLbs != null ? "lbs" : "",
       color: Colors.success,
     },
   ];
@@ -99,9 +116,9 @@ export default function BodyScreen() {
 
   // Body composition — only segments backed by real measurements
   const bodyComposition: { label: string; value: number; color: string }[] = [];
-  if (latestRaw?.muscleMassLbs != null) {
+  if (leanMassLbs != null) {
     // Lean / muscle mass → 1 dp.
-    bodyComposition.push({ label: "Muscle", value: round(latestRaw.muscleMassLbs, 1) as number, color: Colors.success });
+    bodyComposition.push({ label: "Muscle", value: round(leanMassLbs, 1) as number, color: Colors.success });
   }
   if (latestRaw?.bodyFatPct != null && latestRaw?.weightLbs != null) {
     bodyComposition.push({

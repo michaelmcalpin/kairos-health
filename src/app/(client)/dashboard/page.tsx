@@ -280,11 +280,14 @@ export default function ClientDashboard() {
     isLoading: overviewLoading,
     isError: overviewError,
     refetch: refetchOverview,
-  } = trpc.clientPortal.dashboard.getOverview.useQuery(undefined, {
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
-    retry: 2,
-  });
+  } = trpc.clientPortal.dashboard.getOverview.useQuery(
+    { date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() },
+    {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+      retry: 2,
+    },
+  );
 
   const { data: healthScore } = trpc.clientPortal.dashboard.getHealthScore.useQuery(undefined, {
     staleTime: 60_000,

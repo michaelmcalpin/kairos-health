@@ -15,9 +15,11 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
 
   const macroTotal = protein * 4 + carbs * 4 + fat * 9;
 
-  const getPercentage = (macro: number) => {
+  // caloriesPerGram: 4 for protein/carbs, 9 for fat — passed explicitly so a
+  // macro isn't mis-scored when its gram value happens to equal another's.
+  const getPercentage = (grams: number, caloriesPerGram: number) => {
     if (macroTotal === 0) return 0;
-    return ((macro * (macro === protein || macro === carbs ? 4 : 9)) / macroTotal) * 100;
+    return ((grams * caloriesPerGram) / macroTotal) * 100;
   };
 
   return (
@@ -99,7 +101,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <div className="flex-1 flex flex-col items-center gap-1">
             <div className="w-12 h-12 rounded-full border-2 border-kairos-gold/50 bg-kairos-gold/10 flex items-center justify-center">
               <span className="text-xs font-semibold text-kairos-gold">
-                {getPercentage((data.protein as number) || 0).toFixed(0)}%
+                {getPercentage((data.protein as number) || 0, 4).toFixed(0)}%
               </span>
             </div>
             <span className="text-xs font-body text-kairos-silver-dark">Protein</span>
@@ -109,7 +111,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <div className="flex-1 flex flex-col items-center gap-1">
             <div className="w-12 h-12 rounded-full border-2 border-blue-500/50 bg-blue-500/10 flex items-center justify-center">
               <span className="text-xs font-semibold text-blue-400">
-                {getPercentage((data.carbs as number) || 0).toFixed(0)}%
+                {getPercentage((data.carbs as number) || 0, 4).toFixed(0)}%
               </span>
             </div>
             <span className="text-xs font-body text-kairos-silver-dark">Carbs</span>
@@ -119,7 +121,7 @@ export const NutritionTab: React.FC<NutritionTabProps> = ({ data, onChange }) =>
           <div className="flex-1 flex flex-col items-center gap-1">
             <div className="w-12 h-12 rounded-full border-2 border-green-500/50 bg-green-500/10 flex items-center justify-center">
               <span className="text-xs font-semibold text-green-400">
-                {getPercentage((data.fat as number) || 0).toFixed(0)}%
+                {getPercentage((data.fat as number) || 0, 9).toFixed(0)}%
               </span>
             </div>
             <span className="text-xs font-body text-kairos-silver-dark">Fat</span>
