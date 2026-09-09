@@ -35,6 +35,12 @@ import {
   Thermometer,
   Wind,
   ChevronRight,
+  Pill,
+  Tablets,
+  Syringe,
+  Dumbbell,
+  Timer,
+  UtensilsCrossed,
 } from "lucide-react-native";
 
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
@@ -73,6 +79,17 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   steps: <Footprints size={14} color={Colors.success} />,
   temperature: <Thermometer size={14} color="#FB923C" />,
 };
+
+// Protocol shortcuts — the daily-plan detail screens (formerly reachable from
+// the Protocols tab, now folded into Health).
+const PROTOCOL_LINKS: { label: string; route: string; Icon: typeof Pill; color: string }[] = [
+  { label: "Supplements", route: "/protocols/supplements", Icon: Pill, color: "#5DCAA5" },
+  { label: "Medications", route: "/protocols/medications", Icon: Tablets, color: "#E78FB1" },
+  { label: "Peptides", route: "/protocols/peptides", Icon: Syringe, color: "#8F7FD6" },
+  { label: "Exercise", route: "/protocols/workouts", Icon: Dumbbell, color: "#E0A24A" },
+  { label: "Fasting", route: "/protocols/fasting", Icon: Timer, color: "#7FB5E0" },
+  { label: "Meals", route: "/protocols/meals", Icon: UtensilsCrossed, color: Colors.gold },
+];
 
 // No hardcoded readings — the section shows an empty state until
 // a dedicated recent-readings tRPC endpoint is available.
@@ -241,6 +258,24 @@ export default function HealthScreen() {
           </Card>
         </Pressable>
 
+        {/* ─── Protocols ───────────────────────────────────── */}
+        <SectionHeader title="Protocols" />
+        <View style={styles.protocolGrid}>
+          {PROTOCOL_LINKS.map((p) => (
+            <Pressable
+              key={p.route}
+              style={styles.protocolTile}
+              onPress={() => router.push(p.route as any)}
+            >
+              <View style={[styles.protocolIconWrap, { backgroundColor: `${p.color}22` }]}>
+                <p.Icon size={18} color={p.color} />
+              </View>
+              <Text style={styles.protocolLabel}>{p.label}</Text>
+              <ChevronRight size={16} color={Colors.silver} />
+            </Pressable>
+          ))}
+        </View>
+
         {/* ─── 4. Recent Readings ──────────────────────────── */}
         <SectionHeader
           title="Recent Readings"
@@ -393,6 +428,40 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     fontWeight: "500",
     marginTop: 2,
+  },
+
+  // Protocols grid
+  protocolGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  protocolTile: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    backgroundColor: Colors.navy,
+    borderRadius: Radii.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.sm,
+  },
+  protocolIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  protocolLabel: {
+    flex: 1,
+    color: Colors.white,
+    fontSize: FontSizes.sm,
+    fontWeight: "600",
   },
 
   // Recent Readings (kept for future use with real data)
