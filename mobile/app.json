@@ -69,7 +69,8 @@
         }
       ],
       "expo-image-picker",
-      "react-native-health"
+      "react-native-health",
+      "./plugins/fix-fmt-consteval"
     ],
     "experiments": {
       "typedRoutes": true
