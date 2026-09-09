@@ -13,7 +13,7 @@ import { Platform, StyleSheet } from "react-native";
 import {
   House,
   Heart,
-  ClipboardList,
+  Activity,
   MessageCircle,
   User,
 } from "lucide-react-native";
@@ -79,13 +79,14 @@ export default function TabLayout() {
         }}
       />
 
-      {/* -------------------------------------------------- Protocols */}
+      {/* -------------------------------------------------- LifeScore */}
       <Tabs.Screen
-        name="protocols"
+        name="lifescore"
         options={{
-          title: "Protocols",
+          title: "LifeScore",
+          headerTitle: "Everist LifeScore",
           tabBarIcon: ({ color, focused }) => (
-            <ClipboardList
+            <Activity
               size={ICON_SIZE}
               color={color}
               strokeWidth={focused ? 2.5 : 2}

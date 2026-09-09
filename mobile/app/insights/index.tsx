@@ -27,7 +27,6 @@ import {
   Moon,
   Dna,
   ArrowRight,
-  Activity,
 } from "lucide-react-native";
 
 import { Card } from "@/components/ui/Card";
@@ -132,22 +131,6 @@ export default function InsightsScreen() {
         <Text style={styles.headerSub}>
           AI-powered health analysis and recommendations
         </Text>
-
-        {/* ---- Everist LifeScore entry ---- */}
-        <Pressable onPress={() => router.push({ pathname: "/insights/lifescore" as never })}>
-          <Card style={styles.lifeScoreCard}>
-            <View style={styles.lifeScoreRow}>
-              <View style={styles.lifeScoreIcon}>
-                <Activity size={20} color={Colors.gold} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.lifeScoreTitle}>Everist LifeScore</Text>
-                <Text style={styles.lifeScoreSub}>Your whole-person check-in across five life dimensions</Text>
-              </View>
-              <ArrowRight size={18} color={Colors.silver} />
-            </View>
-          </Card>
-        </Pressable>
 
         {/* ---- Generate Report Card ---- */}
         <Card style={styles.generateCard}>

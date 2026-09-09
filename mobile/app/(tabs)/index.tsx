@@ -55,6 +55,7 @@ import { useToday, useViewMode } from "@/hooks/useToday";
 import { TodayChecklist } from "@/components/today/TodayChecklist";
 import { ModeToggle } from "@/components/today/ModeToggle";
 import { AdherenceStrip } from "@/components/today/AdherenceStrip";
+import { DayNav, useDayNav } from "@/components/today/DayNav";
 import GuidedHome from "@/components/today/GuidedHome";
 
 // Protocol data is now fetched via the useDashboardProtocol hook below.
@@ -98,7 +99,8 @@ export default function HomeScreen() {
 function FullDashboard() {
   const router = useRouter();
   const { mode, setMode } = useViewMode();
-  const todayHook = useToday();
+  const dayNav = useDayNav();
+  const todayHook = useToday(dayNav.dateStr);
 
   // ── tRPC data hooks ──────────────────────────────────────────
   const healthScore = useHealthScore();
@@ -215,15 +217,15 @@ function FullDashboard() {
           </Card>
         </Pressable>
 
-        {/* ─── 1b. LifeScore daily check-in prompt ─────────── */}
-        <Pressable onPress={() => router.push("/insights/lifescore" as never)}>
+        {/* ─── 1b. LifeScore entry ─────────────────────────── */}
+        <Pressable onPress={() => router.push("/lifescore" as never)}>
           <Card style={styles.lifeScorePrompt}>
             <View style={styles.lifeScorePromptIcon}>
               <Activity size={18} color={Colors.gold} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.lifeScorePromptTitle}>How are you today?</Text>
-              <Text style={styles.lifeScorePromptSub}>Quick LifeScore check-in — body, mind, purpose, relationships, work</Text>
+              <Text style={styles.lifeScorePromptTitle}>Everist LifeScore</Text>
+              <Text style={styles.lifeScorePromptSub}>Your whole-person check-in — body, mind, purpose, relationships, work</Text>
             </View>
           </Card>
         </Pressable>
@@ -290,14 +292,18 @@ function FullDashboard() {
           />
         </ScrollView>
 
-        {/* ─── 3. Today's Plan (shared checklist) ──────────── */}
-        <SectionHeader title="Today's Plan" />
-        {(() => {
-          const p = todayHook.data?.progress;
-          const todayPct = p && p.total > 0 ? Math.round((p.done / p.total) * 100) : null;
-          return <AdherenceStrip todayPct={todayPct} />;
-        })()}
-        {todayHook.data?.advice ? (
+        {/* ─── 3. Daily Plan (day-navigable checklist) ─────── */}
+        <SectionHeader title="Daily Plan" />
+        <View style={{ marginBottom: Spacing.md }}>
+          <DayNav nav={dayNav} />
+        </View>
+        {dayNav.isToday &&
+          (() => {
+            const p = todayHook.data?.progress;
+            const todayPct = p && p.total > 0 ? Math.round((p.done / p.total) * 100) : null;
+            return <AdherenceStrip todayPct={todayPct} />;
+          })()}
+        {dayNav.isToday && todayHook.data?.advice ? (
           <Card style={styles.todayAdviceCard}>
             <Text style={styles.todayAdviceText}>{todayHook.data.advice}</Text>
           </Card>
@@ -306,7 +312,9 @@ function FullDashboard() {
           <TodayChecklist sections={todayHook.data.sections} onToggle={todayHook.toggleItem} />
         ) : (
           <Card style={styles.emptyScheduleCard}>
-            <Text style={styles.emptyScheduleText}>Loading your plan…</Text>
+            <Text style={styles.emptyScheduleText}>
+              {todayHook.isLoading ? "Loading your plan…" : "Nothing on your plan for this day."}
+            </Text>
           </Card>
         )}
 
@@ -391,13 +399,13 @@ function FullDashboard() {
         </View>
 
         {/* ─── 5. Active Protocols ─────────────────────────── */}
-        <SectionHeader title="Active Protocols" actionLabel="View all" onAction={() => router.push("/(tabs)/protocols")} />
+        <SectionHeader title="Active Protocols" actionLabel="View all" onAction={() => router.push("/protocols/supplements")} />
         {totalProtocols === 0 ? (
           <Card style={styles.emptyScheduleCard}>
             <Text style={styles.emptyScheduleText}>No active protocol yet</Text>
             <Text
               style={styles.emptyScheduleLink}
-              onPress={() => router.push("/(tabs)/protocols")}
+              onPress={() => router.push("/protocols/add-item" as never)}
             >
               Set up your protocol
             </Text>
