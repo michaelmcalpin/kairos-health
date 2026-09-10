@@ -29,11 +29,23 @@ export function LifeScoreCheckinCard({ onSaved }: { onSaved?: () => void }) {
   const [journalSaved, setJournalSaved] = useState(false);
 
   const promptQuery = trpc.clientPortal.lifeScore.getPrompt.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+  const historyQuery = trpc.clientPortal.lifeScore.getJournalHistory.useQuery({ limit: 20 }, DEFAULT_QUERY_OPTIONS);
   const submitCheckin = trpc.clientPortal.lifeScore.submitCheckin.useMutation();
   const saveJournal = trpc.clientPortal.lifeScore.saveJournal.useMutation();
   const prompt = promptQuery.data as
-    | { text: string; dimension: string; answeredToday?: boolean }
+    | { text: string; dimension: string; answeredToday?: boolean; ratings?: Partial<Record<Dimension, number>> }
     | undefined;
+
+  // Today's local date (to show only today's entries in the done state).
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const history = (historyQuery.data as { id: string; date: string; text: string }[] | undefined) ?? [];
+  const todaysEntries = history.filter((h) => h.date === todayStr);
+  // Ratings entered today — prefer this session's, else what the server returns.
+  const todaysRatings: Partial<Record<Dimension, number>> =
+    Object.keys(ratings).length > 0 ? ratings : (prompt?.ratings ?? {});
 
   // Already checked in today (from the server) or just did so this session.
   const checkedIn = justSubmitted || (prompt?.answeredToday ?? false);
@@ -82,7 +94,10 @@ export function LifeScoreCheckinCard({ onSaved }: { onSaved?: () => void }) {
       setJournal("");
       setJournalSaved(true);
       Keyboard.dismiss();
-      await utils.clientPortal.lifeScore.getScore.invalidate();
+      await Promise.all([
+        utils.clientPortal.lifeScore.getScore.invalidate(),
+        historyQuery.refetch(),
+      ]);
       onSaved?.();
     } catch (err) {
       Alert.alert("Couldn't save", err instanceof Error ? err.message : "Please try again.");
@@ -99,6 +114,31 @@ export function LifeScoreCheckinCard({ onSaved }: { onSaved?: () => void }) {
           <CircleCheck size={18} color={Colors.success} />
           <Text style={styles.doneTitle}>Checked in for today</Text>
         </View>
+
+        {/* Today's ratings — read-only summary of what was entered */}
+        {Object.keys(todaysRatings).length > 0 && (
+          <View style={styles.summary}>
+            {DIMENSIONS.filter((d) => todaysRatings[d.key] != null).map((d) => (
+              <View key={d.key} style={styles.summaryRow}>
+                <View style={styles.labelWrap}>
+                  <d.Icon size={15} color={d.color} />
+                  <Text style={styles.label}>{d.label}</Text>
+                </View>
+                <View style={styles.dots}>
+                  {[1, 2, 3, 4, 5].map((n) => {
+                    const active = (todaysRatings[d.key] ?? 0) >= n;
+                    return (
+                      <View
+                        key={n}
+                        style={[styles.dotSm, active && { backgroundColor: d.color, borderColor: d.color }]}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         {activePrompt && (
           <>
@@ -134,6 +174,18 @@ export function LifeScoreCheckinCard({ onSaved }: { onSaved?: () => void }) {
               )}
             </View>
           </>
+        )}
+
+        {/* Today's journal entries */}
+        {todaysEntries.length > 0 && (
+          <View style={styles.entries}>
+            <Text style={styles.entriesLabel}>Today&apos;s entries</Text>
+            {todaysEntries.map((h) => (
+              <View key={h.id} style={styles.entryItem}>
+                <Text style={styles.entryText}>{h.text}</Text>
+              </View>
+            ))}
+          </View>
         )}
       </Card>
     );
@@ -185,6 +237,15 @@ const styles = StyleSheet.create({
 
   doneHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: Spacing.sm },
   doneTitle: { fontSize: FontSizes.md, fontWeight: "700", color: Colors.white },
+
+  summary: { marginBottom: Spacing.sm },
+  summaryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginVertical: 5 },
+  dotSm: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: "transparent" },
+
+  entries: { marginTop: Spacing.md, gap: Spacing.sm },
+  entriesLabel: { fontSize: FontSizes.xs, color: Colors.silver, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  entryItem: { backgroundColor: Colors.navyLight, borderRadius: Radii.md, padding: Spacing.md },
+  entryText: { fontSize: FontSizes.sm, color: Colors.white, lineHeight: 20 },
 
   promptBox: { backgroundColor: Colors.navyLight, borderRadius: Radii.md, padding: Spacing.md, marginBottom: Spacing.sm },
   promptHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },

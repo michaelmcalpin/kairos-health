@@ -430,7 +430,6 @@ export async function computeToday(
           completable: true,
           done: doneKeys.has(key),
           protocolItemId: null,
-          link: "/lifescore",
         },
       ],
     });
