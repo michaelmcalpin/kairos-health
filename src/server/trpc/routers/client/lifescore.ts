@@ -54,7 +54,10 @@ export const clientLifeScoreRouter = router({
         missedTasks = t.progress.total > 0 && t.progress.done < t.progress.total;
       } catch { /* ignore */ }
       const prompt = selectPrompt({ ratings, missedTasks });
-      return { text: prompt.text, dimension: prompt.dimension };
+      // Whether the client has already rated at least one dimension today, so
+      // the UI can show a "checked in" state instead of re-prompting.
+      const answeredToday = Object.keys(ratings).length > 0;
+      return { text: prompt.text, dimension: prompt.dimension, answeredToday, ratings };
     }),
 
   // Upsert today's dimension ratings. Returns a tailored AI follow-up ONLY when
