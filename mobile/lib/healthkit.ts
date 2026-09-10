@@ -424,3 +424,60 @@ export async function getTodaysSummary(): Promise<Record<string, number>> {
 
   return summary;
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Background delivery — HealthKit observers
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// react-native-health's setObserver() sets up an HKObserverQuery AND calls
+// enableBackgroundDeliveryForType, so iOS notifies the app when new samples
+// arrive — including while the app is backgrounded. The native module emits a
+// device event ("healthKit:<Type>:new") that we listen for to trigger a sync.
+//
+// Note (iOS limitations, not ours): step count has a ~hourly minimum update
+// frequency, and if the user force-quits the app iOS stops background wakes
+// until it is next opened. This is best-effort freshness, not a guarantee.
+
+/** Types we want change notifications for. StepCount is the primary one. */
+const OBSERVER_TYPES = ["StepCount", "HeartRate"] as const;
+
+/** Event names the native module emits when a new sample arrives. */
+const OBSERVER_EVENTS = [
+  "healthKit:StepCount:new",
+  "healthKit:HeartRate:new",
+  // Legacy step event emitted by the older observer path.
+  "change:steps",
+];
+
+/**
+ * Register HealthKit background observers (idempotent). Enables background
+ * delivery for steps + heart rate. No-op when HealthKit isn't available.
+ */
+export function setupHealthKitObservers(): boolean {
+  if (!HK_AVAILABLE || typeof AppleHealthKit?.setObserver !== "function") return false;
+  try {
+    for (const type of OBSERVER_TYPES) {
+      AppleHealthKit.setObserver({ type });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Subscribe to HealthKit "new sample" events. Returns an unsubscribe function.
+ * The callback fires when iOS delivers a new step/heart-rate sample.
+ */
+export function subscribeToHealthKitUpdates(onNewSample: () => void): () => void {
+  if (!HK_AVAILABLE || AppleHealthKit == null) return () => {};
+  try {
+    // Lazy import to avoid pulling NativeEventEmitter on non-iOS.
+    const { NativeEventEmitter } = require("react-native");
+    const emitter = new NativeEventEmitter(AppleHealthKit);
+    const subs = OBSERVER_EVENTS.map((evt) => emitter.addListener(evt, onNewSample));
+    return () => subs.forEach((s: { remove: () => void }) => s.remove());
+  } catch {
+    return () => {};
+  }
+}

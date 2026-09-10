@@ -3,20 +3,20 @@
  *
  * Once Apple Health is connected AND HealthKit is available + authorized,
  * this hook silently runs the existing HealthKit sync automatically on app
- * open and whenever the app returns to the foreground — but at most once
- * per ~20 hours. Auto-sync is ENABLED BY DEFAULT for connected users: the
- * `auto_health_sync` feature toggle only needs to be flipped to turn it
- * OFF (an unset toggle is treated as enabled). Manual "Sync Now" is always
- * available regardless of this toggle.
+ * open, whenever the app returns to the foreground, and when HealthKit
+ * background delivery reports new data — throttled to at most once per 15 min.
+ * Auto-sync is ENABLED BY DEFAULT for connected users: the `auto_health_sync`
+ * feature toggle only needs to be flipped to turn it OFF (an unset toggle is
+ * treated as enabled). Manual "Sync Now" is always available regardless.
  *
- * DESIGN (v1 — no new native modules, no background entitlements):
- * "automatic daily sync" here means an on-foreground opportunistic sync,
- * which covers the realistic daily-open case. It does NOT run while the
- * app is fully closed. True closed-app background sync (e.g. via
- * BGTaskScheduler) is a possible future follow-up and is intentionally
- * not built here.
+ * BACKGROUND DELIVERY: registers HealthKit observers (setObserver, which calls
+ * enableBackgroundDeliveryForType natively) for steps + heart rate. iOS then
+ * wakes the app when new samples arrive and the native module emits an event we
+ * listen for to trigger a sync — so steps stay current without opening the app.
+ * iOS limits: step count updates at most ~hourly, and force-quitting the app
+ * suspends background wakes until it is next opened.
  *
- * The 20-hour gate is driven by the server-side `lastSyncAt` on the
+ * The 15-minute gate is driven by the server-side `lastSyncAt` on the
  * apple_health connection (source of truth across app restarts), plus an
  * in-session ref guard so a single foreground can't fire the sync twice
  * and a refetch race can't double-trigger. All runs here are SILENT —
@@ -37,8 +37,12 @@ import { useHealthSync } from "@/hooks/useHealthSync";
 /** Feature-toggle key persisted via clientPortal.settings.updateFeatureToggle. */
 export const AUTO_HEALTH_SYNC_KEY = "auto_health_sync";
 
-/** Minimum spacing between automatic syncs (~ once per day). */
-const TWENTY_HOURS_MS = 20 * 60 * 60 * 1000;
+/**
+ * Minimum spacing between automatic syncs. Kept short (15 min) so opening the
+ * app — or a HealthKit background-delivery event — refreshes steps promptly,
+ * while still preventing sync storms from rapid foreground churn.
+ */
+const SYNC_INTERVAL_MS = 15 * 60 * 1000;
 
 export function useAutoHealthSync() {
   const { syncFromHealthKit } = useHealthSync();
@@ -67,7 +71,7 @@ export function useAutoHealthSync() {
       const now = Date.now();
 
       // In-session gate: never attempt more than once per ~20h per app run.
-      if (now - lastRunRef.current < TWENTY_HOURS_MS) return;
+      if (now - lastRunRef.current < SYNC_INTERVAL_MS) return;
 
       // Enablement check. Auto-sync is ON BY DEFAULT once Apple Health is
       // connected: if the user has never explicitly set the toggle it is
@@ -94,7 +98,7 @@ export function useAutoHealthSync() {
       // of truth across app restarts.
       const lastSyncAt = conn?.lastSyncAt;
       const lastMs = lastSyncAt ? new Date(lastSyncAt).getTime() : NaN;
-      const isStale = Number.isNaN(lastMs) || now - lastMs >= TWENTY_HOURS_MS;
+      const isStale = Number.isNaN(lastMs) || now - lastMs >= SYNC_INTERVAL_MS;
       if (!isStale) return;
 
       // Confirm HealthKit authorization. On iOS `initHealthKit` is idempotent
@@ -136,4 +140,23 @@ export function useAutoHealthSync() {
     });
     return () => sub.remove();
   }, [maybeSync]);
+
+  // Background delivery: once Apple Health is connected, register HealthKit
+  // observers (which enable background delivery) and sync whenever iOS reports
+  // new samples. The 15-min gate in maybeSync prevents storms.
+  const observersSetUp = useRef(false);
+  useEffect(() => {
+    const conn = connectionQuery.data as any;
+    const isConnected = !!(conn?.connected || conn?.status === "connected");
+    if (!isConnected || !HealthKit.isHealthKitAvailable()) return;
+
+    if (!observersSetUp.current) {
+      HealthKit.setupHealthKitObservers();
+      observersSetUp.current = true;
+    }
+    const unsubscribe = HealthKit.subscribeToHealthKitUpdates(() => {
+      void maybeSync();
+    });
+    return unsubscribe;
+  }, [connectionQuery.data, maybeSync]);
 }
