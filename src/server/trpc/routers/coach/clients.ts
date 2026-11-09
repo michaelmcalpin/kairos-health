@@ -1249,14 +1249,17 @@ export const coachClientsRouter = router({
           markers: genMarkers.map((m) => ({
             gene: m.gene,
             rsId: m.rsId,
+            section: m.section,
             mutation: m.mutation,
             pathway: m.pathway,
             function: m.function,
             clinicalPriority: m.clinicalPriority,
             symptoms: m.symptoms,
             supplementProtocol: m.supplementProtocol,
+            peptideSupport: m.peptideSupport,
             dietStrategy: m.dietStrategy,
             lifestyleStrategy: m.lifestyleStrategy,
+            labTests: m.labTests,
           })),
           pathways: genPathways.map((p) => ({
             pathway: p.pathway,

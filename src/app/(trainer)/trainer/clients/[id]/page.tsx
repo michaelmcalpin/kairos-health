@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { GeneticsReview } from "@/components/genetics/GeneticsReview";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, MessageSquare, Settings, Calendar, Activity, TrendingUp,
@@ -1805,7 +1806,7 @@ type HealthData = {
   conversationId: string | null;
   genetics?: {
     profile: { id: string; status: string; uploadType: string | null; createdAt: string } | null;
-    markers: Array<{ gene: string; rsId: string | null; mutation: string | null; pathway: string | null; function: string | null; clinicalPriority: string | null; symptoms: string | null; supplementProtocol: string | null; dietStrategy: string | null; lifestyleStrategy: string | null }>;
+    markers: Array<{ gene: string; rsId: string | null; section?: string | null; mutation: string | null; pathway: string | null; function: string | null; clinicalPriority: string | null; symptoms: string | null; supplementProtocol: string | null; peptideSupport?: string | null; dietStrategy: string | null; lifestyleStrategy: string | null; labTests?: string | null }>;
     pathways: Array<{ pathway: string; genesAffected: number; genesInPathway: number; homozygousCount: number; heterozygousCount: number; priorityLevel: string | null }>;
   };
   clinicalDocs?: Array<{ id: string; docType: string; title: string; providerName: string | null; reportDate: Date | null; status: string; parsedData: Record<string, unknown> | null; hasFile?: boolean; sourceFileName?: string | null; createdAt: string }>;
@@ -2429,85 +2430,25 @@ function TabContent({
     case "genetics":
       return (
         <div className="space-y-6">
-          {/* Genetic Profile Status */}
-          <div className="kairos-card">
-            <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
-              <Dna size={16} /> Genetic Profile
-            </h2>
-            {health.genetics?.profile ? (
-              <div className="space-y-1 mb-4">
-                <p className="text-sm text-gray-300">
-                  Status: <span className={health.genetics.profile.status === "complete" ? "text-green-400" : "text-yellow-400"}>{health.genetics.profile.status}</span>
-                </p>
-                {health.genetics.profile.uploadType && <p className="text-sm text-gray-400">Source: {health.genetics.profile.uploadType}</p>}
-                <p className="text-[10px] text-gray-500">Uploaded: {new Date(health.genetics.profile.createdAt).toLocaleDateString()}</p>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 py-4 text-center">No genetic profile uploaded</p>
-            )}
-          </div>
-
-          {/* Pathway Risk Summary */}
-          {health.genetics?.pathways && health.genetics.pathways.length > 0 && (
+          {/* Plain-language, sectioned genetics review with expandable genes */}
+          {health.genetics?.markers && health.genetics.markers.length > 0 ? (
+            <GeneticsReview
+              markers={health.genetics.markers}
+              pathways={health.genetics.pathways}
+              profile={health.genetics.profile}
+            />
+          ) : health.genetics?.profile ? (
             <div className="kairos-card">
-              <h2 className="text-base font-heading font-bold text-kairos-gold mb-3">Pathway Risk Summary</h2>
-              <div className="space-y-2">
-                {health.genetics.pathways.sort((a, b) => (b.homozygousCount ?? 0) - (a.homozygousCount ?? 0)).map((p, i) => (
-                  <div key={i} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
-                    <div className="flex justify-between items-center mb-1">
-                      <p className="text-sm text-white font-medium">{p.pathway}</p>
-                      <span className={`text-[10px] px-2 py-0.5 rounded ${
-                        p.priorityLevel === "critical" ? "bg-red-500/10 text-red-400" :
-                        p.priorityLevel === "high" ? "bg-orange-500/10 text-orange-400" :
-                        p.priorityLevel === "medium" ? "bg-yellow-500/10 text-yellow-400" :
-                        "bg-gray-700 text-gray-400"
-                      }`}>{p.priorityLevel ?? "low"}</span>
-                    </div>
-                    <p className="text-[10px] text-gray-500">
-                      {p.genesAffected ?? 0}/{p.genesInPathway ?? 0} genes affected &bull;{" "}
-                      {p.homozygousCount ?? 0} homozygous, {p.heterozygousCount ?? 0} heterozygous
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* High-Priority Markers */}
-          {health.genetics?.markers && health.genetics.markers.length > 0 && (
-            <div className="kairos-card">
-              <h2 className="text-base font-heading font-bold text-kairos-gold mb-3">
-                Genetic Markers ({health.genetics.markers.length})
+              <h2 className="text-base font-heading font-bold text-kairos-gold mb-2 flex items-center gap-2">
+                <Dna size={16} /> Genetic Profile
               </h2>
-              <div className="space-y-2">
-                {health.genetics.markers
-                  .sort((a, b) => {
-                    const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-                    return (order[a.clinicalPriority ?? "low"] ?? 3) - (order[b.clinicalPriority ?? "low"] ?? 3);
-                  })
-                  .map((m, i) => (
-                    <div key={i} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
-                      <div className="flex justify-between items-center mb-1">
-                        <p className="text-sm text-white font-medium">{m.gene}{m.rsId ? ` (${m.rsId})` : ""}</p>
-                        <span className={`text-[10px] px-2 py-0.5 rounded ${
-                          m.clinicalPriority === "critical" ? "bg-red-500/10 text-red-400" :
-                          m.clinicalPriority === "high" ? "bg-orange-500/10 text-orange-400" :
-                          m.clinicalPriority === "medium" ? "bg-yellow-500/10 text-yellow-400" :
-                          "bg-gray-700 text-gray-400"
-                        }`}>{m.clinicalPriority ?? "low"}</span>
-                      </div>
-                      <p className="text-[10px] text-gray-400">
-                        {m.mutation ?? "variant"} &bull; {m.pathway ?? ""}{m.function ? ` &bull; ${m.function}` : ""}
-                      </p>
-                      {m.symptoms && <p className="text-[10px] text-gray-500 mt-1">Symptoms: {m.symptoms}</p>}
-                      {m.supplementProtocol && <p className="text-[10px] text-green-400/70 mt-0.5">Supplements: {m.supplementProtocol}</p>}
-                      {m.dietStrategy && <p className="text-[10px] text-blue-400/70 mt-0.5">Diet: {m.dietStrategy}</p>}
-                      {m.lifestyleStrategy && <p className="text-[10px] text-purple-400/70 mt-0.5">Lifestyle: {m.lifestyleStrategy}</p>}
-                    </div>
-                  ))}
-              </div>
+              <p className="text-sm text-gray-300">
+                Status: <span className={health.genetics.profile.status === "complete" ? "text-green-400" : "text-yellow-400"}>{health.genetics.profile.status}</span>
+                {health.genetics.profile.uploadType ? ` · Source: ${health.genetics.profile.uploadType}` : ""}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">No gene results have been read from this profile yet.</p>
             </div>
-          )}
+          ) : null}
 
           {/* Uploaded Genetic Reports (stored as clinical docs tagged kind=genetics) */}
           {(() => {

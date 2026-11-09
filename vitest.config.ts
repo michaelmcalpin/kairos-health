@@ -3,6 +3,8 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [tsconfigPaths()],
+  // tsconfig uses jsx: "preserve" for Next; tests need an actual JSX transform.
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     globals: true,
     environment: "jsdom",
