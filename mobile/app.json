@@ -17,7 +17,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "ai.everist.app",
       "entitlements": {
-        "com.apple.developer.healthkit": true
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.applesignin": [
+          "Default"
+        ]
       },
       "infoPlist": {
         "NSCameraUsageDescription": "Everist.ai uses the camera to scan health documents and capture progress photos.",
