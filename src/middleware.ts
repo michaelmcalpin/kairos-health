@@ -68,7 +68,9 @@ function clerkFrontendApiOrigin(): string | null {
     return null;
   }
 }
-const CLERK_FAPI = [clerkFrontendApiOrigin(), "https://clerk.everist.ai", "https://accounts.everist.ai"]
+// Clerk Protect (bot/fraud checks) loads its own script; if the browser can't
+// run it, every sign-up looks suspicious and is blocked.
+const CLERK_FAPI = [clerkFrontendApiOrigin(), "https://clerk.everist.ai", "https://accounts.everist.ai", "https://cdn.protect.clerk.com", "https://*.protect.clerk.com"]
   .filter((v, i, a): v is string => !!v && a.indexOf(v) === i)
   .join(" ");
 
