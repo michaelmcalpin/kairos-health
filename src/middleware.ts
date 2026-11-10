@@ -51,6 +51,27 @@ const PORTAL_ACCESS: Record<string, UserRole[]> = {
 
 // ─── Security Headers ─────────────────────────────────────────────────────
 
+
+/**
+ * Clerk's Frontend API host, decoded from the publishable key
+ * (pk_live_… → clerk.everist.ai, pk_test_… → xxx.clerk.accounts.dev), so the
+ * Content-Security-Policy always allows the instance the app is actually using.
+ */
+function clerkFrontendApiOrigin(): string | null {
+  const pk = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+  const encoded = pk.split("_")[2];
+  if (!encoded) return null;
+  try {
+    const host = atob(encoded).replace(/\$$/, "");
+    return /^[a-z0-9.-]+$/i.test(host) ? `https://${host}` : null;
+  } catch {
+    return null;
+  }
+}
+const CLERK_FAPI = [clerkFrontendApiOrigin(), "https://clerk.everist.ai", "https://accounts.everist.ai"]
+  .filter((v, i, a): v is string => !!v && a.indexOf(v) === i)
+  .join(" ");
+
 const securityHeaders: Record<string, string> = {
   "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
   "X-Frame-Options": "DENY",
@@ -60,12 +81,14 @@ const securityHeaders: Record<string, string> = {
   "X-DNS-Prefetch-Control": "on",
   "Content-Security-Policy": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.clerk.dev https://*.clerk.accounts.dev https://challenges.cloudflare.com https://cdnjs.cloudflare.com https://js.stripe.com",
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${CLERK_FAPI} https://cdn.clerk.dev https://*.clerk.accounts.dev https://challenges.cloudflare.com https://cdnjs.cloudflare.com https://js.stripe.com`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https://img.clerk.com https://*.clerk.com https://*.clerk.dev https://*.stripe.com https://*.public.blob.vercel-storage.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' https://api.clerk.com https://api.clerk.dev https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev https://api.stripe.com wss:",
-    "frame-src 'self' https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://js.stripe.com https://hooks.stripe.com",
+    `connect-src 'self' ${CLERK_FAPI} https://api.clerk.com https://api.clerk.dev https://*.clerk.com https://*.clerk.dev https://*.clerk.accounts.dev https://api.stripe.com wss:`,
+    `frame-src 'self' ${CLERK_FAPI} https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://js.stripe.com https://hooks.stripe.com`,
+    // Clerk runs a web worker from a blob: URL.
+    "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
