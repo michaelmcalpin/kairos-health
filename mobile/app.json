@@ -26,7 +26,8 @@
         "NSHealthShareUsageDescription": "Everist.ai reads the health data you choose to share (activity, workouts, heart, sleep stages, vitals, breathing, body measurements, mobility, nutrition, mindfulness, and cycle tracking) to build your LifeScore, show your trends, and personalize your coaching.",
         "NSHealthUpdateUsageDescription": "Everist.ai can write workout and body measurement data back to Apple Health.",
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
