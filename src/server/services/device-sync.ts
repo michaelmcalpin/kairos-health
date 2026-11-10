@@ -123,6 +123,8 @@ function bearerHeaders(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
     Accept: "application/json",
+    // Oura (and others) may reject requests without an app User-Agent.
+    "User-Agent": "Everist/1.0 (+https://everist.ai)",
   };
 }
 
@@ -165,7 +167,7 @@ export async function refreshOAuthToken(
 
   const res = await fetch(providerConfig.tokenUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Everist/1.0 (+https://everist.ai)" },
     body: new URLSearchParams(body),
   });
 

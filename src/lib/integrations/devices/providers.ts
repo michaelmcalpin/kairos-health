@@ -14,7 +14,9 @@ export const PROVIDERS: Record<string, ProviderConfig> = {
     description: "Sleep, readiness, heart rate, HRV, body temperature, and SpO2",
     oauthUrl: "https://cloud.ouraring.com/oauth/authorize",
     tokenUrl: "https://api.ouraring.com/oauth/token",
-    scopes: ["daily", "heartrate", "personal", "session", "sleep", "workout"],
+    // Oura's valid scopes: email, personal, daily, heartrate, workout, tag,
+    // session, spo2 ("sleep" is not one — sleep comes under "daily").
+    scopes: ["daily", "heartrate", "personal", "session", "workout", "spo2"],
     dataTypes: ["sleep", "heart_rate", "hrv", "body_temperature", "spo2", "workouts"],
     webhookSupported: true,
   },

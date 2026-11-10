@@ -132,7 +132,7 @@ export async function GET(
     // Exchange authorization code for tokens
     const tokenRes = await fetch(providerConfig.tokenUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Everist/1.0 (+https://everist.ai)" },
       body: new URLSearchParams({
         grant_type: "authorization_code",
         code,
