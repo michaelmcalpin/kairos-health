@@ -111,11 +111,15 @@ export const coachDataRouter = router({
       reportDate: z.string().optional().nullable(), // ISO date string
       providerName: z.string().max(255).optional().nullable(),
       parsedData: z.record(z.string(), z.unknown()).optional().nullable(),
+      /** Uploader confirmed a file naming another person is intentional (e.g. demo data). */
+      confirmOtherPerson: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
-      // Refuse a file that names one of this coach's OTHER clients.
-      await assertDocBelongsToClient(ctx.db, input.clientId, input, await coachClientIds(ctx.db, ctx.dbUserId));
+      // Stop a file that names one of this coach's OTHER clients unless confirmed.
+      const confirmedOtherPerson = await assertDocBelongsToClient(
+        ctx.db, input.clientId, input, await coachClientIds(ctx.db, ctx.dbUserId), input.confirmOtherPerson === true,
+      );
 
       const [doc] = await ctx.db.insert(clinicalDocuments).values({
         uploadedBy: ctx.dbUserId,
@@ -131,7 +135,7 @@ export const coachDataRouter = router({
       }).returning();
 
       await auditDocUpload(ctx.db, ctx.dbUserId, input.clientId, doc.id, {
-        docType: input.docType, sourceFileName: input.sourceFileName, title: input.title,
+        docType: input.docType, sourceFileName: input.sourceFileName, title: input.title, confirmedOtherPerson,
       });
       return doc;
     }),

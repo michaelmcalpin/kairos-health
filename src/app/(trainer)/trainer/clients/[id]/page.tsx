@@ -6,6 +6,7 @@ import { GeneticsReview } from "@/components/genetics/GeneticsReview";
 import { LifeScoreBreakdown } from "@/components/lifescore/LifeScoreBreakdown";
 import { biomarkerName } from "@/lib/labs/normalize";
 import { formatDose } from "@/lib/text/dose";
+import { confirmOtherPerson, cleanUploadError } from "@/lib/upload/confirm-owner";
 import { HealthDataView } from "@/components/health/HealthDataView";
 import { useRouter } from "next/navigation";
 import {
@@ -3640,7 +3641,11 @@ function ClinicalDocManager({ clientId, canEdit }: { clientId: string; canEdit: 
 
   const createMutation = trpc.coach.data.createClinicalDoc.useMutation({
     onSuccess: () => { utils.coach.clients.getClientHealthData.invalidate(); setShowModal(false); setErrorMsg(null); },
-    onError: (e) => setErrorMsg(e.message),
+    onError: (e, vars) => {
+      // A file naming someone else: let the coach confirm (e.g. demo data).
+      if (confirmOtherPerson(e)) { createMutation.mutate({ ...vars, confirmOtherPerson: true }); return; }
+      setErrorMsg(cleanUploadError(e.message));
+    },
   });
 
   return (
@@ -3685,7 +3690,11 @@ function GeneticsManager({ clientId, canEdit }: { clientId: string; canEdit: boo
 
   const createMutation = trpc.coach.data.createClinicalDoc.useMutation({
     onSuccess: () => { utils.coach.clients.getClientHealthData.invalidate(); setShowModal(false); setErrorMsg(null); },
-    onError: (e) => setErrorMsg(e.message),
+    onError: (e, vars) => {
+      // A file naming someone else: let the coach confirm (e.g. demo data).
+      if (confirmOtherPerson(e)) { createMutation.mutate({ ...vars, confirmOtherPerson: true }); return; }
+      setErrorMsg(cleanUploadError(e.message));
+    },
   });
 
   return (

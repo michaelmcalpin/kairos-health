@@ -89,10 +89,12 @@ export const clientClinicalDocsRouter = router({
         notes: z.string().optional(),
         reportDate: z.string().optional(),
         providerName: z.string().optional(),
+        /** Uploader confirmed a file naming another person is intentional (e.g. demo data). */
+        confirmOtherPerson: z.boolean().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      await assertDocBelongsToClient(ctx.db, ctx.dbUserId, input);
+      const confirmedOtherPerson = await assertDocBelongsToClient(ctx.db, ctx.dbUserId, input, undefined, input.confirmOtherPerson === true);
       const doc = await ctx.db
         .insert(clinicalDocuments)
         .values({
@@ -110,7 +112,7 @@ export const clientClinicalDocsRouter = router({
         .returning();
 
       await auditDocUpload(ctx.db, ctx.dbUserId, ctx.dbUserId, doc[0].id, {
-        docType: input.docType, sourceFileName: input.sourceFileName, title: input.title,
+        docType: input.docType, sourceFileName: input.sourceFileName, title: input.title, confirmedOtherPerson,
       });
       return doc[0];
     }),

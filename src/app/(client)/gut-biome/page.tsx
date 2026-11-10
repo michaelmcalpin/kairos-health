@@ -19,6 +19,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { confirmOtherPerson, cleanUploadError } from "@/lib/upload/confirm-owner";
 import { cn } from "@/utils/cn";
 import { round } from "@/lib/format/number";
 
@@ -96,7 +97,16 @@ export default function GutBiomePage() {
       setUploading(false);
       setForm({ title: "", providerName: "", reportDate: "" });
     },
-    onError: () => setUploading(false),
+    onError: (err, vars) => {
+      // A file naming someone else: let the uploader confirm (e.g. demo data).
+      if (confirmOtherPerson(err)) {
+        createMutation.mutate({ ...vars, confirmOtherPerson: true });
+        return;
+      }
+      setUploading(false);
+      if (err.message.includes("[confirm-other-person]")) return; // declined
+      window.alert(cleanUploadError(err.message));
+    },
   });
 
   const [parseError, setParseError] = useState<string | null>(null);

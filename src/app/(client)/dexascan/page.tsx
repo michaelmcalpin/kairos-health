@@ -19,6 +19,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { confirmOtherPerson, cleanUploadError } from "@/lib/upload/confirm-owner";
 import { cn } from "@/utils/cn";
 
 /* ─── Parsed DEXA data shape ──────────────────────────────────── */
@@ -106,7 +107,16 @@ export default function DexaScanPage() {
       setUploading(false);
       resetForm();
     },
-    onError: () => setUploading(false),
+    onError: (err, vars) => {
+      // A file naming someone else: let the uploader confirm (e.g. demo data).
+      if (confirmOtherPerson(err)) {
+        createMutation.mutate({ ...vars, confirmOtherPerson: true });
+        return;
+      }
+      setUploading(false);
+      if (err.message.includes("[confirm-other-person]")) return; // declined
+      window.alert(cleanUploadError(err.message));
+    },
   });
 
   const deleteMutation = trpc.clientPortal.clinicalDocs.delete.useMutation({

@@ -38,8 +38,13 @@ function textOf(doc: DocCandidate): string {
   return [doc.sourceFileName ?? "", doc.title ?? "", ...patient].join(" ");
 }
 
+/** Prefix on the error so the UI can offer "Upload anyway". */
+export const OTHER_PERSON_MARKER = "[confirm-other-person]";
+
 /**
- * Throw if the document names another person. `peerIds` limits the check to
+ * Throw if the document names another person, unless the uploader has
+ * confirmed it's intentional (e.g. demo data). Returns the other person's
+ * name when an override was used, so it can be audited. `peerIds` limits the check to
  * people the uploader could plausibly mix up (a coach's other clients); when
  * omitted, every other user is checked.
  */
@@ -48,11 +53,12 @@ export async function assertDocBelongsToClient(
   clientId: string,
   doc: DocCandidate,
   peerIds?: string[],
-): Promise<void> {
+  confirmed = false,
+): Promise<string | null> {
   const text = textOf(doc);
-  if (!text.trim()) return;
+  if (!text.trim()) return null;
   const client = await db.query.users.findFirst({ where: eq(users.id, clientId) });
-  if (client && mentionsName(text, client.firstName, client.lastName)) return; // names the right person
+  if (client && mentionsName(text, client.firstName, client.lastName)) return null; // names the right person
 
   const others = await db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
     .from(users)
@@ -60,13 +66,15 @@ export async function assertDocBelongsToClient(
     .catch(() => [] as Array<{ id: string; firstName: string | null; lastName: string | null }>);
 
   const match = others.find((o) => mentionsName(text, o.firstName, o.lastName));
+  if (match && confirmed) return `${match.firstName} ${match.lastName}`;
   if (match) {
     const who = client ? `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim() : "this client";
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: `This file appears to belong to ${match.firstName} ${match.lastName}, not ${who}. Upload it to the right person's record, or rename the file if this is a mistake.`,
+      message: `${OTHER_PERSON_MARKER} This file appears to belong to ${match.firstName} ${match.lastName}, not ${who}. Upload it to the right person's record, or confirm if this is intentional (for example, demo data).`,
     });
   }
+  return null;
 }
 
 /** A coach's active clients (for the peer check). */
@@ -82,7 +90,7 @@ export async function auditDocUpload(
   uploaderId: string,
   clientId: string,
   docId: string,
-  meta: { docType: string; sourceFileName?: string | null; title?: string | null },
+  meta: { docType: string; sourceFileName?: string | null; title?: string | null; confirmedOtherPerson?: string | null },
 ): Promise<void> {
   await db.insert(auditLogs).values({
     userId: uploaderId,
