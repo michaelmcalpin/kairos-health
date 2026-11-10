@@ -8,7 +8,7 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-import { API_URL } from "../constants";
+import { API_URL, CLERK_PUBLISHABLE_KEY } from "../constants";
 
 import * as HK from "../../modules/everist-healthkit";
 import { METRICS, HK_SLEEP_ANALYSIS, healthKitReadTypes, convertValue } from "./metrics";
@@ -43,7 +43,7 @@ export function reportHealthDiag(message: string): void {
     fetch(`${API_URL}/api/report-error`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: `[healthkit] ${message}`, url: "app://health", portal: `ios-${Platform.Version}`, timestamp: new Date().toISOString() }),
+      body: JSON.stringify({ message: `[healthkit] ${message} (clerk=${CLERK_PUBLISHABLE_KEY.startsWith("pk_live_") ? "live" : "TEST"})`, url: "app://health", portal: `ios-${Platform.Version}`, timestamp: new Date().toISOString() }),
     }).catch(() => {});
   } catch {
     // diagnostics are best-effort
