@@ -27,7 +27,7 @@
       "env": {
         "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
         "EXPO_PUBLIC_API_URL": "https://kairos-health.vercel.app",
-        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_dmFsaWQtc2F3Zmx5LTgwLmNsZXJrLmFjY291bnRzLmRldiQ"
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuZXZlcmlzdC5haSQ"
       }
     }
   },
