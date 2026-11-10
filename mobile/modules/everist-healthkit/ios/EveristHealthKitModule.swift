@@ -31,12 +31,17 @@ public class EveristHealthKitModule: Module {
         if let t = HKObjectType.categoryType(forIdentifier: HKCategoryTypeIdentifier(rawValue: id)) { types.insert(t) }
       }
       types.insert(HKObjectType.workoutType())
-      self.store.requestAuthorization(toShare: nil, read: types) { ok, error in
-        if let error = error {
-          promise.reject("E_HEALTHKIT_AUTH", error.localizedDescription)
-          return
+      // Present Apple's permission sheet from the main thread. Expo runs async
+      // functions on a background queue; asking from there right after another
+      // sheet closed could leave the request hanging with no sheet shown.
+      DispatchQueue.main.async {
+        self.store.requestAuthorization(toShare: nil, read: types) { ok, error in
+          if let error = error {
+            promise.reject("E_HEALTHKIT_AUTH", error.localizedDescription)
+            return
+          }
+          promise.resolve(ok)
         }
-        promise.resolve(ok)
       }
     }
 

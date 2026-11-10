@@ -49,9 +49,10 @@ export function useHealthKitStatus() {
     setIsChecking(true);
     try {
       const result = await HealthKit.requestHealthKitPermissions();
-      // Then ask for the full catalog (one Apple sheet listing every type).
-      if (result.isAuthorized) await FullSync.ensureFullAuthorization(true).catch(() => false);
       setStatus(result);
+      // Then ask for the full catalog (a second Apple sheet listing every
+      // type). Not awaited, so the Connect button never waits on it.
+      if (result.isAuthorized) void FullSync.ensureFullAuthorization(true).catch(() => false);
       return result;
     } finally {
       setIsChecking(false);

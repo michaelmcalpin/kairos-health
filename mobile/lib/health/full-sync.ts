@@ -6,6 +6,9 @@
  * (older binary, Android) this is a no-op and the legacy sync keeps working.
  */
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
+
+import { API_URL } from "../constants";
 
 import * as HK from "../../modules/everist-healthkit";
 import { METRICS, HK_SLEEP_ANALYSIS, healthKitReadTypes, convertValue } from "./metrics";
@@ -24,6 +27,29 @@ export interface FullSyncPayload {
   workouts: Array<{ externalId: string; activity: string; startAt: string; endAt: string; durationMin?: number; energyKcal?: number; distanceM?: number; avgHr?: number; maxHr?: number }>;
 }
 
+/** Resolve to `fallback` if `p` takes longer than `ms` (never spin forever). */
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * One-line status to the server log (no health values — only counts and
+ * outcomes) so Apple Health problems on a phone can be diagnosed remotely.
+ */
+export function reportHealthDiag(message: string): void {
+  try {
+    fetch(`${API_URL}/api/report-error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: `[healthkit] ${message}`, url: "app://health", portal: `ios-${Platform.Version}`, timestamp: new Date().toISOString() }),
+    }).catch(() => {});
+  } catch {
+    // diagnostics are best-effort
+  }
+}
+
 export function isFullSyncAvailable(): boolean {
   return HK.isAvailable();
 }
@@ -34,14 +60,26 @@ export async function ensureFullAuthorization(force = false): Promise<boolean> {
   const done = await SecureStore.getItemAsync(AUTH_KEY).catch(() => null);
   if (done === AUTH_VERSION && !force) return true;
   const { quantity, category } = healthKitReadTypes();
-  const ok = await HK.requestAuthorization(quantity, category).catch(() => false);
+  // Give iOS a moment to finish closing any permission sheet that was just shown.
+  await sleep(800);
+  let outcome = "timeout";
+  const ok = await withTimeout(
+    HK.requestAuthorization(quantity, category).then((r) => { outcome = r ? "granted" : "not-granted"; return r; })
+      .catch((e: unknown) => { outcome = `error: ${e instanceof Error ? e.message : String(e)}`; return false; }),
+    45_000,
+    false,
+  );
+  reportHealthDiag(`full auth ${outcome} (${quantity.length} quantity + ${category.length} category types, forced=${force})`);
   if (ok) await SecureStore.setItemAsync(AUTH_KEY, AUTH_VERSION).catch(() => {});
   return ok;
 }
 
 /** Read the window from Apple Health. Pure read; nothing is sent. */
 export async function readFullPayload(): Promise<FullSyncPayload | null> {
-  if (!HK.isAvailable()) return null;
+  if (!HK.isAvailable()) {
+    reportHealthDiag("native module not available in this build");
+    return null;
+  }
   await ensureFullAuthorization();
 
   const backfilled = await SecureStore.getItemAsync(BACKFILL_KEY).catch(() => null);
@@ -104,6 +142,8 @@ export async function readFullPayload(): Promise<FullSyncPayload | null> {
     maxHr: w.maxHr,
   }));
 
+  const distinct = new Set(metrics.map((m) => m.metric)).size;
+  reportHealthDiag(`read ${metrics.length} daily values across ${distinct} metrics, ${nights.size} nights, ${workouts.length} workouts (${days} days)`);
   return { metrics, sleep: Array.from(nights.values()).filter((n) => n.totalMinutes > 0), workouts };
 }
 

@@ -47,6 +47,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useHealthKitStatus, useHealthSync } from "@/hooks/useHealthSync";
 import * as HealthKit from "@/lib/healthkit";
+import * as FullSync from "@/lib/health/full-sync";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -185,6 +186,25 @@ export default function AppleHealthScreen() {
         "If the permission dialog did not appear, open Settings > Privacy & Security > Health > Everist and enable the data types you want to share.",
         [{ text: "OK" }],
       );
+    }
+  };
+
+  // Ask Apple Health for every data type Everist can read (activity, heart,
+  // sleep stages, mobility, nutrition, cycle…). Safe to tap again: iOS only
+  // shows types not yet answered; changes after that are made in Settings.
+  const [requestingAll, setRequestingAll] = useState(false);
+  const handleShareAll = async () => {
+    if (!FullSync.isFullSyncAvailable()) {
+      Alert.alert("Update needed", "This version of the app can't read the full set of Apple Health data. Please install the latest version.");
+      return;
+    }
+    setRequestingAll(true);
+    try {
+      await FullSync.ensureFullAuthorization(true);
+      await syncFromHealthKit();
+      connectionQuery.refetch();
+    } finally {
+      setRequestingAll(false);
     }
   };
 
@@ -360,6 +380,17 @@ export default function AppleHealthScreen() {
               }
               onPress={handleSyncNow}
               disabled={isSyncing}
+              style={styles.syncBtn}
+            />
+          )}
+          {isConnected && Platform.OS === "ios" && (
+            <Button
+              title={requestingAll ? "Asking Apple Health…" : "Share all Apple Health data"}
+              variant="secondary"
+              size="sm"
+              icon={requestingAll ? <ActivityIndicator size="small" color={Colors.gold} /> : <Link size={14} color={Colors.gold} />}
+              onPress={handleShareAll}
+              disabled={requestingAll || isSyncing}
               style={styles.syncBtn}
             />
           )}
