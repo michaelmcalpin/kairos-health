@@ -4,6 +4,7 @@ import { users, clientProfiles, trainerProfiles, clientInvitations, trainerClien
 import { eq, and, ilike, sql } from "drizzle-orm";
 import { auth as clerkAuth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { logger } from "@/lib/middleware/logger";
+import { relinkByVerifiedEmail } from "@/server/services/clerk-relink";
 
 export const authRouter = router({
   /**
@@ -62,6 +63,13 @@ export const authRouter = router({
       ? (metaRole as ValidRole)
       : "client";
     const companyId = (clerkUser.publicMetadata?.companyId as string) || null;
+
+    // Existing user under a different Clerk ID (e.g. after moving from Clerk's
+    // development instance to production): link it by verified email instead
+    // of creating an empty duplicate account.
+    const primary = clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId) ?? clerkUser.emailAddresses[0];
+    const relinked = await relinkByVerifiedEmail(ctx.db, clerkId, email, primary?.verification?.status === "verified");
+    if (relinked) return { user: relinked, created: false };
 
     // Check if a stub user already exists for this email (created by a trainer)
     const stubUser = await ctx.db.query.users.findFirst({

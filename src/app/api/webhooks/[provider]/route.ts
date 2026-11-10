@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import crypto from "crypto";
 import { db } from "@/server/db";
+import { relinkByVerifiedEmail } from "@/server/services/clerk-relink";
 import { users, clientProfiles, trainerProfiles, deviceConnections, syncLogs } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "@/lib/middleware/logger";
@@ -97,7 +98,8 @@ function verifyHmacSignature(
 interface ClerkUserEvent {
   data: {
     id: string;
-    email_addresses: Array<{ email_address: string; id: string }>;
+    email_addresses: Array<{ email_address: string; id: string; verification?: { status?: string } | null }>;
+    primary_email_address_id?: string | null;
     first_name: string | null;
     last_name: string | null;
     image_url: string | null;
@@ -131,6 +133,13 @@ async function handleClerkWebhook(body: ClerkUserEvent) {
       const existing = await db.query.users.findFirst({
         where: eq(users.clerkId, clerkId),
       });
+
+      // Same person, new Clerk ID (dev → prod move): re-link by verified email.
+      if (!existing && email) {
+        const primary = userData.email_addresses.find((e) => e.id === userData.primary_email_address_id) ?? userData.email_addresses[0];
+        const relinked = await relinkByVerifiedEmail(db, clerkId, email, primary?.verification?.status === "verified");
+        if (relinked) return { success: true, action: "user_relinked" };
+      }
 
       if (!existing && email) {
         const [newUser] = await db.insert(users).values({
