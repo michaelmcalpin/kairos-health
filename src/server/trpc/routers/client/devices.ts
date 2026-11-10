@@ -42,6 +42,22 @@ async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
 }
 
+/** Mark Apple Health connected (creating the record if missing) after a successful upload. */
+async function markAppleHealthSynced(db: typeof import("@/server/db").db, clientId: string): Promise<void> {
+  const existing = await db.query.deviceConnections.findFirst({
+    where: and(eq(deviceConnections.clientId, clientId), eq(deviceConnections.provider, "apple_health")),
+  });
+  if (existing) {
+    await db.update(deviceConnections)
+      .set({ lastSyncAt: new Date(), status: "connected" })
+      .where(eq(deviceConnections.id, existing.id));
+  } else {
+    await db.insert(deviceConnections).values({
+      clientId, provider: "apple_health", status: "connected", scopes: ["read"], lastSyncAt: new Date(),
+    });
+  }
+}
+
 export const clientDevicesRouter = router({
   /**
    * List all device connections for the current user
@@ -407,10 +423,7 @@ export const clientDevicesRouter = router({
       const metrics = await upsertDailyMetrics(ctx.db, ctx.dbUserId, SOURCE, input.metrics);
       const sleep = await replaceSleepSessions(ctx.db, ctx.dbUserId, SOURCE, input.sleep).catch(() => 0);
       const workouts = await upsertWorkouts(ctx.db, ctx.dbUserId, SOURCE, input.workouts);
-      await ctx.db.update(deviceConnections)
-        .set({ lastSyncAt: new Date() })
-        .where(and(eq(deviceConnections.clientId, ctx.dbUserId), eq(deviceConnections.provider, "apple_health")))
-        .catch(() => {});
+      await markAppleHealthSynced(ctx.db, ctx.dbUserId).catch(() => {});
       return { metrics, sleep, workouts };
     }),
 
@@ -735,16 +748,8 @@ export const clientDevicesRouter = router({
       counts.vo2max = await ingestVital("vo2max", input.vo2max);
       counts.bodyTemp = await ingestVital("body_temp", input.bodyTemp);
 
-      // ── Record the sync on the apple_health connection ──
-      await ctx.db
-        .update(deviceConnections)
-        .set({ lastSyncAt: new Date(), status: "connected" })
-        .where(
-          and(
-            eq(deviceConnections.clientId, userId),
-            eq(deviceConnections.provider, "apple_health"),
-          ),
-        );
+      // ── Record the sync on the apple_health connection (create if missing) ──
+      await markAppleHealthSynced(ctx.db, userId).catch(() => {});
 
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
       return { success: true, counts, total };

@@ -48,6 +48,9 @@ import { Button } from "@/components/ui/Button";
 import { useHealthKitStatus, useHealthSync } from "@/hooks/useHealthSync";
 import * as HealthKit from "@/lib/healthkit";
 import * as FullSync from "@/lib/health/full-sync";
+import { METRICS, METRIC_GROUPS } from "@/lib/health/metrics";
+
+const CATALOG_COUNT = METRICS.filter((m) => m.healthkit || m.group === "sleep").length;
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -117,7 +120,16 @@ export default function AppleHealthScreen() {
     ? (connectionData.connected ?? connectionData.status === "connected")
     : false;
   // Connection state: backend is the source of truth; HealthKit auth is checked for initial connect
-  const isConnected = backendConnected;
+  // Also treat this phone as connected once HealthKit access was granted here,
+  // so Sync Now is always reachable even if the server record lags.
+  const isConnected = backendConnected || hkStatus.isAuthorized;
+
+  // What has actually arrived on the server, per measure.
+  const summaryQuery = trpc.clientPortal.healthData.summary.useQuery(undefined, DEFAULT_QUERY_OPTIONS);
+  const receivedKeys = new Set<string>(
+    (((summaryQuery.data as any)?.groups ?? []) as Array<{ metrics: Array<{ key: string }> }>)
+      .flatMap((g) => g.metrics.map((m) => m.key)),
+  );
   const lastSyncTime =
     hkLastSync
       ? new Date(hkLastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -149,28 +161,20 @@ export default function AppleHealthScreen() {
     }
     const result = await checkAndRequest();
     if (result.isAuthorized) {
-      // Also create backend connection record
-      connectMutation.mutate(
-        { provider: "apple_health" },
-        {
-          onSuccess: () => {
-            Alert.alert(
-              "Connected",
-              "Apple Health permissions granted. Your data will begin syncing.",
-              [{ text: "OK" }],
-            );
-            connectionQuery.refetch();
-          },
-          onError: () => {
-            // HealthKit permissions granted but backend record failed — still show success
-            Alert.alert(
-              "Connected",
-              "Apple Health permissions granted. Your data will begin syncing.",
-              [{ text: "OK" }],
-            );
-          },
-        },
-      );
+      // Record the connection, then sync straight away (the sync also marks
+      // the connection on the server, so it can't stay "not connected").
+      try {
+        await connectMutation.mutateAsync({ provider: "apple_health" });
+      } catch (e) {
+        FullSync.reportHealthDiag(`connect record failed: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300));
+      }
+      connectionQuery.refetch();
+      // Give the full-catalog permission sheet a moment, then sync everything.
+      setTimeout(async () => {
+        await syncFromHealthKit();
+        connectionQuery.refetch();
+        summaryQuery.refetch();
+      }, 1500);
     } else if (result.error) {
       // Show the actual error so failures are diagnosable, plus guidance
       Alert.alert(
@@ -397,111 +401,34 @@ export default function AppleHealthScreen() {
         </Card>
 
         {/* ═══════════════════════════════════════════════════════════ */}
-        {/* READ FROM APPLE HEALTH                                     */}
+        {/* WHAT EVERIST READS — the full catalog, with what's arrived    */}
         {/* ═══════════════════════════════════════════════════════════ */}
         <Card style={styles.categoryCard}>
           <Text style={styles.categoryTitle}>Read from Apple Health</Text>
           <Text style={styles.categorySubtitle}>
-            Data imported into Everist from Apple Health
+            {receivedKeys.size > 0
+              ? `${receivedKeys.size} of ${CATALOG_COUNT} measures have data so far. `
+              : `Everist can read ${CATALOG_COUNT} measures plus workouts. `}
+            iPhone decides what is shared: Settings › Health › Data Access & Devices › Everist.ai.
           </Text>
-
-          <DataRow
-            icon={<Footprints size={18} color="#4A90D9" />}
-            label="Steps"
-            value={readSteps}
-            onValueChange={setReadSteps}
-          />
-          <DataRow
-            icon={<Heart size={18} color="#C65D5D" />}
-            label="Heart Rate"
-            value={readHeartRate}
-            onValueChange={setReadHeartRate}
-          />
-          <DataRow
-            icon={<Activity size={18} color="#8B5CF6" />}
-            label="Heart Rate Variability"
-            value={readHRV}
-            onValueChange={setReadHRV}
-          />
-          <DataRow
-            icon={<Moon size={18} color="#6366F1" />}
-            label="Sleep Analysis"
-            value={readSleep}
-            onValueChange={setReadSleep}
-          />
-          <DataRow
-            icon={<Zap size={18} color="#F59E0B" />}
-            label="Active Energy"
-            value={readActiveEnergy}
-            onValueChange={setReadActiveEnergy}
-          />
-          <DataRow
-            icon={<Heart size={18} color="#EC4899" />}
-            label="Resting Heart Rate"
-            value={readRestingHR}
-            onValueChange={setReadRestingHR}
-          />
-          <DataRow
-            icon={<Droplets size={18} color="#06B6D4" />}
-            label="Blood Oxygen"
-            value={readBloodOxygen}
-            onValueChange={setReadBloodOxygen}
-          />
-          <DataRow
-            icon={<Wind size={18} color="#14B8A6" />}
-            label="Respiratory Rate"
-            value={readRespiratoryRate}
-            onValueChange={setReadRespiratoryRate}
-          />
-          <DataRow
-            icon={<Thermometer size={18} color="#F97316" />}
-            label="Body Temperature"
-            value={readBodyTemp}
-            onValueChange={setReadBodyTemp}
-          />
-          <DataRow
-            icon={<Activity size={18} color="#4A9D5B" />}
-            label="Electrocardiogram"
-            value={readECG}
-            onValueChange={setReadECG}
-            last
-          />
-        </Card>
-
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {/* WRITE TO APPLE HEALTH                                      */}
-        {/* ═══════════════════════════════════════════════════════════ */}
-        <Card style={styles.categoryCard}>
-          <Text style={styles.categoryTitle}>Write to Apple Health</Text>
-          <Text style={styles.categorySubtitle}>
-            Data exported from Everist to Apple Health
+          {METRIC_GROUPS.map((g) => {
+            const items = METRICS.filter((m) => m.group === g.key && (m.healthkit || g.key === "sleep"));
+            if (items.length === 0) return null;
+            const have = items.filter((m) => receivedKeys.has(m.key)).length;
+            return (
+              <View key={g.key} style={styles.catalogGroup}>
+                <Text style={styles.catalogGroupTitle}>
+                  {g.title} <Text style={styles.catalogGroupCount}>· {have}/{items.length} with data</Text>
+                </Text>
+                <Text style={styles.catalogItems}>
+                  {items.map((m) => (receivedKeys.has(m.key) ? `✓ ${m.label}` : m.label)).join("  ·  ")}
+                </Text>
+              </View>
+            );
+          })}
+          <Text style={styles.catalogNote}>
+            A measure shows ✓ once a sync finds data for it. Many need a device that records them (Apple Watch for walking steadiness, AFib history and wrist temperature) or something you log (nutrition, cycle).
           </Text>
-
-          <DataRow
-            icon={<Dumbbell size={18} color="#F59E0B" />}
-            label="Workouts"
-            value={writeWorkouts}
-            onValueChange={setWriteWorkouts}
-          />
-          <DataRow
-            icon={<Scale size={18} color="#4A90D9" />}
-            label="Body Weight"
-            value={writeBodyWeight}
-            onValueChange={setWriteBodyWeight}
-          />
-          <DataRow
-            icon={<Heart size={18} color="#C65D5D" />}
-            label="Blood Pressure"
-            value={writeBloodPressure}
-            onValueChange={setWriteBloodPressure}
-          />
-          <DataRow
-            icon={<Droplets size={18} color="#8B5CF6" />}
-            label="Blood Glucose"
-            value={writeBloodGlucose}
-            onValueChange={setWriteBloodGlucose}
-            last
-          />
         </Card>
 
         {/* ═══════════════════════════════════════════════════════════ */}
@@ -633,6 +560,11 @@ function DataRow({
 /* ------------------------------------------------------------------ */
 
 const styles = StyleSheet.create({
+  catalogGroup: { paddingVertical: Spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border },
+  catalogGroupTitle: { color: Colors.white, fontSize: FontSizes.sm, fontWeight: "700", marginBottom: 2 },
+  catalogGroupCount: { color: Colors.silver, fontWeight: "400" },
+  catalogItems: { color: Colors.silverLight, fontSize: FontSizes.xs, lineHeight: 18 },
+  catalogNote: { color: Colors.silver, fontSize: 11, lineHeight: 16, marginTop: Spacing.sm },
   container: {
     flex: 1,
     backgroundColor: Colors.dark,
