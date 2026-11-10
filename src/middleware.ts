@@ -28,6 +28,12 @@ const isPublicRoute = createRouteMatcher([
   "/api/exercise(.*)",
   "/api/meals(.*)",
   "/api/clinical(.*)",
+  // Unauthenticated by design (rate-limited): client/app error + diagnostic
+  // reports must arrive even when the session is missing or expired.
+  "/api/report-error",
+  // PWA files the browser fetches without a session.
+  "/manifest.json",
+  "/offline",
   "/dev(.*)",
 ]);
 
