@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Genetics Review — plain-language, sectioned view of a client's gene results
- * for coaches. Each gene expands to show what it does, what the change can
+ * Genetics Review — plain-language, sectioned view of gene results.
+ * `audience="coach"` (default) shows the full plan; `audience="client"` hides
+ * peptide and prescription notes and points the client to their coach. Each gene expands to show what it does, what the change can
  * mean, and an action plan: lifestyle & food, supplements, peptides,
  * medications to discuss with a prescriber, and labs to check.
  */
@@ -22,7 +23,8 @@ import {
 interface Pathway {
   pathway: string;
   genesAffected: number;
-  genesInPathway: number;
+  /** A count, or the raw comma-separated gene list stored in the DB. */
+  genesInPathway: number | string | null;
   homozygousCount: number;
   heterozygousCount: number;
   priorityLevel: string | null;
@@ -31,7 +33,20 @@ interface Pathway {
 interface Props {
   markers: RawMarker[];
   pathways?: Pathway[];
-  profile?: { status: string; uploadType: string | null; createdAt: string } | null;
+  profile?: { status: string; uploadType: string | null; createdAt: string | Date } | null;
+  /** Who is reading. Clients never see peptide or prescription notes. */
+  audience?: Audience;
+}
+
+export type Audience = "coach" | "client";
+
+/** Total genes in a pathway, whether stored as a number or a comma list. */
+export function pathwayTotal(v: number | string | null | undefined): number {
+  if (typeof v === "number") return v;
+  if (!v) return 0;
+  const n = Number(v);
+  if (Number.isFinite(n)) return n;
+  return v.split(",").map((x) => x.trim()).filter(Boolean).length;
 }
 
 const STRENGTH_STYLE: Record<Strength, string> = {
@@ -48,7 +63,8 @@ const PRIORITY_STYLE: Record<Priority, string> = {
   critical: "text-red-300", high: "text-orange-300", medium: "text-yellow-300", low: "text-gray-400",
 };
 
-export function GeneticsReview({ markers, pathways = [], profile }: Props) {
+export function GeneticsReview({ markers, pathways = [], profile, audience = "coach" }: Props) {
+  const isClient = audience === "client";
   const genes = useMemo(() => interpretMarkers(markers), [markers]);
   const counts = useMemo(() => ({
     two: genes.filter((g) => g.strength === "two").length,
@@ -94,7 +110,7 @@ export function GeneticsReview({ markers, pathways = [], profile }: Props) {
         <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
           <div>
             <h2 className="text-lg font-heading font-bold text-white flex items-center gap-2">
-              <Dna size={18} className="text-kairos-gold" /> Genetics Review
+              <Dna size={18} className="text-kairos-gold" /> {isClient ? "Your Genetics" : "Genetics Review"}
             </h2>
             <p className="text-xs text-gray-400 mt-1">
               {genes.length} genes checked
@@ -190,15 +206,15 @@ export function GeneticsReview({ markers, pathways = [], profile }: Props) {
                   <h3 className="text-base font-heading font-bold text-kairos-gold">{s.title}</h3>
                   <p className="text-xs text-gray-400 mt-0.5">{s.blurb}</p>
                 </div>
-                {score && (
+                {score && pathwayTotal(score.genesInPathway) > 0 && (
                   <span className="text-[11px] text-gray-400 bg-kairos-royal-surface rounded-full px-2.5 py-1">
-                    {score.genesAffected}/{score.genesInPathway} genes changed
+                    {score.genesAffected}/{pathwayTotal(score.genesInPathway)} genes changed
                   </span>
                 )}
               </div>
               <div className="space-y-2">
                 {s.genes.map((g) => (
-                  <GeneCard key={g.id} gene={g} open={open.has(g.id)} onToggle={() => toggle(g.id)} />
+                  <GeneCard key={g.id} gene={g} open={open.has(g.id)} onToggle={() => toggle(g.id)} audience={audience} />
                 ))}
               </div>
             </section>
@@ -208,8 +224,9 @@ export function GeneticsReview({ markers, pathways = [], profile }: Props) {
 
       <p className="text-[11px] text-gray-500 leading-relaxed flex gap-2">
         <AlertTriangle size={13} className="shrink-0 mt-0.5" />
-        For coaching and education, not a diagnosis. Medication and peptide notes are things to talk over with the
-        client&apos;s prescriber. Do not start, stop, or change a medicine without one.
+        {isClient
+          ? "This is for learning, not a diagnosis. Talk with your coach or doctor before changing medicines or supplements."
+          : "For coaching and education, not a diagnosis. Medication and peptide notes are things to talk over with the client\u2019s prescriber. Do not start, stop, or change a medicine without one."}
       </p>
     </div>
   );
@@ -225,7 +242,8 @@ function SummaryTile({ label, hint, value, tone }: { label: string; hint: string
   );
 }
 
-function GeneCard({ gene: g, open, onToggle }: { gene: GeneView; open: boolean; onToggle: () => void }) {
+function GeneCard({ gene: g, open, onToggle, audience }: { gene: GeneView; open: boolean; onToggle: () => void; audience: Audience }) {
+  const isClient = audience === "client";
   const [showTech, setShowTech] = useState(false);
   return (
     <div id={`gene-${g.id}`} className="rounded-xl border border-kairos-border bg-gray-800/20">
@@ -273,16 +291,27 @@ function GeneCard({ gene: g, open, onToggle }: { gene: GeneView; open: boolean; 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <ActionBlock icon={<Leaf size={14} />} title="Lifestyle & food" items={g.lifestyle} tone="text-emerald-300" />
               <ActionBlock icon={<Pill size={14} />} title="Supplements" items={g.supplements} tone="text-sky-300" />
-              <ActionBlock
-                icon={<Syringe size={14} />} title="Peptide options" items={g.peptides} tone="text-violet-300"
-                note={g.peptides.length ? "Per provider protocol. Many peptides need a prescriber." : undefined}
-                empty="No peptide is linked to this gene."
-              />
-              <ActionBlock
-                icon={<Stethoscope size={14} />} title="Medications to discuss" items={g.meds} tone="text-amber-300"
-                note={g.meds.length ? "Talk these over with the prescriber." : undefined}
-                empty="No medication notes for this gene."
-              />
+              {isClient ? (
+                <div className="rounded-lg bg-kairos-royal-surface p-3">
+                  <p className="text-xs font-semibold flex items-center gap-1.5 mb-1.5 text-violet-300"><Stethoscope size={14} /> More options</p>
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    Ask your coach about other options, like peptides or prescription medicines, that may fit you.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <ActionBlock
+                    icon={<Syringe size={14} />} title="Peptide options" items={g.peptides} tone="text-violet-300"
+                    note={g.peptides.length ? "Per provider protocol. Many peptides need a prescriber." : undefined}
+                    empty="No peptide is linked to this gene."
+                  />
+                  <ActionBlock
+                    icon={<Stethoscope size={14} />} title="Medications to discuss" items={g.meds} tone="text-amber-300"
+                    note={g.meds.length ? "Talk these over with the prescriber." : undefined}
+                    empty="No medication notes for this gene."
+                  />
+                </>
+              )}
               {g.labs.length > 0 && (
                 <div className="md:col-span-2">
                   <ActionBlock icon={<FlaskConical size={14} />} title="Labs to check" items={g.labs} tone="text-gray-300" inline />
@@ -294,14 +323,14 @@ function GeneCard({ gene: g, open, onToggle }: { gene: GeneView; open: boolean; 
           {(g.technical.function || g.technical.effect || g.rsId || g.genotype) && (
             <div>
               <button type="button" onClick={() => setShowTech((s) => !s)} className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300">
-                <Eye size={12} /> {showTech ? "Hide" : "Show"} coach detail
+                <Eye size={12} /> {showTech ? "Hide" : "Show"} {isClient ? "science detail" : "coach detail"}
               </button>
               {showTech && (
                 <div className="mt-2 rounded-lg bg-kairos-royal-surface p-3 space-y-1.5 text-xs text-gray-400">
                   {(g.rsId || g.genotype) && <p>{g.rsId ? `${g.rsId} · ` : ""}{g.genotype ? `Result: ${g.genotype}` : ""}</p>}
                   {g.technical.function && <p><span className="text-gray-300">Function:</span> {g.technical.function}</p>}
                   {g.technical.effect && <p><span className="text-gray-300">When changed:</span> {g.technical.effect}</p>}
-                  {!g.inLibrary && <p className="text-amber-300/80">Not in the gene library yet. Showing the report&apos;s own notes.</p>}
+                  {!g.inLibrary && !isClient && <p className="text-amber-300/80">Not in the gene library yet. Showing the report&apos;s own notes.</p>}
                 </div>
               )}
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Dna,
   Upload,
@@ -8,54 +8,12 @@ import {
   FileText,
   X,
   Plus,
-  ChevronDown,
-  ChevronRight,
   AlertTriangle,
-  CheckCircle,
-  Search,
-  Pill,
-  Beaker,
-  ShieldAlert,
   Loader2,
-  Eye,
-  Clock,
-  FlaskConical,
-  Utensils,
-  Activity,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/utils/cn";
-
-/* ─── Types ────────────────────────────────────────────────────── */
-interface GeneVariant {
-  id: string;
-  section: string;
-  gene: string;
-  rsId: string;
-  geneticResult: string; // e.g. "T/C (+/-)", "G/G (-/-)", "G/G (+/+)"
-  riskLevel: "normal" | "medium" | "high";
-  pathway: string;
-  function: string;
-  mutation: string;
-  symptoms: string;
-  supplementProtocol: string;
-  therapeutics: string;
-  providerRecommendations: string;
-  peptideSupport: string;
-  dietStrategy: string;
-  lifestyleStrategy: string;
-  labTests: string;
-  clinicalPriority: "high" | "medium" | "low";
-}
-
-interface PathwayScore {
-  pathway: string;
-  genesInPathway: string;
-  genesAffected: number;
-  homozygous: number;
-  heterozygous: number;
-  priorityLevel: "high" | "medium" | "low";
-}
+import { GeneticsReview } from "@/components/genetics/GeneticsReview";
 
 const SECTIONS = [
   "All",
@@ -69,73 +27,14 @@ const SECTIONS = [
   "Neurotransmitter",
 ];
 
-/* ─── Risk badge colors ────────────────────────────────────────── */
-function riskBadge(risk: string) {
-  switch (risk) {
-    case "high":
-      return "bg-red-500/20 text-red-400 border-red-500/40";
-    case "medium":
-      return "bg-yellow-500/20 text-yellow-400 border-yellow-500/40";
-    case "normal":
-      return "bg-green-500/20 text-green-400 border-green-500/40";
-    default:
-      return "bg-kairos-silver/10 text-kairos-silver border-kairos-border";
-  }
-}
-
-function riskLabel(risk: string) {
-  switch (risk) {
-    case "high": return "+/+ High Risk";
-    case "medium": return "+/- Medium Risk";
-    case "normal": return "-/- Normal";
-    default: return risk;
-  }
-}
-
-function priorityColor(priority: string) {
-  switch (priority) {
-    case "high": return "bg-red-500/15 text-red-400 border-red-500/30";
-    case "medium": return "bg-yellow-500/15 text-yellow-400 border-yellow-500/30";
-    case "low": return "bg-green-500/15 text-green-400 border-green-500/30";
-    default: return "bg-kairos-silver/10 text-kairos-silver border-kairos-border";
-  }
-}
-
-/* ─── Genetic result parser ────────────────────────────────────── */
-function parseGeneticResult(result: string): "normal" | "medium" | "high" {
-  if (!result) return "normal";
-  if (result.includes("(+/+)")) return "high";
-  if (result.includes("(+/-)") || result.includes("(-/+)")) return "medium";
-  return "normal";
-}
-
-/* ─── Detail row ───────────────────────────────────────────────── */
-function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  if (!value || value === "N/A") return null;
-  return (
-    <div className="bg-kairos-royal-surface rounded-xl p-3 border border-kairos-border">
-      <div className="flex items-center gap-2 mb-1.5">
-        {icon}
-        <p className="text-[10px] font-heading text-kairos-gold uppercase tracking-wider">{label}</p>
-      </div>
-      <p className="text-sm font-body text-white leading-relaxed">{value}</p>
-    </div>
-  );
-}
-
 /* ━━━ Main Component ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 export default function GeneticsPage() {
-  const [activeSection, setActiveSection] = useState("All");
-  const [activeView, setActiveView] = useState<"markers" | "pathways" | "report">("markers");
-  const [expandedGene, setExpandedGene] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [showUpload, setShowUpload] = useState(false);
   const [uploadTab, setUploadTab] = useState<"pdf" | "url" | "manual">("pdf");
   const [urlInput, setUrlInput] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [riskFilter, setRiskFilter] = useState<"all" | "high" | "medium">("all");
 
   // ── tRPC ────────────────────────────────────────────────────
   const { data: profileData, isLoading } = trpc.clientPortal.genetics.getProfile.useQuery();
@@ -149,77 +48,6 @@ export default function GeneticsPage() {
   });
 
   const addMarkersMutation = trpc.clientPortal.genetics.addMarkers.useMutation();
-
-  // ── Derived markers ─────────────────────────────────────────
-  const markers: GeneVariant[] = useMemo(() => {
-    if (!profileData?.markers?.length) return [];
-    return profileData.markers.map((m) => {
-      const geneticResult = m.mutation ?? "";
-      return {
-        id: m.id,
-        section: m.section ?? "Other",
-        gene: m.gene,
-        rsId: m.rsId ?? "",
-        geneticResult,
-        riskLevel: parseGeneticResult(geneticResult),
-        pathway: m.pathway ?? "",
-        function: m.function ?? "",
-        mutation: m.mutation ?? "",
-        symptoms: m.symptoms ?? "",
-        supplementProtocol: m.supplementProtocol ?? "",
-        therapeutics: "",
-        providerRecommendations: "",
-        peptideSupport: m.peptideSupport ?? "",
-        dietStrategy: m.dietStrategy ?? "",
-        lifestyleStrategy: m.lifestyleStrategy ?? "",
-        labTests: m.labTests ?? "",
-        clinicalPriority: (m.clinicalPriority as "high" | "medium" | "low") ?? "medium",
-      };
-    });
-  }, [profileData]);
-
-  const pathwayScores: PathwayScore[] = useMemo(() => {
-    if (!pathwayData?.length) return [];
-    return pathwayData.map((p) => ({
-      pathway: p.pathway,
-      genesInPathway: p.genesInPathway ?? "",
-      genesAffected: p.genesAffected ?? 0,
-      homozygous: p.homozygousCount ?? 0,
-      heterozygous: p.heterozygousCount ?? 0,
-      priorityLevel: (p.priorityLevel as "high" | "medium" | "low") ?? "medium",
-    }));
-  }, [pathwayData]);
-
-  // ── Stats ───────────────────────────────────────────────────
-  const highRiskCount = markers.filter((m) => m.riskLevel === "high").length;
-  const medRiskCount = markers.filter((m) => m.riskLevel === "medium").length;
-  const normalCount = markers.filter((m) => m.riskLevel === "normal").length;
-
-  // ── Filtering ───────────────────────────────────────────────
-  const filteredMarkers = markers.filter((m) => {
-    const matchesSection = activeSection === "All" || m.section === activeSection;
-    const matchesSearch =
-      !searchQuery ||
-      m.gene.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.rsId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.pathway.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRisk =
-      riskFilter === "all" ||
-      (riskFilter === "high" && m.riskLevel === "high") ||
-      (riskFilter === "medium" && m.riskLevel === "medium");
-    return matchesSection && matchesSearch && matchesRisk;
-  });
-
-  // Group by section for report view
-  const groupedBySection = useMemo(() => {
-    const groups: Record<string, GeneVariant[]> = {};
-    const affectedOnly = markers.filter((m) => m.riskLevel !== "normal");
-    affectedOnly.forEach((m) => {
-      if (!groups[m.section]) groups[m.section] = [];
-      groups[m.section].push(m);
-    });
-    return groups;
-  }, [markers]);
 
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseProgress, setParseProgress] = useState<string | null>(null);
@@ -461,7 +289,7 @@ export default function GeneticsPage() {
     setShowUpload(false);
   };
 
-  const hasData = markers.length > 0;
+  const hasData = (profileData?.markers?.length ?? 0) > 0;
 
   // ── Loading ─────────────────────────────────────────────────
   if (isLoading) {
@@ -483,7 +311,7 @@ export default function GeneticsPage() {
           <h1 className="font-heading font-bold text-2xl text-white">Genetic Profile</h1>
           <p className="text-sm text-kairos-silver-dark font-body mt-1">
             {hasData
-              ? `Nutrigenomic report — ${markers.length} gene variants analyzed`
+              ? "What your genes say, in plain words, and what you can do about it"
               : "Upload your genetic report to view personalized insights"}
           </p>
         </div>
@@ -693,302 +521,20 @@ export default function GeneticsPage() {
       )}
 
       {/* ── Data Views ──────────────────────────────────────────── */}
-      {hasData && (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="kairos-card p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <Dna className="w-5 h-5 text-kairos-gold" />
-                <p className="text-kairos-silver-dark text-sm font-body">Total Variants</p>
-              </div>
-              <p className="text-2xl font-bold text-white font-heading">{markers.length}</p>
-              <p className="text-xs text-kairos-silver-dark mt-1">genes analyzed</p>
-            </div>
-            <div className="kairos-card p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <ShieldAlert className="w-5 h-5 text-red-400" />
-                <p className="text-kairos-silver-dark text-sm font-body">High Risk (+/+)</p>
-              </div>
-              <p className="text-2xl font-bold text-red-400 font-heading">{highRiskCount}</p>
-              <p className="text-xs text-kairos-silver-dark mt-1">homozygous mutations</p>
-            </div>
-            <div className="kairos-card p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                <p className="text-kairos-silver-dark text-sm font-body">Medium Risk (+/-)</p>
-              </div>
-              <p className="text-2xl font-bold text-yellow-400 font-heading">{medRiskCount}</p>
-              <p className="text-xs text-kairos-silver-dark mt-1">heterozygous variants</p>
-            </div>
-            <div className="kairos-card p-5">
-              <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="w-5 h-5 text-green-400" />
-                <p className="text-kairos-silver-dark text-sm font-body">Normal (-/-)</p>
-              </div>
-              <p className="text-2xl font-bold text-green-400 font-heading">{normalCount}</p>
-              <p className="text-xs text-kairos-silver-dark mt-1">no variants</p>
-            </div>
-          </div>
-
-          {/* View Toggle */}
-          <div className="flex gap-2 flex-wrap">
-            {([
-              { key: "markers" as const, label: "Gene Variants" },
-              { key: "pathways" as const, label: "Pathway Scoring" },
-              { key: "report" as const, label: "Clinical Report" },
-            ]).map((v) => (
-              <button
-                key={v.key}
-                onClick={() => setActiveView(v.key)}
-                className={cn(
-                  "px-4 py-2 rounded-kairos-sm font-body text-sm font-medium transition-all",
-                  activeView === v.key
-                    ? "kairos-btn-gold text-black"
-                    : "kairos-btn-outline text-kairos-silver-dark hover:text-white"
-                )}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
-
-          {/* ── Gene Variants View ───────────────────────────────── */}
-          {activeView === "markers" && (
-            <>
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kairos-silver-dark" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search genes, rsIDs, pathways..."
-                    className="w-full bg-kairos-royal-surface border border-kairos-border text-white rounded-kairos-sm pl-10 pr-3 py-2 text-sm font-body focus:border-kairos-gold focus:outline-none"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  {(["all", "high", "medium"] as const).map((r) => (
-                    <button
-                      key={r}
-                      onClick={() => setRiskFilter(r)}
-                      className={cn(
-                        "px-3 py-1.5 rounded-kairos-sm text-xs font-body transition-all border",
-                        riskFilter === r
-                          ? r === "high" ? "bg-red-500/20 text-red-400 border-red-500/40"
-                            : r === "medium" ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/40"
-                            : "bg-kairos-gold/20 text-kairos-gold border-kairos-gold"
-                          : "border-kairos-border text-kairos-silver-dark hover:text-white"
-                      )}
-                    >
-                      {r === "all" ? "All Risks" : r === "high" ? "+/+ High" : "+/- Medium"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-2 flex-wrap">
-                {SECTIONS.map((section) => (
-                  <button
-                    key={section}
-                    onClick={() => setActiveSection(section)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-kairos-sm text-xs font-body transition-all border",
-                      activeSection === section
-                        ? "bg-kairos-gold/20 text-kairos-gold border-kairos-gold"
-                        : "border-kairos-border text-kairos-silver-dark hover:text-white hover:border-kairos-gold/30"
-                    )}
-                  >
-                    {section}
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                {filteredMarkers.length === 0 ? (
-                  <div className="kairos-card text-center py-8">
-                    <p className="text-kairos-silver-dark font-body">No variants match your filters.</p>
-                  </div>
-                ) : (
-                  filteredMarkers.map((marker) => (
-                    <div key={marker.id} className="kairos-card border border-kairos-border hover:border-kairos-gold/30 transition-all">
-                      <button
-                        onClick={() => setExpandedGene(expandedGene === marker.id ? null : marker.id)}
-                        className="w-full flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="text-left">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-heading font-bold text-white text-lg">{marker.gene}</h3>
-                              <span className="text-xs font-body text-kairos-silver-dark">{marker.rsId}</span>
-                              {marker.geneticResult && (
-                                <span className={cn(
-                                  "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-heading font-bold border",
-                                  riskBadge(marker.riskLevel)
-                                )}>
-                                  {marker.geneticResult}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-kairos-silver-dark font-body mt-1">{marker.section} — {marker.pathway}</p>
-                          </div>
-                        </div>
-                        {expandedGene === marker.id
-                          ? <ChevronDown className="w-5 h-5 text-kairos-silver-dark flex-shrink-0" />
-                          : <ChevronRight className="w-5 h-5 text-kairos-silver-dark flex-shrink-0" />}
-                      </button>
-
-                      {expandedGene === marker.id && (
-                        <div className="mt-4 pt-4 border-t border-kairos-border space-y-3">
-                          {marker.function && (
-                            <div>
-                              <p className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-1">Function</p>
-                              <p className="text-sm font-body text-white">{marker.function}</p>
-                            </div>
-                          )}
-                          {marker.symptoms && (
-                            <div>
-                              <p className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-1">Symptoms to Watch</p>
-                              <p className="text-sm font-body text-kairos-silver">{marker.symptoms}</p>
-                            </div>
-                          )}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <DetailRow icon={<Pill className="w-4 h-4 text-cyan-400" />} label="Supplement Protocol" value={marker.supplementProtocol} />
-                            <DetailRow icon={<Beaker className="w-4 h-4 text-violet-400" />} label="Peptide Support" value={marker.peptideSupport} />
-                            <DetailRow icon={<Utensils className="w-4 h-4 text-orange-400" />} label="Diet Strategy" value={marker.dietStrategy} />
-                            <DetailRow icon={<Activity className="w-4 h-4 text-green-400" />} label="Lifestyle Strategy" value={marker.lifestyleStrategy} />
-                          </div>
-                          {marker.labTests && (
-                            <DetailRow icon={<FlaskConical className="w-4 h-4 text-amber-400" />} label="Recommended Lab Tests" value={marker.labTests} />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          )}
-
-          {/* ── Pathway Scoring View ─────────────────────────────── */}
-          {activeView === "pathways" && (
-            <div className="space-y-4">
-              {pathwayScores.length === 0 ? (
-                <div className="kairos-card text-center py-8">
-                  <p className="text-kairos-silver-dark font-body">Pathway scoring will be available after your genetic report is fully processed.</p>
-                </div>
-              ) : (
-                pathwayScores.map((pathway, idx) => {
-                  const totalGenes = pathway.genesInPathway ? pathway.genesInPathway.split(",").length : 1;
-                  const affectedPct = (pathway.genesAffected / totalGenes) * 100;
-                  return (
-                    <div key={idx} className="kairos-card border border-kairos-border">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <h3 className="font-heading font-semibold text-white">{pathway.pathway}</h3>
-                          <p className="text-xs text-kairos-silver-dark font-body mt-1">
-                            Genes: {pathway.genesInPathway}
-                          </p>
-                        </div>
-                        <span className={cn("inline-flex items-center px-3 py-1 rounded-kairos-sm text-xs font-body border", priorityColor(pathway.priorityLevel))}>
-                          {pathway.priorityLevel} priority
-                        </span>
-                      </div>
-                      <div className="h-2 bg-kairos-royal-surface rounded-full overflow-hidden mb-3">
-                        <div
-                          className={cn("h-full rounded-full transition-all",
-                            pathway.priorityLevel === "high" ? "bg-red-500/60"
-                              : pathway.priorityLevel === "medium" ? "bg-yellow-500/60" : "bg-green-500/60"
-                          )}
-                          style={{ width: `${affectedPct}%` }}
-                        />
-                      </div>
-                      <div className="grid grid-cols-3 gap-4 text-center">
-                        <div>
-                          <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Affected</p>
-                          <p className="text-lg font-heading font-bold text-white">
-                            {pathway.genesAffected} <span className="text-xs text-kairos-silver-dark font-body">/ {totalGenes}</span>
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Homozygous</p>
-                          <p className="text-lg font-heading font-bold text-red-400">{pathway.homozygous}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Heterozygous</p>
-                          <p className="text-lg font-heading font-bold text-yellow-400">{pathway.heterozygous}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
-
-          {/* ── Clinical Report View ─────────────────────────────── */}
-          {activeView === "report" && (
-            <div className="space-y-6">
-              <div className="kairos-card border-kairos-gold/30">
-                <div className="flex items-center gap-2 mb-3">
-                  <Eye className="w-5 h-5 text-kairos-gold" />
-                  <h2 className="font-heading font-bold text-lg text-white">Affected Genes Summary</h2>
-                </div>
-                <p className="text-sm font-body text-kairos-silver-dark mb-1">
-                  Showing only genes with (+/-) or (+/+) results — {Object.values(groupedBySection).flat().length} of {markers.length} genes affected.
-                </p>
-                <div className="flex gap-3 mt-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
-                    <span className="text-xs text-kairos-silver-dark">+/+ High Risk</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="inline-block w-3 h-3 rounded-full bg-yellow-500" />
-                    <span className="text-xs text-kairos-silver-dark">+/- Medium Risk</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="inline-block w-3 h-3 rounded-full bg-green-500" />
-                    <span className="text-xs text-kairos-silver-dark">-/- Normal</span>
-                  </div>
-                </div>
-              </div>
-
-              {Object.entries(groupedBySection).map(([section, genes]) => (
-                <div key={section}>
-                  <h3 className="font-heading font-bold text-sm text-kairos-gold uppercase tracking-wider mb-3">{section}</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-kairos-border">
-                          <th className="text-left py-2 px-3 text-xs font-heading text-kairos-silver-dark uppercase">rsID</th>
-                          <th className="text-left py-2 px-3 text-xs font-heading text-kairos-silver-dark uppercase">Gene</th>
-                          <th className="text-left py-2 px-3 text-xs font-heading text-kairos-silver-dark uppercase">Result</th>
-                          <th className="text-left py-2 px-3 text-xs font-heading text-kairos-silver-dark uppercase">Protocol</th>
-                          <th className="text-left py-2 px-3 text-xs font-heading text-kairos-silver-dark uppercase">Labs</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {genes.map((g) => (
-                          <tr key={g.id} className="border-b border-kairos-border/50 hover:bg-kairos-card-hover/30">
-                            <td className="py-2.5 px-3 font-body text-kairos-silver-dark">{g.rsId}</td>
-                            <td className="py-2.5 px-3 font-heading font-semibold text-white">{g.gene}</td>
-                            <td className="py-2.5 px-3">
-                              <span className={cn("inline-flex px-2 py-0.5 rounded text-[10px] font-bold border", riskBadge(g.riskLevel))}>
-                                {g.geneticResult}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 font-body text-kairos-silver max-w-[200px] truncate">{g.supplementProtocol || "—"}</td>
-                            <td className="py-2.5 px-3 font-body text-kairos-silver max-w-[200px] truncate">{g.labTests || "—"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
+      {hasData && profileData && (
+        <GeneticsReview
+          audience="client"
+          markers={profileData.markers}
+          pathways={(pathwayData ?? []).map((p) => ({
+            pathway: p.pathway,
+            genesInPathway: p.genesInPathway,
+            genesAffected: p.genesAffected ?? 0,
+            homozygousCount: p.homozygousCount ?? 0,
+            heterozygousCount: p.heterozygousCount ?? 0,
+            priorityLevel: p.priorityLevel ?? null,
+          }))}
+          profile={{ status: profileData.status, uploadType: profileData.uploadType, createdAt: profileData.createdAt }}
+        />
       )}
     </div>
   );

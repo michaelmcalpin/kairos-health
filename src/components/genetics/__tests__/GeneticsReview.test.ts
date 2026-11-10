@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { createElement, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
-import { GeneticsReview } from "../GeneticsReview";
+import { GeneticsReview, pathwayTotal } from "../GeneticsReview";
 import type { RawMarker } from "@/lib/genetics/interpret";
 
 // React 18+/19: tell React this is a test environment so act() works.
@@ -22,11 +22,11 @@ const markers = [
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
-function mount() {
+function mount(audience: "coach" | "client" = "coach") {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
-  act(() => root!.render(createElement(GeneticsReview, { markers })));
+  act(() => root!.render(createElement(GeneticsReview, { markers, audience })));
   return host;
 }
 const text = () => host!.textContent ?? "";
@@ -71,5 +71,27 @@ describe("GeneticsReview", () => {
     click(button(/All genes/));
     click(button(/F5.*Factor V Leiden/));
     expect(text()).toMatch(/this gene looks typical/);
+  });
+
+  it("client mode hides peptides and prescriptions and points to the coach", () => {
+    mount("client");
+    expect(text()).toContain("Your Genetics");
+    click(button(/MTHFR C677T.*Main folate switch/));
+    expect(text()).toContain("Lifestyle & food");
+    expect(text()).toContain("Supplements");
+    expect(text()).toContain("Ask your coach about other options");
+    expect(text()).not.toContain("Peptide options");
+    expect(text()).not.toContain("Medications to discuss");
+    expect(text()).not.toMatch(/Prescription option from the protocol/);
+    expect(text()).toContain("This is for learning, not a diagnosis");
+  });
+});
+
+describe("pathwayTotal", () => {
+  it("counts a comma list or passes a number through", () => {
+    expect(pathwayTotal("MTHFR C677T, MTHFR A1298C, MTRR")).toBe(3);
+    expect(pathwayTotal(5)).toBe(5);
+    expect(pathwayTotal("4")).toBe(4);
+    expect(pathwayTotal(null)).toBe(0);
   });
 });

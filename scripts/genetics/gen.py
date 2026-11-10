@@ -115,5 +115,6 @@ export const GENE_SECTIONS: GeneSection[] = {json.dumps(sections, indent=2, ensu
 
 export const GENE_LIBRARY: GeneEntry[] = {json.dumps(out, indent=2, ensure_ascii=False)};
 """
-open(sys.argv[2], "w").write(ts)
+for target in sys.argv[2:]:  # web copy, plus the mobile copy if given
+    open(target, "w").write(ts)
 print(len(out), "genes;", len(sections), "sections")

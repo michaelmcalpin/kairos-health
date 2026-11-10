@@ -13,6 +13,6 @@ from the Genetics Master Database spreadsheet plus hand-written content.
 
 ```
 python3 -I scripts/genetics/dump.py "Genetics_Master_Database.xlsx" /tmp/master.json
-python3 scripts/genetics/gen.py /tmp/master.json src/lib/genetics/gene-library.ts
+python3 scripts/genetics/gen.py /tmp/master.json src/lib/genetics/gene-library.ts mobile/lib/genetics/gene-library.ts
 npx vitest run src/lib/genetics src/components/genetics
 ```
