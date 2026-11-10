@@ -11,7 +11,7 @@
  */
 
 export interface SleepRowLike {
-  id: string;
+  id?: string;
   date: string; // YYYY-MM-DD
   bedtime?: string | null;
   wakeTime?: string | null;
@@ -38,8 +38,15 @@ function firstText(a: string | null | undefined, b: string | null | undefined): 
   return (a && a.trim()) || (b && b.trim()) || null;
 }
 
-export function mergeSleepNights<T extends SleepRowLike>(rows: T[]): T[] {
+/** Longest plausible night. Anything longer is a sync/sum error, not sleep. */
+const MAX_NIGHT_MINUTES = 14 * 60;
+
+export function mergeSleepNights<T extends SleepRowLike>(input: T[]): T[] {
   const byDate = new Map<string, T>();
+  // Drop impossible durations (e.g. overlapping samples that were added up).
+  const rows = input.map((r) =>
+    r.totalMinutes != null && r.totalMinutes > MAX_NIGHT_MINUTES ? { ...r, totalMinutes: null } : r,
+  );
   for (const row of rows) {
     const existing = byDate.get(row.date);
     if (!existing) {

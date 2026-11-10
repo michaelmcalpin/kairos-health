@@ -67,7 +67,9 @@ export function GoalTemplateSelector({ onSelect, onCancel }: GoalTemplateSelecto
 
           <div>
             <label className="block text-sm text-gray-400 mb-1">
-              Target Value (default: {selectedTemplate.defaultTarget.value} {selectedTemplate.defaultTarget.unit})
+              {selectedTemplate.defaultTarget.relative
+                ? `Amount to ${selectedTemplate.defaultTarget.direction === "decrease" ? "lose" : "gain"} (default: ${selectedTemplate.defaultTarget.value} ${selectedTemplate.defaultTarget.unit})`
+                : `Target Value (default: ${selectedTemplate.defaultTarget.value} ${selectedTemplate.defaultTarget.unit})`}
             </label>
             <input
               type="number"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { renderMarkdown } from "@/components/messaging/Markdown";
 import type { Message, Conversation, TypingIndicator, QuickReply } from "@/lib/messaging/types";
 import { formatMessageTime, groupMessagesByDate } from "@/lib/messaging/types";
 
@@ -194,7 +195,11 @@ export function ChatView({
                             {msg.senderName ?? msg.senderRole}
                           </p>
                         )}
-                        <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>
+                        {msg.isAiMessage ? (
+                          <div className="text-sm break-words prose-kairos">{renderMarkdown(msg.body)}</div>
+                        ) : (
+                          <p className="text-sm whitespace-pre-wrap break-words">{msg.body}</p>
+                        )}
                       </div>
 
                       {/* Time and read status */}

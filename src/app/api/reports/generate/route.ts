@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { CLIENT_SAFETY_RULES, redactDosingDeep } from "@/lib/ai/clinical-guardrails";
 import { ANTHROPIC_MODEL } from "@/lib/ai/model";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
@@ -367,6 +368,8 @@ export async function POST(req: NextRequest) {
 
 ${reportConfig.systemAddendum}
 
+${CLIENT_SAFETY_RULES}
+
 --- COMPLETE CLIENT HEALTH PROFILE ---
 ${healthContext}`,
           messages: [
@@ -401,7 +404,8 @@ ${healthContext}`,
       );
     }
 
-    return new Response(JSON.stringify({ report: reportData, reportType }), {
+    // Backstop: no peptide/medicine doses in client-visible reports.
+    return new Response(JSON.stringify({ report: redactDosingDeep(reportData), reportType }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

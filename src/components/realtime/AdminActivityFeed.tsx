@@ -71,7 +71,7 @@ export function AdminActivityFeed({ maxItems = 20 }: { maxItems?: number }) {
   return (
     <div className="kairos-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-heading text-sm font-semibold text-kairos-royal uppercase tracking-wider">
+        <h3 className="font-heading text-sm font-semibold text-white uppercase tracking-wider">
           Platform Activity
         </h3>
         <div className="flex items-center gap-3">

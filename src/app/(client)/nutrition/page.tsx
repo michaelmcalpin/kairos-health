@@ -77,7 +77,7 @@ function MacroRing({ pct, label, value }: { pct: number; label: string; value: s
     <div className="flex flex-col items-center">
       <div className="relative w-24 h-24 mb-1.5">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="6" className="text-kairos-royal-surface" />
+          <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="6" className="text-gray-700" />
           <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="6"
             strokeDasharray={c} strokeDashoffset={offset}
             className="text-kairos-gold transition-all duration-500" strokeLinecap="round" />

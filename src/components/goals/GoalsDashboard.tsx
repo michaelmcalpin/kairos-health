@@ -10,6 +10,7 @@ import type {
   GoalDirection,
   GoalProgress,
 } from "@/lib/goals/types";
+import { resolveTargetValue } from "@/lib/goals/types";
 import { trpc } from "@/lib/trpc";
 import { GoalCard } from "./GoalCard";
 import { GoalTemplateSelector } from "./GoalTemplateSelector";
@@ -184,7 +185,8 @@ export function GoalsDashboard() {
   const summary = summarizeGoals(goals);
 
   function handleCreateGoal(template: GoalTemplate, startValue: number, customTarget?: number) {
-    const targetValue = customTarget ?? template.defaultTarget.value;
+    // "Lose 10 lb" from 185 → target 175 (not an absolute 10 lb).
+    const targetValue = resolveTargetValue(template.defaultTarget, startValue, customTarget ?? template.defaultTarget.value);
     let targetDate: string | null = null;
     const d = new Date();
     switch (template.timeframe) {

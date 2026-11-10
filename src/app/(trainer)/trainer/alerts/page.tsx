@@ -31,7 +31,10 @@ export default function CoachAlertsPage() {
     });
 
   const { data: summaryData, isLoading: summaryLoading } =
-    trpc.coach.alerts.summary.useQuery();
+    trpc.coach.alerts.summary.useQuery({
+      startDate: dateRange.startDate.toISOString(),
+      endDate: dateRange.endDate.toISOString(),
+    });
 
   const { mutate: acknowledgeAlert } = trpc.coach.alerts.acknowledge.useMutation({
     onSuccess: () => {

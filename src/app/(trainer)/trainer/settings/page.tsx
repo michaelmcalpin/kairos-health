@@ -399,6 +399,8 @@ export default function TrainerSettingsPage() {
             // `false` as "not configured on this server".
             const configured = calendarConnData?.configured[p.id];
             const notConfigured = configured === false;
+            // Don't show a provider this server can't connect (e.g. Outlook without keys).
+            if (notConfigured && !connected) return null;
             const Icon = p.icon;
 
             return (

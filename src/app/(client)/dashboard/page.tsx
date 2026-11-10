@@ -661,7 +661,7 @@ export default function ClientDashboard() {
           >
             <MetricRow
               label="Step Goal"
-              value={tp?.exercise?.stepGoal ? Number(tp.exercise.stepGoal).toLocaleString() : "10,000"}
+              value={tp?.exercise?.stepGoal ? Number(tp.exercise.stepGoal).toLocaleString("en-US") : "10,000"}
               sub={
                 kpis?.steps?.value
                   ? `${Number(kpis.steps.value).toLocaleString()} done`

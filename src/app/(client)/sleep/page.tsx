@@ -364,8 +364,8 @@ export default function SleepPage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard label="Sleep Score" value={period === "day" ? round(displayRecord.score, 0) : round(sleepStats.avgScore, 0)} unit="/100" icon={<Moon size={16} />} highlight />
-        <KPICard label="Total Sleep" value={period === "day" ? round(displayRecord.total, 1) : round(sleepStats.avgTotal, 1)} unit="hrs" icon={<Clock size={16} />} />
+        <KPICard label="Sleep Score" value={period === "day" ? round(displayRecord.score || null, 0) : round(sleepStats.avgScore || null, 0)} unit="/100" icon={<Moon size={16} />} highlight />
+        <KPICard label="Total Sleep" value={period === "day" ? round(displayRecord.total || null, 1) : round(sleepStats.avgTotal || null, 1)} unit="hrs" icon={<Clock size={16} />} />
         <KPICard label="Deep Sleep" value={period === "day" ? round(displayRecord.deep, 1) : round(sleepStats.avgDeep, 1)} unit="hrs" icon={<Brain size={16} />} />
         <KPICard label="REM Sleep" value={period === "day" ? round(displayRecord.rem, 1) : round(sleepStats.avgRem, 1)} unit="hrs" icon={<Zap size={16} />} />
         <KPICard label="Bedtime" value={displayRecord.bedtime} icon={<Moon size={16} />} />

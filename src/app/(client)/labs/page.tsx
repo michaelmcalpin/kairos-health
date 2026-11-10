@@ -297,6 +297,7 @@ export default function LabsPage() {
     switch (status) {
       case "results_received": return "bg-green-900/20 text-green-400 border-green-700/50";
       case "pending": case "ordered": return "bg-yellow-900/20 text-yellow-400 border-yellow-700/50";
+      case "processing": return "bg-sky-900/20 text-sky-300 border-sky-700/50";
       default: return "bg-kairos-card border-kairos-border text-kairos-silver-dark";
     }
   };
@@ -703,7 +704,7 @@ export default function LabsPage() {
             <div className="flex items-center gap-2 mb-4">
               <TestTube2 className="w-5 h-5 text-kairos-gold" />
               <h2 className="font-heading font-bold text-xl text-white">
-                {activeCategory === "all" ? "All Biomarkers" : LAB_CATEGORIES.find((c) => c.id === activeCategory)?.label} Markers
+                {activeCategory === "all" ? "All Biomarkers" : `${LAB_CATEGORIES.find((c) => c.id === activeCategory)?.label ?? ""} Markers`}
               </h2>
               <span className="text-kairos-silver-dark text-sm">({filteredMarkers.length})</span>
             </div>
@@ -775,7 +776,8 @@ export default function LabsPage() {
                   <span className={`inline-flex items-center px-3 py-1 rounded-kairos-sm text-xs font-body font-medium border ${getOrderStatusColor(order.status ?? "")}`}>
                     {order.status === "results_received" && <><CheckCircle className="w-3 h-3 mr-1" />Results Ready</>}
                     {order.status === "ordered" && <><Minus className="w-3 h-3 mr-1" />Ordered</>}
-                    {!["results_received", "ordered"].includes(order.status ?? "") && (order.status ?? "Unknown")}
+                    {order.status === "processing" && <><Minus className="w-3 h-3 mr-1" />Your care team is reviewing these</>}
+                    {!["results_received", "ordered", "processing"].includes(order.status ?? "") && (order.status ?? "Unknown")}
                   </span>
                   {order.pdfUrl && (
                     <div>

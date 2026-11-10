@@ -20,7 +20,6 @@ import {
   Timer,
   UtensilsCrossed,
   CreditCard,
-  Store,
   Users,
   BarChart3,
   Calendar,
@@ -40,7 +39,6 @@ import {
   BookOpen,
   Dna,
   Activity,
-  Footprints,
   Heart,
   Microscope,
   Scan,
@@ -334,7 +332,6 @@ export const clientNavItems: NavItem[] = [
   { label: "Body Comp", href: "/measurements", icon: <Ruler size={18} />, section: "Biometrics" },
   { label: "Progress Photos", href: "/progress-photos", icon: <Camera size={18} />, section: "Biometrics" },
   { label: "Sleep & Recovery", href: "/sleep", icon: <Moon size={18} />, section: "Biometrics" },
-  { label: "Movement", href: "/workouts", icon: <Footprints size={18} />, section: "Biometrics" },
   { label: "Glucose", href: "/glucose", icon: <Droplets size={18} />, section: "Biometrics" },
   { label: "Blood Pressure", href: "/blood-pressure", icon: <Activity size={18} />, section: "Biometrics" },
   { label: "Cycle Tracker", href: "/cycle-tracker", icon: <Heart size={18} />, section: "Biometrics" },
@@ -372,7 +369,7 @@ export const trainerNavItems: NavItem[] = [
   { label: "My Health", href: "/trainer/my-health", icon: <Heart size={18} />, section: "Clients" },
   { label: "Profile", href: "/trainer/profile", icon: <UserCircle size={18} />, section: "Business" },
   { label: "Revenue", href: "/trainer/revenue", icon: <DollarSign size={18} />, section: "Business" },
-  { label: "Marketplace", href: "/trainer/marketplace", icon: <Store size={18} />, section: "Business" },
+  // Marketplace hidden from navigation until it has content (page still exists).
   { label: "Settings", href: "/trainer/settings", icon: <Settings size={18} />, section: "Business" },
 ];
 

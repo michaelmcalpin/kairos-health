@@ -12,7 +12,8 @@ import {
   hrvReadings,
   deviceConnections,
 } from "@/server/db/schema";
-import { eq, desc, asc, and, sql, gte, between, inArray } from "drizzle-orm";
+import { ne, eq, desc, asc, and, sql, gte, between, inArray } from "drizzle-orm";
+import { expireSchedulingAlerts } from "@/server/services/alert-hygiene";
 
 // Helper: safely run a query against a table that may not exist yet.
 // Returns the fallback instead of crashing the whole procedure.
@@ -519,6 +520,8 @@ export const coachDashboardRouter = router({
       if (g.healthDataAccess !== "none") healthVisibleIds.add(g.clientId);
     }
 
+    await expireSchedulingAlerts(ctx.db, clientIds);
+
     const now = Date.now();
     const cutoff48h = new Date(now - 48 * 60 * 60 * 1000);
     const cutoff14d = new Date(now - 14 * 24 * 60 * 60 * 1000);
@@ -544,7 +547,8 @@ export const coachDashboardRouter = router({
       safeQ(
         () =>
           ctx.db.query.alerts.findMany({
-            where: and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")),
+            // Booking confirmations are info, not "needs attention".
+            where: and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active"), ne(alerts.type, "scheduling")),
             orderBy: [desc(alerts.createdAt)],
             limit: 200,
           }),

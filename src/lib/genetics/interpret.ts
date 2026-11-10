@@ -108,8 +108,14 @@ export function sectionFor(text: string | null | undefined): GeneSectionKey | "o
   return "other";
 }
 
+/** Report text can carry HTML entities ("&bull;") from the parser; decode the common ones. */
+const ENT: Record<string, string> = { amp: "&", bull: "•", middot: "·", nbsp: " ", ndash: "–", mdash: "—", quot: "\"", apos: "'", rsquo: "’", lt: "<", gt: ">" };
+export const decodeText = (v: string | null | undefined): string | null =>
+  v == null ? null : v.replace(/&(#\d+|[a-z]+);/gi, (m, e: string) =>
+    e[0] === "#" ? String.fromCodePoint(parseInt(e.slice(1), 10) || 32) : ENT[e.toLowerCase()] ?? m);
+
 const splitList = (v: string | null | undefined) =>
-  (v ?? "")
+  (decodeText(v) ?? "")
     .split(/,\s*(?![^()]*\))|\.\s+|;\s*/)
     .map((s) => s.trim().replace(/\.$/, ""))
     .filter((s) => s && !/^n\/?a\b/i.test(s));
@@ -131,12 +137,12 @@ export function interpretMarkers(markers: RawMarker[]): GeneView[] {
         id: `${m.gene}-${m.rsId ?? i}`,
         gene: lib?.gene ?? m.gene,
         rsId: m.rsId ?? lib?.rsId ?? null,
-        genotype: m.mutation,
+        genotype: decodeText(m.mutation),
         strength,
         priority,
         section,
         nickname: lib?.nickname ?? null,
-        plain: lib?.plain ?? m.function ?? "This gene is part of your report.",
+        plain: lib?.plain ?? decodeText(m.function) ?? "This gene is part of your report.",
         changed: lib?.changed ?? null,
         symptoms: lib?.symptoms.length ? lib.symptoms : splitList(m.symptoms),
         lifestyle: lib?.lifestyle.length ? lib.lifestyle : [...splitList(m.dietStrategy), ...splitList(m.lifestyleStrategy)],
@@ -144,7 +150,7 @@ export function interpretMarkers(markers: RawMarker[]): GeneView[] {
         peptides: lib?.peptides.length ? lib.peptides : splitList(m.peptideSupport),
         meds: lib?.meds ?? [],
         labs: lib?.labs.length ? lib.labs : splitList(m.labTests),
-        technical: lib?.technical ?? { function: m.function, effect: null },
+        technical: lib?.technical ?? { function: decodeText(m.function), effect: null },
         needsAttention,
         inLibrary: !!lib,
       };

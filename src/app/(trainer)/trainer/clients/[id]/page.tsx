@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { GeneticsReview } from "@/components/genetics/GeneticsReview";
 import { LifeScoreBreakdown } from "@/components/lifescore/LifeScoreBreakdown";
+import { biomarkerName } from "@/lib/labs/normalize";
+import { formatDose } from "@/lib/text/dose";
 import { HealthDataView } from "@/components/health/HealthDataView";
 import { useRouter } from "next/navigation";
 import {
@@ -373,6 +375,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
     { staleTime: 15_000, refetchOnWindowFocus: false, retry: false }
   );
   const client = detailQuery.data;
+  // "My Health" opens the coach's own record here — never offer Remove on yourself.
+  const meQuery = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000 });
+  const isSelf = !!meQuery.data?.id && meQuery.data.id === params.id;
 
   // My access to this client (primary = full; otherwise client-granted categories)
   const myAccessQuery = trpc.coach.sharedAccess.myAccess.useQuery(
@@ -688,9 +693,11 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             <ClipboardList size={14} /> Daily Guidance
           </Link>
           <div className="flex-1" />
-          <button onClick={() => setShowRemoveConfirm(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-red-500/5 text-red-400/70 border border-red-500/10 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-colors">
-            <X size={14} /> Remove
-          </button>
+          {!isSelf && (
+            <button onClick={() => setShowRemoveConfirm(true)} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-red-400/60 hover:text-red-400 transition-colors">
+              <X size={13} /> Remove client
+            </button>
+          )}
         </div>
       </div>
 
@@ -1769,7 +1776,7 @@ type HealthData = {
   }>;
   fasting: Array<{ date: string; startedAt: string | null; endedAt: string | null; completed: boolean | null }>;
   nutrition: { recentMeals: Array<{ date: string; mealType: string | null; calories: number | null; protein: number | null; carbs: number | null; fat: number | null }> };
-  supplements: Array<{ name: string; dosage: string | null; frequency: string | null; timeOfDay: string | null; notes: string | null }>;
+  supplements: Array<{ name: string; dosage: string | null; unit?: string | null; frequency: string | null; timeOfDay: string | null; notes: string | null }>;
   checkins: Array<{ date: string; mood: number | null; energy: number | null; stress: number | null; sleepQuality: number | null; trainingType: string | null }>;
   upcomingAppointments: Array<{ id: string; date: string; startTime: string | null; endTime: string | null; sessionType: string | null; meetingType: string | null; status: string | null; meetingLink?: string | null }>;
   conversationId: string | null;
@@ -2051,7 +2058,7 @@ function TabContent({
                   <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-800/50 last:border-0">
                     <div>
                       <p className="text-sm text-white font-medium">{s.name}</p>
-                      <p className="text-[10px] text-gray-500">{s.dosage} &bull; {s.frequency} &bull; {s.timeOfDay}</p>
+                      <p className="text-xs text-gray-500">{[formatDose(s.dosage, s.unit), s.frequency, s.timeOfDay].filter(Boolean).join(" • ")}</p>
                     </div>
                   </div>
                 ))}
@@ -2316,7 +2323,7 @@ function TabContent({
                   {lab.biomarkers.length > 0 && (
                     <DataTable
                       headers={["Biomarker", "Value", "Unit", "Ref Low", "Ref High", "Status"]}
-                      rows={lab.biomarkers.map((b) => [b.code, round(b.value, 2), b.unit, round(b.refLow, 2), round(b.refHigh, 2), b.status])}
+                      rows={lab.biomarkers.map((b) => [biomarkerName(b.code), round(b.value, 2), b.unit ?? "—", round(b.refLow, 2), round(b.refHigh, 2), b.status ?? "—"])}
                     />
                   )}
                 </div>

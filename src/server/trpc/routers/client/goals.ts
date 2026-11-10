@@ -263,6 +263,13 @@ export const clientGoalsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // One active goal per title (e.g. no two "Sleep 7+ Hours" goals).
+      const dup = await ctx.db.query.healthGoals.findFirst({
+        where: and(eq(healthGoals.clientId, ctx.dbUserId), eq(healthGoals.status, "active"), eq(healthGoals.title, input.title)),
+      });
+      if (dup) {
+        throw new TRPCError({ code: "CONFLICT", message: `You already have an active "${input.title}" goal.` });
+      }
       const now = new Date();
       const [goal] = await ctx.db
         .insert(healthGoals)

@@ -7,6 +7,7 @@ import { normalizeCoachAddCode } from "@/lib/coach-add-code";
 import { computeAdherence, computeToday } from "@/server/trpc/routers/client/today";
 import { computeLifeScore } from "@/lib/lifescore/score";
 import { healthDataSummary } from "@/server/trpc/routers/client/healthData";
+import { mergeSleepRows, mergeActivityRows, nightlyHrv, normalizeBodyFatPct } from "@/server/services/health-metrics";
 import {
   trainerClientRelationships,
   clientInvitations,
@@ -120,16 +121,20 @@ async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
 }
 
+function daysAgoStr(n: number): string {
+  return new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+}
+
 async function fetchClientData(db: typeof import("@/server/db").db, clientId: string, enrolledAt?: Date) {
-  const [user, profile, alertRows, recentGlucose, recentSleep, recentHrv, recentWeight, recentCheckins, protocol, adherenceCount] = await Promise.all([
+  const [user, profile, alertRows, recentGlucose, rawSleep, rawHrv, recentWeight, recentCheckins, protocol, adherenceCount] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, clientId) }),
     // Select only the columns we use — avoids 500s if a newer client_profiles
     // column (e.g. coach_add_code) hasn't been migrated onto this database yet.
     safeQ(() => db.query.clientProfiles.findFirst({ where: eq(clientProfiles.userId, clientId), columns: { userId: true, tier: true } }), undefined),
     safeQ(() => db.select({ count: sql<number>`count(*)` }).from(alerts).where(and(eq(alerts.clientId, clientId), eq(alerts.status, "active"))), [{ count: 0 }]),
     safeQ(() => db.query.glucoseReadings.findMany({ where: eq(glucoseReadings.clientId, clientId), orderBy: desc(glucoseReadings.timestamp), limit: 7 }), []),
-    safeQ(() => db.query.sleepSessions.findMany({ where: eq(sleepSessions.clientId, clientId), orderBy: desc(sleepSessions.date), limit: 7 }), []),
-    safeQ(() => db.query.hrvReadings.findMany({ where: eq(hrvReadings.clientId, clientId), orderBy: desc(hrvReadings.timestamp), limit: 7 }), []),
+    safeQ(() => db.query.sleepSessions.findMany({ where: and(eq(sleepSessions.clientId, clientId), gte(sleepSessions.date, daysAgoStr(21))), orderBy: desc(sleepSessions.date) }), []),
+    safeQ(() => db.query.hrvReadings.findMany({ where: and(eq(hrvReadings.clientId, clientId), gte(hrvReadings.timestamp, new Date(Date.now() - 14 * 86400000))), orderBy: desc(hrvReadings.timestamp), limit: 5000 }), []),
     safeQ(() => db.query.bodyMeasurements.findMany({ where: eq(bodyMeasurements.clientId, clientId), orderBy: desc(bodyMeasurements.date), limit: 5 }), []),
     safeQ(() => db.query.dailyCheckins.findMany({ where: eq(dailyCheckins.clientId, clientId), orderBy: desc(dailyCheckins.date), limit: 14 }), []),
     safeQ(() => db.query.supplementProtocols.findFirst({
@@ -144,6 +149,10 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
   ]);
 
   if (!user) return null;
+
+  // One row per night (no double-counted sources) and nightly HRV, newest first.
+  const recentSleep = mergeSleepRows(rawSleep).slice(0, 7);
+  const recentHrv = nightlyHrv(rawHrv).slice(0, 7);
 
   const activeAlerts = Number(alertRows[0]?.count ?? 0);
   const name = deriveName(user.firstName, user.lastName, user.email);
@@ -179,8 +188,8 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
   const avgGlucose = glucoseValues.length > 0 ? Math.round(glucoseValues.reduce((a, b) => a + b, 0) / glucoseValues.length) : null;
 
   // Sleep data
-  const sleepScores = recentSleep.map((s) => Number(s.score ?? 0)).reverse();
-  const sleepHours = recentSleep.map((s) => Number(s.totalMinutes ?? 0) / 60).reverse();
+  const sleepScores = recentSleep.filter((s) => s.score != null).map((s) => Number(s.score)).reverse();
+  const sleepHours = recentSleep.filter((s) => (s.totalMinutes ?? 0) > 0).map((s) => Number(s.totalMinutes) / 60).reverse();
   const sleepTrend = deriveTrend(sleepScores);
   const sleepScore = latestSleep?.score ? Number(latestSleep.score) : null;
 
@@ -192,7 +201,7 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
   // Weight
   const weightValues = recentWeight.map((w) => Number(w.weightLbs ?? 0)).reverse();
   const weight = weightValues.length > 0 ? weightValues[weightValues.length - 1] : null;
-  const bodyFat = recentWeight[0]?.bodyFatPct ? Number(recentWeight[0].bodyFatPct) : null;
+  const bodyFat = normalizeBodyFatPct(recentWeight[0]?.bodyFatPct);
 
   // Adherence: of the protocol doses the client actually logged over the last
   // 30 days, the share they took (vs skipped). Dose-count ÷ day-count was wrong
@@ -311,14 +320,13 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
       limit: clientIds.length * 7,
     }), []),
     safeQ(() => db.query.sleepSessions.findMany({
-      where: inArray(sleepSessions.clientId, clientIds),
+      where: and(inArray(sleepSessions.clientId, clientIds), gte(sleepSessions.date, daysAgoStr(21))),
       orderBy: desc(sleepSessions.date),
-      limit: clientIds.length * 7,
     }), []),
     safeQ(() => db.query.hrvReadings.findMany({
-      where: inArray(hrvReadings.clientId, clientIds),
+      where: and(inArray(hrvReadings.clientId, clientIds), gte(hrvReadings.timestamp, new Date(Date.now() - 14 * 86400000))),
       orderBy: desc(hrvReadings.timestamp),
-      limit: clientIds.length * 7,
+      limit: clientIds.length * 5000,
     }), []),
     safeQ(() => db.query.bodyMeasurements.findMany({
       where: inArray(bodyMeasurements.clientId, clientIds),
@@ -366,8 +374,8 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
   }
 
   const glucoseByClient = groupByClient(recentGlucoseAll, 7);
-  const sleepByClient = groupByClient(recentSleepAll, 7);
-  const hrvByClient = groupByClient(recentHrvAll, 7);
+  const sleepByClient = groupByClient(recentSleepAll, 200); // merged to 7 nights below
+  const hrvByClient = groupByClient(recentHrvAll, 5000); // merged to nightly below
   const weightByClient = groupByClient(recentWeightAll, 5);
   const checkinsByClient = groupByClient(recentCheckinsAll, 14);
 
@@ -379,8 +387,8 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
     const profile = profileMap.get(clientId);
     const activeAlerts = alertCountMap.get(clientId) ?? 0;
     const recentGlucose = glucoseByClient.get(clientId) ?? [];
-    const recentSleep = sleepByClient.get(clientId) ?? [];
-    const recentHrv = hrvByClient.get(clientId) ?? [];
+    const recentSleep = mergeSleepRows(sleepByClient.get(clientId) ?? []).slice(0, 7);
+    const recentHrv = nightlyHrv(hrvByClient.get(clientId) ?? []).slice(0, 7);
     const recentWeight = weightByClient.get(clientId) ?? [];
     const recentCheckins = checkinsByClient.get(clientId) ?? [];
     const protocol = protocolMap.get(clientId) ?? null;
@@ -419,8 +427,8 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
     const avgGlucose = glucoseValues.length > 0 ? Math.round(glucoseValues.reduce((a, b) => a + b, 0) / glucoseValues.length) : null;
 
     // Sleep data
-    const sleepScores = recentSleep.map((s) => Number(s.score ?? 0)).reverse();
-    const sleepHours = recentSleep.map((s) => Number(s.totalMinutes ?? 0) / 60).reverse();
+    const sleepScores = recentSleep.filter((s) => s.score != null).map((s) => Number(s.score)).reverse();
+    const sleepHours = recentSleep.filter((s) => (s.totalMinutes ?? 0) > 0).map((s) => Number(s.totalMinutes) / 60).reverse();
     const sleepTrend = deriveTrend(sleepScores);
     const sleepScore = latestSleep?.score ? Number(latestSleep.score) : null;
 
@@ -432,7 +440,7 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
     // Weight
     const weightValues = recentWeight.map((w) => Number(w.weightLbs ?? 0)).reverse();
     const weight = weightValues.length > 0 ? weightValues[weightValues.length - 1] : null;
-    const bodyFat = recentWeight[0]?.bodyFatPct ? Number(recentWeight[0].bodyFatPct) : null;
+    const bodyFat = normalizeBodyFatPct(recentWeight[0]?.bodyFatPct);
 
     // Adherence: share of logged protocol doses (last 30d) that were taken.
     const adherence = adherenceAgg.total > 0
@@ -996,7 +1004,7 @@ export const coachClientsRouter = router({
         safe(() => ctx.db.query.hrvReadings.findMany({
           where: and(eq(hrvReadings.clientId, input.clientId), gte(hrvReadings.timestamp, new Date(start)), lte(hrvReadings.timestamp, new Date(end + "T23:59:59"))),
           orderBy: desc(hrvReadings.timestamp),
-          limit: 100,
+          limit: 5000,
         }), []),
         // Blood Pressure
         safe(() => ctx.db.query.bloodPressureReadings.findMany({
@@ -1126,7 +1134,7 @@ export const coachClientsRouter = router({
 
       return {
         glucose: glucose.map((g) => ({ date: g.timestamp.toISOString(), value: Number(g.valueMgdl), source: g.source })),
-        sleep: sleep.map((s) => ({
+        sleep: mergeSleepRows(sleep).map((s) => ({
           date: s.date,
           totalMinutes: s.totalMinutes,
           score: s.score,
@@ -1134,8 +1142,10 @@ export const coachClientsRouter = router({
           remMinutes: s.remMinutes,
           lightMinutes: s.lightMinutes,
           awakeMinutes: s.awakeMinutes,
+          source: s.source,
         })),
-        hrv: hrvData.map((h) => ({ date: h.timestamp.toISOString(), rmssd: Number(h.rmssd), source: h.source })),
+        // Nightly HRV (one value per day); raw 5-minute samples aren't a headline number.
+        hrv: nightlyHrv(hrvData).map((h) => ({ date: h.timestamp.toISOString(), rmssd: h.rmssd, source: h.source })),
         bloodPressure: bpData.map((bp) => ({
           date: bp.date,
           systolic: bp.systolic,
@@ -1146,7 +1156,7 @@ export const coachClientsRouter = router({
         bodyMeasurements: weightData.map((w) => ({
           date: w.date,
           weightLbs: w.weightLbs ? Number(w.weightLbs) : null,
-          bodyFatPct: w.bodyFatPct ? Number(w.bodyFatPct) : null,
+          bodyFatPct: normalizeBodyFatPct(w.bodyFatPct),
           waistInches: w.waistInches ? Number(w.waistInches) : null,
         })),
         workouts: workouts.map((w) => ({
@@ -1155,7 +1165,7 @@ export const coachClientsRouter = router({
           exercises: w.exercisesCompleted,
           notes: w.notes,
         })),
-        activity: activity.map((a) => ({
+        activity: mergeActivityRows(activity).map((a) => ({
           date: a.date,
           exerciseMinutes: a.exerciseMinutes,
           caloriesActive: a.caloriesActive,
@@ -1216,6 +1226,7 @@ export const coachClientsRouter = router({
         supplements: supplements.map((s) => ({
           name: s.name,
           dosage: s.dosage,
+          unit: s.unit,
           frequency: s.frequency,
           timeOfDay: s.timeOfDay,
           notes: s.coachNotes,

@@ -1153,6 +1153,8 @@ export const clinicalDocuments = pgTable("clinical_documents", {
   notes: text("notes"),
   reportDate: timestamp("report_date"),
   providerName: varchar("provider_name", { length: 255 }),
+  /** Who uploaded it (the client, or a coach on their behalf). */
+  uploadedBy: uuid("uploaded_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [

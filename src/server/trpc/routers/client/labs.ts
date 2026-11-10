@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
 import { labOrders, labResults, biomarkerValues } from "@/server/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
+import { normalizeBiomarkers, biomarkerName } from "@/lib/labs/normalize";
 
 async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
@@ -129,7 +130,7 @@ export const clientLabsRouter = router({
       const def = defMap.get(v.biomarkerCode);
       return {
         code: v.biomarkerCode,
-        name: def?.name ?? v.biomarkerCode,
+        name: def?.name ?? biomarkerName(v.biomarkerCode),
         category: def?.category ?? "unknown",
         value: v.value,
         unit: v.unit ?? def?.unit,
@@ -206,7 +207,7 @@ export const clientLabsRouter = router({
       .filter(([, points]) => points.length >= 2)
       .map(([code, points]) => ({
         code,
-        name: defMap.get(code)?.name ?? code,
+        name: defMap.get(code)?.name ?? biomarkerName(code),
         category: defMap.get(code)?.category ?? "unknown",
         unit: defMap.get(code)?.unit ?? points[0]?.refLow != null ? "" : "",
         points,
@@ -255,7 +256,7 @@ export const clientLabsRouter = router({
         clientId: ctx.dbUserId,
         panelName: input.panelName,
         provider: input.provider,
-        status: "results_received",
+        status: "processing",
         orderedAt: now,
       });
 
@@ -274,7 +275,7 @@ export const clientLabsRouter = router({
           id: orderId,
           panelName: input.panelName,
           provider: input.provider,
-          status: "results_received",
+          status: "processing",
           orderedAt: now,
         },
         result: {
@@ -311,7 +312,7 @@ export const clientLabsRouter = router({
         clientId: ctx.dbUserId,
         panelName: input.panelName,
         provider: input.provider,
-        status: "results_received",
+        status: "processing",
         orderedAt: now,
       });
 
@@ -330,7 +331,7 @@ export const clientLabsRouter = router({
           id: orderId,
           panelName: input.panelName,
           provider: input.provider,
-          status: "results_received",
+          status: "processing",
           orderedAt: now,
         },
         result: {
@@ -392,28 +393,17 @@ export const clientLabsRouter = router({
       });
 
       // Insert biomarker values
-      const biomarkerRows = input.biomarkers.map((bm) => {
-        // Prefer the user-provided status; otherwise derive it from the range.
-        let status = bm.status ?? "normal";
-        if (!bm.status) {
-          if (bm.refLow !== undefined && bm.value < bm.refLow) {
-            status = "low";
-          } else if (bm.refHigh !== undefined && bm.value > bm.refHigh) {
-            status = "high";
-          }
-        }
-
-        return {
-          id: crypto.randomUUID(),
-          resultId: resultId,
-          biomarkerCode: bm.code,
-          value: bm.value,
-          unit: bm.unit,
-          refLow: bm.refLow,
-          refHigh: bm.refHigh,
-          status: status,
-        };
-      });
+      // Canonical codes, catalog units/ranges, status only from a range, no duplicates.
+      const biomarkerRows = normalizeBiomarkers(input.biomarkers).map((bm) => ({
+        id: crypto.randomUUID(),
+        resultId: resultId,
+        biomarkerCode: bm.code,
+        value: bm.value,
+        unit: bm.unit,
+        refLow: bm.refLow,
+        refHigh: bm.refHigh,
+        status: bm.status,
+      }));
 
       if (biomarkerRows.length > 0) {
         await ctx.db.insert(biomarkerValues).values(biomarkerRows);

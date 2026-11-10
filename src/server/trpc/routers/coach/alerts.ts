@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, trainerProcedure } from "@/server/trpc";
 import { alerts, trainerClientRelationships, users } from "@/server/db/schema";
 import { eq, desc, and, sql, inArray, gte, lte } from "drizzle-orm";
+import { expireSchedulingAlerts } from "@/server/services/alert-hygiene";
 
 export const coachAlertsRouter = router({
   // List alerts for all of trainer's clients
@@ -136,7 +137,10 @@ export const coachAlertsRouter = router({
   }),
 
   // Summary counts by priority
-  summary: trainerProcedure.query(async ({ ctx }) => {
+  // Pass the same range as the list so the header counts match the list below.
+  summary: trainerProcedure
+    .input(z.object({ startDate: z.string().optional(), endDate: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
     const relationships = await ctx.db.query.trainerClientRelationships.findMany({
       where: and(
         eq(trainerClientRelationships.trainerId, ctx.dbUserId),
@@ -146,6 +150,7 @@ export const coachAlertsRouter = router({
 
     const clientIds = relationships.map((r) => r.clientId);
     if (clientIds.length === 0) return { urgent: 0, action: 0, info: 0, total: 0 };
+    await expireSchedulingAlerts(ctx.db, clientIds);
 
     // Single batched group-by across all clients (avoids per-client N+1).
     const counts = await ctx.db
@@ -154,7 +159,12 @@ export const coachAlertsRouter = router({
         count: sql<number>`count(*)`,
       })
       .from(alerts)
-      .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")))
+      .where(and(
+        inArray(alerts.clientId, clientIds),
+        eq(alerts.status, "active"),
+        input?.startDate ? gte(alerts.createdAt, new Date(input.startDate)) : undefined,
+        input?.endDate ? lte(alerts.createdAt, new Date(input.endDate)) : undefined,
+      ))
       .groupBy(alerts.priority);
 
     let urgent = 0, action = 0, info = 0;

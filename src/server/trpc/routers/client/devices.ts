@@ -19,6 +19,7 @@ import { PROVIDERS } from "@/lib/integrations/devices/providers";
 import { env } from "@/lib/config/env";
 import { syncProviderData } from "@/server/services/device-sync";
 import { upsertDailyMetrics, upsertWorkouts, replaceSleepSessions } from "@/server/services/health-metrics";
+import { normalizeBodyFatPct } from "@/server/services/health-metrics";
 
 /**
  * Sign OAuth state with HMAC to prevent tampering.  Uses CLERK_SECRET_KEY
@@ -666,7 +667,7 @@ export const clientDevicesRouter = router({
           clientId: userId,
           date: r.date,
           weightLbs: r.weightLbs ?? null,
-          bodyFatPct: r.bodyFatPct ?? null,
+          bodyFatPct: normalizeBodyFatPct(r.bodyFatPct),
           leanMassLbs: r.leanMassLbs ?? null,
           bmi: r.bmi ?? null,
           source: SOURCE,

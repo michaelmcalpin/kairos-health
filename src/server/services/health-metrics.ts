@@ -269,3 +269,87 @@ export async function replaceSleepSessions(
 }
 
 export type { MetricDef };
+
+// ── Raw-row merging for screens that list per-day rows ─────────────────────
+
+type SleepRowLike = {
+  date: string; source: string | null; totalMinutes: number | null; score: number | null;
+  deepMinutes?: number | null; remMinutes?: number | null; lightMinutes?: number | null; awakeMinutes?: number | null;
+};
+
+/** Longest plausible night; anything above is a merge/sum error, not sleep. */
+export const MAX_NIGHT_MINUTES = 14 * 60;
+
+/**
+ * One sleep row per night. Picks the best-ranked source that has a real
+ * duration (Oura > WHOOP > Apple Health > …), borrows a score from another
+ * source if the chosen one has none, and drops impossible nights (> 14 h).
+ * Never sums sources. Newest first.
+ */
+export function mergeSleepRows<T extends SleepRowLike>(rows: T[]): T[] {
+  const byDate = new Map<string, T[]>();
+  for (const r of rows) {
+    const arr = byDate.get(r.date) ?? [];
+    arr.push(r);
+    byDate.set(r.date, arr);
+  }
+  const out: T[] = [];
+  byDate.forEach((list) => {
+    const rank = (r: T) => sourceRank("sleep_total_min", r.source ?? "manual");
+    const withDuration = list
+      .filter((r) => (r.totalMinutes ?? 0) > 0 && (r.totalMinutes ?? 0) <= MAX_NIGHT_MINUTES)
+      .sort((a, b) => rank(a) - rank(b));
+    const scored = list.filter((r) => r.score != null).sort((a, b) => rank(a) - rank(b));
+    const base = withDuration[0] ?? scored[0];
+    if (!base) return;
+    out.push({ ...base, score: base.score ?? scored[0]?.score ?? null });
+  });
+  return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
+type ActivityRowLike = { date: string; source: string | null };
+
+/** One activity row per day, by movement source priority (Apple Health first). Newest first. */
+export function mergeActivityRows<T extends ActivityRowLike>(rows: T[]): T[] {
+  const best = new Map<string, T>();
+  for (const r of rows) {
+    const prev = best.get(r.date);
+    if (!prev || sourceRank("steps", r.source ?? "manual") < sourceRank("steps", prev.source ?? "manual")) best.set(r.date, r);
+  }
+  return Array.from(best.values()).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
+type HrvRowLike = { timestamp: Date; rmssd: number | null; source: string | null };
+
+/**
+ * Nightly HRV: one value per day, the average of that day's readings from the
+ * best-ranked source (Oura first). Replaces showing a single 5-minute sample.
+ * Newest first.
+ */
+export function nightlyHrv(rows: HrvRowLike[]): Array<{ date: string; timestamp: Date; rmssd: number; source: string; samples: number }> {
+  const acc = new Map<string, Map<string, { sum: number; n: number; ts: Date }>>();
+  for (const r of rows) {
+    if (r.rmssd == null || !Number.isFinite(Number(r.rmssd))) continue;
+    const d = r.timestamp.toISOString().slice(0, 10);
+    const src = r.source ?? "manual";
+    let bySrc = acc.get(d);
+    if (!bySrc) acc.set(d, (bySrc = new Map()));
+    const a = bySrc.get(src) ?? { sum: 0, n: 0, ts: r.timestamp };
+    a.sum += Number(r.rmssd); a.n += 1;
+    if (r.timestamp > a.ts) a.ts = r.timestamp;
+    bySrc.set(src, a);
+  }
+  const out: Array<{ date: string; timestamp: Date; rmssd: number; source: string; samples: number }> = [];
+  acc.forEach((bySrc, date) => {
+    const [src, a] = Array.from(bySrc.entries()).sort(([x], [y]) => sourceRank("hrv", x) - sourceRank("hrv", y))[0];
+    out.push({ date, timestamp: a.ts, rmssd: Math.round((a.sum / a.n) * 10) / 10, source: src, samples: a.n });
+  });
+  return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+}
+
+/** Body fat arrives from Apple Health as a 0–1 fraction; store and show percent. */
+export function normalizeBodyFatPct(v: number | null | undefined): number | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  const pct = v > 0 && v <= 1 ? v * 100 : v;
+  return pct >= 2 && pct <= 70 ? Math.round(pct * 10) / 10 : null;
+}

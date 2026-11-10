@@ -442,7 +442,7 @@ export const coachScheduleRouter = router({
           priority: "info",
           title: `${sessionLabel} scheduled`,
           message: `${coachName} scheduled a ${sessionLabel.toLowerCase()} (${meetingLabel.toLowerCase()}) for ${displayDate} at ${displayTime}.`,
-          data: { appointmentId: created.id, sessionType: input.sessionType, meetingType: input.meetingType },
+          data: { appointmentId: created.id, sessionType: input.sessionType, meetingType: input.meetingType, date: input.date },
         });
       } catch (alertErr) {
         console.error("[Schedule] Failed to create alert (non-fatal):", alertErr);

@@ -7,6 +7,7 @@ import { users, conversations, messages } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 import { getClientContext } from "@/lib/ai/health-context";
 import { callWithRetry } from "@/lib/ai/retry";
+import { CLIENT_SAFETY_RULES, DosingStreamFilter } from "@/lib/ai/clinical-guardrails";
 
 // Streamed AI responses over a large health-context prompt can take
 // 30-90s — without this, Vercel kills the function mid-stream.
@@ -30,7 +31,7 @@ When answering questions or providing recommendations, you should:
    - **Health recommendations** — Protocol adjustments, lifestyle changes, lab tests to consider
    - **Diet recommendations** — Based on genetics, glucose patterns, goals, and current nutrition
    - **Sleep recommendations** — Based on sleep architecture, HRV, stress levels, and circadian patterns
-   - **Supplement/peptide recommendations** — Based on genetics, labs, and symptoms
+   - **Supplement recommendations** — Based on genetics, labs, and symptoms (peptides and prescription medicines: see the safety rules below)
 
 ## GUIDELINES
 - Be warm and supportive while being scientifically precise.
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
         anthropic.messages.stream({
           model: ANTHROPIC_MODEL,
           max_tokens: 4096,
-          system: `${SYSTEM_PROMPT}\n\n--- COMPLETE CLIENT HEALTH PROFILE ---\n${healthContext}`,
+          system: `${SYSTEM_PROMPT}\n\n${CLIENT_SAFETY_RULES}\n\n--- COMPLETE CLIENT HEALTH PROFILE ---\n${healthContext}`,
           messages: anthropicMessages,
         }),
       "AI Chat",
@@ -137,18 +138,26 @@ export async function POST(req: NextRequest) {
     // Create a ReadableStream that sends SSE events
     const encoder = new TextEncoder();
     let fullResponse = "";
+    // Backstop: strip peptide/medicine doses line by line before the client sees them.
+    const dosingFilter = new DosingStreamFilter();
 
     const readable = new ReadableStream({
       async start(controller) {
         try {
           for await (const event of stream) {
             if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-              const text = event.delta.text;
+              const text = dosingFilter.push(event.delta.text);
+              if (!text) continue;
               fullResponse += text;
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify({ type: "text", text })}\n\n`)
               );
             }
+          }
+          const tail = dosingFilter.flush();
+          if (tail) {
+            fullResponse += tail;
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "text", text: tail })}\n\n`));
           }
 
           // Save the AI response to the DB

@@ -23,10 +23,11 @@ export interface IntegrationStatus {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  idle: { bg: "bg-gray-50", text: "text-gray-600", dot: "bg-gray-400" },
-  syncing: { bg: "bg-blue-50", text: "text-blue-600", dot: "bg-blue-500" },
-  success: { bg: "bg-green-50", text: "text-green-600", dot: "bg-green-500" },
-  error: { bg: "bg-red-50", text: "text-red-600", dot: "bg-red-500" },
+  // Dark-theme tonal pills (the light ones read as bright white blocks).
+  idle: { bg: "bg-gray-700/40", text: "text-gray-300", dot: "bg-gray-400" },
+  syncing: { bg: "bg-blue-500/10", text: "text-blue-300", dot: "bg-blue-400" },
+  success: { bg: "bg-emerald-500/10", text: "text-emerald-300", dot: "bg-emerald-400" },
+  error: { bg: "bg-red-500/10", text: "text-red-300", dot: "bg-red-400" },
 };
 
 function timeAgo(dateStr: string | null): string {
@@ -57,7 +58,7 @@ export function IntegrationStatusCard({
     <div className="kairos-card p-4">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h4 className="font-heading text-sm font-semibold text-kairos-royal">
+          <h4 className="font-heading text-sm font-semibold text-white">
             {integration.name}
           </h4>
           <p className="text-xs text-gray-500 mt-0.5">{integration.description}</p>
@@ -95,7 +96,7 @@ export function IntegrationStatusCard({
             {integration.dataTypes.map((dt) => (
               <span
                 key={dt}
-                className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded"
+                className="text-[10px] px-1.5 py-0.5 bg-kairos-royal-surface text-gray-300 rounded"
               >
                 {dt}
               </span>
@@ -276,7 +277,7 @@ export function IntegrationDashboard() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="font-heading text-lg font-bold text-kairos-royal">Connected Integrations</h2>
+          <h2 className="font-heading text-lg font-bold text-white">Connected Integrations</h2>
           <p className="text-sm text-gray-500">{connectedCount} of {integrations.length} connected</p>
         </div>
       </div>

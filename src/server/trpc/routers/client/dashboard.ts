@@ -456,7 +456,7 @@ export const clientDashboardRouter = router({
       safeQ(() => ctx.db.query.sleepSessions.findMany({
         where: and(eq(sleepSessions.clientId, ctx.dbUserId), gte(sleepSessions.date, sevenStr)),
         orderBy: sleepSessions.date,
-        columns: { date: true, totalMinutes: true, score: true },
+        columns: { date: true, totalMinutes: true, score: true, source: true },
       }), []),
       safeQ(() => ctx.db
         .select({
@@ -477,7 +477,7 @@ export const clientDashboardRouter = router({
     ]);
 
     return {
-      sleep: sleepRows.map((s) => ({ date: s.date, hours: s.totalMinutes ? +(s.totalMinutes / 60).toFixed(1) : null, score: s.score })),
+      sleep: mergeSleepNights(sleepRows).sort((a, b) => a.date.localeCompare(b.date)).map((s) => ({ date: s.date, hours: s.totalMinutes ? +(s.totalMinutes / 60).toFixed(1) : null, score: s.score })),
       glucose: glucoseRows.map((g) => ({ date: String(g.date), avg: Number(g.avg) })),
       bp: bpRows.map((b) => ({ date: b.date, sys: b.systolic, dia: b.diastolic })),
     };

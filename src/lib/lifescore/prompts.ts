@@ -69,8 +69,10 @@ export function selectPrompt(ctx: PromptContext): Prompt {
     return pick(lows[0][0], "low");
   }
 
-  // Missed tasks are the next most actionable.
-  if (ctx.missedTasks) {
+  // Missed tasks are the next most actionable — but only once the client has
+  // checked in. Before any rating it read as a scolding ("things slipped
+  // today…") first thing in the morning.
+  if (ctx.missedTasks && rated.length > 0) {
     return pick("general", "missed");
   }
 

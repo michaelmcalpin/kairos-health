@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useClerk, UserButton } from "@clerk/nextjs";
-import { Bell, Search, LogOut } from "lucide-react";
+import { Bell, Search, LogOut, AlertTriangle, ArrowLeftRight } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { trpc } from "@/lib/trpc";
 import { NotificationBell } from "@/components/realtime";
@@ -52,6 +52,16 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
     (portal === "trainer" ? coachActiveData?.count : portal === "client" ? unreadData?.count : 0) ??
     0;
   const alertsHref = portal === "trainer" ? "/trainer/alerts" : "/alerts";
+
+  // Coaches, company admins and super admins can use more than one portal.
+  const { data: me } = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000, retry: false });
+  const multiPortal = !!me?.role && me.role !== "client";
+
+  function handleSwitchPortal() {
+    // Forget the remembered portal so /select-role shows the choices again.
+    localStorage.removeItem("kairos-role");
+    router.push("/select-role");
+  }
 
   function handleSignOut() {
     // Clear saved role on sign-out
@@ -105,9 +115,12 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
           <button
             onClick={() => router.push(alertsHref)}
             className="relative text-kairos-silver-dark hover:text-white transition-colors p-2"
-            aria-label={`Notifications${badgeCount > 0 ? ` (${badgeCount} unread)` : ""}`}
+            aria-label={`${portal === "client" ? "Health alerts" : "Notifications"}${badgeCount > 0 ? ` (${badgeCount} unread)` : ""}`}
+            title={portal === "client" ? "Health alerts" : "Notifications"}
           >
-            <Bell size={18} />
+            {/* The client portal already has the notifications bell above; use a
+                distinct icon for health alerts so there aren't two bells. */}
+            {portal === "client" ? <AlertTriangle size={18} /> : <Bell size={18} />}
             {badgeCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-[9px] font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
                 {badgeCount > 99 ? "99+" : badgeCount}
@@ -117,6 +130,17 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
         )}
 
         {/* Sign Out */}
+        {multiPortal && (
+          <button
+            onClick={handleSwitchPortal}
+            className="text-kairos-silver-dark hover:text-white transition-colors p-2"
+            title="Switch portal"
+            aria-label="Switch portal"
+          >
+            <ArrowLeftRight size={18} />
+          </button>
+        )}
+
         <button
           onClick={handleSignOut}
           className="text-kairos-silver-dark hover:text-white transition-colors p-2"

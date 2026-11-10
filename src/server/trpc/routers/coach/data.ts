@@ -15,6 +15,8 @@ import {
   biomarkerValues,
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { normalizeBiomarkers } from "@/lib/labs/normalize";
+import { assertDocBelongsToClient, coachClientIds, auditDocUpload } from "@/server/services/doc-ownership";
 
 // ─── PHI sanitization ───────────────────────────────────────
 /**
@@ -112,8 +114,11 @@ export const coachDataRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      // Refuse a file that names one of this coach's OTHER clients.
+      await assertDocBelongsToClient(ctx.db, input.clientId, input, await coachClientIds(ctx.db, ctx.dbUserId));
 
       const [doc] = await ctx.db.insert(clinicalDocuments).values({
+        uploadedBy: ctx.dbUserId,
         clientId: input.clientId,
         docType: input.docType,
         title: input.title,
@@ -125,6 +130,9 @@ export const coachDataRouter = router({
         status: "pending",
       }).returning();
 
+      await auditDocUpload(ctx.db, ctx.dbUserId, input.clientId, doc.id, {
+        docType: input.docType, sourceFileName: input.sourceFileName, title: input.title,
+      });
       return doc;
     }),
 
@@ -215,14 +223,14 @@ export const coachDataRouter = router({
       // Create biomarker values
       if (input.biomarkers.length > 0) {
         await ctx.db.insert(biomarkerValues).values(
-          input.biomarkers.map((b) => ({
+          normalizeBiomarkers(input.biomarkers).map((b) => ({
             resultId: lab.id,
             biomarkerCode: b.code,
             value: b.value,
-            unit: b.unit ?? null,
-            refLow: b.refLow ?? null,
-            refHigh: b.refHigh ?? null,
-            status: b.status ?? null,
+            unit: b.unit,
+            refLow: b.refLow,
+            refHigh: b.refHigh,
+            status: b.status,
           }))
         );
       }

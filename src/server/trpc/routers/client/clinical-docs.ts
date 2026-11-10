@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
 import { clinicalDocuments } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { assertDocBelongsToClient, auditDocUpload } from "@/server/services/doc-ownership";
 
 async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
@@ -91,9 +92,11 @@ export const clientClinicalDocsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      await assertDocBelongsToClient(ctx.db, ctx.dbUserId, input);
       const doc = await ctx.db
         .insert(clinicalDocuments)
         .values({
+          uploadedBy: ctx.dbUserId,
           clientId: ctx.dbUserId,
           docType: input.docType,
           title: input.title,
@@ -106,6 +109,9 @@ export const clientClinicalDocsRouter = router({
         })
         .returning();
 
+      await auditDocUpload(ctx.db, ctx.dbUserId, ctx.dbUserId, doc[0].id, {
+        docType: input.docType, sourceFileName: input.sourceFileName, title: input.title,
+      });
       return doc[0];
     }),
 

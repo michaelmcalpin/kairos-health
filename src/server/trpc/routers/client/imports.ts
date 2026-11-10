@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeBiomarkers } from "@/lib/labs/normalize";
 import crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
@@ -136,16 +137,23 @@ export const clientImportsRouter = router({
         }).returning({ id: labResults.id });
 
         if (labResult && rows.length > 0) {
-          const values = rows.map((r) => ({
-            resultId: labResult.id,
-            biomarkerCode: r.biomarker || r.name || "unknown",
-            value: parseFloat(r.value) || 0,
+          const values = normalizeBiomarkers(rows.map((r) => ({
+            code: r.biomarker || r.name || "",
+            value: parseFloat(r.value),
             unit: r.unit || null,
             refLow: r.reference_low ? parseFloat(r.reference_low) : null,
             refHigh: r.reference_high ? parseFloat(r.reference_high) : null,
             status: r.status || null,
+          }))).map((b) => ({
+            resultId: labResult.id,
+            biomarkerCode: b.code,
+            value: b.value,
+            unit: b.unit,
+            refLow: b.refLow,
+            refHigh: b.refHigh,
+            status: b.status,
           }));
-          await ctx.db.insert(biomarkerValues).values(values);
+          if (values.length > 0) await ctx.db.insert(biomarkerValues).values(values);
           importedCount = values.length;
         }
       }

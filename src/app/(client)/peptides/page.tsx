@@ -20,6 +20,7 @@ import {
   FileText,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { formatDose } from "@/lib/text/dose";
 import { cn } from "@/utils/cn";
 
 type CycleStatus = "planned" | "active" | "completed" | "paused";
@@ -541,7 +542,7 @@ export default function PeptidesPage() {
                   <div key={item.id} className="rounded-lg border border-kairos-border bg-kairos-royal-surface/50 p-3 flex items-center justify-between">
                     <div>
                       <span className="font-heading font-semibold text-white text-sm">{item.name}</span>
-                      <span className="ml-2 text-xs text-kairos-gold">{item.dosage}{item.unit}</span>
+                      <span className="ml-2 text-xs text-kairos-gold">{formatDose(item.dosage, item.unit)}</span>
                       {item.frequency && <span className="ml-2 text-xs text-kairos-silver-dark">{item.frequency}</span>}
                     </div>
                     {item.timeOfDay && <span className="text-xs text-kairos-silver-dark">{item.timeOfDay}</span>}
@@ -635,7 +636,7 @@ export default function PeptidesPage() {
                     {cycle.dosage && (
                       <div className="flex items-center gap-1.5 text-kairos-silver-dark">
                         <Syringe size={12} />
-                        <span>{cycle.dosage} {cycle.unit}</span>
+                        <span>{formatDose(cycle.dosage, cycle.unit)}</span>
                       </div>
                     )}
                     {cycle.frequency && (
@@ -721,7 +722,7 @@ export default function PeptidesPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-heading font-semibold text-white text-sm">{cycle.name}</h3>
-                    <p className="text-xs text-kairos-gold">{cycle.peptideName} — {cycle.dosage} {cycle.unit}</p>
+                    <p className="text-xs text-kairos-gold">{cycle.peptideName} — {formatDose(cycle.dosage, cycle.unit)}</p>
                     <p className="text-xs text-kairos-silver-dark mt-1">
                       {cycle.startDate} → {cycle.endDate || "Ongoing"}{cycle.durationWeeks ? ` (${cycle.durationWeeks} weeks)` : ""}
                     </p>
@@ -768,7 +769,7 @@ export default function PeptidesPage() {
                         <div className="flex items-center gap-2 text-xs text-kairos-silver-dark">
                           <span>{log.date}</span>
                           {log.time && <span>at {log.time}</span>}
-                          {log.dosage && <span>· {log.dosage} {log.unit}</span>}
+                          {log.dosage && <span>· {formatDose(log.dosage, log.unit)}</span>}
                           {log.injectionSite && (
                             <span className="flex items-center gap-1">
                               <MapPin size={10} /> {log.injectionSite}

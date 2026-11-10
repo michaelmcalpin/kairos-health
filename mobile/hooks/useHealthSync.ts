@@ -246,11 +246,16 @@ export function useHealthSync() {
         wakeTime?: string;
       }[] = [];
       {
+        // Several apps (Watch, Oura, AutoSleep) can write overlapping "asleep"
+        // samples for the same night. Take the UNION of the intervals per night
+        // instead of adding them up (adding them gave 16–22 h nights).
+        const intervals = new Map<string, Array<[number, number]>>();
         const byDate = new Map<
           string,
           { totalMinutes: number; earliestStart: string; latestEnd: string }
         >();
-        for (const s of sleep) {
+        // The full native sync writes staged, de-duplicated nights; skip this one.
+        for (const s of fullSyncAvailable ? [] : sleep) {
           if (!isAsleepSample(s)) continue;
           if (!s.startDate || !s.endDate) continue;
           const durationMin =
@@ -259,9 +264,11 @@ export function useHealthSync() {
           // Attribute the session to the wake date (end of the sample)
           const date = dateOf(s.endDate);
           if (!date) continue;
+          const list = intervals.get(date) ?? [];
+          list.push([new Date(s.startDate).getTime(), new Date(s.endDate).getTime()]);
+          intervals.set(date, list);
           const existing = byDate.get(date);
           if (existing) {
-            existing.totalMinutes += durationMin;
             if (s.startDate < existing.earliestStart) existing.earliestStart = s.startDate;
             if (s.endDate > existing.latestEnd) existing.latestEnd = s.endDate;
           } else {
@@ -273,6 +280,15 @@ export function useHealthSync() {
           }
         }
         for (const [date, agg] of byDate) {
+          const merged = (intervals.get(date) ?? []).sort((a, b) => a[0] - b[0]);
+          let total = 0, curStart = -1, curEnd = -1;
+          for (const [st, en] of merged) {
+            if (st > curEnd) { if (curEnd > curStart) total += curEnd - curStart; curStart = st; curEnd = en; }
+            else curEnd = Math.max(curEnd, en);
+          }
+          if (curEnd > curStart) total += curEnd - curStart;
+          agg.totalMinutes = total / 60000;
+          if (agg.totalMinutes > 14 * 60) continue; // impossible night
           sleepPayload.push({
             date,
             totalMinutes: Math.round(agg.totalMinutes),
@@ -307,9 +323,11 @@ export function useHealthSync() {
         // Merge body fat into the same-date entry when possible; otherwise
         // create its own entry
         for (const s of bodyFat) {
-          const pct = Number(s.value);
+          // react-native-health returns body fat samples as a 0–1 fraction.
+          const raw = Number(s.value);
+          const pct = raw > 0 && raw <= 1 ? raw * 100 : raw;
           const date = dateOf(s.startDate);
-          if (date && pct > 0) {
+          if (date && pct >= 2 && pct <= 70) {
             const entry = byDate.get(date) ?? {};
             entry.bodyFatPct = Math.round(pct * 10) / 10;
             byDate.set(date, entry);

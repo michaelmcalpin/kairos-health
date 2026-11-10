@@ -24,6 +24,7 @@ import { logger } from "@/lib/middleware/logger";
 import { decryptToken, encryptToken } from "@/lib/crypto";
 import { fetchHumeHealthData } from "@/lib/integrations/devices/clients/hume";
 import { upsertDailyMetrics } from "@/server/services/health-metrics";
+import { normalizeBodyFatPct } from "@/server/services/health-metrics";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -672,7 +673,7 @@ async function insertBodyMeasurements(database: Database, userId: string, record
       clientId: userId,
       date: r.date,
       weightLbs: r.weightLbs ?? null,
-      bodyFatPct: r.bodyFatPct ?? null,
+      bodyFatPct: normalizeBodyFatPct(r.bodyFatPct),
       source: r.source,
     })),
   );

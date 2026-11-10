@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { DollarSign, TrendingUp, Info } from "lucide-react";
+import { DollarSign, Info } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { TIER_LABELS } from "@/lib/coach-clients/types";
 
@@ -56,7 +56,7 @@ export default function RevenueCoachPage() {
       <div className="flex items-start gap-3 kairos-card p-4 border border-amber-500/30 bg-amber-500/5">
         <Info className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
         <p className="text-sm font-body text-kairos-silver-dark">
-          Revenue estimates based on subscription tiers. Actual billing integration coming soon.
+          Estimated from each client’s subscription tier (Beta, not yet connected to billing).
         </p>
       </div>
 
@@ -95,17 +95,6 @@ export default function RevenueCoachPage() {
         )}
       </div>
 
-      {/* Monthly Revenue Trend -- placeholder until billing is integrated */}
-      <div className="kairos-card p-6 border border-kairos-border">
-        <h2 className="font-heading font-bold text-xl text-white mb-4">Monthly Revenue Trend</h2>
-        <div className="h-48 flex flex-col items-center justify-center text-center">
-          <TrendingUp className="w-10 h-10 text-kairos-silver-dark mb-3 opacity-40" />
-          <p className="text-sm font-body text-kairos-silver-dark">Revenue tracking coming soon</p>
-          <p className="text-xs font-body text-kairos-silver-dark mt-1">
-            Monthly trend data will appear here once billing is integrated.
-          </p>
-        </div>
-      </div>
 
       {/* Revenue by Client Table */}
       <div className="kairos-card p-6 border border-kairos-border">
@@ -175,17 +164,6 @@ export default function RevenueCoachPage() {
         )}
       </div>
 
-      {/* Recent Transactions -- placeholder until billing is integrated */}
-      <div className="kairos-card p-6 border border-kairos-border">
-        <h2 className="font-heading font-bold text-xl text-white mb-4">Recent Transactions</h2>
-        <div className="h-32 flex flex-col items-center justify-center text-center">
-          <DollarSign className="w-10 h-10 text-kairos-silver-dark mb-3 opacity-40" />
-          <p className="text-sm font-body text-kairos-silver-dark">Transaction history coming soon</p>
-          <p className="text-xs font-body text-kairos-silver-dark mt-1">
-            Payment transactions will appear here once billing is integrated.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

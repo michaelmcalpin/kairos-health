@@ -179,12 +179,6 @@ export default function CoachMetricsPage() {
     };
   }, [clientsList]);
 
-  // Monthly trends — placeholder until historical data tracking is built
-  const monthlyTrend: { month: string; revenue: number; sessions: number }[] = [];
-
-  // Protocol performance — requires real protocol tracking (not yet available)
-  const protocols: { name: string; clientCount: number; outcomeScore: number; adherenceRate: number }[] = [];
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -297,100 +291,6 @@ export default function CoachMetricsPage() {
             )}
           </div>
 
-          {/* Monthly Trends */}
-          <div className="kairos-card p-8 border border-kairos-border animate-fade-in">
-            <div className="flex items-center gap-3 mb-6">
-              <TrendingUp className="w-6 h-6 text-kairos-gold" />
-              <h2 className="text-xl font-bold font-heading text-white">Monthly Trends (Last 6 Months)</h2>
-              <span className="ml-auto px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                Sample Data
-              </span>
-            </div>
-            <p className="text-xs text-kairos-silver-dark mb-4 -mt-2">
-              Historical data is not yet available. Values shown are flat projections based on current month.
-            </p>
-
-            {isLoading ? (
-              <div className="space-y-8">
-                <div className="h-48 bg-kairos-dark rounded" />
-                <div className="h-48 bg-kairos-dark rounded" />
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {/* Revenue Chart */}
-                <div>
-                  <h3 className="kairos-label text-sm text-kairos-silver-dark mb-4">Monthly Revenue</h3>
-                  <div className="flex items-end justify-between gap-2 h-48 px-2">
-                    {monthlyTrend.length > 0 ? (
-                      monthlyTrend.map((d) => {
-                        const maxRev = Math.max(...monthlyTrend.map((m) => m.revenue), 1);
-                        return (
-                          <div key={d.month} className="flex-1 flex flex-col items-center gap-2">
-                            <svg width="100%" height="180" className="mb-2">
-                              <rect
-                                x="10%"
-                                y={180 - (d.revenue / maxRev) * 180}
-                                width="80%"
-                                height={(d.revenue / maxRev) * 180}
-                                fill="url(#goldGradient)"
-                                rx="4"
-                              />
-                              <defs>
-                                <linearGradient id="goldGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                  <stop offset="0%" stopColor="rgb(var(--k-accent))" />
-                                  <stop offset="100%" stopColor="rgb(var(--k-accent-deep))" />
-                                </linearGradient>
-                              </defs>
-                            </svg>
-                            <span className="text-xs text-kairos-silver-dark">{d.month}</span>
-                            <span className="text-xs font-semibold text-kairos-gold">${(d.revenue / 1000).toFixed(1)}k</span>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <p className="text-kairos-silver-dark">No data available</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Sessions Chart */}
-                <div>
-                  <h3 className="kairos-label text-sm text-kairos-silver-dark mb-4">Monthly Sessions</h3>
-                  <div className="flex items-end justify-between gap-2 h-48 px-2">
-                    {monthlyTrend.length > 0 ? (
-                      monthlyTrend.map((d) => {
-                        const maxSess = Math.max(...monthlyTrend.map((m) => m.sessions), 1);
-                        return (
-                          <div key={d.month} className="flex-1 flex flex-col items-center gap-2">
-                            <svg width="100%" height="180" className="mb-2">
-                              <rect
-                                x="10%"
-                                y={180 - (d.sessions / maxSess) * 180}
-                                width="80%"
-                                height={(d.sessions / maxSess) * 180}
-                                fill="url(#silverGradient)"
-                                rx="4"
-                              />
-                              <defs>
-                                <linearGradient id="silverGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                  <stop offset="0%" stopColor="rgb(var(--k-text))" />
-                                  <stop offset="100%" stopColor="rgb(158, 158, 158)" />
-                                </linearGradient>
-                              </defs>
-                            </svg>
-                            <span className="text-xs text-kairos-silver-dark">{d.month}</span>
-                            <span className="text-xs font-semibold text-kairos-silver">{d.sessions}</span>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <p className="text-kairos-silver-dark">No data available</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Top Performing Clients and At-Risk Clients */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -466,84 +366,6 @@ export default function CoachMetricsPage() {
             </div>
           </div>
 
-          {/* Protocol Effectiveness */}
-          <div className="kairos-card p-8 border border-kairos-border animate-fade-in">
-            <div className="flex items-center gap-3 mb-6">
-              <Target className="w-6 h-6 text-kairos-gold" />
-              <h2 className="text-xl font-bold font-heading text-white">Protocol Effectiveness Summary</h2>
-              <span className="ml-auto px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                Sample Data
-              </span>
-            </div>
-            <p className="text-xs text-kairos-silver-dark mb-4 -mt-2">
-              Protocol tracking is not yet supported by the backend. Names, scores, and adherence rates shown below are illustrative only.
-            </p>
-            {isLoading ? (
-              <div className="space-y-6">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-24 bg-kairos-dark rounded" />
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {protocols.length === 0 && (
-                  <div className="text-center py-8">
-                    <p className="text-kairos-silver-dark text-sm">Protocol performance tracking coming soon.</p>
-                    <p className="text-kairos-silver-dark text-xs mt-1">Data will appear once protocol tracking is enabled.</p>
-                  </div>
-                )}
-                {protocols.map((protocol) => (
-                  <div key={protocol.name} className="border-b border-kairos-border last:border-b-0 pb-6 last:pb-0">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-white font-semibold text-sm mb-1">{protocol.name}</h3>
-                        <p className="text-kairos-silver-dark text-xs">{protocol.clientCount} clients enrolled</p>
-                      </div>
-                      <span className="kairos-badge-gold px-3 py-1 rounded-kairos-sm text-kairos-dark text-xs font-semibold">
-                        {protocol.outcomeScore.toFixed(1)}/10
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="kairos-label text-xs mb-2">Adherence Rate</p>
-                        <div
-                          className="w-full h-2 bg-kairos-dark border border-kairos-border rounded-full overflow-hidden"
-                          role="progressbar"
-                          aria-valuenow={protocol.adherenceRate}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-label={`Adherence rate: ${protocol.adherenceRate}%`}
-                        >
-                          <div
-                            className="h-full bg-gradient-to-r from-kairos-gold to-amber-500 transition-all"
-                            style={{ width: `${protocol.adherenceRate}%` }}
-                          />
-                        </div>
-                        <p className="text-kairos-gold text-sm font-semibold mt-1">{protocol.adherenceRate}%</p>
-                      </div>
-                      <div>
-                        <p className="kairos-label text-xs mb-2">Outcome Score</p>
-                        <div
-                          className="w-full h-2 bg-kairos-dark border border-kairos-border rounded-full overflow-hidden"
-                          role="progressbar"
-                          aria-valuenow={Math.round((protocol.outcomeScore / 10) * 100)}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-label={`Outcome score: ${protocol.outcomeScore.toFixed(1)} out of 10`}
-                        >
-                          <div
-                            className="h-full bg-gradient-to-r from-kairos-gold to-amber-500 transition-all"
-                            style={{ width: `${(protocol.outcomeScore / 10) * 100}%` }}
-                          />
-                        </div>
-                        <p className="text-kairos-gold text-sm font-semibold mt-1">{protocol.outcomeScore.toFixed(1)}/10</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       ) : (
         <div className="space-y-8">

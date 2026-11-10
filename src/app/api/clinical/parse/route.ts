@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { decodeEntitiesDeep } from "@/lib/text/entities";
 import { ANTHROPIC_MODEL } from "@/lib/ai/model";
 import { auth } from "@clerk/nextjs/server";
 import { callWithRetry } from "@/lib/ai/retry";
@@ -318,7 +319,8 @@ export async function POST(req: NextRequest) {
       if (jsonStr.startsWith("```")) {
         jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
       }
-      parsed = JSON.parse(jsonStr);
+      // Parsers sometimes leave HTML entities ("&bull;") in text; decode them.
+      parsed = decodeEntitiesDeep(JSON.parse(jsonStr));
     } catch {
       return new Response(
         JSON.stringify({ error: "Failed to parse AI response", raw: textBlock.text.slice(0, 500) }),

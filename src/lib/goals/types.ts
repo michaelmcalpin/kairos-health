@@ -25,6 +25,14 @@ export interface GoalTarget {
   value: number;
   unit: string;
   direction: GoalDirection;
+  /** True when `value` is an amount to change by ("lose 10 lb"), not the end value. */
+  relative?: boolean;
+}
+
+/** Absolute target for a goal: start ∓ amount for relative goals, else the value itself. */
+export function resolveTargetValue(target: GoalTarget, startValue: number, amount = target.value): number {
+  if (!target.relative) return amount;
+  return target.direction === "decrease" ? startValue - amount : startValue + amount;
 }
 
 export interface GoalMilestone {
@@ -140,7 +148,7 @@ export const GOAL_TEMPLATES: GoalTemplate[] = [
     category: "weight",
     title: "Lose 10 Pounds",
     description: "Gradual, sustainable weight loss over time",
-    defaultTarget: { value: 10, unit: "lbs", direction: "decrease" },
+    defaultTarget: { value: 10, unit: "lbs", direction: "decrease", relative: true },
     suggestedMilestones: [
       { label: "-3 lbs", percent: 30 },
       { label: "-5 lbs", percent: 50 },

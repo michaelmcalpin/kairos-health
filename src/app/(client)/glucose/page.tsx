@@ -302,11 +302,11 @@ export default function GlucosePage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard label="Current" value={round(stats.current, 0)} unit="mg/dL" icon={<Droplets size={16} />} highlight />
-        <KPICard label="Average" value={round(stats.avg, 0)} unit="mg/dL" trend="flat" trendValue={formattedRange} />
-        <KPICard label="High" value={round(stats.max, 0)} unit="mg/dL" icon={<TrendingUp size={16} />} />
-        <KPICard label="Low" value={round(stats.min, 0)} unit="mg/dL" icon={<TrendingDown size={16} />} />
-        <KPICard label="Time in Range" value={round(stats.timeInRange, 0)} unit="%" icon={<Target size={16} />} highlight />
+        <KPICard label="Current" value={round(stats.current || null, 0)} unit="mg/dL" icon={<Droplets size={16} />} highlight />
+        <KPICard label="Average" value={round(stats.avg || null, 0)} unit="mg/dL" trend="flat" trendValue={formattedRange} />
+        <KPICard label="High" value={round(stats.max || null, 0)} unit="mg/dL" icon={<TrendingUp size={16} />} />
+        <KPICard label="Low" value={round(stats.min || null, 0)} unit="mg/dL" icon={<TrendingDown size={16} />} />
+        <KPICard label="Time in Range" value={stats.avg ? round(stats.timeInRange, 0) : round(null, 0)} unit="%" icon={<Target size={16} />} highlight />
         <KPICard label="Est. A1C" value={stats.avg ? ((Number(stats.avg) + 46.7) / 28.7).toFixed(1) : "---"} unit="%" trend="flat" trendValue="estimated" icon={<Clock size={16} />} />
       </div>
 
