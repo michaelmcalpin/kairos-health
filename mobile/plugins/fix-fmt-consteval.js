@@ -13,7 +13,11 @@
  *    compiler can't find the RCTReactNativeFactoryDelegate protocol.
  *    Fix: disable SWIFT_ENABLE_EXPLICIT_MODULES for all pods.
  *
- * Both fixes are injected AFTER react_native_post_install() so that
+ * 3. Deployment target too old — Xcode 27 SDKs only build iOS 15.0+, but some
+ *    pod sub-targets (e.g. RNSVG-RNSVGFilters) still declare iOS 12.4.
+ *    Fix: raise any pod below 15.1 to 15.1 (the app's own minimum).
+ *
+ * All fixes are injected AFTER react_native_post_install() so that
  * RN's own build-setting sweep doesn't overwrite our changes.
  *
  * Safe to remove once upgraded to Expo SDK 54+ (designed for Xcode 26).
@@ -60,6 +64,12 @@ function fixFmtConsteval(config) {
         "          bc.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']",
         "          bc.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_USE_CONSTEVAL=0'",
         "          bc.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'",
+        "        end",
+        "",
+        "        # Fix 3: newer Xcode SDKs reject pods targeting iOS < 15",
+        "        dt = bc.build_settings['IPHONEOS_DEPLOYMENT_TARGET']",
+        "        if dt.nil? || dt.to_f < 15.1",
+        "          bc.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'",
         "        end",
         "      end",
         "    end",
@@ -113,6 +123,8 @@ function fixFmtConsteval(config) {
           "        bc.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FMT_USE_CONSTEVAL=0'",
           "        bc.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'",
           "      end",
+          "      dt = bc.build_settings['IPHONEOS_DEPLOYMENT_TARGET']",
+          "      bc.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1' if dt.nil? || dt.to_f < 15.1",
           "    end",
           "  end",
           "end",
