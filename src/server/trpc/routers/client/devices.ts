@@ -18,6 +18,7 @@ import { eq, and, desc, gte, lte, inArray } from "drizzle-orm";
 import { PROVIDERS } from "@/lib/integrations/devices/providers";
 import { env } from "@/lib/config/env";
 import { syncProviderData } from "@/server/services/device-sync";
+import { upsertDailyMetrics, upsertWorkouts, replaceSleepSessions } from "@/server/services/health-metrics";
 
 /**
  * Sign OAuth state with HMAC to prevent tampering.  Uses CLERK_SECRET_KEY
@@ -366,6 +367,52 @@ export const clientDevicesRouter = router({
    * Returns counts per category and updates the apple_health
    * device connection's lastSyncAt.
    */
+  /**
+   * Full Apple Health ingest from the EveristHealthKit native module: one
+   * value per catalog metric per day (src/lib/health/metrics.ts), sleep
+   * nights with stages, and recorded workouts. Idempotent (upserts).
+   */
+  healthkitDailySync: clientProcedure
+    .input(z.object({
+      metrics: z.array(z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        metric: z.string().max(60),
+        value: z.number(),
+      })).max(2000),
+      sleep: z.array(z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        totalMinutes: z.number(),
+        deepMinutes: z.number().optional(),
+        remMinutes: z.number().optional(),
+        lightMinutes: z.number().optional(),
+        awakeMinutes: z.number().optional(),
+        bedtime: z.string().max(10).optional(),
+        wakeTime: z.string().max(10).optional(),
+      })).max(400).default([]),
+      workouts: z.array(z.object({
+        externalId: z.string().max(80),
+        activity: z.string().max(60),
+        startAt: z.string(),
+        endAt: z.string(),
+        durationMin: z.number().optional(),
+        energyKcal: z.number().optional(),
+        distanceM: z.number().optional(),
+        avgHr: z.number().optional(),
+        maxHr: z.number().optional(),
+      })).max(500).default([]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const SOURCE = "apple_health";
+      const metrics = await upsertDailyMetrics(ctx.db, ctx.dbUserId, SOURCE, input.metrics);
+      const sleep = await replaceSleepSessions(ctx.db, ctx.dbUserId, SOURCE, input.sleep).catch(() => 0);
+      const workouts = await upsertWorkouts(ctx.db, ctx.dbUserId, SOURCE, input.workouts);
+      await ctx.db.update(deviceConnections)
+        .set({ lastSyncAt: new Date() })
+        .where(and(eq(deviceConnections.clientId, ctx.dbUserId), eq(deviceConnections.provider, "apple_health")))
+        .catch(() => {});
+      return { metrics, sleep, workouts };
+    }),
+
   healthkitSync: clientProcedure
     .input(
       z.object({

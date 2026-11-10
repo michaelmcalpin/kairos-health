@@ -1,14 +1,14 @@
 /**
  * Everist LifeScore™ scoring service.
  *
- * Composite 0–100 wellbeing score across five dimensions:
- *   body, mind, purpose, relationships, work.
+ * Core LifeScore (0–100) = 60% Physical + 40% Mental.
  *
- * - Body is auto-derived from health data (adherence + daily check-in vitals)
- *   lightly blended with an optional Body self-rating.
- * - Mind / Purpose / Relationships / Work come from the daily 1–5 dimension
- *   ratings, nudged by recent journal valence.
- * - Composite is a coach-adjustable weighted average (default equal).
+ * - Physical (see physical.ts): health data from Oura / Apple Health / other
+ *   devices, labs, medication & supplement adherence, and genetics
+ *   follow-through. Reported as the "body" dimension too, for older screens.
+ * - Mental: Mind / Purpose / Relationships / Work from the daily 1–5 ratings,
+ *   nudged by recent journal valence, weighted by the coach-adjustable weights.
+ * - If only one side has data, Core is that side.
  * - Shown as a 7-day rolling average so one rough day never crashes the number.
  * - A skipped dimension DROPS OUT of the average — it never scores 0. A low
  *   score must mean "reported low," never "didn't log."
@@ -28,6 +28,13 @@ import {
   type LifeDimension,
 } from "@/server/db/schema";
 import { computeAdherence } from "@/server/trpc/routers/client/today";
+import { computePhysical, type PhysicalPart, type MetricScore } from "./physical";
+
+/** Core = Physical × 0.6 + Mental × 0.4 (fixed). */
+export const CORE_WEIGHTS = { physical: 60, mental: 40 } as const;
+const MENTAL_DIMENSIONS: LifeDimension[] = ["mind", "purpose", "relationships", "work"];
+
+export interface SideResult { score: number | null; sentiment: Sentiment }
 
 export type Sentiment = "well" | "steady" | "struggling" | "no_data";
 
@@ -41,8 +48,10 @@ export interface DimensionResult {
 }
 
 export interface LifeScoreResult {
-  /** Composite 0–100, or null when no dimension has data. */
+  /** Core LifeScore 0–100 (60% Physical + 40% Mental), or null with no data. */
   score: number | null;
+  physical: SideResult & { parts: PhysicalPart[]; focus: MetricScore[]; strengths: MetricScore[] };
+  mental: SideResult;
   dimensions: DimensionResult[];
   hasData: boolean;
   windowDays: number;
@@ -180,6 +189,21 @@ export async function computeLifeScore(
     dimensions.push({ dimension: dim, score, sentiment, weight: 0 });
   }
 
+  // ── Physical: replaces the old check-in-only Body score ──
+  const physical = await computePhysical(db, clientId, endDate, {
+    windowDays: CURRENT_WINDOW,
+    feelScores: dailyScoresFor("body", currentStart),
+  }).catch(() => null);
+  const body = dimensions.find((d) => d.dimension === "body")!;
+  if (physical?.score != null) {
+    body.score = physical.score;
+    const bodyBase = mean(dailyScoresFor("body", baselineStart));
+    const base = physical.baselineHealthScore ?? bodyBase;
+    const delta = base != null ? physical.score - base : 0;
+    body.sentiment = physical.score < 45 || delta <= -8 ? "struggling"
+      : (physical.score >= 70 && delta >= 4) || delta >= 8 ? "well" : "steady";
+  }
+
   // ── Weights (normalized) ──
   const rawWeights: Record<LifeDimension, number> = {
     body: weightsRow?.body ?? 20,
@@ -190,24 +214,51 @@ export async function computeLifeScore(
   };
   // Only dimensions with a score participate in the composite; renormalize
   // across those so a skipped dimension never drags the total down.
+  const mentalScored = dimensions.filter((d) => MENTAL_DIMENSIONS.includes(d.dimension) && d.score != null);
+  const totalW = mentalScored.reduce((s, d) => s + (rawWeights[d.dimension] || 0), 0);
   const scored = dimensions.filter((d) => d.score != null);
-  const totalW = scored.reduce((s, d) => s + (rawWeights[d.dimension] || 0), 0);
 
-  let composite: number | null = null;
-  if (scored.length > 0 && totalW > 0) {
-    composite = clamp(
-      scored.reduce((s, d) => s + (d.score as number) * (rawWeights[d.dimension] || 0), 0) / totalW,
+  let mentalScore: number | null = null;
+  if (mentalScored.length > 0 && totalW > 0) {
+    mentalScore = clamp(
+      mentalScored.reduce((s, d) => s + (d.score as number) * (rawWeights[d.dimension] || 0), 0) / totalW,
     );
   }
 
-  // Report each dimension's normalized weight (across all five) for display.
-  const allTotal = LIFE_DIMENSIONS.reduce((s, d) => s + (rawWeights[d] || 0), 0) || 1;
+  // Each dimension's share of the Core score, for display: Body is Physical
+  // (60%); the four mental areas split the 40% by their coach weights.
+  const mentalTotal = MENTAL_DIMENSIONS.reduce((s, d) => s + (rawWeights[d] || 0), 0) || 1;
   for (const d of dimensions) {
-    d.weight = Math.round(((rawWeights[d.dimension] || 0) / allTotal) * 100);
+    d.weight = d.dimension === "body"
+      ? CORE_WEIGHTS.physical
+      : Math.round(((rawWeights[d.dimension] || 0) / mentalTotal) * CORE_WEIGHTS.mental);
   }
 
+  // Mental sentiment: the worst-off area leads (one struggling area is worth flagging).
+  const mentalSentiments = mentalScored.map((d) => d.sentiment);
+  const mentalSentiment: Sentiment = mentalScored.length === 0 ? "no_data"
+    : mentalSentiments.includes("struggling") ? "struggling"
+    : mentalSentiments.filter((x) => x === "well").length * 2 >= mentalSentiments.length ? "well" : "steady";
+
+  const physicalScore = body.score;
+  let composite: number | null = null;
+  if (physicalScore != null && mentalScore != null) {
+    composite = clamp((physicalScore * CORE_WEIGHTS.physical + mentalScore * CORE_WEIGHTS.mental) / 100);
+  } else {
+    composite = physicalScore ?? mentalScore;
+  }
+
+  const metrics = physical?.metrics ?? [];
   return {
     score: composite,
+    physical: {
+      score: physicalScore,
+      sentiment: body.sentiment,
+      parts: physical?.parts ?? [],
+      focus: metrics.filter((m) => m.score < 70).slice(0, 4),
+      strengths: [...metrics].reverse().filter((m) => m.score >= 85).slice(0, 4),
+    },
+    mental: { score: mentalScore, sentiment: mentalSentiment },
     dimensions,
     hasData: scored.length > 0,
     windowDays: CURRENT_WINDOW,

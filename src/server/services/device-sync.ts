@@ -23,6 +23,7 @@ import { PROVIDERS, getProviderEnvKeys } from "@/lib/integrations/devices/provid
 import { logger } from "@/lib/middleware/logger";
 import { decryptToken, encryptToken } from "@/lib/crypto";
 import { fetchHumeHealthData } from "@/lib/integrations/devices/clients/hume";
+import { upsertDailyMetrics } from "@/server/services/health-metrics";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -190,33 +191,90 @@ async function fetchOuraData(token: string): Promise<{
   sleep: NormalizedSleep[];
   heartRate: NormalizedHeartRate[];
   activity: NormalizedActivity[];
+  daily: Array<{ date: string; metric: string; value: number }>;
 }> {
-  const startDate = daysAgo(1);
+  // A few days back so a late ring sync is still picked up; upserts make this safe.
+  const startDate = daysAgo(3);
   const endDate = today();
   const headers = bearerHeaders(token);
+  const base = "https://api.ouraring.com/v2/usercollection";
 
-  // Fetch sleep, heart rate, and activity in parallel
-  const [sleepRes, hrRes, activityRes] = await Promise.all([
-    apiFetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${startDate}&end_date=${endDate}`, { headers }),
-    apiFetch(`https://api.ouraring.com/v2/usercollection/heartrate?start_datetime=${startDate}T00:00:00&end_datetime=${endDate}T23:59:59`, { headers }),
-    apiFetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${startDate}&end_date=${endDate}`, { headers }),
+  // Required endpoints throw (so an expired token triggers a refresh).
+  const [dailySleepRes, hrRes, activityRes] = await Promise.all([
+    apiFetch(`${base}/daily_sleep?start_date=${startDate}&end_date=${endDate}`, { headers }),
+    apiFetch(`${base}/heartrate?start_datetime=${startDate}T00:00:00&end_datetime=${endDate}T23:59:59`, { headers }),
+    apiFetch(`${base}/daily_activity?start_date=${startDate}&end_date=${endDate}`, { headers }),
+  ]);
+  // Optional endpoints: a missing scope must not fail the whole sync.
+  const optional = (url: string) =>
+    apiFetch(url, { headers }).then((r) => r.json()).catch(() => ({ data: [] as any[] }));
+  const [periodsData, readinessData, spo2Data] = await Promise.all([
+    optional(`${base}/sleep?start_date=${startDate}&end_date=${endDate}`),
+    optional(`${base}/daily_readiness?start_date=${startDate}&end_date=${endDate}`),
+    optional(`${base}/daily_spo2?start_date=${startDate}&end_date=${endDate}`),
   ]);
 
-  const sleepData = await sleepRes.json();
+  const dailySleep = await dailySleepRes.json();
   const hrData = await hrRes.json();
   const activityData = await activityRes.json();
 
-  // Normalize sleep
-  const sleep: NormalizedSleep[] = (sleepData.data ?? []).map((s: any) => ({
-    date: s.day ?? startDate,
-    totalMinutes: s.contributors?.total_sleep ? Math.round(s.contributors.total_sleep / 60) : undefined,
-    deepMinutes: s.contributors?.deep_sleep ? Math.round(s.contributors.deep_sleep / 60) : undefined,
-    remMinutes: s.contributors?.rem_sleep ? Math.round(s.contributors.rem_sleep / 60) : undefined,
-    lightMinutes: s.contributors?.light_sleep ? Math.round(s.contributors.light_sleep / 60) : undefined,
-    awakeMinutes: s.contributors?.awake_time ? Math.round(s.contributors.awake_time / 60) : undefined,
-    score: s.score ?? undefined,
-    source: "oura",
-  }));
+  const daily: Array<{ date: string; metric: string; value: number }> = [];
+  const put = (date: string | undefined, metric: string, value: unknown) => {
+    const v = typeof value === "number" ? value : null;
+    if (date && v != null && Number.isFinite(v)) daily.push({ date, metric, value: v });
+  };
+
+  // Sleep durations come from sleep PERIODS (seconds). The daily_sleep
+  // "contributors" are 0–100 sub-scores, not durations, so only its score is used.
+  const scoreByDay = new Map<string, number>();
+  for (const s of dailySleep.data ?? []) if (s.day && s.score != null) scoreByDay.set(s.day, s.score);
+
+  const mainByDay = new Map<string, any>();
+  for (const p of periodsData.data ?? []) {
+    if (!p.day || (p.type && p.type !== "long_sleep" && p.type !== "sleep")) continue;
+    const prev = mainByDay.get(p.day);
+    if (!prev || (p.total_sleep_duration ?? 0) > (prev.total_sleep_duration ?? 0)) mainByDay.set(p.day, p);
+  }
+  const mins = (sec: unknown) => (typeof sec === "number" ? Math.round(sec / 60) : undefined);
+  const hhmm = (iso: unknown) => (typeof iso === "string" && iso.length >= 16 ? iso.slice(11, 16) : undefined);
+
+  const sleep: NormalizedSleep[] = [];
+  for (const [day, p] of Array.from(mainByDay)) {
+    const total = mins(p.total_sleep_duration);
+    sleep.push({
+      date: day,
+      totalMinutes: total,
+      deepMinutes: mins(p.deep_sleep_duration),
+      remMinutes: mins(p.rem_sleep_duration),
+      lightMinutes: mins(p.light_sleep_duration),
+      awakeMinutes: mins(p.awake_time),
+      bedtime: hhmm(p.bedtime_start),
+      wakeTime: hhmm(p.bedtime_end),
+      score: scoreByDay.get(day),
+      source: "oura",
+    });
+    put(day, "sleep_total_min", total);
+    put(day, "sleep_deep_min", mins(p.deep_sleep_duration));
+    put(day, "sleep_rem_min", mins(p.rem_sleep_duration));
+    put(day, "sleep_core_min", mins(p.light_sleep_duration));
+    put(day, "sleep_awake_min", mins(p.awake_time));
+    put(day, "sleep_in_bed_min", mins(p.time_in_bed));
+    put(day, "hrv", p.average_hrv);
+    put(day, "resting_hr", p.lowest_heart_rate);
+    put(day, "respiratory_rate", p.average_breath);
+  }
+  // Score-only days (no period data in scope) still get a score.
+  for (const [day, score] of Array.from(scoreByDay)) {
+    put(day, "sleep_score", score);
+    if (!mainByDay.has(day)) sleep.push({ date: day, score, source: "oura" });
+  }
+
+  for (const r of readinessData.data ?? []) {
+    put(r.day, "readiness", r.score);
+    // Oura reports °C deviation; we store °F.
+    if (typeof r.temperature_deviation === "number") put(r.day, "temp_deviation", r.temperature_deviation * 1.8);
+  }
+  for (const o of spo2Data.data ?? []) put(o.day, "spo2", o.spo2_percentage?.average);
 
   // Normalize heart rate (sample up to 100 readings to avoid flooding)
   const hrSamples = (hrData.data ?? []).slice(0, 100);
@@ -227,16 +285,21 @@ async function fetchOuraData(token: string): Promise<{
     activityContext: hr.source ?? undefined,
   }));
 
-  // Normalize activity
-  const activity: NormalizedActivity[] = (activityData.data ?? []).map((a: any) => ({
-    date: a.day ?? startDate,
-    steps: a.steps ?? undefined,
-    caloriesActive: a.active_calories ?? undefined,
-    exerciseMinutes: a.high_activity_time ? Math.round(a.high_activity_time / 60) : undefined,
-    source: "oura",
-  }));
+  const activity: NormalizedActivity[] = (activityData.data ?? []).map((a: any) => {
+    const exercise = Math.round(((a.high_activity_time ?? 0) + (a.medium_activity_time ?? 0)) / 60);
+    put(a.day, "steps", a.steps);
+    put(a.day, "active_kcal", a.active_calories);
+    put(a.day, "exercise_min", exercise);
+    return {
+      date: a.day ?? startDate,
+      steps: a.steps ?? undefined,
+      caloriesActive: a.active_calories ?? undefined,
+      exerciseMinutes: exercise,
+      source: "oura",
+    };
+  });
 
-  return { sleep, heartRate, activity };
+  return { sleep, heartRate, activity, daily };
 }
 
 // ─── Provider: WHOOP ────────────────────────────────────────────────────────
@@ -706,6 +769,7 @@ export async function syncProviderData(
           insertSleep(db, userId, data.sleep),
           insertHeartRate(db, userId, data.heartRate),
           insertActivity(db, userId, data.activity),
+          upsertDailyMetrics(db, userId, "oura", data.daily).catch(() => 0),
         ]);
         result.recordsSynced = counts.reduce((a, b) => a + b, 0);
         result.success = true;

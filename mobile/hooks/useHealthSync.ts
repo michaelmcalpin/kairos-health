@@ -10,6 +10,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Alert, Platform } from "react-native";
 import { trpc } from "@/lib/api";
 import * as HealthKit from "@/lib/healthkit";
+import * as FullSync from "@/lib/health/full-sync";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // useHealthKitStatus — check and request HealthKit permissions
@@ -48,6 +49,8 @@ export function useHealthKitStatus() {
     setIsChecking(true);
     try {
       const result = await HealthKit.requestHealthKitPermissions();
+      // Then ask for the full catalog (one Apple sheet listing every type).
+      if (result.isAuthorized) await FullSync.ensureFullAuthorization(true).catch(() => false);
       setStatus(result);
       return result;
     } finally {
@@ -107,6 +110,8 @@ export function useHealthSync() {
 
   // Single bulk-ingest mutation — replaces the old per-category mutations
   const healthkitSync = trpc.clientPortal.devices.healthkitSync.useMutation();
+  // Every catalog metric + sleep stages + workouts (needs the EveristHealthKit native module).
+  const healthkitDailySync = trpc.clientPortal.devices.healthkitDailySync.useMutation();
 
   /**
    * Read the last 7 days of health data from HealthKit and push it to
@@ -185,9 +190,11 @@ export function useHealthSync() {
         HealthKit.readHealthData("HKQuantityTypeIdentifierBodyTemperature", windowStart),
       ]);
 
-      // ── Heart rate: per-sample, plus resting + walking-average HR folded in ──
+      // ── Heart rate: per-sample. Resting + walking HR are stored as their own
+      // daily metrics by the full sync; only fold them in on old binaries. ──
+      const fullSyncAvailable = FullSync.isFullSyncAvailable();
       const heartRatePayload: { timestamp: string; bpm: number }[] = [];
-      for (const s of [...heartRate, ...restingHR, ...walkingHR]) {
+      for (const s of fullSyncAvailable ? heartRate : [...heartRate, ...restingHR, ...walkingHR]) {
         const bpm = Number(s.value);
         if (s.startDate && bpm > 0) {
           heartRatePayload.push({ timestamp: s.startDate, bpm: Math.round(bpm) });
@@ -447,7 +454,30 @@ export function useHealthSync() {
       if (vo2maxPayload.length > 0) payload.vo2max = vo2maxPayload.slice(0, 2000);
       if (bodyTempPayload.length > 0) payload.bodyTemp = bodyTempPayload.slice(0, 2000);
 
+      // ── Full catalog read (all Apple Health types, sleep stages, workouts) ──
+      let fullCount = 0;
+      if (fullSyncAvailable) {
+        try {
+          const full = await FullSync.readFullPayload();
+          if (full && (full.metrics.length || full.sleep.length || full.workouts.length)) {
+            for (const chunk of FullSync.chunkPayload(full)) {
+              const res: any = await healthkitDailySync.mutateAsync(chunk);
+              fullCount += Number(res?.metrics ?? 0) + Number(res?.workouts ?? 0);
+            }
+            await FullSync.markBackfilled();
+          }
+        } catch (e) {
+          // Never let the extended read sink the core sync.
+          console.warn("[health] full sync failed", e);
+        }
+      }
+
       if (Object.keys(payload).length === 0) {
+        if (fullCount > 0) {
+          setLastSyncTime(new Date().toISOString());
+          if (!silent) Alert.alert("Sync Complete", `Synced ${fullCount} daily health records from Apple Health.`);
+          return;
+        }
         if (!silent) {
           Alert.alert(
             "No New Data",
@@ -487,7 +517,7 @@ export function useHealthSync() {
         Alert.alert(
           "Sync Complete",
           summary.length > 0
-            ? `Synced ${total} records from Apple Health (${summary}).`
+            ? `Synced ${total} records from Apple Health (${summary})${fullCount ? `, plus ${fullCount} daily metrics and workouts` : ""}.`
             : "Sync finished, but no records were stored.",
         );
       }
@@ -501,7 +531,7 @@ export function useHealthSync() {
     } finally {
       setIsSyncing(false);
     }
-  }, [healthkitSync]);
+  }, [healthkitSync, healthkitDailySync]);
 
   return { syncFromHealthKit, isSyncing, lastSyncTime };
 }

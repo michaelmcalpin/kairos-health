@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { GeneticsReview } from "@/components/genetics/GeneticsReview";
+import { LifeScoreBreakdown } from "@/components/lifescore/LifeScoreBreakdown";
+import { HealthDataView } from "@/components/health/HealthDataView";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, MessageSquare, Settings, Calendar, Activity, TrendingUp,
@@ -25,10 +27,11 @@ import { round } from "@/lib/format/number";
 
 // ─── Types ──────────────────────────────────────────────────────
 
-type DataTab = "overview" | "glucose" | "sleep" | "hrv" | "bp" | "body" | "workouts" | "activity" | "fasting" | "goals" | "labs" | "nutrition" | "supplements" | "checkins" | "genetics" | "clinical" | "discussion";
+type DataTab = "overview" | "healthdata" | "glucose" | "sleep" | "hrv" | "bp" | "body" | "workouts" | "activity" | "fasting" | "goals" | "labs" | "nutrition" | "supplements" | "checkins" | "genetics" | "clinical" | "discussion";
 
 const DATA_TABS: { id: DataTab; label: string; icon: typeof Activity }[] = [
   { id: "overview", label: "Overview", icon: Activity },
+  { id: "healthdata", label: "Health Data", icon: Heart },
   { id: "glucose", label: "Glucose", icon: Droplets },
   { id: "sleep", label: "Sleep", icon: Moon },
   { id: "hrv", label: "HRV", icon: Heart },
@@ -70,6 +73,7 @@ const TAB_ACCESS_CATEGORY: Partial<Record<DataTab, AccessCategory>> = {
   genetics: "labs",
   clinical: "labs",
   glucose: "healthData",
+  healthdata: "healthData",
   sleep: "healthData",
   hrv: "healthData",
   bp: "healthData",
@@ -281,20 +285,6 @@ function AdherenceCard({ clientId }: { clientId: string }) {
   );
 }
 
-const LIFE_DIM_META: { key: string; label: string }[] = [
-  { key: "body", label: "Body" },
-  { key: "mind", label: "Mind" },
-  { key: "purpose", label: "Purpose" },
-  { key: "relationships", label: "Relationships" },
-  { key: "work", label: "Work" },
-];
-
-function lifeSentiment(s: string): { label: string; cls: string } {
-  if (s === "well") return { label: "Going well", cls: "text-green-400" };
-  if (s === "struggling") return { label: "Struggling", cls: "text-yellow-400" };
-  if (s === "steady") return { label: "Steady", cls: "text-gray-300" };
-  return { label: "No data", cls: "text-gray-600" };
-}
 
 // Coach LifeScore snapshot — composite + per-dimension score and directional
 // sentiment ONLY. No journal text, no themes, no personal detail: the coach
@@ -317,9 +307,6 @@ function LifeScoreCard({ clientId }: { clientId: string }) {
   }
 
   const data = q.data;
-  const byDim = new Map<string, { dimension: string; score: number | null; sentiment: string; weight: number }>(
-    (data?.dimensions ?? []).map((d) => [d.dimension as string, d]),
-  );
 
   return (
     <div className="kairos-card">
@@ -330,27 +317,9 @@ function LifeScoreCard({ clientId }: { clientId: string }) {
         <p className="text-xs text-gray-500 text-center py-4">No LifeScore activity yet</p>
       ) : (
         <>
-          <div className="flex items-baseline gap-2 mb-3">
-            <p className="text-2xl font-heading font-bold text-white">{data.score ?? "—"}</p>
-            <p className="text-[10px] text-gray-500 uppercase">Composite</p>
-          </div>
-          <div className="space-y-2">
-            {LIFE_DIM_META.map((m) => {
-              const d = byDim.get(m.key);
-              const sent = lifeSentiment(d?.sentiment ?? "no_data");
-              return (
-                <div key={m.key} className="flex items-center justify-between">
-                  <span className="text-xs text-gray-300">{m.label}</span>
-                  <span className="flex items-center gap-2">
-                    <span className={`text-xs font-semibold ${sent.cls}`}>{sent.label}</span>
-                    <span className="text-xs text-gray-500 w-6 text-right">{d?.score ?? "—"}</span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <LifeScoreBreakdown data={data} compact />
           <p className="text-[10px] text-gray-500 mt-3 leading-relaxed">
-            Scores and direction only — journal reflections stay private to your client.
+            Mental shows scores and direction only. Journal reflections stay private to your client.
           </p>
         </>
       )}
@@ -1888,6 +1857,16 @@ function BioCard({
   );
 }
 
+function CoachHealthData({ clientId }: { clientId: string }) {
+  const q = trpc.coach.clients.getClientHealthDataSummary.useQuery(
+    { clientId },
+    { staleTime: 60_000, refetchOnWindowFocus: false, retry: false },
+  );
+  if (q.isLoading) return <div className="kairos-card h-40 animate-pulse" />;
+  if (!q.data) return <div className="kairos-card p-6 text-center text-gray-500 text-sm">No device data available</div>;
+  return <HealthDataView data={q.data} />;
+}
+
 // ─── Tab Content ────────────────────────────────────────────────
 
 function TabContent({
@@ -2426,6 +2405,9 @@ function TabContent({
           />
         </div>
       );
+
+    case "healthdata":
+      return <CoachHealthData clientId={client.id} />;
 
     case "genetics":
       return (

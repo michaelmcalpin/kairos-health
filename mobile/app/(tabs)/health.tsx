@@ -241,6 +241,23 @@ export default function HealthScreen() {
           </View>
         )}
 
+        {/* ─── Everything from Apple Health / Oura ─── */}
+        <SectionHeader title="All Health Data" />
+        <Pressable onPress={() => router.push("/health/all" as any)}>
+          <Card style={styles.vitalsLinkCard}>
+            <View style={styles.vitalsLinkIconWrap}>
+              <Wind size={20} color="#5DCAA5" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.vitalsLinkTitle}>Every number your devices share</Text>
+              <Text style={styles.vitalsLinkSubtitle}>
+                Activity, heart, sleep stages, mobility, nutrition, workouts and more, with trends
+              </Text>
+            </View>
+            <ChevronRight size={20} color={Colors.silver} />
+          </Card>
+        </Pressable>
+
         {/* ─── Vitals link (SpO2 / respiratory / VO2max / temp) ─── */}
         <SectionHeader title="Vitals" />
         <Pressable onPress={() => router.push("/health/vitals" as any)}>

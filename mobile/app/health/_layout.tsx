@@ -34,6 +34,7 @@ export default function HealthLayout() {
         ),
       }}
     >
+      <Stack.Screen name="all" options={{ title: "All Health Data" }} />
       <Stack.Screen name="sleep" options={{ title: "Sleep" }} />
       <Stack.Screen name="glucose" options={{ title: "Glucose" }} />
       <Stack.Screen name="heart-rate" options={{ title: "Heart Rate" }} />

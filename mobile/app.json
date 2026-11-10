@@ -23,7 +23,7 @@
         "NSCameraUsageDescription": "Everist.ai uses the camera to scan health documents and capture progress photos.",
         "NSPhotoLibraryUsageDescription": "Everist.ai accesses your photo library to upload health documents and progress photos.",
         "NSFaceIDUsageDescription": "Everist.ai uses Face ID for secure authentication.",
-        "NSHealthShareUsageDescription": "Everist.ai reads your health data (steps, heart rate, sleep, weight, blood glucose, and more) to provide personalized longevity insights and track your wellness journey.",
+        "NSHealthShareUsageDescription": "Everist.ai reads the health data you choose to share (activity, workouts, heart, sleep stages, vitals, breathing, body measurements, mobility, nutrition, mindfulness, and cycle tracking) to build your LifeScore, show your trends, and personalize your coaching.",
         "NSHealthUpdateUsageDescription": "Everist.ai can write workout and body measurement data back to Apple Health.",
         "ITSAppUsesNonExemptEncryption": false
       }

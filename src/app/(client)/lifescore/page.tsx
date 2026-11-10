@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { HeartPulse, Brain, Compass, Users, Briefcase, Sparkles, Lock } from "lucide-react";
 
 import { trpc } from "@/lib/trpc";
+import { LifeScoreBreakdown } from "@/components/lifescore/LifeScoreBreakdown";
 import { cn } from "@/utils/cn";
 
 type Dimension = "body" | "mind" | "purpose" | "relationships" | "work";
@@ -15,28 +16,6 @@ const DIMENSIONS: { key: Dimension; label: string; scope: string; Icon: typeof H
   { key: "relationships", label: "Relationships", scope: "Family, friends, connection", Icon: Users, color: "#E78FB1" },
   { key: "work", label: "Work", scope: "Career, stress, stability", Icon: Briefcase, color: "#E0A24A" },
 ];
-
-function Ring({ score }: { score: number | null }) {
-  const size = 160, stroke = 13, r = (size - stroke) / 2;
-  const circ = 2 * Math.PI * r;
-  const pct = score == null ? 0 : Math.max(0, Math.min(100, score)) / 100;
-  return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <svg width={size} height={size}>
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="#1f2b45" strokeWidth={stroke} fill="none" />
-        <circle
-          cx={size / 2} cy={size / 2} r={r} stroke="#4A90D9" strokeWidth={stroke} fill="none"
-          strokeLinecap="round" strokeDasharray={`${circ * pct} ${circ}`}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-4xl font-heading font-bold text-white">{score == null ? "—" : score}</span>
-        <span className="text-xs text-gray-500 mt-1">LifeScore</span>
-      </div>
-    </div>
-  );
-}
 
 export default function LifeScorePage() {
   const utils = trpc.useUtils();
@@ -52,12 +31,6 @@ export default function LifeScorePage() {
   const saveJournal = trpc.clientPortal.lifeScore.saveJournal.useMutation();
 
   const score = scoreQuery.data;
-  const dimResults = useMemo(() => {
-    const m = new Map<string, { score: number | null; sentiment: string }>();
-    for (const d of score?.dimensions ?? []) m.set(d.dimension, { score: d.score, sentiment: d.sentiment });
-    return m;
-  }, [score]);
-
   const prompt = promptQuery.data;
   const history = historyQuery.data ?? [];
 
@@ -88,39 +61,18 @@ export default function LifeScorePage() {
       <div className="mb-6">
         <h1 className="text-2xl font-heading font-bold text-white">Everist LifeScore™</h1>
         <p className="text-gray-400 mt-1 max-w-2xl">
-          Your health is more than your body. LifeScore measures the five dimensions that shape how well you&apos;re actually living.
+          Your health is more than your body. Your Core LifeScore blends Physical health (60%: your devices, labs, medications and genetics) with Mental wellbeing (40%: mind, purpose, relationships and work).
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Score + dimensions */}
-        <div className="kairos-card">
+        <div className="kairos-card lg:col-span-2">
           {scoreQuery.isLoading ? (
             <div className="h-64 animate-pulse bg-gray-800/50 rounded-lg" />
           ) : (
             <>
-              <div className="flex justify-center mb-5">
-                <Ring score={score?.score ?? null} />
-              </div>
-              <div className="space-y-3">
-                {DIMENSIONS.map((d) => {
-                  const r = dimResults.get(d.key);
-                  const val = r?.score ?? null;
-                  return (
-                    <div key={d.key} className="flex items-center gap-3">
-                      <d.Icon size={16} style={{ color: d.color }} />
-                      <div className="flex-1">
-                        <div className="h-1.5 bg-kairos-royal-surface rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all duration-700"
-                            style={{ width: `${val ?? 0}%`, background: d.color }} />
-                        </div>
-                      </div>
-                      <span className="text-xs text-gray-300 w-24 text-right">{d.label}</span>
-                      <span className="text-sm font-semibold text-white w-8 text-right">{val ?? "—"}</span>
-                    </div>
-                  );
-                })}
-              </div>
+              {score && <LifeScoreBreakdown data={score} />}
               {!score?.hasData && (
                 <p className="text-xs text-gray-500 text-center mt-4">
                   Rate a few dimensions to start building your LifeScore.

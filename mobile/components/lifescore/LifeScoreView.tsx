@@ -4,7 +4,7 @@
  * Rendered as its own bottom-tab screen and reused elsewhere.
  */
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View, Text, ScrollView, StyleSheet, TextInput, Alert, ActivityIndicator,
   KeyboardAvoidingView, Platform, Keyboard, Pressable,
@@ -18,15 +18,8 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Colors, Spacing, FontSizes, Radii } from "@/lib/constants";
 import { trpc, DEFAULT_QUERY_OPTIONS } from "@/lib/api";
-import { DIMENSIONS, type Dimension } from "./dimensions";
 import { LifeScoreCheckinCard } from "./LifeScoreCheckinCard";
-
-function sentimentColor(s: string): string {
-  if (s === "well") return Colors.success;
-  if (s === "struggling") return Colors.warning;
-  if (s === "steady") return Colors.silver;
-  return Colors.border;
-}
+import { LifeScoreBreakdown, type BreakdownData } from "./LifeScoreBreakdown";
 
 function Ring({ score }: { score: number | null }) {
   const size = 148, stroke = 13, r = (size - stroke) / 2;
@@ -45,7 +38,7 @@ function Ring({ score }: { score: number | null }) {
       <View style={StyleSheet.absoluteFill as never}>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <Text style={styles.ringScore}>{score == null ? "—" : score}</Text>
-          <Text style={styles.ringLabel}>LifeScore</Text>
+          <Text style={styles.ringLabel}>Core LifeScore</Text>
         </View>
       </View>
     </View>
@@ -61,14 +54,7 @@ export default function LifeScoreView() {
   const historyQuery = trpc.clientPortal.lifeScore.getJournalHistory.useQuery({ limit: 10 }, DEFAULT_QUERY_OPTIONS);
   const saveJournal = trpc.clientPortal.lifeScore.saveJournal.useMutation();
 
-  const score = scoreQuery.data as
-    | { score: number | null; hasData: boolean; dimensions: { dimension: Dimension; score: number | null; sentiment: string; weight: number }[] }
-    | undefined;
-  const dimResults = useMemo(() => {
-    const m = new Map<string, { score: number | null; sentiment: string }>();
-    for (const d of score?.dimensions ?? []) m.set(d.dimension, { score: d.score, sentiment: d.sentiment });
-    return m;
-  }, [score]);
+  const score = scoreQuery.data as (BreakdownData & { score: number | null; hasData: boolean }) | undefined;
 
   const history = (historyQuery.data as { id: string; date: string; text: string; themes: { dimension: string; theme: string; valence: string }[] }[] | undefined) ?? [];
 
@@ -111,7 +97,7 @@ export default function LifeScoreView() {
         keyboardDismissMode="interactive"
       >
         <Text style={styles.tagline}>
-          Your health is more than your body. LifeScore measures the five dimensions that shape how well you&apos;re living.
+          Your health is more than your body. Your Core LifeScore blends Physical health (60%: devices, labs, medications, genetics) with Mental wellbeing (40%: mind, purpose, relationships, work).
         </Text>
 
         {/* Score ring + dimension breakdown */}
@@ -123,23 +109,7 @@ export default function LifeScoreView() {
               <View style={{ alignItems: "center", marginBottom: Spacing.md }}>
                 <Ring score={score?.score ?? null} />
               </View>
-              {DIMENSIONS.map((d) => {
-                const r = dimResults.get(d.key);
-                const val = r?.score ?? null;
-                const sent = r?.sentiment ?? "no_data";
-                return (
-                  <View key={d.key} style={styles.dimRow}>
-                    <d.Icon size={18} color={d.color} />
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.dimBarTrack}>
-                        <View style={[styles.dimBarFill, { width: `${val ?? 0}%`, backgroundColor: d.color }]} />
-                      </View>
-                    </View>
-                    <Text style={styles.dimLabel}>{d.label}</Text>
-                    <Text style={[styles.dimSent, { color: sentimentColor(sent) }]}>{val == null ? "—" : val}</Text>
-                  </View>
-                );
-              })}
+              {score && <LifeScoreBreakdown data={score} />}
               {!score?.hasData && (
                 <Text style={styles.emptyHint}>Rate a few areas below to start building your LifeScore.</Text>
               )}
@@ -215,11 +185,6 @@ const styles = StyleSheet.create({
   ringScore: { fontSize: 40, fontWeight: "700", color: Colors.white },
   ringLabel: { fontSize: FontSizes.xs, color: Colors.silver, marginTop: 2 },
 
-  dimRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginTop: Spacing.sm },
-  dimBarTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.navyLight, overflow: "hidden" },
-  dimBarFill: { height: 6, borderRadius: 3 },
-  dimLabel: { fontSize: FontSizes.xs, color: Colors.white, width: 84, textAlign: "right" },
-  dimSent: { fontSize: FontSizes.sm, fontWeight: "700", width: 30, textAlign: "right" },
   emptyHint: { fontSize: FontSizes.xs, color: Colors.silver, textAlign: "center", marginTop: Spacing.md },
 
   sectionTitle: { fontSize: FontSizes.lg, fontWeight: "600", color: Colors.white, marginBottom: Spacing.sm, marginTop: Spacing.xs },

@@ -330,6 +330,7 @@ export const clientNavItems: NavItem[] = [
   { label: "Appointments", href: "/appointments", icon: <CalendarCheck size={18} />, section: "Overview" },
 
   // Biometrics
+  { label: "Health Data", href: "/health-data", icon: <Heart size={18} />, section: "Biometrics" },
   { label: "Body Comp", href: "/measurements", icon: <Ruler size={18} />, section: "Biometrics" },
   { label: "Progress Photos", href: "/progress-photos", icon: <Camera size={18} />, section: "Biometrics" },
   { label: "Sleep & Recovery", href: "/sleep", icon: <Moon size={18} />, section: "Biometrics" },

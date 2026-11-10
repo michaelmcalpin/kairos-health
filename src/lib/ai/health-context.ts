@@ -1,3 +1,4 @@
+import { loadDailyMetrics, summarize } from "@/server/services/health-metrics";
 import { db } from "@/server/db";
 import {
   users,
@@ -911,6 +912,25 @@ export async function getClientContext(dbUserId: string) {
     sections.push(`## ADDITIONAL WEARABLE VITALS (Latest)\n${vitalLines.join("\n")}`);
   }
 
+  // ── 25b. All daily device metrics (Apple Health, Oura, …): 7- vs 30-day ──
+  try {
+    const endDate = new Date().toISOString().slice(0, 10);
+    const start = new Date(); start.setDate(start.getDate() - 29);
+    const groups = summarize(await loadDailyMetrics(db, dbUserId, start.toISOString().slice(0, 10), endDate), endDate);
+    const lines: string[] = [];
+    for (const g of groups) {
+      const items = g.metrics.map((m) => {
+        const f = (v: number | null) => (v == null ? "—" : v.toFixed(m.decimals));
+        const trend = m.trendPct != null && Math.abs(m.trendPct) >= 5 ? ` (${m.trendPct > 0 ? "+" : ""}${m.trendPct}% vs 30d)` : "";
+        return `${m.label} ${f(m.avg7)}${m.unit ? ` ${m.unit}` : ""} 7d avg / ${f(m.avg30)} 30d${trend}`;
+      });
+      lines.push(`  ${g.title}: ${items.join("; ")}`);
+    }
+    if (lines.length) sections.push(`## DAILY DEVICE METRICS (Apple Health, Oura, other devices)\n${lines.join("\n")}`);
+  } catch {
+    // Table may not be migrated yet; never block the AI context.
+  }
+
   // ── 26. Everist LifeScore (whole-person wellbeing) ──
   // Directional only: score + well/steady/struggling per dimension, plus how
   // many reflections leaned positive vs. challenging in each area. No specifics.
@@ -926,6 +946,10 @@ export async function getClientContext(dbUserId: string) {
         else if (t.valence === "negative") v.neg++;
       }
     }
+    lsLines.push(`  Core LifeScore: ${lifeScore.score ?? "no data"} (60% Physical + 40% Mental)`);
+    lsLines.push(`  Physical: ${lifeScore.physical.score ?? "no data"} | trend ${lifeScore.physical.sentiment} | ${lifeScore.physical.parts.filter((p) => p.score != null).map((p) => `${p.label} ${p.score}${p.detail ? ` (${p.detail})` : ""}`).join("; ") || "no parts"}`);
+    if (lifeScore.physical.focus.length) lsLines.push(`  Physical focus areas: ${lifeScore.physical.focus.map((m) => `${m.label} ${m.score}/100`).join(", ")}`);
+    lsLines.push(`  Mental: ${lifeScore.mental.score ?? "no data"} | trend ${lifeScore.mental.sentiment}`);
     for (const d of lifeScore.dimensions) {
       const label = d.dimension.charAt(0).toUpperCase() + d.dimension.slice(1);
       const parts = [`${label}: ${d.score ?? "no data"}${d.score != null ? "/100" : ""}`, `trend ${d.sentiment}`];

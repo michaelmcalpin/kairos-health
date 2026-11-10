@@ -283,6 +283,41 @@ export const vitalsReadings = pgTable("vitals_readings", {
   index("vitals_client_type_ts_idx").on(t.clientId, t.type, t.recordedAt),
 ]);
 
+// One number per metric per day per source (Apple Health, Oura, …). The metric
+// keys and units live in src/lib/health/metrics.ts.
+export const healthMetricDaily = pgTable("health_metric_daily", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  date: date("date").notNull(),
+  metric: varchar("metric", { length: 60 }).notNull(),
+  value: real("value").notNull(),
+  unit: varchar("unit", { length: 20 }),
+  source: varchar("source", { length: 30 }).notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("health_metric_daily_unique_idx").on(t.clientId, t.date, t.metric, t.source),
+  index("health_metric_daily_client_metric_idx").on(t.clientId, t.metric, t.date),
+]);
+
+// Workouts recorded by a watch/ring/phone (not coach-assigned programs).
+export const healthWorkouts = pgTable("health_workouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").notNull().references(() => users.id),
+  source: varchar("source", { length: 30 }).notNull(),
+  externalId: varchar("external_id", { length: 80 }).notNull(),
+  activity: varchar("activity", { length: 60 }).notNull(),
+  startAt: timestamp("start_at").notNull(),
+  endAt: timestamp("end_at").notNull(),
+  durationMin: real("duration_min"),
+  energyKcal: real("energy_kcal"),
+  distanceM: real("distance_m"),
+  avgHr: real("avg_hr"),
+  maxHr: real("max_hr"),
+}, (t) => [
+  uniqueIndex("health_workouts_unique_idx").on(t.clientId, t.source, t.externalId),
+  index("health_workouts_client_start_idx").on(t.clientId, t.startAt),
+]);
+
 // ======================== CLINICAL: LABS ========================
 export const labOrders = pgTable("lab_orders", {
   id: uuid("id").primaryKey().defaultRandom(),

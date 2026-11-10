@@ -6,6 +6,7 @@ import { sendInvitationEmail, sendClientCreatedEmail } from "@/lib/email";
 import { normalizeCoachAddCode } from "@/lib/coach-add-code";
 import { computeAdherence, computeToday } from "@/server/trpc/routers/client/today";
 import { computeLifeScore } from "@/lib/lifescore/score";
+import { healthDataSummary } from "@/server/trpc/routers/client/healthData";
 import {
   trainerClientRelationships,
   clientInvitations,
@@ -1766,6 +1767,15 @@ export const coachClientsRouter = router({
   // sentiment (well / steady / struggling). No journal text, no themes, no
   // personal detail — the coach sees whether each area is going well or
   // struggling, nothing more.
+  // Every daily health metric (Apple Health, Oura, other devices) with 7/30-day
+  // averages and trends, plus recent workouts.
+  getClientHealthDataSummary: trainerProcedure
+    .input(z.object({ clientId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      return healthDataSummary(ctx.db, input.clientId, new Date().toISOString().slice(0, 10));
+    }),
+
   getClientLifeScore: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -1776,6 +1786,16 @@ export const coachClientsRouter = router({
       return {
         score: result.score,
         hasData: result.hasData,
+        // Physical is built from data the coach already sees (devices, labs,
+        // protocol adherence, genetics). Mental stays score + sentiment only.
+        physical: {
+          score: result.physical.score,
+          sentiment: result.physical.sentiment,
+          parts: result.physical.parts.map((p) => ({ key: p.key, label: p.label, score: p.score, weight: p.weight, detail: p.detail })),
+          focus: result.physical.focus,
+          strengths: result.physical.strengths,
+        },
+        mental: { score: result.mental.score, sentiment: result.mental.sentiment },
         dimensions: result.dimensions.map((d) => ({
           dimension: d.dimension,
           score: d.score,
