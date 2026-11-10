@@ -80,7 +80,8 @@ export async function readFullPayload(): Promise<FullSyncPayload | null> {
     reportHealthDiag("native module not available in this build");
     return null;
   }
-  await ensureFullAuthorization();
+  // No permission prompt here: types the person hasn't allowed just return
+  // no data. Permissions are asked on Connect / "Share all Apple Health data".
 
   const backfilled = await SecureStore.getItemAsync(BACKFILL_KEY).catch(() => null);
   const days = backfilled ? ROUTINE_DAYS : BACKFILL_DAYS;
@@ -96,7 +97,7 @@ export async function readFullPayload(): Promise<FullSyncPayload | null> {
   for (let i = 0; i < quantityDefs.length; i += 8) {
     const batch = quantityDefs.slice(i, i + 8);
     const results = await Promise.all(batch.map((m) =>
-      HK.dailyStatistics(m.healthkit!.id, m.healthkit!.unit!, m.healthkit!.agg ?? "avg", start, end),
+      withTimeout(HK.dailyStatistics(m.healthkit!.id, m.healthkit!.unit!, m.healthkit!.agg ?? "avg", start, end), 20_000, []),
     ));
     batch.forEach((m, j) => {
       for (const r of results[j]) {
@@ -108,13 +109,13 @@ export async function readFullPayload(): Promise<FullSyncPayload | null> {
 
   // Category metrics (alerts, mindful minutes, stand hours, cycle).
   const categoryDefs = METRICS.filter((m) => m.healthkit?.kind === "category");
-  const categoryResults = await Promise.all(categoryDefs.map((m) => HK.categorySamples(m.healthkit!.id, start, end, 5000)));
+  const categoryResults = await Promise.all(categoryDefs.map((m) => withTimeout(HK.categorySamples(m.healthkit!.id, start, end, 5000), 20_000, [])));
   categoryDefs.forEach((m, j) => {
     metrics.push(...deriveCategoryDaily(m.key, m.healthkit!.id, m.healthkit!.categoryAgg ?? "count", categoryResults[j]));
   });
 
   // Sleep stages → daily sleep metrics + a sleep session row per night.
-  const sleepSamples = await HK.categorySamples(HK_SLEEP_ANALYSIS, start, end, 20000);
+  const sleepSamples = await withTimeout(HK.categorySamples(HK_SLEEP_ANALYSIS, start, end, 20000), 30_000, []);
   const sleepMetrics = deriveSleep(sleepSamples);
   metrics.push(...sleepMetrics.map(({ date, metric, value }) => ({ date, metric, value })));
   const nights = new Map<string, FullSyncPayload["sleep"][number]>();
@@ -129,7 +130,7 @@ export async function readFullPayload(): Promise<FullSyncPayload | null> {
   }
 
   // Workouts.
-  const rawWorkouts = await HK.workouts(start, end, 300);
+  const rawWorkouts = await withTimeout(HK.workouts(start, end, 300), 30_000, []);
   const workouts = rawWorkouts.map((w) => ({
     externalId: w.id,
     activity: workoutName(w.activityType),

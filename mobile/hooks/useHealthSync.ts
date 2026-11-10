@@ -474,24 +474,30 @@ export function useHealthSync() {
       if (bodyTempPayload.length > 0) payload.bodyTemp = bodyTempPayload.slice(0, 2000);
 
       // ── Full catalog read (all Apple Health types, sleep stages, workouts) ──
-      let fullCount = 0;
-      if (fullSyncAvailable) {
+      // Runs AFTER the core upload so a slow or failing extended read can
+      // never block the basics. Never prompts for permissions here.
+      const runFullSync = async (): Promise<number> => {
+        if (!fullSyncAvailable) return 0;
+        let count = 0;
         try {
           const full = await FullSync.readFullPayload();
           if (full && (full.metrics.length || full.sleep.length || full.workouts.length)) {
             for (const chunk of FullSync.chunkPayload(full)) {
               const res: any = await healthkitDailySync.mutateAsync(chunk);
-              fullCount += Number(res?.metrics ?? 0) + Number(res?.workouts ?? 0);
+              count += Number(res?.metrics ?? 0) + Number(res?.workouts ?? 0);
             }
             await FullSync.markBackfilled();
           }
+          FullSync.reportHealthDiag(`uploaded ${count} daily values/workouts`);
         } catch (e) {
-          // Never let the extended read sink the core sync.
-          console.warn("[health] full sync failed", e);
+          FullSync.reportHealthDiag(`full sync failed: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300));
         }
-      }
+        return count;
+      };
+      let fullCount = 0;
 
       if (Object.keys(payload).length === 0) {
+        fullCount = await runFullSync();
         if (fullCount > 0) {
           setLastSyncTime(new Date().toISOString());
           if (!silent) Alert.alert("Sync Complete", `Synced ${fullCount} daily health records from Apple Health.`);
@@ -508,6 +514,7 @@ export function useHealthSync() {
 
       // ── One bulk call to the backend ──
       const result: any = await healthkitSync.mutateAsync(payload as any);
+      fullCount = await runFullSync();
 
       setLastSyncTime(new Date().toISOString());
 
