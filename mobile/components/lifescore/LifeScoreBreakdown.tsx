@@ -17,7 +17,7 @@ export interface BreakdownData {
     focus?: Array<{ key: string; label: string; score: number }>;
     strengths?: Array<{ key: string; label: string; score: number }>;
   };
-  mental?: { score: number | null; sentiment: string };
+  mental?: { score: number | null; sentiment: string; practice?: { minPerDay: number; bonus: number } | null };
   dimensions: Array<{ dimension: string; score: number | null; sentiment: string }>;
 }
 
@@ -107,12 +107,18 @@ export function LifeScoreBreakdown({ data }: { data: BreakdownData }) {
           </View>
         );
       })}
+      {!!data.mental?.practice && data.mental.practice.bonus > 0 && (
+        <Text style={styles.practice}>
+          Mindful minutes: {data.mental.practice.minPerDay} a day, adding +{data.mental.practice.bonus} to Mind.
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: Spacing.xs },
+  practice: { color: Colors.silver, fontSize: FontSizes.xs, marginTop: Spacing.xs },
   sides: { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.sm },
   side: { flex: 1, backgroundColor: Colors.navyLight, borderRadius: Radii.md, padding: Spacing.sm },
   sideTitle: { color: Colors.silver, fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },

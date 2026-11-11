@@ -22,7 +22,7 @@ export interface LifeScoreBreakdownData {
     focus?: Array<{ key: string; label: string; score: number }>;
     strengths?: Array<{ key: string; label: string; score: number }>;
   };
-  mental?: { score: number | null; sentiment: Sentiment | string };
+  mental?: { score: number | null; sentiment: Sentiment | string; practice?: { minPerDay: number; bonus: number } | null };
   dimensions: Array<{ dimension: string; score: number | null; sentiment: Sentiment | string }>;
 }
 
@@ -163,6 +163,11 @@ export function LifeScoreBreakdown({ data, compact = false }: { data: LifeScoreB
               );
             })}
           </div>
+          {data.mental?.practice && data.mental.practice.bonus > 0 && (
+            <p className="text-[11px] text-gray-400 mt-2">
+              Mindful minutes: {data.mental.practice.minPerDay} a day, adding +{data.mental.practice.bonus} to Mind.
+            </p>
+          )}
         </div>
       </div>
     </div>

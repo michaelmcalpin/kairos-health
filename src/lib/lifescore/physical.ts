@@ -5,23 +5,29 @@
  * and the rest re-balance, so missing data never counts as a low score.
  *
  *   Health data   55%  Daily numbers from Oura, Apple Health and other devices
- *                      (sleep, heart, activity, vitals, mobility), plus how the
- *                      client says their body feels.
+ *                      (sleep, heart, activity, vitals, mobility), workouts,
+ *                      progress on weight / body-fat goals, protein and
+ *                      calories vs the coach's meal plan (see extras.ts),
+ *                      plus how the client says their body feels.
  *   Labs          20%  Latest result per biomarker vs its reference range.
  *   Medications   15%  Taking prescribed medicines, supplements and peptides as planned.
  *   Genetics      10%  Follow-through, not "good vs bad genes": for each changed
  *                      gene, were its linked labs checked in the past year and are
  *                      they in range? Two-copy changes count double.
  */
-import { and, eq, gte, inArray, desc } from "drizzle-orm";
+import { and, eq, gte, lte, inArray, desc } from "drizzle-orm";
 
 import type { db as DB } from "@/server/db";
 import {
   labResults, biomarkerValues, biomarkerDefinitions, geneticProfiles, geneticMarkers,
-  supplementProtocols, protocolItems, adherenceLogs,
+  supplementProtocols, protocolItems, adherenceLogs, healthGoals, mealPlans, mealLogs,
 } from "@/server/db/schema";
 import { METRICS, scoreMetric } from "@/lib/health/metrics";
-import { loadDailyMetrics, type MetricSeries } from "@/server/services/health-metrics";
+import { loadDailyMetrics, recentWorkouts, type MetricSeries } from "@/server/services/health-metrics";
+import {
+  scoreWorkouts, scoreBodyGoals, scoreNutrition,
+  type WeightedScore, type NutritionDay, type MacroTargets,
+} from "./extras";
 import { interpretMarkers } from "@/lib/genetics/interpret";
 
 export type PhysicalPartKey = "health_data" | "labs" | "medications" | "genetics";
@@ -70,7 +76,7 @@ function shift(d: string, delta: number) {
  * Score every target-bearing metric: its average over the window, against its
  * target (or the client's own 30-day normal for HRV-style metrics).
  */
-export function scoreHealthData(series: MetricSeries, endDate: string, windowDays: number): { score: number | null; metrics: MetricScore[] } {
+export function scoreHealthData(series: MetricSeries, endDate: string, windowDays: number): { score: number | null; metrics: MetricScore[]; weightSum: number } {
   const from = shift(endDate, -(windowDays - 1));
   const baseFrom = shift(endDate, -29);
   const metrics: MetricScore[] = [];
@@ -95,7 +101,33 @@ export function scoreHealthData(series: MetricSeries, endDate: string, windowDay
     sSum += s * def.weight;
   }
   metrics.sort((a, b) => a.score - b.score);
+  return { score: wSum > 0 ? clamp(sSum / wSum) : null, metrics, weightSum: wSum };
+}
+
+/** Add plan-based extras (workouts, body goals, nutrition) to the device score. */
+export function blendExtras(
+  base: { score: number | null; metrics: MetricScore[]; weightSum: number },
+  extras: WeightedScore[],
+): { score: number | null; metrics: MetricScore[] } {
+  let wSum = base.score != null ? base.weightSum : 0;
+  let sSum = base.score != null ? base.score * base.weightSum : 0;
+  for (const e of extras) { wSum += e.weight; sSum += e.score * e.weight; }
+  const metrics = [...base.metrics, ...extras.map(({ key, label, value, score }) => ({ key, label, value, score }))]
+    .sort((a, b) => a.score - b.score);
   return { score: wSum > 0 ? clamp(sSum / wSum) : null, metrics };
+}
+
+/** Latest value per metric within the series (for slow-moving body measures). */
+export function latestValues(series: MetricSeries, keys: string[], endDate: string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const k of keys) {
+    const byDate = series.get(k);
+    if (!byDate) continue;
+    let best: string | null = null;
+    byDate.forEach((_, d) => { if (d <= endDate && (best == null || d > best)) best = d; });
+    if (best) out.set(k, byDate.get(best)!.value);
+  }
+  return out;
 }
 
 // ── Labs ───────────────────────────────────────────────────────────────────
@@ -238,8 +270,8 @@ export async function computePhysical(
   db: typeof DB,
   clientId: string,
   endDate: string,
-  opts: { windowDays: number; feelScores: number[] },
-): Promise<PhysicalResult> {
+  opts: { windowDays: number; feelScores: number[]; series?: MetricSeries },
+): Promise<PhysicalResult & { extras: WeightedScore[] }> {
   const yearAgo = new Date(endDate + "T00:00:00Z");
   yearAgo.setUTCFullYear(yearAgo.getUTCFullYear() - 1);
   const days14: string[] = [];
@@ -247,8 +279,9 @@ export async function computePhysical(
 
   const safe = <T,>(p: Promise<T>, fallback: T) => p.catch(() => fallback);
 
-  const [series, labRows, defs, profile, protocols] = await Promise.all([
-    safe(loadDailyMetrics(db, clientId, shift(endDate, -29), endDate), new Map() as MetricSeries),
+  const sinceWorkouts = new Date(shift(endDate, -59) + "T00:00:00Z");
+  const [series, labRows, defs, profile, protocols, workouts, goals, plan, meals] = await Promise.all([
+    opts.series ? Promise.resolve(opts.series) : safe(loadDailyMetrics(db, clientId, shift(endDate, -89), endDate), new Map() as MetricSeries),
     safe(db.select({
       code: biomarkerValues.biomarkerCode, value: biomarkerValues.value, refLow: biomarkerValues.refLow,
       refHigh: biomarkerValues.refHigh, status: biomarkerValues.status, receivedAt: labResults.receivedAt,
@@ -261,11 +294,27 @@ export async function computePhysical(
       .orderBy(desc(geneticProfiles.createdAt)).limit(1).then((r) => r[0]), undefined),
     safe(db.select({ id: supplementProtocols.id }).from(supplementProtocols)
       .where(and(eq(supplementProtocols.clientId, clientId), eq(supplementProtocols.status, "active"))), []),
+    safe(recentWorkouts(db, clientId, sinceWorkouts, 300), []),
+    safe(db.select().from(healthGoals)
+      .where(and(eq(healthGoals.clientId, clientId), eq(healthGoals.status, "active"), inArray(healthGoals.category, ["weight", "body_fat"]))), []),
+    safe(db.select({ macroTargets: mealPlans.macroTargets }).from(mealPlans)
+      .where(and(eq(mealPlans.clientId, clientId), eq(mealPlans.status, "active")))
+      .orderBy(desc(mealPlans.createdAt)).limit(1).then((r) => r[0]), undefined),
+    safe(db.select({ date: mealLogs.date, calories: mealLogs.totalCalories, protein: mealLogs.totalProtein }).from(mealLogs)
+      .where(and(eq(mealLogs.clientId, clientId), gte(mealLogs.date, shift(endDate, -6)), lte(mealLogs.date, endDate))), []),
   ]);
 
+  // Plan-based extras: workouts, body goals, nutrition vs meal plan.
+  const nutritionDays = nutritionByDay(series, meals, endDate);
+  const extras: WeightedScore[] = [
+    ...[scoreWorkouts(workouts, endDate)].filter((x): x is WeightedScore => x != null),
+    ...scoreBodyGoals(goals, latestValues(series, ["weight", "body_fat"], endDate), endDate),
+    ...scoreNutrition(plan?.macroTargets as MacroTargets | null | undefined, nutritionDays, endDate),
+  ];
+
   // Health data (+ how the body feels, from check-ins).
-  const health = scoreHealthData(series, endDate, opts.windowDays);
-  const baselineHealth = scoreHealthData(series, endDate, 30);
+  const health = blendExtras(scoreHealthData(series, endDate, opts.windowDays), extras);
+  const baselineHealth = blendExtras(scoreHealthData(series, endDate, 30), extras);
   const feel = mean(opts.feelScores);
   let healthScore = health.score;
   if (feel != null) healthScore = healthScore == null ? clamp(feel) : clamp(healthScore * 0.85 + feel * 0.15);
@@ -310,7 +359,9 @@ export async function computePhysical(
   const combined = combineParts([
     {
       key: "health_data", label: PHYSICAL_LABELS.health_data, score: healthScore,
-      detail: health.metrics.length ? `${health.metrics.length} measures from your devices` : feel != null ? "From your check-ins" : null,
+      detail: health.metrics.length
+        ? `${health.metrics.length - extras.length} device measures${extras.length ? ` + ${extras.map((e) => e.label.toLowerCase()).join(", ")}` : ""}`
+        : feel != null ? "From your check-ins" : null,
     },
     {
       key: "labs", label: PHYSICAL_LABELS.labs, score: labScore.score,
@@ -331,5 +382,34 @@ export async function computePhysical(
     baselineHealthScore: baselineHealth.score,
     parts: combined.parts,
     metrics: health.metrics,
+    extras,
   };
+}
+
+/**
+ * Daily calories + protein for the last 7 days: in-app meal logs when the
+ * client logged meals that day, otherwise what Apple Health has.
+ */
+export function nutritionByDay(
+  series: MetricSeries,
+  meals: Array<{ date: string; calories: number | null; protein: number | null }>,
+  endDate: string,
+): NutritionDay[] {
+  const fromApp = new Map<string, { calories: number; protein: number }>();
+  for (const m of meals) {
+    const d = fromApp.get(m.date) ?? { calories: 0, protein: 0 };
+    d.calories += m.calories ?? 0;
+    d.protein += m.protein ?? 0;
+    fromApp.set(m.date, d);
+  }
+  const out: NutritionDay[] = [];
+  for (let i = 0; i < 7; i++) {
+    const date = shift(endDate, -i);
+    const app = fromApp.get(date);
+    if (app && app.calories > 0) { out.push({ date, calories: app.calories, protein: app.protein || null }); continue; }
+    const kcal = series.get("diet_kcal")?.get(date)?.value ?? null;
+    const protein = series.get("diet_protein")?.get(date)?.value ?? null;
+    if (kcal != null || protein != null) out.push({ date, calories: kcal, protein });
+  }
+  return out;
 }

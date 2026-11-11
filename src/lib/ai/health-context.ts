@@ -1,4 +1,4 @@
-import { loadDailyMetrics, summarize } from "@/server/services/health-metrics";
+import { loadDailyMetrics, summarize, recentWorkouts as loadRecentWorkouts } from "@/server/services/health-metrics";
 import { db } from "@/server/db";
 import {
   users,
@@ -931,6 +931,38 @@ export async function getClientContext(dbUserId: string) {
     // Table may not be migrated yet; never block the AI context.
   }
 
+  // ── 25c. Recorded workouts (Apple Health, Oura): last 30 days ──
+  try {
+    const since = new Date(); since.setDate(since.getDate() - 30);
+    const ws = await loadRecentWorkouts(db, dbUserId, since, 200);
+    if (ws.length > 0) {
+      const byType = new Map<string, { n: number; min: number }>();
+      for (const w of ws) {
+        const t = byType.get(w.activity) ?? { n: 0, min: 0 };
+        t.n++; t.min += w.durationMin ?? 0;
+        byType.set(w.activity, t);
+      }
+      const totalMin = ws.reduce((a, w) => a + (w.durationMin ?? 0), 0);
+      const lines = [
+        `${ws.length} workouts in 30 days (~${(ws.length / (30 / 7)).toFixed(1)}/week, ${Math.round(totalMin)} min total)`,
+        `By type: ${Array.from(byType, ([k, v]) => `${k} ${v.n}× / ${Math.round(v.min)} min`).join("; ")}`,
+        "Most recent:",
+        ...ws.slice(0, 12).map((w) => {
+          const bits = [`${new Date(w.startAt).toISOString().slice(0, 10)} ${w.activity}`];
+          if (w.durationMin != null) bits.push(`${Math.round(w.durationMin)} min`);
+          if (w.energyKcal != null) bits.push(`${Math.round(w.energyKcal)} kcal`);
+          if (w.distanceM != null && w.distanceM > 0) bits.push(`${(w.distanceM / 1609.344).toFixed(2)} mi`);
+          if (w.avgHr != null) bits.push(`avg HR ${Math.round(w.avgHr)}${w.maxHr != null ? ` / max ${Math.round(w.maxHr)}` : ""}`);
+          bits.push(`(${w.source})`);
+          return `  ${bits.join(" | ")}`;
+        }),
+      ];
+      sections.push(`## RECORDED WORKOUTS (Last 30 Days)\n${lines.join("\n")}`);
+    }
+  } catch {
+    // never block the AI context
+  }
+
   // ── 26. Everist LifeScore (whole-person wellbeing) ──
   // Directional only: score + well/steady/struggling per dimension, plus how
   // many reflections leaned positive vs. challenging in each area. No specifics.
@@ -949,7 +981,9 @@ export async function getClientContext(dbUserId: string) {
     lsLines.push(`  Core LifeScore: ${lifeScore.score ?? "no data"} (60% Physical + 40% Mental)`);
     lsLines.push(`  Physical: ${lifeScore.physical.score ?? "no data"} | trend ${lifeScore.physical.sentiment} | ${lifeScore.physical.parts.filter((p) => p.score != null).map((p) => `${p.label} ${p.score}${p.detail ? ` (${p.detail})` : ""}`).join("; ") || "no parts"}`);
     if (lifeScore.physical.focus.length) lsLines.push(`  Physical focus areas: ${lifeScore.physical.focus.map((m) => `${m.label} ${m.score}/100`).join(", ")}`);
+    if (lifeScore.physical.strengths.length) lsLines.push(`  Physical strengths: ${lifeScore.physical.strengths.map((m) => `${m.label} ${m.score}/100`).join(", ")}`);
     lsLines.push(`  Mental: ${lifeScore.mental.score ?? "no data"} | trend ${lifeScore.mental.sentiment}`);
+    if (lifeScore.mental.practice) lsLines.push(`  Mindfulness: ${lifeScore.mental.practice.minPerDay} mindful min/day (7d) → +${lifeScore.mental.practice.bonus} to Mind`);
     for (const d of lifeScore.dimensions) {
       const label = d.dimension.charAt(0).toUpperCase() + d.dimension.slice(1);
       const parts = [`${label}: ${d.score ?? "no data"}${d.score != null ? "/100" : ""}`, `trend ${d.sentiment}`];

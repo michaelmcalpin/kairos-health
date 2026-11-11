@@ -28,6 +28,18 @@ Body is the bridge between the objective health tracking already in the app and 
 - **Cadence: daily recompute, shown as a 7-day rolling average.** One rough day never crashes the headline number; the score reads as a trend, not a verdict.
 - **Missing data is skipped, not zeroed.** A skipped dimension drops out of that day's average rather than scoring 0 — a low score must mean "reported low," never "didn't log."
 
+### Current model (Nov 2026)
+
+- **Core = 60% Physical + 40% Mental.**
+- **Physical** = Health data 55%, Labs 20%, Medications 15%, Genetics follow-through 10% (`src/lib/lifescore/physical.ts`). Health data blends:
+  - 30 target-bearing device measures from `src/lib/health/metrics.ts`;
+  - **Workouts** (weight 2): 80% sessions a week over 4 weeks (4+ = full) + 20% variety (3+ kinds = full); sessions under 10 min don't count; only scored if the client recorded a workout in the last 60 days;
+  - **Body goals** (weight 2 each): active weight / body-fat goals, using the latest device reading (90 days) or the goal's own value. With a target date: 30 at start → 100 on pace. Without: 50 at start → 100 reached. Maintain: 100 within 2%, 0 at 8%. Wrong direction drops toward 0;
+  - **Nutrition** (protein 1.5, calories 1): vs the active meal plan's `macroTargets`, last 7 days, only days with food logged (in-app meal logs first, else Apple Health), needs 3+ logged days. Protein 100 at ≥90% of target, 0 at 50%; calories 100 within ±10%, 0 at ±35%.
+  - All extras live in `src/lib/lifescore/extras.ts`.
+- **Mental**: Mind / Purpose / Relationships / Work ratings. **Mindful minutes** add a bonus to Mind only (10+ min/day over 7 days = +6), never a penalty, and are excluded from the trend calculation.
+- **AI context** gets every device measure (7- vs 30-day), recorded workouts (30 days), and the Core / Physical (parts, focus, strengths) / Mental / mindfulness lines.
+
 ## Data model
 
 New tables / columns (Drizzle + a hand-authored idempotent migration, next in sequence after 0010):

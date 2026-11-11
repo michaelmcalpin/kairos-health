@@ -8,6 +8,7 @@
  *   follow-through. Reported as the "body" dimension too, for older screens.
  * - Mental: Mind / Purpose / Relationships / Work from the daily 1–5 ratings,
  *   nudged by recent journal valence, weighted by the coach-adjustable weights.
+ *   Mindful minutes (Apple Health) add up to +6 to Mind — a bonus, never a penalty.
  * - If only one side has data, Core is that side.
  * - Shown as a 7-day rolling average so one rough day never crashes the number.
  * - A skipped dimension DROPS OUT of the average — it never scores 0. A low
@@ -29,6 +30,8 @@ import {
 } from "@/server/db/schema";
 import { computeAdherence } from "@/server/trpc/routers/client/today";
 import { computePhysical, type PhysicalPart, type MetricScore } from "./physical";
+import { mindfulBonus } from "./extras";
+import { loadDailyMetrics, type MetricSeries } from "@/server/services/health-metrics";
 
 /** Core = Physical × 0.6 + Mental × 0.4 (fixed). */
 export const CORE_WEIGHTS = { physical: 60, mental: 40 } as const;
@@ -51,7 +54,10 @@ export interface LifeScoreResult {
   /** Core LifeScore 0–100 (60% Physical + 40% Mental), or null with no data. */
   score: number | null;
   physical: SideResult & { parts: PhysicalPart[]; focus: MetricScore[]; strengths: MetricScore[] };
-  mental: SideResult;
+  mental: SideResult & {
+    /** Mindful minutes a day (7-day average) and the points they added to Mind. */
+    practice: { minPerDay: number; bonus: number } | null;
+  };
   dimensions: DimensionResult[];
   hasData: boolean;
   windowDays: number;
@@ -94,7 +100,7 @@ export async function computeLifeScore(
   const currentStart = shift(endDate, -(CURRENT_WINDOW - 1));
 
   // ── Fetch everything in the 30-day window in parallel ──
-  const [checkins, dailies, journals, weightsRow, adherence] = await Promise.all([
+  const [checkins, dailies, journals, weightsRow, adherence, series] = await Promise.all([
     db.select().from(lifeScoreCheckins).where(and(
       eq(lifeScoreCheckins.clientId, clientId),
       gte(lifeScoreCheckins.date, baselineStart),
@@ -113,7 +119,10 @@ export async function computeLifeScore(
     db.select().from(lifeScoreWeights).where(eq(lifeScoreWeights.clientId, clientId))
       .then((r) => r[0]).catch(() => undefined),
     computeAdherence(db, clientId, BASELINE_WINDOW, endDate).catch(() => null),
+    // 90 days so slow-moving measures (weight, body fat) still have a latest value.
+    loadDailyMetrics(db, clientId, shift(endDate, -89), endDate).catch(() => new Map() as MetricSeries),
   ]);
+  const mindful = mindfulBonus(series.get("mindful_min") ? new Map(Array.from(series.get("mindful_min")!, ([d, v]) => [d, v.value])) : undefined, endDate);
 
   // Adherence pct by date, for Body.
   const adhByDate = new Map<string, number>();
@@ -177,10 +186,13 @@ export async function computeLifeScore(
     let sentiment: Sentiment = "no_data";
 
     if (curMean != null) {
-      const nudged = dim === "body" ? curMean : curMean + valenceNudge(dim);
+      const nudged = dim === "body" ? curMean
+        : curMean + valenceNudge(dim) + (dim === "mind" ? mindful?.bonus ?? 0 : 0);
       score = clamp(nudged);
       // Directional read vs the client's own 30-day baseline.
-      const delta = baseMean != null ? nudged - baseMean : 0;
+      // Trend ignores the mindfulness bonus (it isn't in the baseline either).
+      const bonus = dim === "mind" ? mindful?.bonus ?? 0 : 0;
+      const delta = baseMean != null ? nudged - bonus - baseMean : 0;
       if (score < 45 || delta <= -8) sentiment = "struggling";
       else if ((score >= 70 && delta >= 4) || delta >= 8) sentiment = "well";
       else sentiment = "steady";
@@ -193,6 +205,7 @@ export async function computeLifeScore(
   const physical = await computePhysical(db, clientId, endDate, {
     windowDays: CURRENT_WINDOW,
     feelScores: dailyScoresFor("body", currentStart),
+    series,
   }).catch(() => null);
   const body = dimensions.find((d) => d.dimension === "body")!;
   if (physical?.score != null) {
@@ -258,7 +271,7 @@ export async function computeLifeScore(
       focus: metrics.filter((m) => m.score < 70).slice(0, 4),
       strengths: [...metrics].reverse().filter((m) => m.score >= 85).slice(0, 4),
     },
-    mental: { score: mentalScore, sentiment: mentalSentiment },
+    mental: { score: mentalScore, sentiment: mentalSentiment, practice: mindful },
     dimensions,
     hasData: scored.length > 0,
     windowDays: CURRENT_WINDOW,
