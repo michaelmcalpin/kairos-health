@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { DollarSign, Info } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { TIER_LABELS } from "@/lib/coach-clients/types";
 
 export default function RevenueCoachPage() {
   // Figures reflect current estimates. Period-scoped filtering isn't supported by
@@ -56,7 +55,7 @@ export default function RevenueCoachPage() {
       <div className="flex items-start gap-3 kairos-card p-4 border border-amber-500/30 bg-amber-500/5">
         <Info className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
         <p className="text-sm font-body text-kairos-silver-dark">
-          Estimated from each client’s subscription tier (Beta, not yet connected to billing).
+          Estimated from client tiers: active clients × tier monthly price. Not yet connected to billing.
         </p>
       </div>
 
@@ -81,7 +80,7 @@ export default function RevenueCoachPage() {
 
             <div className="kairos-card p-6 border border-kairos-border">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-kairos-silver-dark text-sm font-body">Coaching Fees</span>
+                <span className="text-kairos-silver-dark text-sm font-body">Est. Coaching Fees</span>
                 <DollarSign className="w-5 h-5 text-kairos-gold" />
               </div>
               <div className="text-3xl font-heading font-bold text-white mb-1">${data.totalCoachingFees.toLocaleString()}</div>
@@ -98,7 +97,7 @@ export default function RevenueCoachPage() {
 
       {/* Revenue by Client Table */}
       <div className="kairos-card p-6 border border-kairos-border">
-        <h2 className="font-heading font-bold text-xl text-white mb-6">Revenue by Client</h2>
+        <h2 className="font-heading font-bold text-xl text-white mb-6">Est. Revenue by Client</h2>
         <div className="overflow-x-auto">
           {clientLoading ? (
             <div className="text-center py-8">
@@ -111,7 +110,7 @@ export default function RevenueCoachPage() {
                   <th className="text-left py-3 px-4 text-xs font-heading text-kairos-silver-dark font-semibold">Client</th>
                   <th className="text-left py-3 px-4 text-xs font-heading text-kairos-silver-dark font-semibold">Tier</th>
                   <th className="text-right py-3 px-4 text-xs font-heading text-kairos-silver-dark font-semibold">Coaching Fee</th>
-                  <th className="text-right py-3 px-4 text-xs font-heading text-kairos-silver-dark font-semibold">Total Monthly</th>
+                  <th className="text-right py-3 px-4 text-xs font-heading text-kairos-silver-dark font-semibold">Est. Monthly</th>
                 </tr>
               </thead>
               <tbody>
@@ -120,7 +119,7 @@ export default function RevenueCoachPage() {
                     <td className="py-4 px-4 font-body text-white">{client.name}</td>
                     <td className="py-4 px-4">
                       <span className="inline-block px-2 py-1 rounded-kairos-sm text-xs font-semibold bg-kairos-gold/20 text-kairos-gold">
-                        {TIER_LABELS[client.tier] || client.tierLabel}
+                        {client.tierLabel}
                       </span>
                     </td>
                     <td className="py-4 px-4 font-body text-white text-right">${(client.coachingFee || 0).toLocaleString()}</td>
@@ -155,7 +154,7 @@ export default function RevenueCoachPage() {
                   <span className="font-heading font-bold text-kairos-gold">${(tier.clientCount > 0 ? Math.round(tier.monthlyRevenue / tier.clientCount) : 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-kairos-border">
-                  <span className="font-body text-kairos-silver-dark">Total Revenue:</span>
+                  <span className="font-body text-kairos-silver-dark">Est. Total:</span>
                   <span className="font-heading font-bold text-white">${(tier.monthlyRevenue || 0).toLocaleString()}</span>
                 </div>
               </div>

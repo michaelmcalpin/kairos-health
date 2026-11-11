@@ -18,6 +18,9 @@ export type CompanyItem = {
   status: string;
   trainerCount: number;
   clientCount: number;
+  /** Estimated MRR: active clients × tier price (lib/revenue/estimate.ts) */
+  estMrr: number;
+  estActiveClients: number;
   maxTrainers: number;
   maxClients: number;
   emailFromName: string;

@@ -9,6 +9,7 @@ export interface AdminCoach {
   status: CoachStatus;
   clientsAssigned: number;
   clientCapacity: number;
+  /** Estimated MRR (active clients × tier price) — see lib/revenue/estimate.ts */
   revenueGenerated: number;
   avgHealthScore: number;
   responseTimeMin: number;
@@ -20,6 +21,7 @@ export interface AdminCoachStats {
   onLeaveCoaches: number;
   pendingCoaches: number;
   totalClients: number;
+  /** Estimated MRR across active coaches */
   totalRevenue: number;
   avgHealthScore: number;
 }

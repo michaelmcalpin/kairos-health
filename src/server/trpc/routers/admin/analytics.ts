@@ -12,7 +12,6 @@ import {
   users,
   trainerProfiles,
   trainerClientRelationships,
-  clientProfiles,
   dailyCheckins,
   messages,
   healthGoals,
@@ -27,6 +26,8 @@ import {
   deviceConnections,
 } from "@/server/db/schema";
 import { eq, sql, and, gte, lte, between, count as drizzleCount } from "drizzle-orm";
+import { TIER_PRICES, estimatedArpu } from "@/lib/revenue/estimate";
+import { getPlatformRevenueEstimate, getCoachRevenueEstimates } from "@/server/services/revenue";
 
 async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
@@ -69,8 +70,6 @@ function getMonthLabel(dateStr: string): string {
   return new Date(year, month - 1, 15).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-const tierPricing: Record<string, number> = { tier1: 499, tier2: 249, tier3: 99 };
-
 const dateRangeInput = z.object({
   startDate: z.string(),
   endDate: z.string(),
@@ -90,22 +89,19 @@ async function getRealCounts(db: any) {
   const totalClients = roleMap.get("client") ?? 0;
   const totalTrainers = roleMap.get("trainer") ?? 0;
 
-  const tierBreakdown = await db
-    .select({ tier: clientProfiles.tier, count: sql<number>`count(*)` })
-    .from(clientProfiles)
-    .innerJoin(users, eq(users.id, clientProfiles.userId))
-    .where(sql`${users.status} = 'active'`)
-    .groupBy(clientProfiles.tier);
-
-  let mrr = 0;
+  // Shared revenue estimate: active clients × tier price (lib/revenue/estimate.ts)
+  const revenue = await getPlatformRevenueEstimate(db);
   const tierCounts: Record<string, number> = {};
-  for (const row of tierBreakdown) {
-    const count = Number(row.count);
-    tierCounts[row.tier] = count;
-    mrr += count * (tierPricing[row.tier] ?? 99);
-  }
+  for (const t of revenue.byTier) tierCounts[t.tier] = t.clientCount;
 
-  return { totalUsers, totalClients, totalTrainers, mrr, tierCounts };
+  return {
+    totalUsers,
+    totalClients,
+    totalTrainers,
+    mrr: revenue.mrr,
+    tierCounts,
+    revenueClientCount: revenue.clientCount,
+  };
 }
 
 /** Count users created per month within a date range */
@@ -443,11 +439,11 @@ export const adminAnalyticsRouter = router({
           icon: "star",
         },
         {
-          label: "MRR",
+          label: "Est. MRR",
           value: `$${counts.mrr.toLocaleString()}`,
           numericValue: counts.mrr,
           trend: 0, // Would need historical subscription data for real MRR trend
-          trendLabel: "current",
+          trendLabel: "estimated from client tiers",
           icon: "dollar",
         },
         {
@@ -658,6 +654,7 @@ async function buildCoachPerformance(
   const trainers = await db.query.users.findMany({
     where: eq(users.role, "trainer"),
   });
+  const coachRevenue = await getCoachRevenueEstimates(db, trainers.map((t: { id: string }) => t.id));
 
   const coaches = await Promise.all(
     trainers.map(async (trainer: any) => {
@@ -718,7 +715,7 @@ async function buildCoachPerformance(
         clientRetention: 0, // Would need historical relationship data to compute
         avgResponseTime: 0, // Would need message response time tracking
         sessionsThisPeriod,
-        revenueGenerated: activeClients * 249, // avg estimate; canonical tiers are $499/$249/$99
+        revenueGenerated: coachRevenue.get(trainer.id)?.mrr ?? 0, // est. MRR (active clients × tier price)
         rating,
         reviewCount: reviewCount > 0 ? reviewCount : (profile?.reviewCount ?? 0),
       };
@@ -818,7 +815,7 @@ async function buildPlatformHealth(db: any) {
 
 function buildRevenue(
   range: { startDate: string; endDate: string },
-  counts: { mrr: number; tierCounts: Record<string, number> },
+  counts: { mrr: number; tierCounts: Record<string, number>; revenueClientCount: number },
 ) {
   const months = getMonthsBetween(range.startDate, range.endDate);
   const tier1Count = counts.tierCounts["tier1"] ?? 0;
@@ -830,9 +827,9 @@ function buildRevenue(
   // In production, this would query a payments/invoices table for historical accuracy
   const dataPoints = months.map((month) => ({
     date: month,
-    tier1Revenue: tier1Count * tierPricing.tier1,
-    tier2Revenue: tier2Count * tierPricing.tier2,
-    tier3Revenue: tier3Count * tierPricing.tier3,
+    tier1Revenue: tier1Count * TIER_PRICES.tier1,
+    tier2Revenue: tier2Count * TIER_PRICES.tier2,
+    tier3Revenue: tier3Count * TIER_PRICES.tier3,
     totalRevenue: counts.mrr,
   }));
 
@@ -840,12 +837,11 @@ function buildRevenue(
   const totalT1 = dataPoints.reduce((s, d) => s + d.tier1Revenue, 0);
   const totalT2 = dataPoints.reduce((s, d) => s + d.tier2Revenue, 0);
   const totalT3 = dataPoints.reduce((s, d) => s + d.tier3Revenue, 0);
-  const totalClients = tier1Count + tier2Count + tier3Count;
 
   return {
     mrr: counts.mrr,
     arr: counts.mrr * 12,
-    avgRevenuePerUser: totalClients > 0 ? Math.round(counts.mrr / totalClients) : 0,
+    avgRevenuePerUser: estimatedArpu({ mrr: counts.mrr, clientCount: counts.revenueClientCount }),
     revenueByTier: [
       {
         tier: "tier1",

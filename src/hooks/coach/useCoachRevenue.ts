@@ -7,13 +7,12 @@ export interface ClientRevenue {
   clientName: string;
   tier: string;
   monthlyFee: number;
-  supplementRevenue: number;
   total: number;
 }
 
 export interface CoachRevenueData {
+  /** Estimated MRR: active clients × tier price (lib/revenue/estimate.ts) */
   mrr: number;
-  supplementRevenue: number;
   totalRevenue: number;
   clientRevenue: ClientRevenue[];
 }
@@ -34,19 +33,16 @@ export function useCoachRevenue(): { data: CoachRevenueData; isLoading: boolean 
     };
     const rawClientRevenue = clientRevenueQuery.data ?? [];
 
-    // Transform client revenue into expected shape.
-    // Supplement markup was removed (it was a fabricated estimate, not real sales).
+    // Transform client revenue into expected shape (coaching fees only — estimated).
     const clientRevenue: ClientRevenue[] = rawClientRevenue.map((client: any) => ({
       clientName: client.name,
       tier: client.tier,
       monthlyFee: client.coachingFee ?? 0,
-      supplementRevenue: 0,
       total: client.coachingFee ?? 0,
     }));
 
     return {
       mrr: summary.coachingFees ?? 0,
-      supplementRevenue: 0,
       totalRevenue: summary.totalMonthlyRevenue ?? 0,
       clientRevenue,
     };

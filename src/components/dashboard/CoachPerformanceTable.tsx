@@ -59,7 +59,7 @@ export function CoachPerformanceTable({ coaches }: CoachPerformanceTableProps) {
                   Clients
                 </th>
                 <th className="text-right py-2 px-3 text-xs font-medium text-kairos-silver-dark uppercase tracking-wider">
-                  Gross Revenue
+                  Est. Gross Revenue
                 </th>
                 <th className="text-right py-2 px-3 text-xs font-medium text-kairos-silver-dark uppercase tracking-wider">
                   Payout (60%)

@@ -14,6 +14,7 @@ import {
 } from "@/server/db/schema";
 import { ne, eq, desc, asc, and, sql, gte, between, inArray } from "drizzle-orm";
 import { expireSchedulingAlerts } from "@/server/services/alert-hygiene";
+import { getCoachRevenueEstimate } from "@/server/services/revenue";
 
 // Helper: safely run a query against a table that may not exist yet.
 // Returns the fallback instead of crashing the whole procedure.
@@ -28,13 +29,6 @@ const safeQ = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
 /** Display name for a user row, falling back to email then "Client". */
 const displayName = (u?: { firstName: string | null; lastName: string | null; email: string } | null) =>
   u ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.email : "Client";
-
-// ─── Tier pricing for revenue calculation ─────────────────────
-const TIER_PRICING: Record<string, number> = {
-  tier1: 499,
-  tier2: 249,
-  tier3: 99,
-};
 
 export const coachDashboardRouter = router({
   /**
@@ -161,7 +155,8 @@ export const coachDashboardRouter = router({
       const avgHealthScore = totalClients > 0
         ? Math.round(clientDetails.reduce((s, c) => s + c.healthScore, 0) / totalClients)
         : 0;
-      const revenue = clientDetails.reduce((s, c) => s + (TIER_PRICING[c.tier] ?? 99), 0);
+      // Shared estimate (active clients × tier price) — same number as the Revenue page
+      const revenue = (await getCoachRevenueEstimate(ctx.db, trainerId)).mrr;
 
       // Real session count from appointments table
       const sessionsResult = await ctx.db
@@ -216,10 +211,10 @@ export const coachDashboardRouter = router({
           icon: "trending",
         },
         {
-          label: "Revenue",
+          label: "Est. MRR",
           value: `$${revenue.toLocaleString()}`,
           trend: "flat",
-          trendValue: "monthly",
+          trendValue: "estimated from client tiers",
           icon: "dollar",
         },
       ];

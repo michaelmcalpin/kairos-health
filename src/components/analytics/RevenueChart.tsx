@@ -3,6 +3,7 @@
 import type { RevenueSummary } from "@/lib/analytics/types";
 import { TIER_LABELS, formatCurrency, getShortMonthLabel } from "@/lib/analytics/types";
 import { useThemeColors } from "@/lib/theme";
+import { REVENUE_ESTIMATE_NOTE } from "@/lib/revenue/estimate";
 
 interface RevenueChartProps {
   data: RevenueSummary;
@@ -25,7 +26,10 @@ export function RevenueChart({ data }: RevenueChartProps) {
   return (
     <div className="kairos-card p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="font-heading font-bold text-lg text-white">Revenue by Tier</h3>
+        <div>
+          <h3 className="font-heading font-bold text-lg text-white">Est. Revenue by Tier</h3>
+          <p className="text-[10px] text-gray-500">{REVENUE_ESTIMATE_NOTE} — current mix shown for each month (no billing history yet)</p>
+        </div>
         <div className="flex gap-4">
           {data.revenueByTier.map((tier) => (
             <div key={tier.tier} className="flex items-center gap-1.5 text-xs">
@@ -108,15 +112,15 @@ export function RevenueChart({ data }: RevenueChartProps) {
       {/* Revenue summary */}
       <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t border-gray-700/50">
         <div>
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">MRR</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Est. MRR</p>
           <p className="text-lg font-heading font-bold" style={{ color: tc.accent }}>{formatCurrency(data.mrr)}</p>
         </div>
         <div>
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">ARR</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Est. ARR</p>
           <p className="text-lg font-heading font-bold text-white">{formatCurrency(data.arr)}</p>
         </div>
         <div>
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">ARPU</p>
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Est. ARPU</p>
           <p className="text-lg font-heading font-bold text-white">{formatCurrency(data.avgRevenuePerUser)}</p>
         </div>
       </div>

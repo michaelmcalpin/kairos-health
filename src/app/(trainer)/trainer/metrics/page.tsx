@@ -71,11 +71,11 @@ export default function CoachMetricsPage() {
         trendValue: stats.avgAdherence > 75 ? "strong" : "needs focus",
       },
       {
-        label: "Monthly Revenue",
+        label: "Est. MRR",
         value: `$${(revenue.totalMonthlyRevenue / 1000).toFixed(1)}k`,
         icon: "dollar",
-        trend: "up" as const,
-        trendValue: "current",
+        trend: "flat" as const,
+        trendValue: "estimated from client tiers",
       },
       {
         label: "Active Alerts",
@@ -417,7 +417,7 @@ export default function CoachMetricsPage() {
 
                 {/* Revenue Metrics */}
                 <div>
-                  <h3 className="kairos-label text-sm mb-4 text-kairos-silver-dark">Revenue Metrics</h3>
+                  <h3 className="kairos-label text-sm mb-4 text-kairos-silver-dark">Revenue Metrics (estimated from client tiers)</h3>
                   <div className="space-y-3">
                     {kpis
                       .filter((k) => k.icon === "dollar")

@@ -75,7 +75,7 @@ export default function AdminDashboard() {
                 <tr className="border-b border-kairos-border">
                   <th className="text-left py-2 text-xs font-heading text-kairos-silver-dark">Coach</th>
                   <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Clients</th>
-                  <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Revenue</th>
+                  <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Est. MRR</th>
                   <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Avg Score</th>
                   <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Response</th>
                 </tr>

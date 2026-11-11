@@ -9,6 +9,7 @@ import {
   auditLogs,
 } from "@/server/db/schema";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
+import { getPlatformRevenueEstimate, getCoachRevenueEstimates } from "@/server/services/revenue";
 
 export const adminDashboardRouter = router({
   /**
@@ -42,6 +43,9 @@ export const adminDashboardRouter = router({
         .where(eq(subscriptions.status, "active"));
       const activeSubscriptions = Number(activeSubs[0]?.count ?? 0);
 
+      // ── Estimated revenue (active clients × tier price) ─────
+      const revenue = await getPlatformRevenueEstimate(ctx.db);
+
       // ── Company stats ──────────────────────────────────────
       const allCompanies = await ctx.db.query.companies.findMany();
       const companyStats = {
@@ -49,7 +53,7 @@ export const adminDashboardRouter = router({
         activeCompanies: allCompanies.filter((c) => c.status === "active").length,
         totalTrainers,
         totalClients,
-        mrr: totalClients * 249, // avg estimate; canonical tiers are $499/$249/$99
+        mrr: revenue.mrr,
       };
 
       // ── Period-over-period trend for new signups ────────────
@@ -114,8 +118,8 @@ export const adminDashboardRouter = router({
           icon: "user-circle",
         },
         {
-          label: "Monthly Revenue",
-          value: `$${((totalClients * 249) / 1000).toFixed(1)}K`,
+          label: "Est. MRR",
+          value: `$${(revenue.mrr / 1000).toFixed(1)}K`,
           icon: "dollar",
           highlight: true,
         },
@@ -130,6 +134,7 @@ export const adminDashboardRouter = router({
       const trainers = await ctx.db.query.users.findMany({
         where: eq(users.role, "trainer"),
       });
+      const coachRevenue = await getCoachRevenueEstimates(ctx.db, trainers.map((t) => t.id));
 
       const trainerPerformance = await Promise.all(
         trainers.map(async (trainer) => {
@@ -151,7 +156,7 @@ export const adminDashboardRouter = router({
             id: trainer.id,
             name: `${trainer.firstName ?? ""} ${trainer.lastName ?? ""}`.trim() || trainer.email,
             clientsAssigned: count,
-            revenueGenerated: count * 249 * 12,
+            revenueGenerated: coachRevenue.get(trainer.id)?.mrr ?? 0, // est. MRR
             avgHealthScore: (profile?.rating ?? 4.0) * 10,
             responseTimeMin: Math.round(10 + (1 - (profile?.rating ?? 4.0) / 5) * 30),
           };
@@ -212,7 +217,9 @@ export const adminDashboardRouter = router({
       .select({ count: sql<number>`count(*)` })
       .from(subscriptions)
       .where(eq(subscriptions.status, "active"));
+    const revenue = await getPlatformRevenueEstimate(ctx.db);
     return {
+      estMrr: revenue.mrr,
       totalClients: roleMap.get("client") ?? 0,
       totalTrainers: roleMap.get("trainer") ?? 0,
       totalCompanyAdmins: roleMap.get("company_admin") ?? 0,
@@ -226,6 +233,7 @@ export const adminDashboardRouter = router({
     const trainers = await ctx.db.query.users.findMany({
       where: eq(users.role, "trainer"),
     });
+    const coachRevenue = await getCoachRevenueEstimates(ctx.db, trainers.map((t) => t.id));
     const performance = await Promise.all(
       trainers.map(async (trainer) => {
         const profile = await ctx.db.query.trainerProfiles.findFirst({
@@ -244,6 +252,7 @@ export const adminDashboardRouter = router({
           rating: profile?.rating ?? 0,
           reviewCount: profile?.reviewCount ?? 0,
           acceptingClients: profile?.acceptingClients ?? false,
+          estMrr: coachRevenue.get(trainer.id)?.mrr ?? 0,
         };
       })
     );
@@ -268,6 +277,7 @@ export const adminDashboardRouter = router({
       const allTrainers = await ctx.db.query.users.findMany({
         where: eq(users.role, "trainer"),
       });
+      const coachRevenue = await getCoachRevenueEstimates(ctx.db, allTrainers.map((t) => t.id));
 
       // Enrich each trainer
       const enriched = await Promise.all(
@@ -295,7 +305,7 @@ export const adminDashboardRouter = router({
             specialization: specialties[0] ?? "General Health",
             clientsAssigned: clientCount,
             clientCapacity: profile?.capacity ?? 25,
-            revenueGenerated: clientCount * 249 * 12,
+            revenueGenerated: coachRevenue.get(trainer.id)?.mrr ?? 0, // est. MRR
             avgHealthScore: profile?.rating ? Math.round(profile.rating * 10) / 10 : 0,
             responseTimeMin: Math.round(10 + (1 - (profile?.rating ?? 4.0) / 5) * 30),
             rating: profile?.rating ?? 0,
@@ -333,10 +343,11 @@ export const adminDashboardRouter = router({
     });
 
     const active = allTrainers.filter((t) => t.status === "active");
+    const coachRevenue = await getCoachRevenueEstimates(ctx.db, active.map((t) => t.id));
     const suspended = allTrainers.filter((t) => t.status === "suspended");
     const onboarding = allTrainers.filter((t) => t.status === "onboarding");
 
-    // Get total client assignments and revenue
+    // Get total client assignments and estimated MRR
     let totalClients = 0;
     let totalRevenue = 0;
     let ratingSum = 0;
@@ -354,7 +365,7 @@ export const adminDashboardRouter = router({
         );
       const count = Number(clientCountResult[0]?.count ?? 0);
       totalClients += count;
-      totalRevenue += count * 249 * 12;
+      totalRevenue += coachRevenue.get(trainer.id)?.mrr ?? 0;
 
       const profile = await ctx.db.query.trainerProfiles.findFirst({
         where: eq(trainerProfiles.userId, trainer.id),

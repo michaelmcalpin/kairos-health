@@ -90,7 +90,7 @@ export default function AdminDashboard() {
     ? [
         { label: "Coaches", value: String(company.trainerCount), icon: "user-circle" },
         { label: "Clients", value: String(company.clientCount), icon: "users" },
-        { label: "Est. MRR", value: `$${((company.clientCount * 249) / 1000).toFixed(1)}K`, icon: "dollar", highlight: true }, // avg estimate; canonical tiers are $499/$249/$99
+        { label: "Est. MRR", value: `$${(company.estMrr / 1000).toFixed(1)}K`, icon: "dollar", highlight: true }, // active clients × tier price
         { label: "Max Coaches", value: String(company.maxTrainers), icon: "shield" },
         { label: "Max Clients", value: String(company.maxClients), icon: "activity" },
         { label: "Status", value: company.status, icon: "trending" },
@@ -196,7 +196,7 @@ export default function AdminDashboard() {
                   <tr className="border-b border-kairos-border">
                     <th className="text-left py-2 text-xs font-heading text-kairos-silver-dark">Coach</th>
                     <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Clients</th>
-                    <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Revenue</th>
+                    <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Est. MRR</th>
                     <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Avg Score</th>
                     <th className="text-right py-2 text-xs font-heading text-kairos-silver-dark">Response</th>
                   </tr>

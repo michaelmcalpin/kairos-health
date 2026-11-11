@@ -112,7 +112,7 @@ export default function CoachesPage() {
               <th className="text-left py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Status</th>
               <th className="text-center py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Clients</th>
               <th className="text-center py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Capacity</th>
-              <th className="text-right py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Revenue</th>
+              <th className="text-right py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Est. MRR</th>
               <th className="text-center py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Avg Health Score</th>
               <th className="text-center py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Actions</th>
             </tr>

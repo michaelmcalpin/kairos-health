@@ -77,7 +77,7 @@ export default function TrainersPage() {
       onLeaveCoaches: 0,
       pendingCoaches: 0,
       totalClients: active.reduce((s, t) => s + t.clientCount, 0),
-      totalRevenue: active.reduce((s, t) => s + t.clientCount, 0) * 249 * 12,
+      totalRevenue: active.reduce((s, t) => s + t.estMrr, 0), // est. MRR
       avgHealthScore: active.length > 0
         ? Math.round((active.reduce((s, t) => s + t.rating, 0) / active.length) * 10) / 10
         : 0,
@@ -201,7 +201,7 @@ export default function TrainersPage() {
                 <th className="text-center py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Rating</th>
               )}
               {!company && (
-                <th className="text-right py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Revenue</th>
+                <th className="text-right py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Est. MRR</th>
               )}
               {!company && (
                 <th className="text-center py-3 px-4 text-kairos-gold font-heading font-semibold text-sm">Avg Health Score</th>
@@ -346,7 +346,7 @@ export default function TrainersPage() {
                 {viewingTrainer.revenue !== undefined && (
                   <div className="kairos-card text-center">
                     <p className="text-xl font-heading font-bold text-green-400">${viewingTrainer.revenue.toLocaleString()}</p>
-                    <p className="text-xs text-kairos-silver-dark">Revenue</p>
+                    <p className="text-xs text-kairos-silver-dark">Est. MRR</p>
                   </div>
                 )}
                 {viewingTrainer.score !== undefined && viewingTrainer.score > 0 && (

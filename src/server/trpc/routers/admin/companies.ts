@@ -9,6 +9,12 @@ import {
   auditLogs,
 } from "@/server/db/schema";
 import { eq, and, sql, like, or, desc, asc, ilike } from "drizzle-orm";
+import {
+  getPlatformRevenueEstimate,
+  getCompanyRevenueEstimate,
+  getCompanyRevenueEstimates,
+  getCoachRevenueEstimates,
+} from "@/server/services/revenue";
 
 export const adminCompaniesRouter = router({
   // List companies with pagination and filters
@@ -62,6 +68,9 @@ export const adminCompaniesRouter = router({
         .limit(pageSize)
         .offset((page - 1) * pageSize);
 
+      // Estimated revenue (active clients × tier price) for every company on the page
+      const revenueByCompany = await getCompanyRevenueEstimates(ctx.db, companyRows.map((c) => c.id));
+
       // Enrich with trainer/client counts
       const enriched = await Promise.all(
         companyRows.map(async (c) => {
@@ -89,6 +98,8 @@ export const adminCompaniesRouter = router({
             maxClients: c.maxClients ?? 100,
             trainerCount: Number(trainerCount?.count ?? 0),
             clientCount: Number(clientCount?.count ?? 0),
+            estMrr: revenueByCompany.get(c.id)?.mrr ?? 0,
+            estActiveClients: revenueByCompany.get(c.id)?.clientCount ?? 0,
             createdAt: c.createdAt.toISOString(),
             updatedAt: c.updatedAt.toISOString(),
           };
@@ -131,6 +142,8 @@ export const adminCompaniesRouter = router({
         .from(users)
         .where(and(eq(users.companyId, company.id), eq(users.role, "client")));
 
+      const revenue = await getCompanyRevenueEstimate(ctx.db, company.id);
+
       return {
         id: company.id,
         name: company.name,
@@ -145,6 +158,8 @@ export const adminCompaniesRouter = router({
         maxClients: company.maxClients ?? 100,
         trainerCount: Number(trainerCount?.count ?? 0),
         clientCount: Number(clientCount?.count ?? 0),
+        estMrr: revenue.mrr,
+        estActiveClients: revenue.clientCount,
         createdAt: company.createdAt.toISOString(),
         updatedAt: company.updatedAt.toISOString(),
       };
@@ -173,13 +188,14 @@ export const adminCompaniesRouter = router({
         .where(eq(users.role, "client"));
 
       const totalClients = Number(clientResult?.count ?? 0);
+      const revenue = await getPlatformRevenueEstimate(ctx.db);
 
       return {
         totalCompanies: Number(totalResult?.count ?? 0),
         activeCompanies: Number(activeResult?.count ?? 0),
         totalTrainers: Number(trainerResult?.count ?? 0),
         totalClients,
-        mrr: totalClients * 249, // avg estimate; canonical tiers are $499/$249/$99
+        mrr: revenue.mrr, // estimate: active clients × tier price (see lib/revenue/estimate.ts)
       };
     }),
 
@@ -190,6 +206,7 @@ export const adminCompaniesRouter = router({
       const trainerUsers = await ctx.db.query.users.findMany({
         where: and(eq(users.companyId, input.companyId), eq(users.role, "trainer")),
       });
+      const revenueByCoach = await getCoachRevenueEstimates(ctx.db, trainerUsers.map((t) => t.id));
 
       return Promise.all(
         trainerUsers.map(async (t) => {
@@ -213,6 +230,7 @@ export const adminCompaniesRouter = router({
             email: t.email,
             avatarUrl: t.avatarUrl,
             clientCount: Number(clientCount?.count ?? 0),
+            estMrr: revenueByCoach.get(t.id)?.mrr ?? 0,
             capacity: profile?.capacity ?? 25,
             rating: profile?.rating ?? 0,
             status: t.status === "active" ? "active" as const : "inactive" as const,
@@ -220,6 +238,11 @@ export const adminCompaniesRouter = router({
         })
       );
     }),
+
+  // Estimated revenue for one company (active clients × tier price)
+  getRevenueEstimate: adminProcedure
+    .input(z.object({ companyId: z.string() }))
+    .query(async ({ ctx, input }) => getCompanyRevenueEstimate(ctx.db, input.companyId)),
 
   // Get clients for a company
   getClients: adminProcedure

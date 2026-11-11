@@ -60,7 +60,7 @@ export function useAdminDashboard(): {
       totalClients: kpisQuery.data.totalClients,
       totalCoaches: kpisQuery.data.totalTrainers,
       activeSubscriptions: kpisQuery.data.activeSubscriptions,
-      mrr: Math.round((kpisQuery.data.totalClients ?? 0) * 249),
+      mrr: kpisQuery.data.estMrr ?? 0, // estimate: active clients × tier price
     };
   }, [kpisQuery.data]);
 
@@ -72,7 +72,7 @@ export function useAdminDashboard(): {
       clientCount: trainer.clientCount,
       capacity: trainer.capacity,
       avgRating: trainer.rating,
-      revenue: trainer.clientCount * 265,
+      revenue: trainer.estMrr ?? 0, // estimate: active clients × tier price
     }));
   }, [coachesQuery.data]);
 

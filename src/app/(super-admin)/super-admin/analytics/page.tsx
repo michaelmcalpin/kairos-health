@@ -61,7 +61,7 @@ export default function AnalyticsPage() {
     const totalCapacity = active.reduce((s, t) => s + t.capacity, 0);
     const totalAssigned = active.reduce((s, t) => s + t.clientCount, 0);
     const utilization = totalCapacity > 0 ? Math.round((totalAssigned / totalCapacity) * 100) : 0;
-    const mrr = company.clientCount * 249; // avg estimate; canonical tiers are $499/$249/$99
+    const mrr = company.estMrr; // active clients × tier price (lib/revenue/estimate.ts)
 
     // Tier distribution
     const tierCounts = { tier1: 0, tier2: 0, tier3: 0 };
@@ -301,7 +301,7 @@ export default function AnalyticsPage() {
                           </div>
                         </td>
                         <td className="py-3 text-right font-heading font-semibold text-kairos-gold">
-                          ${(c.clientCount * 249).toLocaleString()}
+                          ${c.estMrr.toLocaleString()}
                         </td>
                       </tr>
                     );

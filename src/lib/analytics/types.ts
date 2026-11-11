@@ -2,6 +2,7 @@
 // Types for admin analytics: growth, engagement, retention, coach performance
 
 import crypto from "crypto";
+import { TIER_PRICES, TIER_LABELS as REVENUE_TIER_LABELS } from "@/lib/revenue/estimate";
 
 export function uid(): string {
   return `anl_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
@@ -91,6 +92,7 @@ export interface CoachPerformance {
   clientRetention: number; // percentage
   avgResponseTime: number; // minutes
   sessionsThisPeriod: number;
+  /** Estimated MRR (active clients × tier price) — see lib/revenue/estimate.ts */
   revenueGenerated: number;
   rating: number;
   reviewCount: number;
@@ -177,17 +179,9 @@ export interface KPIData {
 
 // ─── Constants ─────────────────────────────────────────────────
 
-export const TIER_PRICING: Record<string, number> = {
-  tier1: 499,
-  tier2: 249,
-  tier3: 99,
-};
-
-export const TIER_LABELS: Record<string, string> = {
-  tier1: "Private",
-  tier2: "Associate",
-  tier3: "AI-Guided",
-};
+// Single source of truth for tier prices/labels: lib/revenue/estimate.ts
+export const TIER_PRICING: Record<string, number> = TIER_PRICES;
+export const TIER_LABELS: Record<string, string> = REVENUE_TIER_LABELS;
 
 export const HEALTH_STATUS_COLORS: Record<HealthStatus, string> = {
   excellent: "#22c55e",

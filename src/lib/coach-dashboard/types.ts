@@ -3,6 +3,7 @@
 // revenue analytics, and schedule integration.
 
 import type { ClientTier } from "@/lib/coach-clients/types";
+import { TIER_PRICES } from "@/lib/revenue/estimate";
 
 // ─── Dashboard KPIs ─────────────────────────────────────────────
 
@@ -144,11 +145,8 @@ export interface CoachRevenueData {
 
 // ─── Pricing ────────────────────────────────────────────────────
 
-export const TIER_PRICING: Record<ClientTier, number> = {
-  tier1: 499,
-  tier2: 249,
-  tier3: 99,
-};
+// Single source of truth for tier prices: lib/revenue/estimate.ts
+export const TIER_PRICING: Record<ClientTier, number> = TIER_PRICES;
 
 export const TIER_DISPLAY_LABELS: Record<ClientTier, string> = {
   tier1: "Tier 1 (Private)",

@@ -7,8 +7,9 @@
 
 import { z } from "zod";
 import { router, superAdminProcedure as adminProcedure } from "@/server/trpc";
-import { users, clientProfiles, platformSettings, notificationPreferences } from "@/server/db/schema";
+import { users, platformSettings, notificationPreferences } from "@/server/db/schema";
 import { sql, gte, eq, and } from "drizzle-orm";
+import { getPlatformRevenueEstimate } from "@/server/services/revenue";
 
 export const adminPlatformRouter = router({
   /**
@@ -44,27 +45,8 @@ export const adminPlatformRouter = router({
       .where(sql`${users.role} = 'trainer' and ${users.status} = 'active'`);
     const activeTrainers = Number(activeTrainersResult[0]?.count ?? 0);
 
-    // Tier breakdown for revenue calc
-    const tierBreakdown = await ctx.db
-      .select({
-        tier: clientProfiles.tier,
-        count: sql<number>`count(*)`,
-      })
-      .from(clientProfiles)
-      .innerJoin(users, eq(users.id, clientProfiles.userId))
-      .where(sql`${users.status} = 'active'`)
-      .groupBy(clientProfiles.tier);
-
-    const tierPricing: Record<string, number> = {
-      tier1: 499,
-      tier2: 249,
-      tier3: 99,
-    };
-
-    let mrr = 0;
-    for (const row of tierBreakdown) {
-      mrr += Number(row.count) * (tierPricing[row.tier] ?? 99);
-    }
+    // Estimated revenue: active clients × tier price (lib/revenue/estimate.ts)
+    const { mrr, arr } = await getPlatformRevenueEstimate(ctx.db);
 
     return {
       totalUsers,
@@ -72,7 +54,8 @@ export const adminPlatformRouter = router({
       activeClients,
       activeTrainers,
       mrr,
-      arr: mrr * 12,
+      arr,
+      revenueEstimated: true as const,
       clientTrainerRatio: activeTrainers > 0 ? Math.round(activeClients / activeTrainers) : 0,
     };
   }),

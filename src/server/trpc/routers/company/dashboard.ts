@@ -8,6 +8,7 @@ import {
   trainerClientRelationships,
 } from "@/server/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { getCompanyRevenueEstimate } from "@/server/services/revenue";
 
 export const companyDashboardRouter = router({
   /**
@@ -106,6 +107,9 @@ export const companyDashboardRouter = router({
       })
     );
 
+    // ── Estimated revenue: active clients × tier price ──────
+    const revenue = await getCompanyRevenueEstimate(ctx.db, companyId);
+
     // ── Computed stats ───────────────────────────────────────
     const totalCapacity = trainers.reduce((s, t) => s + t.capacity, 0);
     const totalAssigned = trainers.reduce((s, t) => s + t.clientCount, 0);
@@ -132,7 +136,8 @@ export const companyDashboardRouter = router({
         totalCapacity,
         utilization: totalCapacity > 0 ? Math.round((totalAssigned / totalCapacity) * 100) : 0,
         avgRating,
-        estMrr: clients.length * 249, // avg estimate; canonical tiers are $499/$249/$99
+        estMrr: revenue.mrr,
+        estArr: revenue.arr,
       },
       trainers: trainers.sort((a, b) => b.rating - a.rating),
       clients,

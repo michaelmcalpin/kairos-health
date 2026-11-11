@@ -413,7 +413,7 @@ export default function CoachProfilePage() {
               <div>
                 <label className="kairos-label mb-2 block flex items-center gap-2">
                   <Clock className="w-4 h-4" />
-                  Monthly Revenue
+                  Est. Monthly Revenue
                 </label>
                 <p className="text-kairos-silver-dark font-body text-sm">
                   ${revenue.totalMonthlyRevenue?.toFixed(2) ?? "0.00"}

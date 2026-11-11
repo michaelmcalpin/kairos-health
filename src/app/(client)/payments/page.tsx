@@ -11,17 +11,12 @@ import {
   Mail,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { TIER_PRICES, isRevenueTier } from "@/lib/revenue/estimate";
 
 const TIER_NAMES: Record<string, string> = {
   tier1: "Private (Tier 1)",
   tier2: "Associate (Tier 2)",
   tier3: "AI-Guided (Tier 3)",
-};
-
-const TIER_PRICES: Record<string, number> = {
-  tier1: 499,
-  tier2: 249,
-  tier3: 99,
 };
 
 const BILLING_EMAIL = "support@everist.ai";
@@ -35,7 +30,7 @@ export default function PaymentsPage() {
   const sub = subData?.subscription ?? null;
   const tier = sub?.tier ?? subData?.tier ?? null;
   const planName = tier ? (TIER_NAMES[tier] ?? "Subscription") : null;
-  const monthlyTotal = tier ? TIER_PRICES[tier] ?? null : null;
+  const monthlyTotal = isRevenueTier(tier) ? TIER_PRICES[tier] : null;
   const nextBillingDate = sub?.currentPeriodEnd
     ? new Date(sub.currentPeriodEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : "—";

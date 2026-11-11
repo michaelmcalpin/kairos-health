@@ -53,7 +53,7 @@ export function RevenueBreakdown({ total, sources, mrr, arr }: RevenueBreakdownP
           size={140}
           thickness={22}
           centerValue={formatCurrency(total)}
-          centerLabel="Total MRR"
+          centerLabel="Est. MRR"
         />
 
         {/* Details */}
@@ -61,13 +61,13 @@ export function RevenueBreakdown({ total, sources, mrr, arr }: RevenueBreakdownP
           {/* MRR / ARR */}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-kairos-royal-dark/50 p-3">
-              <p className="kairos-label">MRR</p>
+              <p className="kairos-label">Est. MRR</p>
               <p className="mt-1 font-heading text-lg font-bold text-kairos-gold">
                 {formatCurrency(mrr)}
               </p>
             </div>
             <div className="rounded-lg bg-kairos-royal-dark/50 p-3">
-              <p className="kairos-label">ARR</p>
+              <p className="kairos-label">Est. ARR</p>
               <p className="mt-1 font-heading text-lg font-bold text-kairos-gold">
                 {formatCurrency(arr)}
               </p>

@@ -4,6 +4,7 @@ import { TrendingUp, Users, Percent, DollarSign } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
+import { REVENUE_ESTIMATE_NOTE } from "@/lib/revenue/estimate";
 
 type IconKey = "dollar" | "trending" | "users" | "percent";
 
@@ -24,7 +25,8 @@ export default function Page() {
   const topClients = platformData?.topClients ?? [];
   const recentPayouts = platformData?.recentPayouts ?? [];
   const breakdown = platformData?.breakdown ?? [];
-  const sources = platformData?.sources ?? [];
+  const byTier = platformData?.byTier ?? [];
+  const untieredCount = platformData?.untieredCount ?? 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -33,6 +35,9 @@ export default function Page() {
         <h1 className="font-heading font-bold text-3xl text-white mb-1">Revenue Dashboard</h1>
         <p className="font-body text-kairos-silver-dark">
           Platform performance and financial metrics
+        </p>
+        <p className="font-body text-xs text-kairos-silver-dark mt-1">
+          {REVENUE_ESTIMATE_NOTE} — active clients × tier monthly price. No payment data yet.
         </p>
       </div>
 
@@ -72,7 +77,7 @@ export default function Page() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Breakdown Chart */}
         <div className="lg:col-span-2 bg-kairos-card border border-kairos-border rounded-kairos-sm p-6">
-          <h2 className="font-heading font-bold text-lg text-white mb-6">Revenue by Tier (6 Months)</h2>
+          <h2 className="font-heading font-bold text-lg text-white mb-6">Est. Revenue by Tier (current client mix)</h2>
           <div className="space-y-4">
             {breakdown.map((item) => {
               const total = item.tier1 + item.tier2 + item.tier3;
@@ -121,27 +126,25 @@ export default function Page() {
           </div>
         </div>
 
-        {/* Revenue by Source */}
+        {/* Estimate basis: tier price × active clients */}
         <div className="bg-kairos-card border border-kairos-border rounded-kairos-sm p-6">
-          <h2 className="font-heading font-bold text-lg text-white mb-6">Revenue by Source</h2>
-          <div className="space-y-4">
-            {sources.map((item) => (
-              <div key={item.source}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-body text-sm text-kairos-silver-dark">{item.source}</span>
-                  <span className="font-body text-xs font-semibold text-kairos-gold">
-                    {item.percentage}%
-                  </span>
-                </div>
-                <div className="w-full h-2 rounded-kairos-sm bg-gray-900 overflow-hidden">
-                  <div
-                    className="h-full bg-kairos-gold"
-                    style={{ width: `${item.percentage}%` }}
-                  />
-                </div>
-                <p className="font-body text-xs text-white mt-1">{item.amount}</p>
+          <h2 className="font-heading font-bold text-lg text-white mb-1">How Est. MRR Is Calculated</h2>
+          <p className="font-body text-xs text-kairos-silver-dark mb-6">{REVENUE_ESTIMATE_NOTE}</p>
+          <div className="space-y-3">
+            {byTier.map((t) => (
+              <div key={t.tier} className="flex items-center justify-between">
+                <span className="font-body text-sm text-kairos-silver-dark">
+                  {t.label}: {t.clientCount} × ${t.price}
+                </span>
+                <span className="font-body text-sm font-semibold text-kairos-gold">${t.mrr.toLocaleString()}</span>
               </div>
             ))}
+            {untieredCount > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="font-body text-sm text-kairos-silver-dark">No tier: {untieredCount} × $0</span>
+                <span className="font-body text-sm text-kairos-silver-dark">$0</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -154,8 +157,8 @@ export default function Page() {
             <tr className="border-b border-kairos-border">
               <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Client Name</th>
               <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Tier</th>
-              <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Monthly Spend</th>
-              <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Lifetime Value</th>
+              <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Est. Monthly</th>
+              <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Est. Lifetime</th>
             </tr>
           </thead>
           <tbody>
@@ -171,15 +174,15 @@ export default function Page() {
         </table>
       </div>
 
-      {/* Recent Payouts to Coaches */}
+      {/* Estimated payouts to coaches */}
       <div className="bg-kairos-card border border-kairos-border rounded-kairos-sm p-6 overflow-x-auto">
-        <h2 className="font-heading font-bold text-lg text-white mb-6">Recent Payouts to Coaches</h2>
+        <h2 className="font-heading font-bold text-lg text-white mb-6">Est. Coach Payouts</h2>
         <table className="w-full">
           <thead>
             <tr className="border-b border-kairos-border">
               <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Coach Name</th>
               <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Amount</th>
-              <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Date</th>
+              <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Basis</th>
               <th className="text-left font-heading font-semibold text-sm text-kairos-silver-dark py-3 px-4">Status</th>
             </tr>
           </thead>
@@ -191,11 +194,7 @@ export default function Page() {
                 <td className="font-body text-sm text-kairos-silver-dark py-4 px-4">{payout.date}</td>
                 <td className="py-4 px-4">
                   <span
-                    className={`font-body text-xs font-semibold px-2 py-1 rounded-kairos-sm ${
-                      payout.status === "Paid"
-                        ? "bg-green-900 text-green-200"
-                        : "bg-yellow-900 text-yellow-200"
-                    }`}
+                    className="font-body text-xs font-semibold px-2 py-1 rounded-kairos-sm bg-gray-800 text-kairos-silver"
                   >
                     {payout.status}
                   </span>

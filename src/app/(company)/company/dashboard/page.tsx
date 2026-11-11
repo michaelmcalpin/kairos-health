@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Users, Dumbbell, TrendingUp, Star, DollarSign, ArrowRight } from "lucide-react";
 import { useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
+import { REVENUE_ESTIMATE_NOTE } from "@/lib/revenue/estimate";
 
 export default function CompanyDashboardPage() {
   const router = useRouter();
@@ -151,7 +152,7 @@ export default function CompanyDashboardPage() {
             <DollarSign size={16} className="text-emerald-400/50" />
           </div>
           <p className="font-heading font-bold text-2xl text-emerald-400">${stats.estMrr.toLocaleString()}</p>
-          <p className="text-xs font-body text-kairos-silver-dark mt-1">${(stats.estMrr * 12).toLocaleString()} ARR</p>
+          <p className="text-xs font-body text-kairos-silver-dark mt-1">${stats.estArr.toLocaleString()} Est. ARR · {REVENUE_ESTIMATE_NOTE}</p>
         </div>
       </div>
 
