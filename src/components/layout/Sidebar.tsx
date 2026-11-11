@@ -1,11 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/utils/cn";
 import { SummitGlyph } from "@/components/brand/SummitGlyph";
 import {
+  activeItem,
+  groupBySection,
+  initialSectionState,
+  openActiveSection,
+  parseSectionState,
+  sectionStateKey,
+  type SectionState,
+} from "@/lib/nav/sidebar-groups";
+import { CLIENT_NAV, CLIENT_ACCOUNT_LINKS, type ClientNavIcon } from "@/lib/nav/client-nav";
+import {
+  type LucideIcon,
+  Sun,
+  Watch,
+  Upload,
+  NotebookPen,
+  HeartPulse,
   LayoutDashboard,
   Bell,
   Brain,
@@ -82,40 +98,45 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
 
   // Close the drawer whenever the route changes (a nav item was tapped).
   const closeMobile = () => setMobileOpen(false);
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
-    // Default: expand the section containing the active route
-    const initial: Record<string, boolean> = {};
-    const sections: Record<string, NavItem[]> = {};
-    items.forEach((item) => {
-      const section = item.section ?? "Main";
-      if (!sections[section]) sections[section] = [];
-      sections[section].push(item);
-    });
-    Object.entries(sections).forEach(([sectionName, sectionItems]) => {
-      const hasActive = sectionItems.some(
-        (item) => pathname === item.href || pathname.startsWith(item.href + "/")
-      );
-      initial[sectionName] = hasActive;
-    });
-    // Always expand Overview by default
-    initial["Overview"] = true;
-    return initial;
-  });
+
+  // Section open/closed state (audit Q7): the section holding the current page
+  // is always open; the user's own open/close choices persist per portal for
+  // the browser session. First render uses defaults only (no storage) so the
+  // server and client markup match; saved state is merged in after mount.
+  const storageKey = sectionStateKey(items);
+  const [expandedSections, setExpandedSections] = useState<SectionState>(() =>
+    initialSectionState(items, pathname, null, ["Overview"]),
+  );
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    let saved: SectionState | null = null;
+    try { saved = parseSectionState(window.sessionStorage.getItem(storageKey)); } catch { /* storage blocked */ }
+    if (saved) setExpandedSections(initialSectionState(items, pathname, saved, ["Overview"]));
+  }, [items, pathname, storageKey]);
+
+  // On every route change: open the new page's section and reset scroll.
+  useEffect(() => {
+    setExpandedSections((prev) => openActiveSection(prev, items, pathname));
+  }, [pathname, items]);
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+  }, [pathname]);
+
+  // Persist after the first restore so defaults never overwrite saved state.
+  useEffect(() => {
+    if (!restored.current) return;
+    try { window.sessionStorage.setItem(storageKey, JSON.stringify(expandedSections)); } catch { /* storage blocked */ }
+  }, [expandedSections, storageKey]);
 
   const displayName = companyName || "EVERIST.ai";
   const displaySubtitle = companyName ? "Health Platform" : "Private Health";
 
   // Group items by section (preserving order from items array)
-  const sectionOrder: string[] = [];
-  const sections: Record<string, NavItem[]> = {};
-  items.forEach((item) => {
-    const section = item.section ?? "Main";
-    if (!sections[section]) {
-      sections[section] = [];
-      sectionOrder.push(section);
-    }
-    sections[section].push(item);
-  });
+  const grouped = groupBySection(items);
+  // Exactly one item is highlighted: the longest href matching the path.
+  const current = activeItem(items, pathname);
 
   const toggleSection = (sectionName: string) => {
     setExpandedSections((prev) => ({
@@ -219,18 +240,18 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        {sectionOrder.map((sectionName) => {
-          const sectionItems = sections[sectionName];
+        {grouped.map(({ name: sectionName, items: sectionItems }) => {
           const isExpanded = expandedSections[sectionName] ?? false;
-          const hasActiveChild = sectionItems.some(
-            (item) => pathname === item.href || pathname.startsWith(item.href + "/")
-          );
+          const hasActiveChild = !!current && sectionItems.includes(current);
           const sectionBadgeTotal = sectionItems.reduce((sum, item) => sum + (item.badge ?? 0), 0);
+          // A section that is just one destination of the same name (client
+          // "Today") renders as a plain link, without a collapsible header.
+          const isSingleDestination = sectionItems.length === 1 && sectionItems[0].label === sectionName;
 
           return (
             <div key={sectionName}>
               {/* Collapsible Section Header */}
-              {!collapsed ? (
+              {isSingleDestination ? null : !collapsed ? (
                 <button
                   onClick={() => toggleSection(sectionName)}
                   className={cn(
@@ -261,19 +282,20 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
               )}
 
               {/* Section Items */}
-              {(collapsed || isExpanded) && (
+              {(collapsed || isExpanded || isSingleDestination) && (
                 <ul className="space-y-0.5">
                   {sectionItems.map((item) => {
-                    const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                    const isActive = item === current;
                     return (
                       <li key={item.href}>
                         <Link
                           href={item.href}
                           onClick={closeMobile}
+                          aria-current={isActive ? "page" : undefined}
                           className={cn(
                             "kairos-sidebar-item",
                             isActive && "active",
-                            collapsed ? "lg:justify-center lg:px-2 pl-5" : "pl-5"
+                            collapsed ? "lg:justify-center lg:px-2 pl-5" : isSingleDestination ? "pl-3 font-semibold" : "pl-5"
                           )}
                           title={collapsed ? item.label : undefined}
                         >
@@ -317,43 +339,55 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
 }
 
 // ─── Client Nav ──────────────────────────────────────────────────
-export const clientNavItems: NavItem[] = [
-  // Overview (Alerts moved to TopBar bell icon)
-  { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
-  { label: "Chat", href: "/chat", icon: <MessageSquare size={18} />, section: "Overview" },
-  { label: "Insight Sherpa", href: "/insights", icon: <Brain size={18} />, section: "Overview" },
-  { label: "LifeScore", href: "/lifescore", icon: <Activity size={18} />, section: "Overview" },
-  { label: "Goals", href: "/goals", icon: <Target size={18} />, section: "Overview" },
-  { label: "Appointments", href: "/appointments", icon: <CalendarCheck size={18} />, section: "Overview" },
+// Four destinations — Today, Body, Health record, Care. The structure lives in
+// src/lib/nav/client-nav.ts (plain data, unit-tested); this maps icons.
+const CLIENT_ICONS: Record<ClientNavIcon, LucideIcon> = {
+  today: Sun,
+  sleep: Moon,
+  activity: Dumbbell,
+  bp: HeartPulse,
+  glucose: Droplets,
+  body: Ruler,
+  nutrition: UtensilsCrossed,
+  fasting: Timer,
+  cycle: Heart,
+  log: NotebookPen,
+  healthData: Activity,
+  labs: FlaskConical,
+  genetics: Dna,
+  dexa: Scan,
+  gut: Bug,
+  record: FileHeart,
+  reports: Brain,
+  photos: Camera,
+  messages: MessageSquare,
+  careTeam: ShieldCheck,
+  appointments: CalendarCheck,
+  supplements: Pill,
+  medications: Tablets,
+  peptides: Syringe,
+  goals: Target,
+  lifescore: Activity,
+  devices: Watch,
+  settings: Settings,
+  payments: CreditCard,
+  import: Upload,
+};
 
-  // Biometrics
-  { label: "Health Data", href: "/health-data", icon: <Heart size={18} />, section: "Biometrics" },
-  { label: "Body Comp", href: "/measurements", icon: <Ruler size={18} />, section: "Biometrics" },
-  { label: "Progress Photos", href: "/progress-photos", icon: <Camera size={18} />, section: "Biometrics" },
-  { label: "Sleep & Recovery", href: "/sleep", icon: <Moon size={18} />, section: "Biometrics" },
-  { label: "Glucose", href: "/glucose", icon: <Droplets size={18} />, section: "Biometrics" },
-  { label: "Blood Pressure", href: "/blood-pressure", icon: <Activity size={18} />, section: "Biometrics" },
-  { label: "Cycle Tracker", href: "/cycle-tracker", icon: <Heart size={18} />, section: "Biometrics" },
+export function clientNavIcon(key: ClientNavIcon, size = 18): React.ReactNode {
+  const Icon = CLIENT_ICONS[key];
+  return <Icon size={size} />;
+}
 
-  // Clinical Reports
-  { label: "Blood Labs", href: "/labs", icon: <FlaskConical size={18} />, section: "Clinical Reports" },
-  { label: "Genetics", href: "/genetics", icon: <Dna size={18} />, section: "Clinical Reports" },
-  { label: "DexaScan", href: "/dexascan", icon: <Scan size={18} />, section: "Clinical Reports" },
-  { label: "Gut Biome", href: "/gut-biome", icon: <Bug size={18} />, section: "Clinical Reports" },
-  { label: "Medical Record", href: "/medical-record", icon: <FileHeart size={18} />, section: "Clinical Reports" },
+export const clientNavItems: NavItem[] = CLIENT_NAV.map((e) => ({
+  label: e.label,
+  href: e.href,
+  section: e.section,
+  icon: clientNavIcon(e.icon),
+}));
 
-  // Protocols
-  { label: "Nutrition / Fasting", href: "/nutrition", icon: <UtensilsCrossed size={18} />, section: "Protocols" },
-  { label: "Exercise", href: "/workouts", icon: <Dumbbell size={18} />, section: "Protocols" },
-  { label: "Supplements", href: "/supplements", icon: <Pill size={18} />, section: "Protocols" },
-  { label: "Peptides", href: "/peptides", icon: <Syringe size={18} />, section: "Protocols" },
-  { label: "Medications", href: "/medications", icon: <Tablets size={18} />, section: "Protocols" },
-
-  // Account
-  { label: "Care Team", href: "/care-team", icon: <ShieldCheck size={18} />, section: "Account" },
-  { label: "Settings", href: "/settings", icon: <Settings size={18} />, section: "Account" },
-
-];
+/** Devices / Settings / Payments / Import — shown in the profile menu. */
+export const clientAccountLinks = CLIENT_ACCOUNT_LINKS;
 
 // ─── Trainer Nav ─────────────────────────────────────────────────
 export const trainerNavItems: NavItem[] = [

@@ -7,6 +7,7 @@ import { cn } from "@/utils/cn";
 import { trpc } from "@/lib/trpc";
 import { NotificationBell } from "@/components/realtime";
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
+import { clientAccountLinks, clientNavIcon } from "@/components/layout/Sidebar";
 
 interface TopBarProps {
   title: string;
@@ -151,13 +152,25 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
         </button>
 
         {/* Clerk User Button */}
-        <UserButton
-          appearance={{
-            elements: {
-              avatarBox: "w-8 h-8",
-            },
-          }}
-        />
+        {portal === "client" ? (
+          // Client profile menu: Devices, Settings, Payments, Import (audit
+          // H3 — these left the sidebar).
+          <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }}>
+            <UserButton.MenuItems>
+              {clientAccountLinks.map((l) => (
+                <UserButton.Link key={l.href} label={l.label} href={l.href} labelIcon={clientNavIcon(l.icon, 16)} />
+              ))}
+            </UserButton.MenuItems>
+          </UserButton>
+        ) : (
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: "w-8 h-8",
+              },
+            }}
+          />
+        )}
       </div>
     </header>
   );
