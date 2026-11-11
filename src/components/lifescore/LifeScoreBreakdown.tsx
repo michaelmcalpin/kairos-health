@@ -81,15 +81,28 @@ function SideTile({ title, weight, score, sentiment, color }: { title: string; w
   );
 }
 
-export function LifeScoreBreakdown({ data, compact = false }: { data: LifeScoreBreakdownData; compact?: boolean }) {
+export type LifeScoreFocus = "core" | "physical" | "mental";
+
+/**
+ * `focus` limits the contributors shown (Today screen: tap a ring → its
+ * contributors). `hideRing` drops the big ring + side tiles when the caller
+ * already shows the scores.
+ */
+export function LifeScoreBreakdown({
+  data, compact = false, focus = "core", hideRing = false,
+}: { data: LifeScoreBreakdownData; compact?: boolean; focus?: LifeScoreFocus; hideRing?: boolean }) {
   const dims = new Map(data.dimensions.map((d) => [d.dimension, d]));
   const physical = data.physical ?? {
     score: dims.get("body")?.score ?? null, sentiment: dims.get("body")?.sentiment ?? "no_data", parts: [],
   };
   const mental = data.mental ?? { score: null, sentiment: "no_data" };
+  const showPhysical = focus !== "mental";
+  const showMental = focus !== "physical";
+  const twoCol = showPhysical && showMental && !compact;
 
   return (
     <div className="space-y-5">
+      {!hideRing && (
       <div className="flex flex-col sm:flex-row items-center gap-5">
         <Ring score={data.score} label="Core LifeScore" size={compact ? 120 : 150} />
         <div className="grid grid-cols-2 gap-3 flex-1 w-full">
@@ -97,9 +110,17 @@ export function LifeScoreBreakdown({ data, compact = false }: { data: LifeScoreB
           <SideTile title="Mental" weight={40} score={mental.score} sentiment={mental.sentiment} color="#8F7FD6" />
         </div>
       </div>
+      )}
+      {hideRing && focus === "core" && (
+        <p className="text-xs text-gray-400">
+          Core LifeScore is 60% Physical and 40% Mental, averaged over the last 7 days. Areas without data are left
+          out rather than counted as zero.
+        </p>
+      )}
 
-      <div className={cn("grid gap-5", compact ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
+      <div className={cn("grid gap-5", twoCol ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1")}>
         {/* Physical parts */}
+        {showPhysical && (
         <div>
           <h3 className="text-xs font-heading font-bold text-[#5DCAA5] flex items-center gap-1.5 mb-2">
             <HeartPulse size={13} /> Physical
@@ -144,8 +165,10 @@ export function LifeScoreBreakdown({ data, compact = false }: { data: LifeScoreB
             </div>
           )}
         </div>
+        )}
 
         {/* Mental areas */}
+        {showMental && (
         <div>
           <h3 className="text-xs font-heading font-bold text-[#8F7FD6] flex items-center gap-1.5 mb-2">
             <Brain size={13} /> Mental
@@ -164,6 +187,7 @@ export function LifeScoreBreakdown({ data, compact = false }: { data: LifeScoreB
             })}
           </div>
         </div>
+        )}
       </div>
     </div>
   );

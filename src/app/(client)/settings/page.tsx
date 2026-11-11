@@ -155,6 +155,12 @@ export default function SettingsPage() {
   useEffect(() => {
     const connectedProvider = searchParams.get("connected");
     const oauthError = searchParams.get("error");
+    // Deep link to a tab, e.g. /settings?tab=integrations ("Devices" in the
+    // profile menu and the Today first-run card).
+    const tab = searchParams.get("tab");
+    const TAB_IDS = ["profile", "coach", "notifications", "appearance", "documents", "integrations", "account"] as const;
+    const deepTab = TAB_IDS.find((t) => t === tab);
+    if (deepTab) setActiveSettingsTab(deepTab);
 
     if (connectedProvider) {
       setOauthMessage({ type: "success", text: `Successfully connected ${connectedProvider}. Your data will begin syncing shortly.` });
