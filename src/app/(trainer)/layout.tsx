@@ -2,6 +2,7 @@
 
 import { Sidebar, trainerNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { CompanyBrandProvider, useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 
@@ -25,7 +26,9 @@ function TrainerShell({ children }: { children: React.ReactNode }) {
           subtitle="Coach Portal"
           brandColor={isWhiteLabel ? brand.brandColor : undefined}
         />
-        <main className="p-6 overflow-x-hidden">{children}</main>
+        <main className="overflow-x-hidden">
+          <PageContainer>{children}</PageContainer>
+        </main>
       </div>
     </div>
   );

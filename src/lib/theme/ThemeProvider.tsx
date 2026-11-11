@@ -40,8 +40,12 @@ export interface ThemeColors {
   accentDeep: string;
   bg: string;
   card: string;
+  surfaceRaised: string;
+  surfaceHover: string;
   text: string;
   textSecondary: string;
+  textMuted: string;
+  accentPremium: string;
   success: string;
   warning: string;
   danger: string;
@@ -57,11 +61,15 @@ export const THEME_COLORS: Record<ThemeId, ThemeColors> = {
     accentDeep: "#3A78BE",
     bg: "#050D18",
     card: "#0A1628",
+    surfaceRaised: "#101E34",
+    surfaceHover: "#1A273D",
     text: "#FFFFFF",
     textSecondary: "#C0C5CE",
+    textMuted: "#8B96A8",
+    accentPremium: "#C9A96E",
     success: "#4A9D5B",
     warning: "#D4A843",
-    danger: "#C65D5D",
+    danger: "#E07070",
     info: "#4A90D9",
   },
   "warm-slate": {
@@ -72,8 +80,12 @@ export const THEME_COLORS: Record<ThemeId, ThemeColors> = {
     accentDeep: "#9E7B6E",
     bg: "#2C2C2E",
     card: "#3A3A3C",
+    surfaceRaised: "#4A4A4C",
+    surfaceHover: "#545456",
     text: "#FAF5F0",
     textSecondary: "#C9A89A",
+    textMuted: "#BDB5AE",
+    accentPremium: "#D4B483",
     success: "#6B8E5E",
     warning: "#C4956A",
     danger: "#C97B6B",
@@ -87,8 +99,12 @@ export const THEME_COLORS: Record<ThemeId, ThemeColors> = {
     accentDeep: "#B8962F",
     bg: "#0A0F1F",
     card: "#12183A",
+    surfaceRaised: "#162050",
+    surfaceHover: "#1E2A5A",
     text: "#E0E0E0",
     textSecondary: "#9E9E9E",
+    textMuted: "#9399B0",
+    accentPremium: "#E8D48B",
     success: "#2E7D32",
     warning: "#E65100",
     danger: "#C62828",

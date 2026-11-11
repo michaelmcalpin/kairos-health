@@ -2,6 +2,7 @@
 
 import { Sidebar, companyAdminNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { CompanyBrandProvider, useCompanyBrand } from "@/lib/company-ops";
 import { trpc } from "@/lib/trpc";
@@ -29,7 +30,9 @@ function CompanyShell({ children }: { children: React.ReactNode }) {
           subtitle="Company Portal"
           brandColor={brand.brandColor}
         />
-        <main className="p-6 overflow-x-hidden">{children}</main>
+        <main className="overflow-x-hidden">
+          <PageContainer>{children}</PageContainer>
+        </main>
       </div>
     </div>
   );

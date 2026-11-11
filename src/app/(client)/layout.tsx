@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { Sidebar, clientNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { CompanyBrandProvider, useCompanyBrand, isPlatformBrand } from "@/lib/company-ops";
 import { FloatingChat } from "@/components/chat/FloatingChat";
@@ -52,7 +53,9 @@ function ClientShell({ children }: { children: React.ReactNode }) {
           subtitle={isWhiteLabel ? "Health Platform" : "Private Health Management"}
           brandColor={isWhiteLabel ? brand.brandColor : undefined}
         />
-        <main className="p-6 overflow-x-hidden">{children}</main>
+        <main className="overflow-x-hidden">
+          <PageContainer>{children}</PageContainer>
+        </main>
       </div>
       <FloatingChat />
     </div>
