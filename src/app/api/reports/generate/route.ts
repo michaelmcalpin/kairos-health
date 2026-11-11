@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { CLIENT_SAFETY_RULES, redactDosingDeep } from "@/lib/ai/clinical-guardrails";
+import { CLIENT_SAFETY_RULES, redactDosing, redactDosingDeep } from "@/lib/ai/clinical-guardrails";
+import { loadClientDoseAllowlist } from "@/server/services/client-doses";
 import { ANTHROPIC_MODEL } from "@/lib/ai/model";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/server/db";
@@ -398,14 +399,15 @@ ${healthContext}`,
           error: truncated
             ? "The report was too long to finish generating. Please try again."
             : "Failed to parse report. Please try again.",
-          raw: textBlock.text.slice(0, 500),
+          raw: redactDosing(textBlock.text.slice(0, 500)).text,
         }),
         { status: 500 }
       );
     }
 
     // Backstop: no peptide/medicine doses in client-visible reports.
-    return new Response(JSON.stringify({ report: redactDosingDeep(reportData), reportType }), {
+    const allow = await loadClientDoseAllowlist(db, dbUser.id).catch(() => undefined);
+    return new Response(JSON.stringify({ report: redactDosingDeep(reportData, allow), reportType }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

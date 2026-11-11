@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { getClientContext } from "@/lib/ai/health-context";
 import { callWithRetry } from "@/lib/ai/retry";
 import { CLIENT_SAFETY_RULES, DosingStreamFilter } from "@/lib/ai/clinical-guardrails";
+import { loadClientDoseAllowlist } from "@/server/services/client-doses";
 
 // Streamed AI responses over a large health-context prompt can take
 // 30-90s — without this, Vercel kills the function mid-stream.
@@ -139,7 +140,8 @@ export async function POST(req: NextRequest) {
     const encoder = new TextEncoder();
     let fullResponse = "";
     // Backstop: strip peptide/medicine doses line by line before the client sees them.
-    const dosingFilter = new DosingStreamFilter();
+    // Doses already in the client's own list may be repeated as written.
+    const dosingFilter = new DosingStreamFilter(await loadClientDoseAllowlist(db, dbUser.id).catch(() => undefined));
 
     const readable = new ReadableStream({
       async start(controller) {
