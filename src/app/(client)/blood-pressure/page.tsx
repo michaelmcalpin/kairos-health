@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { MetricTrendCard } from "@/components/charts/MetricTrendCard";
 import { cn } from "@/utils/cn";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
@@ -86,6 +87,7 @@ export default function BloodPressurePage() {
   const utils = trpc.useUtils();
   const addMutation = trpc.clientPortal.bloodPressure.add.useMutation({
     onSuccess: () => {
+      utils.clientPortal.healthData.invalidate();
       utils.clientPortal.bloodPressure.getHistory.invalidate();
       utils.clientPortal.bloodPressure.getLatest.invalidate();
       utils.clientPortal.bloodPressure.getAverages.invalidate();
@@ -93,6 +95,7 @@ export default function BloodPressurePage() {
   });
   const deleteMutation = trpc.clientPortal.bloodPressure.delete.useMutation({
     onSuccess: () => {
+      utils.clientPortal.healthData.invalidate();
       utils.clientPortal.bloodPressure.getHistory.invalidate();
       utils.clientPortal.bloodPressure.getLatest.invalidate();
       utils.clientPortal.bloodPressure.getAverages.invalidate();
@@ -203,11 +206,21 @@ export default function BloodPressurePage() {
           <h2 className="font-heading font-bold text-xl text-white">Blood Pressure</h2>
           <p className="text-sm font-body text-kairos-silver-dark">Track and monitor your cardiovascular health</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="kairos-btn-gold flex items-center gap-2">
-          {showForm ? <X size={18} /> : <Plus size={18} />}
-          {showForm ? "Close" : "Add Reading"}
+        <button onClick={() => setShowForm(!showForm)} className="kairos-btn-outline flex items-center gap-1.5 px-3 py-1.5 text-sm" aria-expanded={showForm}>
+          {showForm ? <X size={16} aria-hidden /> : <Plus size={16} aria-hidden />}
+          {showForm ? "Close" : "Log a reading"}
         </button>
       </div>
+
+      <MetricTrendCard
+        title="Blood pressure trend"
+        subtitle="Daily average of your readings, from your cuff, Apple Health and manual logs."
+        views={[{ id: "bp", label: "Top / bottom", lines: [{ key: "bp_systolic", label: "Top (systolic)" }, { key: "bp_diastolic", label: "Bottom (diastolic)" }] }]}
+        empty={{
+          message: "connect a cuff through Apple Health or Withings, or log a reading.",
+          actions: [{ label: "Connect a device", href: "/settings" }, { label: "Log a reading", onClick: () => setShowForm(true) }],
+        }}
+      />
 
       {/* ------------------------------------------------------------------ */}
       {/* Add Reading Form (expandable) */}
@@ -367,6 +380,10 @@ export default function BloodPressurePage() {
         </div>
       )}
 
+      <div className="pt-2">
+        <h2 className="font-heading font-semibold text-white">Readings</h2>
+        <p className="text-sm text-kairos-silver-dark">Each reading with its category, for a chosen week, month or quarter.</p>
+      </div>
       {/* Date range navigator */}
       <DateRangeNavigator
         availablePeriods={["week", "month", "quarter"]}

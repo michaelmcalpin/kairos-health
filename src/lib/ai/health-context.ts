@@ -42,7 +42,7 @@ import {
   lifeScoreJournalEntries,
   taskMissReasons,
 } from "@/server/db/schema";
-import { eq, desc, and, gte, ne, lte } from "drizzle-orm";
+import { eq, desc, and, gte, ne, lte, isNotNull } from "drizzle-orm";
 import { computeAdherence } from "@/server/trpc/routers/client/today";
 import { computeLifeScore } from "@/lib/lifescore/score";
 import { mergeSleepNights } from "@/lib/health/sleep";
@@ -219,7 +219,8 @@ export async function getClientContext(dbUserId: string) {
       .from(biomarkerValues)
       .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
       .leftJoin(biomarkerDefinitions, eq(biomarkerValues.biomarkerCode, biomarkerDefinitions.code))
-      .where(eq(labResults.clientId, dbUserId))
+      // Only results the care team has released (the client's AI must not reveal values under review).
+      .where(and(eq(labResults.clientId, dbUserId), isNotNull(labResults.releasedAt)))
       .orderBy(desc(labResults.receivedAt))
       .limit(80),
   ]);

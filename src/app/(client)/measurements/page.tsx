@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
 import { useDateRange } from "@/hooks/useDateRange";
 import { trpc } from "@/lib/trpc";
+import { MetricTrendCard } from "@/components/charts/MetricTrendCard";
 import { cn } from "@/utils/cn";
 import {
   Scale,
@@ -958,7 +959,26 @@ export default function MeasurementsPage() {
 
   const handleRefresh = () => {
     utils.clientPortal.measurements.list.invalidate({ startDate, endDate });
+    utils.clientPortal.healthData.invalidate();
   };
+
+  // Chart first: merged daily series (Apple Health, smart scales, manual entries).
+  const trend = (
+    <MetricTrendCard
+      title="Body composition trend"
+      subtitle="From your smart scale, Apple Health and logged measurements."
+      views={[
+        { id: "weight", label: "Weight", lines: [{ key: "weight" }] },
+        { id: "fat", label: "Body fat", lines: [{ key: "body_fat" }] },
+        { id: "lean", label: "Lean mass", lines: [{ key: "lean_mass" }] },
+        { id: "waist", label: "Waist", lines: [{ key: "waist" }] },
+      ]}
+      empty={{
+        message: "connect a smart scale or Apple Health, or log a measurement.",
+        actions: [{ label: "Connect a device", href: "/settings" }, { label: "Log a measurement", onClick: () => setShowForm(true) }],
+      }}
+    />
+  );
 
   // ---- Empty state ----
   if (!isLoading && sorted.length === 0) {
@@ -975,11 +995,18 @@ export default function MeasurementsPage() {
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="kairos-btn-gold flex items-center gap-2 px-4 py-2 rounded-kairos-sm font-body text-sm"
+            className="kairos-btn-outline flex items-center gap-1.5 px-3 py-1.5 rounded-kairos-sm font-body text-sm"
           >
-            <Plus className="w-4 h-4" />
-            Add Measurement
+            <Plus className="w-4 h-4" aria-hidden />
+            Log a measurement
           </button>
+        </div>
+
+        {trend}
+
+        <div className="pt-2">
+          <h2 className="font-heading font-semibold text-white">Measurements</h2>
+          <p className="text-sm text-kairos-silver-dark">Logged measurements for a chosen month, quarter or year.</p>
         </div>
 
         <DateRangeNavigator
@@ -1038,15 +1065,23 @@ export default function MeasurementsPage() {
         </div>
         <button
           onClick={() => setShowForm((p) => !p)}
-          className="kairos-btn-gold flex items-center gap-2 px-4 py-2 rounded-kairos-sm font-body text-sm"
+          className="kairos-btn-outline flex items-center gap-1.5 px-3 py-1.5 rounded-kairos-sm font-body text-sm"
+          aria-expanded={showForm}
         >
           {showForm ? (
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden />
           ) : (
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" aria-hidden />
           )}
-          {showForm ? "Close" : "Add Measurement"}
+          {showForm ? "Close" : "Log a measurement"}
         </button>
+      </div>
+
+      {trend}
+
+      <div className="pt-2">
+        <h2 className="font-heading font-semibold text-white">Measurements</h2>
+        <p className="text-sm text-kairos-silver-dark">Logged measurements, composition and circumferences for a chosen month, quarter or year.</p>
       </div>
 
       {/* Add measurement form (expandable) */}

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizeBiomarkers } from "@/lib/labs/normalize";
+import { initialReviewFields } from "@/lib/labs/review";
 import crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 import { router, clientProcedure } from "@/server/trpc";
@@ -134,6 +135,8 @@ export const clientImportsRouter = router({
           clientId: ctx.dbUserId,
           receivedAt: new Date(),
           ocrStatus: "imported",
+          // Imported files wait for coach review before the client sees values.
+          ...initialReviewFields("client_import"),
         }).returning({ id: labResults.id });
 
         if (labResult && rows.length > 0) {

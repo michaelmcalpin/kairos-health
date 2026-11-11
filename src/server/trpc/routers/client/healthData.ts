@@ -39,8 +39,34 @@ export async function healthDataSummary(db: typeof DB, clientId: string, endDate
   };
 }
 
+/**
+ * Daily series for a few metrics, merged across sources (same numbers as the
+ * rest of the app). Days without data are left out — never filled with zero.
+ */
+export async function healthDataSeries(db: typeof DB, clientId: string, metrics: string[], days: number, endDate: string) {
+  const series = await loadDailyMetrics(db, clientId, shift(endDate, -(days - 1)), endDate);
+  const out: Record<string, Array<{ date: string; value: number; source: string }>> = {};
+  for (const key of metrics) {
+    const byDate = series.get(key);
+    out[key] = byDate
+      ? Array.from(byDate.entries())
+        .map(([date, v]) => ({ date, value: v.value, source: v.source }))
+        .sort((a, b) => (a.date < b.date ? -1 : 1))
+      : [];
+  }
+  return { endDate, days, series: out };
+}
+
 export const clientHealthDataRouter = router({
   summary: clientProcedure
     .input(z.object({ date: z.string().optional() }).optional())
     .query(({ ctx, input }) => healthDataSummary(ctx.db, ctx.dbUserId, input?.date ?? today())),
+
+  series: clientProcedure
+    .input(z.object({
+      metrics: z.array(z.string().max(40)).min(1).max(8),
+      days: z.number().int().min(7).max(400).default(90),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    }))
+    .query(({ ctx, input }) => healthDataSeries(ctx.db, ctx.dbUserId, input.metrics, input.days, input.date ?? today())),
 });

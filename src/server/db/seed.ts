@@ -550,6 +550,9 @@ async function seedLabs(clientIds: string[], coachIds: string[]) {
         clientId,
         receivedAt: new Date(orderedAt.getTime() + 5 * 24 * 3600000),
         ocrStatus: "completed",
+        // Seeded panels are already reviewed and released to the client.
+        releasedAt: new Date(orderedAt.getTime() + 6 * 24 * 3600000),
+        reviewedAt: new Date(orderedAt.getTime() + 6 * 24 * 3600000),
       });
 
       // Biomarker values

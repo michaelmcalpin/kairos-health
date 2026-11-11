@@ -12,10 +12,13 @@ import {
   clinicalDocuments,
   trainerClientRelationships,
   labResults,
+  labOrders,
   biomarkerValues,
 } from "@/server/db/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { normalizeBiomarkers } from "@/lib/labs/normalize";
+import { normalizeBiomarkers, statusFromRange } from "@/lib/labs/normalize";
+import { initialReviewFields } from "@/lib/labs/review";
+import { coachLabOverview } from "@/server/services/labs";
 import { assertDocBelongsToClient, coachClientIds, auditDocUpload } from "@/server/services/doc-ownership";
 
 // ─── PHI sanitization ───────────────────────────────────────
@@ -205,6 +208,8 @@ export const coachDataRouter = router({
     .input(z.object({
       clientId: z.string(),
       receivedAt: z.string(), // ISO date
+      /** Add values to an existing result (e.g. a PDF the client uploaded) instead of creating one. */
+      resultId: z.string().uuid().optional(),
       status: z.string().optional().default("reviewed"),
       biomarkers: z.array(z.object({
         code: z.string().min(1).max(50),
@@ -218,11 +223,23 @@ export const coachDataRouter = router({
     .mutation(async ({ ctx, input }) => {
       await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
 
-      // Create lab result
-      const [lab] = await ctx.db.insert(labResults).values({
-        clientId: input.clientId,
-        receivedAt: new Date(input.receivedAt),
-      }).returning();
+      // Coach-entered values wait in "pending review" until the coach releases them.
+      let lab: { id: string };
+      if (input.resultId) {
+        const existing = await ctx.db.query.labResults.findFirst({
+          where: and(eq(labResults.id, input.resultId), eq(labResults.clientId, input.clientId)),
+        });
+        if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Lab result not found for this client" });
+        if (existing.releasedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "This result is already released to the client" });
+        lab = existing;
+      } else {
+        [lab] = await ctx.db.insert(labResults).values({
+          clientId: input.clientId,
+          receivedAt: new Date(input.receivedAt),
+          ocrStatus: "coach_entered",
+          ...initialReviewFields("coach"),
+        }).returning();
+      }
 
       // Create biomarker values
       if (input.biomarkers.length > 0) {
@@ -281,5 +298,77 @@ export const coachDataRouter = router({
       }
 
       return results;
+    }),
+
+  /**
+   * Labs tab: every panel (released or not) with review hints, grouped
+   * marker trends, and how many panels still need review.
+   */
+  labOverview: trainerProcedure
+    .input(z.object({ clientId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      return coachLabOverview(ctx.db, input.clientId);
+    }),
+
+  /**
+   * Review a lab result: confirm/correct units and ranges, flag values,
+   * add a note, and optionally release it to the client. Status is
+   * recomputed from the (possibly corrected) range — never guessed.
+   */
+  reviewLabResult: trainerProcedure
+    .input(z.object({
+      clientId: z.string(),
+      resultId: z.string().uuid(),
+      note: z.string().max(2000).optional().nullable(),
+      release: z.boolean().default(false),
+      markers: z.array(z.object({
+        id: z.string().uuid(),
+        unit: z.string().max(50).optional().nullable(),
+        refLow: z.number().optional().nullable(),
+        refHigh: z.number().optional().nullable(),
+        flagged: z.boolean().optional(),
+      })).max(300).default([]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      const result = await ctx.db.query.labResults.findFirst({
+        where: and(eq(labResults.id, input.resultId), eq(labResults.clientId, input.clientId)),
+      });
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "Lab result not found for this client" });
+
+      const existing = await ctx.db.query.biomarkerValues.findMany({ where: eq(biomarkerValues.resultId, result.id) });
+      const byId = new Map(existing.map((b) => [b.id, b]));
+      if (input.release && existing.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Add the values before releasing this result" });
+      }
+
+      for (const edit of input.markers) {
+        const cur = byId.get(edit.id);
+        if (!cur) continue; // not part of this result
+        const unit = edit.unit !== undefined ? (edit.unit?.trim() || null) : cur.unit;
+        const refLow = edit.refLow !== undefined ? edit.refLow : cur.refLow;
+        const refHigh = edit.refHigh !== undefined ? edit.refHigh : cur.refHigh;
+        const explicit = cur.status && cur.status !== "normal" ? cur.status : null;
+        const status = statusFromRange(cur.value, refLow, refHigh) ?? explicit;
+        await ctx.db.update(biomarkerValues)
+          .set({ unit, refLow, refHigh, status, flagged: edit.flagged ?? cur.flagged })
+          .where(eq(biomarkerValues.id, cur.id));
+      }
+
+      const now = new Date();
+      const note = input.note === undefined ? result.coachNote : (input.note?.trim() || null);
+      await ctx.db.update(labResults).set({
+        reviewedAt: now,
+        reviewedBy: ctx.dbUserId,
+        coachNote: note,
+        ...(input.release && !result.releasedAt ? { releasedAt: now } : {}),
+      }).where(eq(labResults.id, result.id));
+
+      // A released result is ready for the client: the order stops showing "reviewing".
+      if (input.release && result.orderId) {
+        await ctx.db.update(labOrders).set({ status: "results_received" }).where(eq(labOrders.id, result.orderId));
+      }
+      return { id: result.id, released: input.release || !!result.releasedAt };
     }),
 });

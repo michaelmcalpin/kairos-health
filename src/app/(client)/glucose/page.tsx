@@ -8,6 +8,7 @@ import { useGlucose } from "@/hooks/client/useGlucose";
 import { useThemeColors } from "@/lib/theme";
 import { trpc } from "@/lib/trpc";
 import { round } from "@/lib/format/number";
+import { MetricTrendCard } from "@/components/charts/MetricTrendCard";
 import { Droplets, TrendingDown, TrendingUp, Clock, Target, AlertTriangle, Plus, X } from "lucide-react";
 
 export default function GlucosePage() {
@@ -89,6 +90,7 @@ export default function GlucosePage() {
       utils.clientPortal.glucose.list.invalidate();
       utils.clientPortal.glucose.stats.invalidate();
       utils.clientPortal.glucose.dailyAverages.invalidate();
+      utils.clientPortal.healthData.invalidate();
 
       // Close modal and reset form on success
       setShowManualEntry(false);
@@ -159,12 +161,23 @@ export default function GlucosePage() {
         </div>
         <button
           onClick={() => setShowManualEntry(!showManualEntry)}
-          className="kairos-btn-gold flex items-center gap-2"
+          className="kairos-btn-outline flex items-center gap-1.5 px-3 py-1.5 text-sm"
+          aria-expanded={showManualEntry}
         >
-          <Plus size={18} />
-          Add Reading
+          <Plus size={16} aria-hidden />
+          Log a reading
         </button>
       </div>
+
+      <MetricTrendCard
+        title="Blood sugar trend"
+        subtitle="Daily average from your CGM, Apple Health and logged readings."
+        views={[{ id: "glucose", label: "Daily average", lines: [{ key: "glucose" }] }]}
+        empty={{
+          message: "connect a CGM (Dexcom) or Apple Health, or log a reading.",
+          actions: [{ label: "Connect a device", href: "/settings" }, { label: "Log a reading", onClick: () => setShowManualEntry(true) }],
+        }}
+      />
 
       {/* Manual Entry Form */}
       {showManualEntry && (
@@ -288,6 +301,11 @@ export default function GlucosePage() {
           </div>
         </div>
       )}
+
+      <div className="pt-2">
+        <h2 className="font-heading font-semibold text-white">Readings and daily detail</h2>
+        <p className="text-sm text-kairos-silver-dark">Individual readings for a chosen day, week or month (target 70–140 mg/dL for single readings).</p>
+      </div>
 
       <DateRangeNavigator
         availablePeriods={["day", "week", "month"]}
