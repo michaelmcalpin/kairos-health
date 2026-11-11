@@ -68,7 +68,7 @@ function MetricCard({ m }: { m: MetricSummaryView }) {
         <button type="button" onClick={() => setAbout((a) => !a)} className="text-left text-xs text-gray-300 font-semibold flex items-center gap-1 hover:text-white">
           {m.label} <Info size={11} className="text-gray-500" />
         </button>
-        <span className={cn("text-[11px] flex items-center gap-0.5",
+        <span className={cn("text-xs flex items-center gap-0.5",
           tone === "good" ? "text-emerald-300" : tone === "bad" ? "text-amber-300" : "text-gray-500")}>
           <TIcon size={12} />{m.trendPct != null && Math.abs(m.trendPct) >= 3 ? `${Math.abs(m.trendPct)}%` : ""}
         </span>
@@ -79,10 +79,10 @@ function MetricCard({ m }: { m: MetricSummaryView }) {
         </p>
         <Sparkline series={m.series} tone={tone} />
       </div>
-      <p className="text-[10px] text-gray-500 mt-1">
+      <p className="text-xs text-gray-500 mt-1">
         7-day {fmt(m, m.avg7)} · 30-day {fmt(m, m.avg30)}{m.source ? ` · ${SOURCE_LABEL[m.source] ?? m.source}` : ""}
       </p>
-      {about && <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">{m.about}</p>}
+      {about && <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{m.about}</p>}
     </div>
   );
 }

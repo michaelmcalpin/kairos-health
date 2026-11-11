@@ -537,7 +537,7 @@ function AIChatTab() {
                         <span className="inline-block w-1.5 h-4 bg-kairos-gold/60 animate-pulse ml-0.5 align-text-bottom rounded-sm" />
                       )}
                     </div>
-                    <p className={`text-[10px] font-body text-kairos-silver-dark mt-1 ${isMe ? "text-right" : ""}`}>
+                    <p className={`text-xs font-body text-kairos-silver-dark mt-1 ${isMe ? "text-right" : ""}`}>
                       {msg.isStreaming ? "" : formatTime(msg.createdAt)}
                     </p>
                   </div>
@@ -552,7 +552,7 @@ function AIChatTab() {
                 <div className="p-4 border-b border-kairos-border">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-heading font-bold text-white text-lg">{exercisePlan.programName}</h3>
-                    <span className="text-[10px] px-2 py-1 rounded bg-kairos-gold/15 text-kairos-gold border border-kairos-gold/30 font-heading">
+                    <span className="text-xs px-2 py-1 rounded bg-kairos-gold/15 text-kairos-gold border border-kairos-gold/30 font-heading">
                       {exercisePlan.daysPerWeek} days/week &bull; {exercisePlan.durationWeeks} weeks
                     </span>
                   </div>
@@ -560,7 +560,7 @@ function AIChatTab() {
                   {exercisePlan.focusAreas.length > 0 && (
                     <div className="flex gap-1.5 mt-2">
                       {exercisePlan.focusAreas.map((f, i) => (
-                        <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">{f}</span>
+                        <span key={i} className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">{f}</span>
                       ))}
                     </div>
                   )}
@@ -573,7 +573,7 @@ function AIChatTab() {
                           <span className="text-xs font-heading font-bold text-kairos-gold">{session.dayLabel}</span>
                           <span className="text-sm font-heading font-semibold text-white">{session.name}</span>
                         </div>
-                        <span className={cn("text-[10px] px-2 py-0.5 rounded border font-heading",
+                        <span className={cn("text-xs px-2 py-0.5 rounded border font-heading",
                           session.type === "strength" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
                           session.type === "cardio" ? "bg-green-500/10 text-green-400 border-green-500/20" :
                           session.type === "hiit" ? "bg-red-500/10 text-red-400 border-red-500/20" :
@@ -591,7 +591,7 @@ function AIChatTab() {
                           ))}
                         </div>
                       )}
-                      {session.coachNotes && <p className="text-[10px] text-kairos-silver-dark mt-1 italic">{session.coachNotes}</p>}
+                      {session.coachNotes && <p className="text-xs text-kairos-silver-dark mt-1 italic">{session.coachNotes}</p>}
                     </div>
                   ))}
                 </div>
@@ -602,7 +602,7 @@ function AIChatTab() {
                     </div>
                   ) : (
                     <>
-                      <p className="text-[10px] text-kairos-silver-dark">Ask me to change anything, or save when ready</p>
+                      <p className="text-xs text-kairos-silver-dark">Ask me to change anything, or save when ready</p>
                       <button
                         onClick={saveExercisePlan}
                         disabled={exercisePlanSaving}
@@ -637,7 +637,7 @@ function AIChatTab() {
           {isStreaming || exercisePlanLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
         </button>
       </div>
-      <p className="text-[10px] font-body text-kairos-silver-dark text-center py-1">
+      <p className="text-xs font-body text-kairos-silver-dark text-center py-1">
         EVERIST AI analyzes your complete health profile. Always consult your healthcare provider.
       </p>
     </div>
@@ -833,7 +833,7 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
               <div key={group.date}>
                 <div className="flex items-center gap-3 my-3">
                   <div className="flex-1 h-px bg-kairos-border" />
-                  <span className="text-[10px] font-body text-kairos-silver-dark">{group.date}</span>
+                  <span className="text-xs font-body text-kairos-silver-dark">{group.date}</span>
                   <div className="flex-1 h-px bg-kairos-border" />
                 </div>
                 <div className="space-y-3">
@@ -852,7 +852,7 @@ function CoachChatTab({ coachName, coachId }: { coachName: string; coachId: stri
                               <p className="text-sm font-body">{msg.body}</p>
                             </div>
                             <div className={`flex items-center gap-1 mt-0.5 ${isMe ? "justify-end" : ""}`}>
-                              <span className="text-[10px] font-body text-kairos-silver-dark">
+                              <span className="text-xs font-body text-kairos-silver-dark">
                                 {formatTime(msg.createdAt)}
                               </span>
                               {isMe && (
@@ -1038,12 +1038,12 @@ function ChatPageContent() {
           <UserCircle size={16} />
           My Coach
           {coachUnread > 0 && (
-            <span className="absolute top-2 right-[calc(50%-40px)] w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+            <span className="absolute top-2 right-[calc(50%-40px)] w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
               {coachUnread > 9 ? "9+" : coachUnread}
             </span>
           )}
           {!hasCoach && (
-            <span className="text-[10px] font-body text-kairos-silver-dark ml-1">(none)</span>
+            <span className="text-xs font-body text-kairos-silver-dark ml-1">(none)</span>
           )}
         </button>
       </div>

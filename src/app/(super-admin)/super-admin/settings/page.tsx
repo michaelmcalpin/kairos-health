@@ -165,7 +165,7 @@ export default function AdminSettingsPage() {
           </div>
           <div>
             <span className="font-heading font-semibold text-white text-sm">{company.name}</span>
-            <p className="text-[10px] text-kairos-silver-dark">{company.website || company.slug}</p>
+            <p className="text-xs text-kairos-silver-dark">{company.website || company.slug}</p>
           </div>
           <div className="ml-auto flex items-center gap-4 text-xs text-kairos-silver-dark">
             <span>Brand: <span className="inline-block w-3 h-3 rounded-full align-middle ml-1" style={{ backgroundColor: company.brandColor }} /></span>

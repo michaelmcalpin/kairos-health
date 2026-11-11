@@ -202,7 +202,7 @@ export default function SleepPage() {
         ]}
         empty={{
           message: "connect Oura or Apple Health, or log a night.",
-          actions: [{ label: "Connect a device", href: "/settings" }, { label: "Log a night", onClick: () => setShowManualEntry(true) }],
+          actions: [{ label: "Connect a device", href: "/settings?tab=integrations" }, { label: "Log a night", onClick: () => setShowManualEntry(true) }],
         }}
       />
 
@@ -418,7 +418,7 @@ export default function SleepPage() {
                       ));
                     })()}
                   </div>
-                  <div className="flex justify-between mt-2 text-[10px] font-body text-kairos-silver-dark">
+                  <div className="flex justify-between mt-2 text-xs font-body text-kairos-silver-dark">
                     <span>{displayRecord.bedtime}</span>
                     <span>{displayRecord.wake}</span>
                   </div>
@@ -459,7 +459,7 @@ export default function SleepPage() {
                     <div className="h-2 bg-kairos-royal-surface rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all" style={{ width: `${stage.pct}%`, backgroundColor: stage.color, opacity: stage.label === "Light Sleep" ? 0.5 : 1 }} />
                     </div>
-                    <p className="text-[10px] font-body text-kairos-silver-dark mt-0.5">Target: {stage.target}</p>
+                    <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Target: {stage.target}</p>
                   </div>
                 ))}
               </div>
@@ -507,7 +507,7 @@ export default function SleepPage() {
           <div className="grid grid-cols-7 gap-3">
             {sleepRecords.map((day, i) => (
               <div key={i} className="text-center">
-                <p className="text-[10px] font-heading text-kairos-silver-dark mb-2">{day.dateLabel}</p>
+                <p className="text-xs font-heading text-kairos-silver-dark mb-2">{day.dateLabel}</p>
                 <div className={`rounded-full w-12 h-12 mx-auto flex items-center justify-center border-2 ${
                   day.score >= 85 ? "border-green-400 text-green-400" :
                   day.score >= 70 ? "border-kairos-gold text-kairos-gold" :
@@ -522,15 +522,15 @@ export default function SleepPage() {
                   <div style={{ flex: day.light, backgroundColor: stageColors.light, opacity: 0.5 }} />
                   <div style={{ flex: day.awake, backgroundColor: stageColors.awake }} />
                 </div>
-                <p className="text-[9px] font-body text-kairos-silver-dark mt-1">{day.bedtime}</p>
+                <p className="text-xs font-body text-kairos-silver-dark mt-1">{day.bedtime}</p>
               </div>
             ))}
           </div>
           <div className="mt-4 pt-3 border-t border-kairos-border grid grid-cols-4 gap-4 text-center">
-            <div><p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Avg Score</p><p className="text-lg font-heading font-bold text-kairos-gold">{sleepStats.avgScore}</p></div>
-            <div><p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Avg Total</p><p className="text-lg font-heading font-bold text-white">{sleepStats.avgTotal}h</p></div>
-            <div><p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Avg Deep</p><p className="text-lg font-heading font-bold text-white">{sleepStats.avgDeep}h</p></div>
-            <div><p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Avg REM</p><p className="text-lg font-heading font-bold text-white">{sleepStats.avgRem}h</p></div>
+            <div><p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Avg Score</p><p className="text-lg font-heading font-bold text-kairos-gold">{sleepStats.avgScore}</p></div>
+            <div><p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Avg Total</p><p className="text-lg font-heading font-bold text-white">{sleepStats.avgTotal}h</p></div>
+            <div><p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Avg Deep</p><p className="text-lg font-heading font-bold text-white">{sleepStats.avgDeep}h</p></div>
+            <div><p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Avg REM</p><p className="text-lg font-heading font-bold text-white">{sleepStats.avgRem}h</p></div>
           </div>
         </div>
       )}
@@ -554,15 +554,15 @@ export default function SleepPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Total</p>
+                    <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Total</p>
                     <p className="text-sm font-heading font-bold text-white">{week.avgTotal}h</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Deep</p>
+                    <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Deep</p>
                     <p className="text-sm font-heading font-bold text-white">{week.avgDeep}h</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">REM</p>
+                    <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">REM</p>
                     <p className="text-sm font-heading font-bold text-white">{week.avgRem}h</p>
                   </div>
                 </div>

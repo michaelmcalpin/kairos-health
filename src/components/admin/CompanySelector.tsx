@@ -48,7 +48,7 @@ export function CompanySelector({ value, onChange }: CompanySelectorProps) {
         {selected ? (
           <>
             <div
-              className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold text-white"
+              className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold text-white"
               style={{ backgroundColor: selected.brandColor }}
             >
               {selected.name.charAt(0)}
@@ -91,13 +91,13 @@ export function CompanySelector({ value, onChange }: CompanySelectorProps) {
                   }`}
                 >
                   <div
-                    className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                    className="w-5 h-5 rounded flex items-center justify-center text-xs font-bold text-white shrink-0"
                     style={{ backgroundColor: company.brandColor }}
                   >
                     {company.name.charAt(0)}
                   </div>
                   <span className="font-heading font-semibold truncate">{company.name}</span>
-                  <span className="ml-auto text-[10px] text-kairos-silver-dark shrink-0">
+                  <span className="ml-auto text-xs text-kairos-silver-dark shrink-0">
                     {company.trainerCount}T / {company.clientCount}C
                   </span>
                 </button>

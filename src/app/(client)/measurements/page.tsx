@@ -254,7 +254,7 @@ function PairedCircCard({
       <div className="flex items-center gap-2 mb-2">
         <p className="text-xs font-body text-kairos-silver-dark">{label}</p>
         {asymmetric && (
-          <span className="flex items-center gap-1 text-[10px] text-amber-400 font-body">
+          <span className="flex items-center gap-1 text-xs text-amber-400 font-body">
             <AlertTriangle className="w-3 h-3" />
             {diff!.toFixed(1)}&quot; diff
           </span>
@@ -263,7 +263,7 @@ function PairedCircCard({
       <div className="grid grid-cols-2 gap-3">
         {/* Left */}
         <div>
-          <p className="text-[10px] text-kairos-silver-dark mb-0.5">L</p>
+          <p className="text-xs text-kairos-silver-dark mb-0.5">L</p>
           <span className="text-lg font-bold text-white">
             {leftCurrent != null ? leftCurrent.toFixed(1) : "--"}
           </span>
@@ -275,7 +275,7 @@ function PairedCircCard({
         </div>
         {/* Right */}
         <div>
-          <p className="text-[10px] text-kairos-silver-dark mb-0.5">R</p>
+          <p className="text-xs text-kairos-silver-dark mb-0.5">R</p>
           <span className="text-lg font-bold text-white">
             {rightCurrent != null ? rightCurrent.toFixed(1) : "--"}
           </span>
@@ -370,7 +370,7 @@ function WeightTrendChart({
                 <text
                   x={pad.left - 6}
                   y={y + 3}
-                  className="fill-kairos-silver-dark text-[10px] font-body"
+                  className="fill-kairos-silver-dark text-xs font-body"
                   textAnchor="end"
                 >
                   {val}
@@ -403,7 +403,7 @@ function WeightTrendChart({
               <text
                 x={pad.left}
                 y={chartH - 4}
-                className="fill-kairos-silver-dark text-[10px] font-body"
+                className="fill-kairos-silver-dark text-xs font-body"
                 textAnchor="start"
               >
                 {fmtDate(entries[0].date)}
@@ -412,7 +412,7 @@ function WeightTrendChart({
                 <text
                   x={chartW - pad.right}
                   y={chartH - 4}
-                  className="fill-kairos-silver-dark text-[10px] font-body"
+                  className="fill-kairos-silver-dark text-xs font-body"
                   textAnchor="end"
                 >
                   {fmtDate(entries[entries.length - 1].date)}
@@ -975,7 +975,7 @@ export default function MeasurementsPage() {
       ]}
       empty={{
         message: "connect a smart scale or Apple Health, or log a measurement.",
-        actions: [{ label: "Connect a device", href: "/settings" }, { label: "Log a measurement", onClick: () => setShowForm(true) }],
+        actions: [{ label: "Connect a device", href: "/settings?tab=integrations" }, { label: "Log a measurement", onClick: () => setShowForm(true) }],
       }}
     />
   );

@@ -129,7 +129,7 @@ export default function AdminDashboard() {
           </div>
           <div>
             <p className="font-heading font-semibold text-white text-sm">{company.name}</p>
-            <p className="text-[10px] text-kairos-silver-dark">{company.website || company.slug}</p>
+            <p className="text-xs text-kairos-silver-dark">{company.website || company.slug}</p>
           </div>
           <div className="ml-auto text-xs text-kairos-silver-dark">
             {company.trainerCount} coaches · {company.clientCount} clients
@@ -142,25 +142,25 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <div className="kairos-card p-3 text-center">
             <p className="text-2xl font-heading font-bold text-kairos-gold">{data.companyStats.totalCompanies}</p>
-            <p className="text-[10px] text-gray-500 uppercase">Companies</p>
+            <p className="text-xs text-gray-500 uppercase">Companies</p>
           </div>
           <div className="kairos-card p-3 text-center">
             <p className="text-2xl font-heading font-bold text-green-400">{data.companyStats.activeCompanies}</p>
-            <p className="text-[10px] text-gray-500 uppercase">Active</p>
+            <p className="text-xs text-gray-500 uppercase">Active</p>
           </div>
           <div className="kairos-card p-3 text-center">
             <p className="text-2xl font-heading font-bold text-white">{data.companyStats.totalTrainers}</p>
-            <p className="text-[10px] text-gray-500 uppercase">Coaches</p>
+            <p className="text-xs text-gray-500 uppercase">Coaches</p>
           </div>
           <div className="kairos-card p-3 text-center">
             <p className="text-2xl font-heading font-bold text-white">{data.companyStats.totalClients}</p>
-            <p className="text-[10px] text-gray-500 uppercase">Clients</p>
+            <p className="text-xs text-gray-500 uppercase">Clients</p>
           </div>
           <div className="kairos-card p-3 text-center">
             <p className="text-2xl font-heading font-bold text-kairos-gold">
               ${(data.companyStats.mrr / 1000).toFixed(0)}K
             </p>
-            <p className="text-[10px] text-gray-500 uppercase">Est. MRR</p>
+            <p className="text-xs text-gray-500 uppercase">Est. MRR</p>
           </div>
         </div>
       )}
@@ -231,7 +231,7 @@ export default function AdminDashboard() {
                   <p className="text-sm font-body text-white">{item.event}</p>
                   <div className="flex justify-between mt-0.5">
                     <p className="text-xs font-body text-kairos-silver-dark">{item.detail}</p>
-                    <p className="text-[10px] font-body text-kairos-silver-dark">{item.time}</p>
+                    <p className="text-xs font-body text-kairos-silver-dark">{item.time}</p>
                   </div>
                 </div>
               ))}

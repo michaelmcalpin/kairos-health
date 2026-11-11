@@ -294,7 +294,7 @@ function OverviewTab({ company, trainers, clients }: { company: CompanyData; tra
               <div className="flex items-center gap-4 text-right">
                 <div>
                   <p className="text-xs font-heading font-semibold text-white">{t.clientCount}/{t.capacity}</p>
-                  <p className="text-[10px] text-kairos-silver-dark">clients</p>
+                  <p className="text-xs text-kairos-silver-dark">clients</p>
                 </div>
                 <div className="flex items-center gap-1">
                   <Star size={12} className="text-kairos-gold" />
@@ -336,7 +336,7 @@ function OverviewTab({ company, trainers, clients }: { company: CompanyData; tra
                 <p className="text-sm font-body text-white truncate">{c.firstName} {c.lastName}</p>
                 <p className="text-xs font-body text-kairos-silver-dark truncate">{c.trainerName}</p>
               </div>
-              <span className={`px-2 py-0.5 rounded-kairos-sm text-[10px] font-heading font-semibold ${
+              <span className={`px-2 py-0.5 rounded-kairos-sm text-xs font-heading font-semibold ${
                 c.tier === "tier1" ? "bg-kairos-gold/15 text-kairos-gold" :
                 c.tier === "tier2" ? "bg-blue-500/15 text-blue-400" :
                 "bg-gray-500/15 text-gray-400"
@@ -634,7 +634,7 @@ function BrandingTab({
                 </div>
                 <div>
                   <p className="font-heading font-semibold text-white text-sm">{form.name || "Company Name"}</p>
-                  <p className="text-[10px] text-kairos-silver-dark">Health Platform</p>
+                  <p className="text-xs text-kairos-silver-dark">Health Platform</p>
                 </div>
               </div>
               <div className="space-y-1">
@@ -652,7 +652,7 @@ function BrandingTab({
                 ))}
               </div>
               <div className="mt-4 pt-3 border-t border-kairos-border text-center">
-                <p className="text-[9px] text-kairos-silver-dark">
+                <p className="text-xs text-kairos-silver-dark">
                   Powered by <span className="text-kairos-gold font-semibold">EVERIST</span>
                 </p>
               </div>
@@ -671,9 +671,9 @@ function BrandingTab({
               {form.name.charAt(0) || "?"}
             </div>
             <p style={{ color: form.brandColor }} className="font-bold text-lg">{form.emailFromName || form.name || "Company"}</p>
-            <p className="text-gray-400 text-[10px] mt-1">Health Platform &bull; Powered by Everist.ai</p>
+            <p className="text-gray-400 text-xs mt-1">Health Platform &bull; Powered by Everist.ai</p>
             <div className="mt-4 pt-3 border-t border-gray-200">
-              <p className="text-gray-500 text-[10px]">{form.emailFooter || "Footer text"}</p>
+              <p className="text-gray-500 text-xs">{form.emailFooter || "Footer text"}</p>
             </div>
           </div>
         </div>

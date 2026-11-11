@@ -106,7 +106,7 @@ export default function AdminDashboard() {
                 <p className="text-sm font-body text-white">{item.event}</p>
                 <div className="flex justify-between mt-0.5">
                   <p className="text-xs font-body text-kairos-silver-dark">{item.detail}</p>
-                  <p className="text-[10px] font-body text-kairos-silver-dark">{item.time}</p>
+                  <p className="text-xs font-body text-kairos-silver-dark">{item.time}</p>
                 </div>
               </div>
             ))}

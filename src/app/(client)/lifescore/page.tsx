@@ -110,7 +110,7 @@ export default function LifeScorePage() {
 
           {(followUp || prompt?.text) && (
             <div className="mt-4 rounded-xl bg-kairos-royal-surface p-3">
-              <p className="text-[10px] uppercase tracking-wide text-kairos-gold font-semibold mb-1 flex items-center gap-1">
+              <p className="text-xs uppercase tracking-wide text-kairos-gold font-semibold mb-1 flex items-center gap-1">
                 <Sparkles size={11} /> {followUp ? "Follow-up" : "Reflection"}
               </p>
               <p className="text-sm text-gray-200 leading-relaxed">{followUp ?? prompt?.text}</p>

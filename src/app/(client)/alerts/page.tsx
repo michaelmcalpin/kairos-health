@@ -74,10 +74,10 @@ export default function AlertsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <span className={`text-[10px] font-heading font-bold px-1.5 py-0.5 rounded-full ${config.bgColor} ${config.color}`}>
+                    <span className={`text-xs font-heading font-bold px-1.5 py-0.5 rounded-full ${config.bgColor} ${config.color}`}>
                       {config.label}
                     </span>
-                    <span className={`text-[10px] font-heading px-1.5 py-0.5 rounded-full ${
+                    <span className={`text-xs font-heading px-1.5 py-0.5 rounded-full ${
                       alert.status === "active" ? "bg-kairos-gold/15 text-kairos-gold" :
                       alert.status === "acknowledged" ? "bg-blue-500/15 text-blue-400" :
                       "bg-green-500/15 text-green-400"
@@ -89,7 +89,7 @@ export default function AlertsPage() {
                   <p className="text-xs font-body text-kairos-silver-dark mt-0.5">{alert.message}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-[10px] font-body text-kairos-silver-dark flex items-center gap-1">
+                  <span className="text-xs font-body text-kairos-silver-dark flex items-center gap-1">
                     <Clock size={10} /> {alert.createdAt ? new Date(alert.createdAt).toLocaleDateString() : ""}
                   </span>
                   {isExpanded ? <ChevronUp size={16} className="text-kairos-silver-dark" /> : <ChevronDown size={16} className="text-kairos-silver-dark" />}

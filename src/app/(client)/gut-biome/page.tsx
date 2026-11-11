@@ -69,7 +69,7 @@ function StatusBadge({ status }: { status: string }) {
     low: "bg-blue-500/15 text-blue-400 border-blue-500/30",
   };
   return (
-    <span className={cn("inline-flex px-2 py-0.5 rounded text-[10px] font-heading font-bold border uppercase", styles[status] || styles.normal)}>
+    <span className={cn("inline-flex px-2 py-0.5 rounded text-xs font-heading font-bold border uppercase", styles[status] || styles.normal)}>
       {status}
     </span>
   );
@@ -419,7 +419,7 @@ export default function GutBiomePage() {
                   })()}
                 </svg>
               </div>
-              <div className="flex justify-between text-[10px] text-kairos-silver-dark px-2 mb-4">
+              <div className="flex justify-between text-xs text-kairos-silver-dark px-2 mb-4">
                 {diversityTrend.map((p, i) => (
                   <div key={i} className="text-center">
                     <p className="font-bold text-white text-sm">{round(p.value, 0)}</p>
@@ -459,22 +459,22 @@ export default function GutBiomePage() {
               {hasViomeData ? (
                 <>
                   <div className="kairos-card p-5">
-                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Health Scores</p>
+                    <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Health Scores</p>
                     <p className="text-2xl font-heading font-bold text-white">{latestData.healthScores!.length}</p>
                     <p className="text-xs text-kairos-silver-dark mt-1">pathways analyzed</p>
                   </div>
                   <div className="kairos-card p-5">
-                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Maintain</p>
+                    <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Maintain</p>
                     <p className="text-2xl font-heading font-bold text-green-400">{maintainCount}</p>
                     <p className="text-xs text-kairos-silver-dark mt-1">on track</p>
                   </div>
                   <div className="kairos-card p-5">
-                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Improve</p>
+                    <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Improve</p>
                     <p className="text-2xl font-heading font-bold text-yellow-400">{improveCount}</p>
                     <p className="text-xs text-kairos-silver-dark mt-1">room to optimize</p>
                   </div>
                   <div className="kairos-card p-5">
-                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Attention</p>
+                    <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Attention</p>
                     <p className="text-2xl font-heading font-bold text-red-400">{attentionCount}</p>
                     <p className="text-xs text-kairos-silver-dark mt-1">needs focus</p>
                   </div>
@@ -483,7 +483,7 @@ export default function GutBiomePage() {
                 <>
                   <div className="kairos-card p-5 cursor-pointer hover:border-kairos-gold/30 border border-transparent transition-all"
                     onClick={() => { setShowTrend(true); setAiTrendAnalysis(null); }}>
-                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Diversity Score</p>
+                    <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Diversity Score</p>
                     <p className={cn("text-2xl font-heading font-bold",
                       latestData.diversityRating === "high" ? "text-green-400"
                         : latestData.diversityRating === "moderate" ? "text-yellow-400" : "text-red-400")}>
@@ -491,7 +491,7 @@ export default function GutBiomePage() {
                     </p>
                   </div>
                   <div className="kairos-card p-5">
-                    <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Active Microbes</p>
+                    <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Active Microbes</p>
                     <p className="text-2xl font-heading font-bold text-white">{microbes.length || "—"}</p>
                   </div>
                 </>
@@ -556,7 +556,7 @@ export default function GutBiomePage() {
                         m.type === "archaeon" ? "bg-cyan-400" : "bg-blue-400"
                       )} />
                       <span className="text-xs text-kairos-silver truncate italic">{m.name}</span>
-                      <span className="text-[9px] text-kairos-silver-dark ml-auto flex-shrink-0 capitalize">{m.type}</span>
+                      <span className="text-xs text-kairos-silver-dark ml-auto flex-shrink-0 capitalize">{m.type}</span>
                     </div>
                   ))}
                 </div>
@@ -630,7 +630,7 @@ export default function GutBiomePage() {
                             {new Date(doc.reportDate ?? doc.createdAt).toLocaleDateString()}
                           </span>
                           {doc.providerName && <span className="text-xs text-kairos-silver-dark">{doc.providerName}</span>}
-                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full border",
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full border",
                             doc.status === "processed" ? "bg-green-500/10 text-green-400 border-green-500/30"
                               : "bg-yellow-500/10 text-yellow-400 border-yellow-500/30")}>
                             {doc.status === "processed" ? "Processed" : "Pending Review"}
@@ -646,21 +646,21 @@ export default function GutBiomePage() {
                       {data ? (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
                           <div>
-                            <p className="text-[10px] font-heading text-kairos-silver-dark uppercase">Diversity</p>
+                            <p className="text-xs font-heading text-kairos-silver-dark uppercase">Diversity</p>
                             <p className="text-lg font-heading font-bold text-white">{round(data.diversityScore, 0)}</p>
                           </div>
                           <div>
-                            <p className="text-[10px] font-heading text-kairos-silver-dark uppercase">Dysbiosis</p>
+                            <p className="text-xs font-heading text-kairos-silver-dark uppercase">Dysbiosis</p>
                             <p className={cn("text-lg font-heading font-bold", data.dysbiosis ? "text-red-400" : "text-green-400")}>
                               {data.dysbiosis ? "Yes" : "No"}
                             </p>
                           </div>
                           <div>
-                            <p className="text-[10px] font-heading text-kairos-silver-dark uppercase">Findings</p>
+                            <p className="text-xs font-heading text-kairos-silver-dark uppercase">Findings</p>
                             <p className="text-lg font-heading font-bold text-yellow-400">{data.keyFindings?.length ?? 0}</p>
                           </div>
                           <div>
-                            <p className="text-[10px] font-heading text-kairos-silver-dark uppercase">Pathogens</p>
+                            <p className="text-xs font-heading text-kairos-silver-dark uppercase">Pathogens</p>
                             <p className="text-lg font-heading font-bold text-red-400">{data.pathogenicOrganisms?.filter((p) => p.detected).length ?? 0}</p>
                           </div>
                         </div>

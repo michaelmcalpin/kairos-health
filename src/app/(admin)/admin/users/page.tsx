@@ -93,38 +93,38 @@ export default function AdminUsersPage() {
       {/* Stats Overview */}
       <div className="grid grid-cols-6 gap-3 mb-6">
         <div className="kairos-card p-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Total</p>
           <p className="text-xl font-heading font-bold text-white">{statsData.totalUsers}</p>
         </div>
         <div className="kairos-card p-3">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_COLORS.active }} />
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Active</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider">Active</p>
           </div>
           <p className="text-xl font-heading font-bold text-white">{statsData.activeUsers}</p>
         </div>
         <div className="kairos-card p-3">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ROLE_COLORS.client }} />
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Clients</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider">Clients</p>
           </div>
           <p className="text-xl font-heading font-bold text-white">{statsData.clientCount}</p>
         </div>
         <div className="kairos-card p-3">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ROLE_COLORS.trainer }} />
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Coaches</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider">Coaches</p>
           </div>
           <p className="text-xl font-heading font-bold text-white">{statsData.trainerCount}</p>
         </div>
         <div className="kairos-card p-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">New This Week</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">New This Week</p>
           <p className="text-xl font-heading font-bold text-kairos-gold">{statsData.newUsersThisWeek}</p>
         </div>
         <div className="kairos-card p-3">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: STATUS_COLORS.suspended }} />
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Suspended</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider">Suspended</p>
           </div>
           <p className="text-xl font-heading font-bold text-white">{statsData.suspendedUsers}</p>
         </div>

@@ -149,17 +149,17 @@ function TemplatesSection({ type }: { type: TemplateType }) {
 
               {/* Meta */}
               <div className="flex flex-wrap gap-2 mb-4">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] bg-gray-800 border border-gray-700 text-kairos-silver">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-kairos-silver">
                   <FileSpreadsheet size={11} /> {tpl.rowCount} {type === "diet" ? "meal" : "exercise"}
                   {tpl.rowCount === 1 ? "" : "s"}
                 </span>
                 {type === "workouts" && tpl.dayCount != null && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] bg-gray-800 border border-gray-700 text-kairos-silver">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-kairos-silver">
                     <Dumbbell size={11} /> {tpl.dayCount} day{tpl.dayCount === 1 ? "" : "s"}
                   </span>
                 )}
                 {type === "diet" && tpl.planType && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] bg-gray-800 border border-gray-700 text-kairos-silver">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs bg-gray-800 border border-gray-700 text-kairos-silver">
                     {tpl.planType}
                   </span>
                 )}
@@ -431,7 +431,7 @@ function TemplateEditorModal({
             </div>
           ) : (
             <>
-              <p className="text-[11px] text-kairos-silver-dark flex items-center gap-1.5 mb-4">
+              <p className="text-xs text-kairos-silver-dark flex items-center gap-1.5 mb-4">
                 <Sparkles size={12} className="text-kairos-gold/70 shrink-0" />
                 Build this {meta.noun} manually, paste from a spreadsheet, import a CSV, or upload a Word/PDF/Excel
                 file for AI to read. Save when done, then apply it to any client.
@@ -577,7 +577,7 @@ function ApplyTemplateModal({
                       className="flex items-center justify-between p-2.5 rounded-lg bg-gray-800/50 border border-yellow-500/20"
                     >
                       <span className="text-sm text-gray-300 truncate">{nameById.get(s.clientId) ?? s.clientId}</span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 shrink-0">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 shrink-0">
                         {reasonLabel(s.reason)}
                       </span>
                     </div>

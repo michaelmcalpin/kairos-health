@@ -189,14 +189,14 @@ export default function CompanySettingsPage() {
               </div>
               <div>
                 <p className="font-heading font-bold text-sm" style={{ color: brandColor }}>{companyName}</p>
-                <p className="text-[9px] text-kairos-silver-dark uppercase tracking-widest">Health Platform</p>
+                <p className="text-xs text-kairos-silver-dark uppercase tracking-widest">Health Platform</p>
               </div>
             </div>
             {/* Mini topbar preview */}
             <div className="flex items-center justify-between p-3 bg-kairos-royal-dark/50 rounded-kairos-sm border border-kairos-border mb-4">
               <div>
                 <p className="font-heading font-bold text-sm" style={{ color: brandColor }}>{companyName}</p>
-                <p className="text-[9px] text-kairos-silver-dark">Company Portal</p>
+                <p className="text-xs text-kairos-silver-dark">Company Portal</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 bg-gray-700 rounded-full" />
@@ -204,7 +204,7 @@ export default function CompanySettingsPage() {
             </div>
             {/* Footer preview */}
             <div className="text-center py-2 border-t border-kairos-border">
-              <p className="text-[10px] text-kairos-silver-dark">
+              <p className="text-xs text-kairos-silver-dark">
                 Powered by <span className="text-kairos-gold font-semibold">EVERIST</span>
               </p>
             </div>
@@ -274,8 +274,8 @@ export default function CompanySettingsPage() {
                 </div>
                 {/* Email footer */}
                 <div className="text-center py-3 border-t border-gray-700/50">
-                  <p className="text-[10px] text-gray-500">{emailFooter}</p>
-                  <p className="text-[9px] text-gray-600 mt-1">Powered by Everist.ai</p>
+                  <p className="text-xs text-gray-500">{emailFooter}</p>
+                  <p className="text-xs text-gray-600 mt-1">Powered by Everist.ai</p>
                 </div>
               </div>
             </div>

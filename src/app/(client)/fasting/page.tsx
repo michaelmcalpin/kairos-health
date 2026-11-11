@@ -387,7 +387,7 @@ export default function FastingPage() {
                       <p className={`text-sm font-heading font-bold ${isActive ? "text-kairos-gold" : "text-white"}`}>
                         {preset.label}
                       </p>
-                      <p className="text-[10px] font-body text-kairos-silver-dark mt-0.5">{preset.subtitle}</p>
+                      <p className="text-xs font-body text-kairos-silver-dark mt-0.5">{preset.subtitle}</p>
                     </button>
                   );
                 })}
@@ -423,7 +423,7 @@ export default function FastingPage() {
                       <p className={`text-sm font-heading font-bold ${isActive ? "text-kairos-gold" : "text-white"}`}>
                         {preset.label}
                       </p>
-                      <p className="text-[10px] font-body text-kairos-silver-dark mt-0.5">{preset.subtitle}</p>
+                      <p className="text-xs font-body text-kairos-silver-dark mt-0.5">{preset.subtitle}</p>
                     </button>
                   );
                 })}
@@ -442,7 +442,7 @@ export default function FastingPage() {
               <p className={`text-sm font-heading font-bold ${activePresetId === "custom" ? "text-kairos-gold" : "text-white"}`}>
                 Custom
               </p>
-              <p className="text-[10px] font-body text-kairos-silver-dark mt-0.5">Set your own feeding window</p>
+              <p className="text-xs font-body text-kairos-silver-dark mt-0.5">Set your own feeding window</p>
             </button>
 
             {showCustom && !isFasting && (
@@ -545,7 +545,7 @@ export default function FastingPage() {
                 of {targetHours}h goal
               </span>
               {isPastTarget && (
-                <span className="text-[10px] font-heading font-bold text-green-400 mt-1 flex items-center gap-1">
+                <span className="text-xs font-heading font-bold text-green-400 mt-1 flex items-center gap-1">
                   <Trophy size={10} /> TARGET REACHED
                 </span>
               )}
@@ -607,11 +607,11 @@ export default function FastingPage() {
               {fastingZones
                 .filter((z) => z.start < maxZoneHour)
                 .map((zone) => (
-                  <span key={zone.name} className="text-[9px] font-body text-kairos-silver-dark">
+                  <span key={zone.name} className="text-xs font-body text-kairos-silver-dark">
                     {zone.start}h
                   </span>
                 ))}
-              <span className="text-[9px] font-body text-kairos-silver-dark">{maxZoneHour}h</span>
+              <span className="text-xs font-body text-kairos-silver-dark">{maxZoneHour}h</span>
             </div>
           </div>
 
@@ -714,10 +714,10 @@ export default function FastingPage() {
                     {item.label}
                   </span>
                   {item.required && !isChecked && (
-                    <span className="text-[9px] font-heading font-bold text-kairos-gold uppercase">Required</span>
+                    <span className="text-xs font-heading font-bold text-kairos-gold uppercase">Required</span>
                   )}
                   {item.extendedOnly && (
-                    <span className="text-[9px] font-heading font-bold text-cyan-400 uppercase">Extended</span>
+                    <span className="text-xs font-heading font-bold text-cyan-400 uppercase">Extended</span>
                   )}
                 </button>
               );
@@ -740,7 +740,7 @@ export default function FastingPage() {
             </button>
           </div>
           {!requiredChecked && (
-            <p className="text-center text-[10px] font-body text-kairos-silver-dark mt-2">
+            <p className="text-center text-xs font-body text-kairos-silver-dark mt-2">
               Complete all required checklist items to begin
             </p>
           )}
@@ -777,7 +777,7 @@ export default function FastingPage() {
                   >
                     {zone.name}
                   </p>
-                  <p className="text-[10px] font-body text-kairos-silver-dark">
+                  <p className="text-xs font-body text-kairos-silver-dark">
                     {zone.start}–{zone.end}h &middot; {zone.description}
                   </p>
                 </div>
@@ -787,7 +787,7 @@ export default function FastingPage() {
                   </span>
                 )}
                 {isActive && (
-                  <span className="text-kairos-gold text-[10px] font-heading font-bold">NOW</span>
+                  <span className="text-kairos-gold text-xs font-heading font-bold">NOW</span>
                 )}
               </div>
             );
@@ -905,7 +905,7 @@ export default function FastingPage() {
                     </p>
                   </div>
                   <span
-                    className={`text-[10px] font-heading font-bold flex-shrink-0 ${
+                    className={`text-xs font-heading font-bold flex-shrink-0 ${
                       fast.completed ? "text-green-400" : fast.endedAt ? "text-red-400" : "text-kairos-gold"
                     }`}
                   >

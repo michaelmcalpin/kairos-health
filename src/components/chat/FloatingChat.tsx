@@ -32,7 +32,7 @@ function renderInline(text: string): React.ReactNode {
     if (match.index > lastIndex) parts.push(remaining.slice(lastIndex, match.index));
     if (match[2]) parts.push(<strong key={idx++} className="font-semibold text-white">{match[2]}</strong>);
     else if (match[3]) parts.push(<em key={idx++}>{match[3]}</em>);
-    else if (match[4]) parts.push(<code key={idx++} className="bg-kairos-royal px-1 rounded text-[11px] text-kairos-gold">{match[4]}</code>);
+    else if (match[4]) parts.push(<code key={idx++} className="bg-kairos-royal px-1 rounded text-xs text-kairos-gold">{match[4]}</code>);
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < remaining.length) parts.push(remaining.slice(lastIndex));
@@ -225,7 +225,7 @@ export function FloatingChat() {
         >
           <Sparkles size={24} />
           {coachUnread > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md">
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 text-white text-xs font-bold flex items-center justify-center shadow-md">
               {coachUnread > 9 ? "9+" : coachUnread}
             </span>
           )}
@@ -242,7 +242,7 @@ export function FloatingChat() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-heading font-semibold text-white truncate">Everist AI</p>
-              <p className="text-[10px] font-body text-green-400">Online</p>
+              <p className="text-xs font-body text-green-400">Online</p>
             </div>
             {coachUnread > 0 && (
               <button

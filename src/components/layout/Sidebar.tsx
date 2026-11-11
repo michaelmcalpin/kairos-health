@@ -213,7 +213,7 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
               >
                 {companyName ? displayName : <span className="text-kairos-gold">EVERIST.ai</span>}
               </h1>
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-widest">
+              <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-widest">
                 {displaySubtitle}
               </p>
             </div>
@@ -233,7 +233,7 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
         <div className="px-4 py-3 border-b border-kairos-border">
           <p className="text-sm font-heading font-semibold text-white truncate">{userName}</p>
           {userTier && (
-            <span className="kairos-badge-gold text-[10px] mt-1">{userTier}</span>
+            <span className="kairos-badge-gold text-xs mt-1">{userTier}</span>
           )}
         </div>
       )}
@@ -264,7 +264,7 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
                   <span>{sectionName}</span>
                   <div className="flex items-center gap-1.5">
                     {!isExpanded && sectionBadgeTotal > 0 && (
-                      <span className="bg-danger text-white text-[9px] font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
+                      <span className="bg-danger text-white text-xs font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1">
                         {sectionBadgeTotal > 99 ? "99+" : sectionBadgeTotal}
                       </span>
                     )}
@@ -304,7 +304,7 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
                             <span className="flex-1">{item.label}</span>
                           )}
                           {!collapsed && item.badge !== undefined && item.badge > 0 && (
-                            <span className="bg-danger text-white text-[10px] font-heading font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                            <span className="bg-danger text-white text-xs font-heading font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                               {item.badge > 99 ? "99+" : item.badge}
                             </span>
                           )}
@@ -323,11 +323,11 @@ export function Sidebar({ items, userName, userTier, companyName, companyLogoUrl
       {!collapsed && (
         <div className="px-4 py-3 border-t border-kairos-border">
           {showPoweredBy ? (
-            <p className="text-[10px] text-kairos-silver-dark font-body">
+            <p className="text-xs text-kairos-silver-dark font-body">
               Powered by <span className="text-kairos-gold font-semibold">EVERIST.ai</span>
             </p>
           ) : (
-            <p className="text-[10px] text-kairos-silver-dark font-body">
+            <p className="text-xs text-kairos-silver-dark font-body">
               EVERIST.ai v0.1.0
             </p>
           )}

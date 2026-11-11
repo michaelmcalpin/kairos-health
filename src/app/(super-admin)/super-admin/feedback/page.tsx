@@ -179,28 +179,28 @@ export default function AdminFeedbackPage() {
       {/* Stats Overview */}
       <div className="grid grid-cols-5 gap-3 mb-6">
         <div className="kairos-card p-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Total</p>
           <p className="text-xl font-heading font-bold text-white">{stats?.total ?? 0}</p>
         </div>
         <div className="kairos-card p-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">New</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">New</p>
           <p className="text-xl font-heading font-bold text-kairos-gold">{stats?.byStatus.new ?? 0}</p>
         </div>
         <div className="kairos-card p-3">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Last 7 Days</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Last 7 Days</p>
           <p className="text-xl font-heading font-bold text-white">{stats?.last7Days ?? 0}</p>
         </div>
         <div className="kairos-card p-3">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-red-400" />
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Bugs</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider">Bugs</p>
           </div>
           <p className="text-xl font-heading font-bold text-white">{stats?.byType.bug ?? 0}</p>
         </div>
         <div className="kairos-card p-3">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-blue-400" />
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Features</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider">Features</p>
           </div>
           <p className="text-xl font-heading font-bold text-white">{stats?.byType.feature ?? 0}</p>
         </div>
@@ -220,12 +220,12 @@ export default function AdminFeedbackPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-white/10 text-left">
-              <th className="px-4 py-3 text-[10px] text-gray-500 uppercase tracking-wider font-medium">Date</th>
-              <th className="px-4 py-3 text-[10px] text-gray-500 uppercase tracking-wider font-medium">User</th>
-              <th className="px-4 py-3 text-[10px] text-gray-500 uppercase tracking-wider font-medium">Platform / Page</th>
-              <th className="px-4 py-3 text-[10px] text-gray-500 uppercase tracking-wider font-medium">Type</th>
-              <th className="px-4 py-3 text-[10px] text-gray-500 uppercase tracking-wider font-medium">Message</th>
-              <th className="px-4 py-3 text-[10px] text-gray-500 uppercase tracking-wider font-medium">Status</th>
+              <th className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Date</th>
+              <th className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wider font-medium">User</th>
+              <th className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Platform / Page</th>
+              <th className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Type</th>
+              <th className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Message</th>
+              <th className="px-4 py-3 text-xs text-gray-500 uppercase tracking-wider font-medium">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -260,20 +260,20 @@ export default function AdminFeedbackPage() {
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-white text-xs font-medium">{userName}</p>
-                    <p className="text-gray-500 text-[11px]">{item.userEmail ?? "—"}</p>
+                    <p className="text-gray-500 text-xs">{item.userEmail ?? "—"}</p>
                     {item.role && (
-                      <p className="text-kairos-silver-dark text-[10px] uppercase tracking-wider mt-0.5">
+                      <p className="text-kairos-silver-dark text-xs uppercase tracking-wider mt-0.5">
                         {item.role.replace(/_/g, " ")}
                       </p>
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs">
                     <p className="text-gray-300 capitalize">{item.platform ?? "—"}</p>
-                    <p className="text-gray-500 text-[11px] break-all max-w-[160px]">{item.page ?? "—"}</p>
+                    <p className="text-gray-500 text-xs break-all max-w-[160px]">{item.page ?? "—"}</p>
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium border ${badge.className}`}
+                      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border ${badge.className}`}
                     >
                       {badge.label}
                     </span>
@@ -289,7 +289,7 @@ export default function AdminFeedbackPage() {
                       {displayMessage}
                     </p>
                     {item.aiSummary && (
-                      <p className="text-kairos-silver-dark text-[11px] mt-1.5 italic">
+                      <p className="text-kairos-silver-dark text-xs mt-1.5 italic">
                         AI: {item.aiSummary}
                       </p>
                     )}
@@ -298,7 +298,7 @@ export default function AdminFeedbackPage() {
                         {item.aiTags.map((tag) => (
                           <span
                             key={tag}
-                            className="px-1.5 py-0.5 rounded bg-white/5 text-gray-400 text-[10px] border border-white/10"
+                            className="px-1.5 py-0.5 rounded bg-white/5 text-gray-400 text-xs border border-white/10"
                           >
                             {tag}
                           </span>

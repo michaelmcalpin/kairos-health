@@ -303,7 +303,7 @@ export default function CoachProfilePage() {
                   placeholder="e.g. Longevity, HRV optimization, Metabolic health"
                   className="kairos-input w-full"
                 />
-                <p className="text-[11px] font-body text-kairos-silver-dark/70 mt-1">Comma-separated</p>
+                <p className="text-xs font-body text-kairos-silver-dark/70 mt-1">Comma-separated</p>
               </>
             ) : profile?.specialties && profile.specialties.length > 0 ? (
               <div className="flex flex-wrap gap-2">

@@ -222,12 +222,12 @@ export default function ProgressPhotosPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     {photo.poseType && (
-                      <span className="text-[10px] font-heading font-semibold text-white/80 uppercase">
+                      <span className="text-xs font-heading font-semibold text-white/80 uppercase">
                         {photo.poseType}
                       </span>
                     )}
                     {photo.date && (
-                      <p className="text-[10px] font-body text-white/60">{photo.date}</p>
+                      <p className="text-xs font-body text-white/60">{photo.date}</p>
                     )}
                   </div>
                   {selectedPhoto === photo.id && (

@@ -213,7 +213,7 @@ function SelectRoleContent() {
               <h1 className="font-heading font-bold text-2xl tracking-wide mb-1" style={{ color: accentColor }}>
                 {brand.name}
               </h1>
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-widest">
+              <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-widest">
                 Health Platform &bull; Powered by Everist.ai
               </p>
             </>

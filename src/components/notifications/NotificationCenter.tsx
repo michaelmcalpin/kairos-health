@@ -15,7 +15,7 @@ interface NotificationCenterProps {
 const CATEGORY_FILTERS: { value: NotificationCategory | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "health_alert", label: "Health" },
-  { value: "insight", label: "Insight Sherpa" },
+  { value: "insight", label: "Reports" },
   { value: "coach_message", label: "Coach" },
   { value: "appointment", label: "Appointments" },
   { value: "billing", label: "Billing" },
@@ -55,7 +55,7 @@ export function NotificationCenter({
               Notifications
             </h2>
             {unreadCount > 0 && (
-              <span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-kairos-gold px-1.5 text-[10px] font-bold text-kairos-royal-dark">
+              <span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-kairos-gold px-1.5 text-xs font-bold text-kairos-royal-dark">
                 {unreadCount}
               </span>
             )}
@@ -88,7 +88,7 @@ export function NotificationCenter({
             <button
               key={cat.value}
               onClick={() => setFilter(cat.value)}
-              className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                 filter === cat.value
                   ? "bg-kairos-gold text-kairos-royal-dark"
                   : "bg-kairos-royal-dark text-kairos-silver-dark hover:text-kairos-silver"

@@ -146,10 +146,10 @@ export function WeeklyCalendar({
                           borderLeft: `3px solid ${color}`,
                         }}
                       >
-                        <div className="text-[10px] font-medium text-white truncate">
+                        <div className="text-xs font-medium text-white truncate">
                           {appt.clientName}
                         </div>
-                        <div className="text-[10px] text-gray-400 truncate">
+                        <div className="text-xs text-gray-400 truncate">
                           {formatTimeDisplay(appt.startTime)}
                         </div>
                       </button>

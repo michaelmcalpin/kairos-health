@@ -64,7 +64,7 @@ function AccessSegment({
           key={opt.value}
           onClick={() => { if (opt.value !== value) onChange(opt.value); }}
           disabled={disabled}
-          className={`px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors disabled:opacity-50 ${
+          className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-50 ${
             value === opt.value
               ? opt.value === "none"
                 ? "bg-gray-700 text-gray-300"
@@ -100,7 +100,7 @@ function CategoryGrid({
               <Icon size={15} className="text-gray-500 shrink-0" />
               <div>
                 <p className="text-sm text-white font-medium">{cat.label}</p>
-                <p className="text-[10px] text-gray-500">{cat.desc}</p>
+                <p className="text-xs text-gray-500">{cat.desc}</p>
               </div>
             </div>
             <AccessSegment
@@ -164,7 +164,7 @@ function GrantedCoachCard({ grant, onRevoke }: { grant: Grant; onRevoke: (grantI
             <p className="text-sm font-semibold text-white">{coachName(grant)}</p>
             <p className="text-xs text-gray-500">{grant.email}</p>
             {grant.grantedAt && (
-              <p className="text-[10px] text-gray-600 mt-0.5">
+              <p className="text-xs text-gray-600 mt-0.5">
                 Shared since {new Date(grant.grantedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
               </p>
             )}
@@ -293,7 +293,7 @@ function ShareWithCoachCard() {
               {coach.specialties.length > 0 && (
                 <div className="flex gap-1.5 flex-wrap mt-1.5">
                   {coach.specialties.slice(0, 5).map((s) => (
-                    <span key={s} className="text-[10px] px-2 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/20">
+                    <span key={s} className="text-xs px-2 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/20">
                       {s}
                     </span>
                   ))}

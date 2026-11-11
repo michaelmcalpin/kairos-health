@@ -1195,7 +1195,7 @@ function LogPanel({
                   `}
                 >
                   <span className="text-xl">{MOOD_EMOJIS[level]}</span>
-                  <span className="text-[10px] font-body text-kairos-silver-dark">
+                  <span className="text-xs font-body text-kairos-silver-dark">
                     {MOOD_LABELS[level]}
                   </span>
                 </button>
@@ -1238,7 +1238,7 @@ function LogPanel({
                     />
                     <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-1 bg-current rounded-t-sm" />
                   </div>
-                  <span className="text-[10px] font-body text-kairos-silver-dark leading-tight text-center">
+                  <span className="text-xs font-body text-kairos-silver-dark leading-tight text-center">
                     {ENERGY_LABELS[level]}
                   </span>
                 </button>
@@ -1287,7 +1287,7 @@ function LogPanel({
                 <Plus className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-[10px] font-body text-kairos-silver-dark mt-2 text-center">
+            <p className="text-xs font-body text-kairos-silver-dark mt-2 text-center">
               Take your temperature first thing in the morning before getting out of bed
             </p>
           </div>

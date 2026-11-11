@@ -336,7 +336,7 @@ export default function PeptideCalcPage() {
                     style={{ left: `${pct}%`, transform: "translateX(-50%)" }}
                   >
                     <div className="w-px h-3 bg-kairos-silver-dark" />
-                    <span className="text-[9px] font-heading text-kairos-silver-dark mt-1">
+                    <span className="text-xs font-heading text-kairos-silver-dark mt-1">
                       {tick}
                     </span>
                   </div>

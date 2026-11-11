@@ -266,7 +266,7 @@ export default function AppointmentsPage() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-white">{info.label}</span>
                           <span
-                            className="px-2 py-0.5 rounded-full text-[10px]"
+                            className="px-2 py-0.5 rounded-full text-xs"
                             style={{
                               backgroundColor: `${STATUS_COLORS[appt.status] ?? "#6B7280"}20`,
                               color: STATUS_COLORS[appt.status] ?? "#6B7280",

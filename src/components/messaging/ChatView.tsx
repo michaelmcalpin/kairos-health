@@ -208,11 +208,11 @@ export function ChatView({
                           isOwn ? "justify-end" : "justify-start"
                         }`}
                       >
-                        <span className="text-[10px] text-gray-600">
+                        <span className="text-xs text-gray-600">
                           {formatMessageTime(msg.createdAt)}
                         </span>
                         {isOwn && (
-                          <span className="text-[10px]">
+                          <span className="text-xs">
                             {msg.readAt ? (
                               <span className="text-kairos-gold" title="Read">
                                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none">

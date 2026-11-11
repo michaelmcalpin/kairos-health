@@ -15,6 +15,12 @@ export const coachInboxRouter = router({
       return { items };
     }),
 
+  /** Open (not resolved) items, for the top-bar badge; same source as the page. */
+  openCount: trainerProcedure.query(async ({ ctx }) => {
+    const items = await loadInbox(ctx.db, ctx.dbUserId, { includeResolved: false });
+    return { count: items.filter((i) => i.state !== "resolved").length };
+  }),
+
   setState: trainerProcedure
     .input(z.object({
       key: z.string().min(1).max(200),

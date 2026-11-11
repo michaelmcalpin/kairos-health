@@ -9,9 +9,9 @@ import { CompanyBrandProvider, useCompanyBrand, isPlatformBrand } from "@/lib/co
 import { FloatingChat } from "@/components/chat/FloatingChat";
 import { trpc } from "@/lib/trpc";
 
-/** Nav items gated behind feature toggles: label → toggle key */
+/** Nav items gated behind feature toggles: route → toggle key (route, not label, so renames don't break it) */
 const TOGGLED_NAV_ITEMS: Record<string, string> = {
-  "Cycle Tracker": "cycleTracker",
+  "/cycle-tracker": "cycleTracker",
 };
 
 function ClientShell({ children }: { children: React.ReactNode }) {
@@ -27,10 +27,10 @@ function ClientShell({ children }: { children: React.ReactNode }) {
   const filteredNavItems = useMemo(() => {
     if (!toggles) {
       // While loading, hide toggled items to avoid flash
-      return clientNavItems.filter((item) => !TOGGLED_NAV_ITEMS[item.label]);
+      return clientNavItems.filter((item) => !TOGGLED_NAV_ITEMS[item.href]);
     }
     return clientNavItems.filter((item) => {
-      const toggleKey = TOGGLED_NAV_ITEMS[item.label];
+      const toggleKey = TOGGLED_NAV_ITEMS[item.href];
       if (!toggleKey) return true; // not a toggled item — always show
       return toggles[toggleKey] === true;
     });

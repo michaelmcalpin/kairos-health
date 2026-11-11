@@ -193,7 +193,7 @@ export default function SupplementsPage() {
         <div className="grid grid-cols-7 gap-3">
           {supplementHistory.slice(0, period === "week" ? 7 : 28).map((day, i) => (
             <div key={i} className="text-center">
-              <p className="text-[10px] font-heading text-kairos-silver-dark mb-1">{new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}</p>
+              <p className="text-xs font-heading text-kairos-silver-dark mb-1">{new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}</p>
               <div className="relative h-20 bg-kairos-royal-surface rounded-kairos-sm flex items-end justify-center p-1">
                 <div className={`w-full rounded-sm transition-all ${
                   day.adherence >= 90 ? "bg-green-500/60" : day.adherence >= 70 ? "bg-kairos-gold/60" : "bg-red-500/40"

@@ -266,7 +266,7 @@ export default function WorkoutsPage() {
         ]}
         empty={{
           message: "connect Apple Health or another tracker to see daily movement.",
-          actions: [{ label: "Connect a device", href: "/settings" }],
+          actions: [{ label: "Connect a device", href: "/settings?tab=integrations" }],
         }}
       />
 
@@ -321,7 +321,7 @@ export default function WorkoutsPage() {
           <div className="mb-4 flex items-center gap-3 rounded-kairos-sm border border-kairos-border bg-kairos-royal-surface/40 px-4 py-3">
             <Heart className="w-4 h-4 text-kairos-gold flex-shrink-0" />
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-wide text-kairos-silver-dark">From Apple Health today</p>
+              <p className="text-xs uppercase tracking-wide text-kairos-silver-dark">From Apple Health today</p>
               <p className="text-sm text-white font-body">{appleMetrics.join(" · ")}</p>
             </div>
           </div>
@@ -413,7 +413,7 @@ export default function WorkoutsPage() {
                       <div className={`w-2 h-2 rounded-full ${prog.status === "active" ? "bg-green-400" : "bg-gray-600"}`} />
                       <div className="text-left">
                         <p className="font-heading font-semibold text-white text-sm">{prog.name}</p>
-                        <p className="text-[10px] text-kairos-silver-dark">
+                        <p className="text-xs text-kairos-silver-dark">
                           {prog.isAiGenerated && <span className="text-kairos-gold">AI Generated</span>}
                           {prog.durationWeeks && <span> &bull; {prog.durationWeeks} weeks</span>}
                           {schedule?.daysPerWeek && <span> &bull; {schedule.daysPerWeek} days/week</span>}
@@ -422,7 +422,7 @@ export default function WorkoutsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {prog.status === "active" && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/30 font-heading">Active</span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/30 font-heading">Active</span>
                       )}
                       {isExpanded ? <ChevronDown size={16} className="text-kairos-silver-dark" /> : <ChevronRight size={16} className="text-kairos-silver-dark" />}
                     </div>
@@ -444,7 +444,7 @@ export default function WorkoutsPage() {
                                       <span className="flex items-center gap-2 min-w-0">
                                         <span className="text-kairos-silver truncate">{ex.name || ex.exerciseId.replace(/_/g, " ") || "Exercise"}</span>
                                         {ex.muscleGroup && (
-                                          <span className="flex-shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/20 capitalize">
+                                          <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/20 capitalize">
                                             {ex.muscleGroup.replace(/_/g, " ")}
                                           </span>
                                         )}
@@ -464,7 +464,7 @@ export default function WorkoutsPage() {
                               <button onClick={() => activateMutation.mutate({ programId: prog.id })}
                                 className="text-xs text-kairos-gold hover:text-kairos-gold/80">Activate</button>
                             ) : (
-                              <span className="text-[10px] text-green-400">Currently active</span>
+                              <span className="text-xs text-green-400">Currently active</span>
                             )}
                             <button onClick={() => { if (confirm("Delete this program?")) deleteMutation.mutate({ programId: prog.id }); }}
                               className="text-xs text-kairos-silver-dark hover:text-red-400 flex items-center gap-1">

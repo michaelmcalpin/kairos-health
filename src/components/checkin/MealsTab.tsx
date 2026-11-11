@@ -159,19 +159,19 @@ export const MealsTab: React.FC<MealsTabProps> = ({ data, onChange }) => {
           <div className="grid grid-cols-4 gap-3">
             <div className="p-2 rounded border border-kairos-border text-center">
               <p className="text-lg font-heading font-bold text-white">{round(dayTotals.calories, 0)}</p>
-              <p className="text-[10px] font-body text-kairos-silver-dark uppercase">Calories</p>
+              <p className="text-xs font-body text-kairos-silver-dark uppercase">Calories</p>
             </div>
             <div className="p-2 rounded border border-kairos-border text-center">
               <p className="text-lg font-heading font-bold text-kairos-gold">{round(dayTotals.protein, 0)}g</p>
-              <p className="text-[10px] font-body text-kairos-silver-dark uppercase">Protein</p>
+              <p className="text-xs font-body text-kairos-silver-dark uppercase">Protein</p>
             </div>
             <div className="p-2 rounded border border-kairos-border text-center">
               <p className="text-lg font-heading font-bold text-blue-400">{round(dayTotals.carbs, 0)}g</p>
-              <p className="text-[10px] font-body text-kairos-silver-dark uppercase">Carbs</p>
+              <p className="text-xs font-body text-kairos-silver-dark uppercase">Carbs</p>
             </div>
             <div className="p-2 rounded border border-kairos-border text-center">
               <p className="text-lg font-heading font-bold text-green-400">{round(dayTotals.fat, 0)}g</p>
-              <p className="text-[10px] font-body text-kairos-silver-dark uppercase">Fat</p>
+              <p className="text-xs font-body text-kairos-silver-dark uppercase">Fat</p>
             </div>
           </div>
         )}

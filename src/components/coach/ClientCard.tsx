@@ -45,7 +45,7 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick, toda
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-white truncate">{client.name}</p>
-              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${TIER_BADGE_COLORS[client.tier]}`}>
+              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold border ${TIER_BADGE_COLORS[client.tier]}`}>
                 {TIER_LABELS[client.tier]}
               </span>
             </div>
@@ -68,7 +68,7 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick, toda
               <span className="text-xs text-gray-500">{client.lastActive}</span>
               {typeof todayPct === "number" && (
                 <span
-                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${todayPctColor(todayPct)}`}
+                  className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold border ${todayPctColor(todayPct)}`}
                   title="Today's daily-task completion"
                 >
                   Today {round(todayPct, 0)}%
@@ -84,16 +84,16 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick, toda
           <div className="text-center" title={client.lifeScore ? `LifeScore · Physical ${client.lifeScore.physical ?? "—"} · Mental ${client.lifeScore.mental ?? "—"}` : "LifeScore"}>
             <p className="text-lg font-heading font-bold text-kairos-gold">{round(client.healthScore, 0)}</p>
             {noData ? (
-              <p className="text-[10px] text-gray-500">No data</p>
+              <p className="text-xs text-gray-500">No data</p>
             ) : (
-              <p className={`text-[10px] ${trendColor}`}>{trendIcon}</p>
+              <p className={`text-xs ${trendColor}`}>{trendIcon}</p>
             )}
           </div>
 
           {/* Adherence */}
           <div className="text-center">
             <p className="text-sm font-heading font-bold text-white">{round(client.adherence, 0)}%</p>
-            <p className="text-[10px] text-gray-500">Adherence</p>
+            <p className="text-xs text-gray-500">Adherence</p>
           </div>
 
           {/* Alerts */}
@@ -103,7 +103,7 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick, toda
             ) : (
               <p className="text-sm font-heading font-bold text-green-400">0</p>
             )}
-            <p className="text-[10px] text-gray-500">Alerts</p>
+            <p className="text-xs text-gray-500">Alerts</p>
           </div>
 
           {/* Next Session */}

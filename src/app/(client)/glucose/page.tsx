@@ -175,7 +175,7 @@ export default function GlucosePage() {
         views={[{ id: "glucose", label: "Daily average", lines: [{ key: "glucose" }] }]}
         empty={{
           message: "connect a CGM (Dexcom) or Apple Health, or log a reading.",
-          actions: [{ label: "Connect a device", href: "/settings" }, { label: "Log a reading", onClick: () => setShowManualEntry(true) }],
+          actions: [{ label: "Connect a device", href: "/settings?tab=integrations" }, { label: "Log a reading", onClick: () => setShowManualEntry(true) }],
         }}
       />
 
@@ -336,14 +336,14 @@ export default function GlucosePage() {
             <rect x={padding.left} y={zoneTop} width={plotW} height={zoneBottom - zoneTop} fill="rgba(46,125,50,0.1)" />
             <line x1={padding.left} y1={zoneTop} x2={padding.left + plotW} y2={zoneTop} stroke="rgba(46,125,50,0.3)" strokeDasharray="4" />
             <line x1={padding.left} y1={zoneBottom} x2={padding.left + plotW} y2={zoneBottom} stroke="rgba(46,125,50,0.3)" strokeDasharray="4" />
-            <text x={padding.left - 5} y={zoneTop + 4} textAnchor="end" className="fill-green-400 text-[9px]">140</text>
-            <text x={padding.left - 5} y={zoneBottom + 4} textAnchor="end" className="fill-green-400 text-[9px]">70</text>
+            <text x={padding.left - 5} y={zoneTop + 4} textAnchor="end" className="fill-green-400 text-xs">140</text>
+            <text x={padding.left - 5} y={zoneBottom + 4} textAnchor="end" className="fill-green-400 text-xs">70</text>
             {[80, 100, 120, 160].map((v) => {
               const y = padding.top + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
               return (
                 <g key={v}>
                   <line x1={padding.left} y1={y} x2={padding.left + plotW} y2={y} stroke="rgba(30,42,90,0.5)" />
-                  <text x={padding.left - 5} y={y + 3} textAnchor="end" className="fill-kairos-silver-dark text-[9px]">{v}</text>
+                  <text x={padding.left - 5} y={y + 3} textAnchor="end" className="fill-kairos-silver-dark text-xs">{v}</text>
                 </g>
               );
             })}
@@ -361,7 +361,7 @@ export default function GlucosePage() {
                 const origIdx = rawReadings.indexOf(d);
                 const x = padding.left + (rawReadings.length > 1 ? (origIdx / (rawReadings.length - 1)) * plotW : plotW / 2);
                 return (
-                  <text key={idx} x={x} y={chartHeight - 5} textAnchor="middle" className="fill-kairos-silver-dark text-[9px]">
+                  <text key={idx} x={x} y={chartHeight - 5} textAnchor="middle" className="fill-kairos-silver-dark text-xs">
                     {d.time}
                   </text>
                 );
@@ -381,15 +381,15 @@ export default function GlucosePage() {
           <div className="grid grid-cols-7 gap-3">
             {dailySummaries.map((day, i) => (
               <div key={i} className="text-center">
-                <p className="text-[10px] font-heading text-kairos-silver-dark mb-2">{day.dateLabel}</p>
+                <p className="text-xs font-heading text-kairos-silver-dark mb-2">{day.dateLabel}</p>
                 <div className="relative h-32 bg-kairos-royal-surface rounded-kairos-sm flex flex-col items-center justify-end p-1">
                   <div className="w-3 rounded-full bg-kairos-gold/20 relative" style={{ height: `${((day.max - day.min) / 100) * 100}%`, minHeight: "20%" }}>
                     <div className="absolute left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-kairos-gold border-2 border-kairos-card" style={{ bottom: `${((day.avg - day.min) / (day.max - day.min)) * 100}%` }} />
                   </div>
                 </div>
                 <p className="text-xs font-heading font-bold text-kairos-gold mt-1">{round(day.avg, 0)}</p>
-                <p className="text-[9px] font-body text-kairos-silver-dark">{round(day.min, 0)}–{round(day.max, 0)}</p>
-                <p className="text-[9px] font-body text-green-400">{day.timeInRange}% IR</p>
+                <p className="text-xs font-body text-kairos-silver-dark">{round(day.min, 0)}–{round(day.max, 0)}</p>
+                <p className="text-xs font-body text-green-400">{day.timeInRange}% IR</p>
               </div>
             ))}
           </div>

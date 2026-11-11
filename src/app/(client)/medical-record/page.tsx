@@ -347,19 +347,19 @@ export default function MedicalRecordPage() {
           {/* Summary stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="kairos-card p-5">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Total Records</p>
+              <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Total Records</p>
               <p className="text-2xl font-heading font-bold text-kairos-gold">{docs!.length}</p>
             </div>
             <div className="kairos-card p-5">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Processed</p>
+              <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Processed</p>
               <p className="text-2xl font-heading font-bold text-green-400">{docs!.filter((d) => d.status === "processed").length}</p>
             </div>
             <div className="kairos-card p-5">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Pending</p>
+              <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Pending</p>
               <p className="text-2xl font-heading font-bold text-yellow-400">{docs!.filter((d) => d.status !== "processed").length}</p>
             </div>
             <div className="kairos-card p-5">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Latest</p>
+              <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">Latest</p>
               <p className="text-sm font-heading font-semibold text-white">
                 {new Date(docs![0].reportDate ?? docs![0].createdAt).toLocaleDateString()}
               </p>
@@ -389,7 +389,7 @@ export default function MedicalRecordPage() {
                             {new Date(doc.reportDate ?? doc.createdAt).toLocaleDateString()}
                           </span>
                           {doc.providerName && <span className="text-xs text-kairos-silver-dark">{doc.providerName}</span>}
-                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full border",
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full border",
                             doc.status === "processed" ? "bg-green-500/10 text-green-400 border-green-500/30"
                               : "bg-yellow-500/10 text-yellow-400 border-yellow-500/30")}>
                             {doc.status === "processed" ? "Processed" : "Uploaded"}
@@ -434,11 +434,11 @@ export default function MedicalRecordPage() {
                           <div>
                             <h4 className="text-xs font-heading text-kairos-gold uppercase tracking-wider mb-2 flex items-center gap-1.5"><Heart size={12} /> Vital Signs</h4>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                              {vitals.bloodPressure != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Blood Pressure</p><p className="text-sm font-bold text-white">{String(vitals.bloodPressure)}</p></div>}
-                              {vitals.heartRate != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Heart Rate</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.heartRate, 0)} bpm</p></div>}
-                              {vitals.temperature != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Temperature</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.temperature, 1)}</p></div>}
-                              {vitals.respiratoryRate != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">Respiratory Rate</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.respiratoryRate, 0)}</p></div>}
-                              {vitals.oxygenSaturation != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-[10px] text-kairos-silver-dark">O₂ Saturation</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.oxygenSaturation, 0)}</p></div>}
+                              {vitals.bloodPressure != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-xs text-kairos-silver-dark">Blood Pressure</p><p className="text-sm font-bold text-white">{String(vitals.bloodPressure)}</p></div>}
+                              {vitals.heartRate != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-xs text-kairos-silver-dark">Heart Rate</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.heartRate, 0)} bpm</p></div>}
+                              {vitals.temperature != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-xs text-kairos-silver-dark">Temperature</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.temperature, 1)}</p></div>}
+                              {vitals.respiratoryRate != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-xs text-kairos-silver-dark">Respiratory Rate</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.respiratoryRate, 0)}</p></div>}
+                              {vitals.oxygenSaturation != null && <div className="bg-kairos-royal-surface rounded-lg p-2.5 border border-kairos-border"><p className="text-xs text-kairos-silver-dark">O₂ Saturation</p><p className="text-sm font-bold text-white">{fmtLoose(vitals.oxygenSaturation, 0)}</p></div>}
                             </div>
                           </div>
                         )}
@@ -473,10 +473,10 @@ export default function MedicalRecordPage() {
                             <div className="overflow-x-auto">
                               <table className="w-full text-sm">
                                 <thead><tr className="border-b border-kairos-border">
-                                  <th className="text-left py-1.5 px-2 text-[10px] text-kairos-silver-dark uppercase">Test</th>
-                                  <th className="text-right py-1.5 px-2 text-[10px] text-kairos-silver-dark uppercase">Value</th>
-                                  <th className="text-right py-1.5 px-2 text-[10px] text-kairos-silver-dark uppercase">Reference</th>
-                                  <th className="text-right py-1.5 px-2 text-[10px] text-kairos-silver-dark uppercase">Status</th>
+                                  <th className="text-left py-1.5 px-2 text-xs text-kairos-silver-dark uppercase">Test</th>
+                                  <th className="text-right py-1.5 px-2 text-xs text-kairos-silver-dark uppercase">Value</th>
+                                  <th className="text-right py-1.5 px-2 text-xs text-kairos-silver-dark uppercase">Reference</th>
+                                  <th className="text-right py-1.5 px-2 text-xs text-kairos-silver-dark uppercase">Status</th>
                                 </tr></thead>
                                 <tbody>
                                   {labResults.map((lr, i) => (
@@ -485,7 +485,7 @@ export default function MedicalRecordPage() {
                                       <td className="py-1.5 px-2 text-right font-bold text-white">{fmtLoose(lr.value, 2)} {lr.unit}</td>
                                       <td className="py-1.5 px-2 text-right text-kairos-silver-dark">{lr.referenceRange ?? "—"}</td>
                                       <td className="py-1.5 px-2 text-right">
-                                        {lr.status && <span className={cn("text-[10px] px-1.5 py-0.5 rounded border font-bold uppercase",
+                                        {lr.status && <span className={cn("text-xs px-1.5 py-0.5 rounded border font-bold uppercase",
                                           lr.status === "normal" || lr.status === "optimal" ? "bg-green-500/15 text-green-400 border-green-500/30" :
                                           lr.status === "high" || lr.status === "critical" ? "bg-red-500/15 text-red-400 border-red-500/30" :
                                           lr.status === "low" ? "bg-blue-500/15 text-blue-400 border-blue-500/30" :

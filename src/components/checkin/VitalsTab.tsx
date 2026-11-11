@@ -252,7 +252,7 @@ export const VitalsTab: React.FC<VitalsTabProps> = ({
                           const photo = progressPhotos.find((p) => p.pose === pose.id);
                           if (photo) removeProgressPhoto(photo.id);
                         }}
-                        className="w-full text-center text-[10px] font-body text-red-400 hover:text-red-300"
+                        className="w-full text-center text-xs font-body text-red-400 hover:text-red-300"
                       >
                         Remove
                       </button>

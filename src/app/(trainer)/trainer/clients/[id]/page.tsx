@@ -126,7 +126,7 @@ function DataTable({ headers, rows }: { headers: string[]; rows: (string | numbe
         <thead>
           <tr className="border-b border-gray-800">
             {headers.map((h) => (
-              <th key={h} className="text-left py-2 px-3 text-[10px] text-gray-500 uppercase font-medium">{h}</th>
+              <th key={h} className="text-left py-2 px-3 text-xs text-gray-500 uppercase font-medium">{h}</th>
             ))}
           </tr>
         </thead>
@@ -245,7 +245,7 @@ function AdherenceCard({ clientId }: { clientId: string }) {
               <p className="text-2xl font-heading font-bold text-white">
                 {data?.todayPct != null ? `${round(data.todayPct, 0)}%` : "—"}
               </p>
-              <p className="text-[10px] text-gray-500 uppercase">Today</p>
+              <p className="text-xs text-gray-500 uppercase">Today</p>
             </div>
             {data && data.streak > 0 && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-500/10 text-orange-400 border border-orange-500/30">
@@ -281,7 +281,7 @@ function AdherenceCard({ clientId }: { clientId: string }) {
               );
             })}
           </div>
-          <p className="text-[10px] text-gray-500 text-center mt-2">Last {days.length} days</p>
+          <p className="text-xs text-gray-500 text-center mt-2">Last {days.length} days</p>
         </>
       )}
     </div>
@@ -321,7 +321,7 @@ function LifeScoreCard({ clientId }: { clientId: string }) {
       ) : (
         <>
           <LifeScoreBreakdown data={data} compact />
-          <p className="text-[10px] text-gray-500 mt-3 leading-relaxed">
+          <p className="text-xs text-gray-500 mt-3 leading-relaxed">
             Mental shows scores and direction only. Journal reflections stay private to your client.
           </p>
         </>
@@ -716,7 +716,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           { label: "Alerts", value: `${unresolvedAlerts.length}`, color: unresolvedAlerts.length > 0 ? "text-orange-400" : "text-green-400" },
         ].map((stat) => (
           <div key={stat.label} className="kairos-card p-3 text-center">
-            <p className="text-[10px] text-gray-500 uppercase mb-1">{stat.label}</p>
+            <p className="text-xs text-gray-500 uppercase mb-1">{stat.label}</p>
             <p className={`text-xl font-heading font-bold ${stat.color ?? "text-white"}`}>
               {stat.value}
               {stat.unit && <span className="text-xs text-gray-500 ml-1">{stat.unit}</span>}
@@ -872,11 +872,11 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                   <div key={apt.id} className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/50">
                     <div className="text-center min-w-[40px]">
                       <p className="text-xs font-bold text-white">{new Date(apt.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
-                      <p className="text-[10px] text-gray-500">{apt.startTime}</p>
+                      <p className="text-xs text-gray-500">{apt.startTime}</p>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-300 truncate">{apt.sessionType?.replace(/_/g, " ")}</p>
-                      <p className="text-[10px] text-gray-500 flex items-center gap-1">
+                      <p className="text-xs text-gray-500 flex items-center gap-1">
                         {apt.meetingType === "video" && <Video size={10} />}
                         {apt.meetingType ?? "video"}
                       </p>
@@ -912,7 +912,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                     <div className="flex items-start justify-between gap-1">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-300">{alert.message}</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">{formatRelativeTime(alert.timestamp)}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{formatRelativeTime(alert.timestamp)}</p>
                       </div>
                       <button
                         onClick={() => resolveAlertMutation.mutate({ clientId: params.id, alertId: alert.id })}
@@ -956,7 +956,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                   <div key={note.id} className="p-2 rounded-lg border border-gray-800 bg-gray-800/30" style={note.pinned ? { borderColor: tc.accent + "30" } : {}}>
                     <p className="text-xs text-gray-300 line-clamp-2">{note.content}</p>
                     <div className="flex items-center justify-between mt-1">
-                      <p className="text-[10px] text-gray-500">{formatRelativeTime(note.createdAt)}</p>
+                      <p className="text-xs text-gray-500">{formatRelativeTime(note.createdAt)}</p>
                       <div className="flex gap-0.5">
                         <button onClick={() => pinNoteMutation.mutate({ clientId: params.id, noteId: note.id })} className="p-0.5 text-gray-500 hover:text-kairos-gold">
                           <Pin size={10} className={note.pinned ? "text-kairos-gold" : ""} />
@@ -980,7 +980,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
           <p className="text-sm text-gray-400 mb-4">Book a session with <span className="text-white font-semibold">{client.name}</span></p>
           <div className="space-y-3 mb-4">
             <div>
-              <label className="text-[10px] text-gray-500 uppercase mb-1 block">Session Type</label>
+              <label className="text-xs text-gray-500 uppercase mb-1 block">Session Type</label>
               <select value={schedSessionType} onChange={(e) => setSchedSessionType(e.target.value as typeof schedSessionType)} className="kairos-input w-full">
                 <option value="follow_up">Follow-Up (30 min)</option>
                 <option value="initial_consultation">Initial Consultation (60 min)</option>
@@ -991,7 +991,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               </select>
             </div>
             <div>
-              <label className="text-[10px] text-gray-500 uppercase mb-1 block">Meeting Type</label>
+              <label className="text-xs text-gray-500 uppercase mb-1 block">Meeting Type</label>
               <select value={schedMeetingType} onChange={(e) => setSchedMeetingType(e.target.value as typeof schedMeetingType)} className="kairos-input w-full">
                 <option value="video">Video Call</option>
                 <option value="phone">Phone Call</option>
@@ -1000,16 +1000,16 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date</label>
+                <label className="text-xs text-gray-500 uppercase mb-1 block">Date</label>
                 <input type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} className="kairos-input w-full" />
               </div>
               <div>
-                <label className="text-[10px] text-gray-500 uppercase mb-1 block">Time</label>
+                <label className="text-xs text-gray-500 uppercase mb-1 block">Time</label>
                 <input type="time" value={schedTime} onChange={(e) => setSchedTime(e.target.value)} className="kairos-input w-full" />
               </div>
             </div>
             <div>
-              <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes (optional)</label>
+              <label className="text-xs text-gray-500 uppercase mb-1 block">Notes (optional)</label>
               <textarea value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} placeholder="Session agenda..." className="kairos-input w-full h-20 resize-none" />
             </div>
           </div>
@@ -1125,14 +1125,14 @@ function CoachDiscussion({ clientId }: { clientId: string }) {
       <h2 className="text-base font-heading font-bold text-kairos-gold mb-1 flex items-center gap-2">
         <MessagesSquare size={16} /> Coach Discussion
       </h2>
-      <p className="text-[11px] text-gray-500 mb-3 flex items-center gap-1">
+      <p className="text-xs text-gray-500 mb-3 flex items-center gap-1">
         <Lock size={10} /> Private coach-to-coach discussion. Clients cannot see these messages.
       </p>
 
       {/* Care team chips */}
       {coaches.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap mb-4 pb-3 border-b border-gray-800">
-          <span className="text-[10px] text-gray-500 uppercase flex items-center gap-1">
+          <span className="text-xs text-gray-500 uppercase flex items-center gap-1">
             <Users size={11} /> Care team:
           </span>
           {coaches.map((c) => {
@@ -1140,13 +1140,13 @@ function CoachDiscussion({ clientId }: { clientId: string }) {
             return (
               <span
                 key={c.coachId}
-                className={`inline-flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full text-[11px] border ${
+                className={`inline-flex items-center gap-1.5 pl-1 pr-2.5 py-0.5 rounded-full text-xs border ${
                   c.isPrimary
                     ? "bg-kairos-gold/10 text-kairos-gold border-kairos-gold/30"
                     : "bg-gray-800 text-gray-300 border-gray-700"
                 }`}
               >
-                <span className="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center text-[9px] font-bold text-white overflow-hidden">
+                <span className="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-white overflow-hidden">
                   {c.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.avatarUrl} alt="" className="w-full h-full object-cover rounded-full" />
@@ -1155,7 +1155,7 @@ function CoachDiscussion({ clientId }: { clientId: string }) {
                   )}
                 </span>
                 {name}
-                {c.isPrimary && <span className="text-[9px] uppercase opacity-80">(Primary)</span>}
+                {c.isPrimary && <span className="text-xs uppercase opacity-80">(Primary)</span>}
               </span>
             );
           })}
@@ -1181,10 +1181,10 @@ function CoachDiscussion({ clientId }: { clientId: string }) {
                 }`}
               >
                 <div className="flex items-baseline gap-2 mb-0.5">
-                  <span className={`text-[11px] font-semibold ${m.isMe ? "text-kairos-gold" : "text-gray-300"}`}>
+                  <span className={`text-xs font-semibold ${m.isMe ? "text-kairos-gold" : "text-gray-300"}`}>
                     {m.isMe ? "You" : m.senderName}
                   </span>
-                  <span className="text-[9px] text-gray-500">
+                  <span className="text-xs text-gray-500">
                     {new Date(m.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </div>
@@ -1279,7 +1279,7 @@ function SharedClientView({ clientId, access }: { clientId: string; access: MyAc
           const level = access[cat];
           return (
             <div key={cat} className="kairos-card p-3 text-center">
-              <p className="text-[10px] text-gray-500 uppercase mb-1">{ACCESS_CATEGORY_LABELS[cat]}</p>
+              <p className="text-xs text-gray-500 uppercase mb-1">{ACCESS_CATEGORY_LABELS[cat]}</p>
               {level === "none" ? (
                 <p className="text-xs text-gray-600 flex items-center justify-center gap-1">
                   <Lock size={10} /> Not shared with you
@@ -1444,10 +1444,10 @@ function ProtocolEditor({ clientId, canEdit = true }: { clientId: string; canEdi
           <Pill size={16} /> Protocol
           {protocol && (
             <>
-              <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${PROTOCOL_STATUS_BADGES[protocol.status] ?? PROTOCOL_STATUS_BADGES.archived}`}>
+              <span className={`text-xs px-2 py-0.5 rounded border font-medium ${PROTOCOL_STATUS_BADGES[protocol.status] ?? PROTOCOL_STATUS_BADGES.archived}`}>
                 {protocol.status}
               </span>
-              <span className="text-[10px] text-gray-500 font-normal">v{protocol.version}</span>
+              <span className="text-xs text-gray-500 font-normal">v{protocol.version}</span>
             </>
           )}
         </h2>
@@ -1475,7 +1475,7 @@ function ProtocolEditor({ clientId, canEdit = true }: { clientId: string; canEdi
       </div>
 
       {!canEdit && (
-        <p className="text-[11px] text-gray-500 mb-3 flex items-center gap-1">
+        <p className="text-xs text-gray-500 mb-3 flex items-center gap-1">
           <Lock size={10} /> Read-only — you don&apos;t have Diet edit access for this client.
         </p>
       )}
@@ -1517,7 +1517,7 @@ function ProtocolEditor({ clientId, canEdit = true }: { clientId: string; canEdi
             <thead>
               <tr className="border-b border-gray-800">
                 {["Item", "Dosage", "Frequency", "Time of Day", ""].map((h, i) => (
-                  <th key={i} className="text-left py-2 px-3 text-[10px] text-gray-500 uppercase font-medium">{h}</th>
+                  <th key={i} className="text-left py-2 px-3 text-xs text-gray-500 uppercase font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1533,12 +1533,12 @@ function ProtocolEditor({ clientId, canEdit = true }: { clientId: string; canEdi
                     <td className="py-2 px-3">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-white font-medium">{item.name}</span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase ${PROTOCOL_CATEGORY_BADGES[cat]}`}>
+                        <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold uppercase ${PROTOCOL_CATEGORY_BADGES[cat]}`}>
                           {PROTOCOL_CATEGORY_LABELS[cat]}
                         </span>
                       </div>
-                      {subParts && <p className="text-[10px] text-gray-500 mt-0.5">{subParts}</p>}
-                      {item.rationale && <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1" title={item.rationale}>Why: {item.rationale}</p>}
+                      {subParts && <p className="text-xs text-gray-500 mt-0.5">{subParts}</p>}
+                      {item.rationale && <p className="text-xs text-gray-500 mt-0.5 line-clamp-1" title={item.rationale}>Why: {item.rationale}</p>}
                     </td>
                     <td className="py-2 px-3 text-gray-300">{dosage || "—"}</td>
                     <td className="py-2 px-3 text-gray-300">{item.frequency ?? "—"}</td>
@@ -1669,7 +1669,7 @@ function ProtocolItemModal({
       <div className="space-y-3 mb-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Category</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Category</label>
             <select value={form.category} onChange={set("category")} className="kairos-input w-full">
               {PROTOCOL_CATEGORY_ORDER.map((c) => (
                 <option key={c} value={c}>{PROTOCOL_CATEGORY_LABELS[c]}</option>
@@ -1677,48 +1677,48 @@ function ProtocolItemModal({
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Name *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Name *</label>
             <input type="text" value={form.name} onChange={set("name")} placeholder="e.g. Magnesium Glycinate" className="kairos-input w-full" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Dosage</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Dosage</label>
             <input type="text" value={form.dosage} onChange={set("dosage")} placeholder="e.g. 400" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Unit</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Unit</label>
             <input type="text" value={form.unit} onChange={set("unit")} placeholder="e.g. mg" className="kairos-input w-full" />
           </div>
         </div>
         <div className={`grid gap-3 ${showRoute ? "grid-cols-2" : "grid-cols-1"}`}>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Form</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Form</label>
             <input type="text" value={form.form} onChange={set("form")} placeholder="e.g. capsule, vial" className="kairos-input w-full" />
           </div>
           {showRoute && (
             <div>
-              <label className="text-[10px] text-gray-500 uppercase mb-1 block">Route</label>
+              <label className="text-xs text-gray-500 uppercase mb-1 block">Route</label>
               <input type="text" value={form.route} onChange={set("route")} placeholder="e.g. subcutaneous" className="kairos-input w-full" />
             </div>
           )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Frequency</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Frequency</label>
             <input type="text" value={form.frequency} onChange={set("frequency")} placeholder="e.g. daily" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Time of Day</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Time of Day</label>
             <input type="text" value={form.timeOfDay} onChange={set("timeOfDay")} placeholder="e.g. morning, with food" className="kairos-input w-full" />
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Rationale (visible to client)</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Rationale (visible to client)</label>
           <textarea value={form.rationale} onChange={set("rationale")} placeholder="Why this item is part of the protocol..." className="kairos-input w-full h-16 resize-none" />
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Coach Notes (private)</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Coach Notes (private)</label>
           <textarea value={form.coachNotes} onChange={set("coachNotes")} placeholder="Internal notes, titration plan..." className="kairos-input w-full h-16 resize-none" />
         </div>
       </div>
@@ -1846,15 +1846,15 @@ function BioCard({
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className={iconColor}>{icon}</span>
-          <span className="text-[10px] text-gray-500 uppercase tracking-wide truncate">{label}</span>
+          <span className="text-xs text-gray-500 uppercase tracking-wide truncate">{label}</span>
         </div>
         {t && <span className={`text-xs font-bold shrink-0 ${t.color}`}>{t.icon}</span>}
       </div>
       <div className="flex items-baseline gap-1">
         <span className="text-xl font-heading font-bold text-white">{value}</span>
-        {unit && <span className="text-[10px] text-gray-500">{unit}</span>}
+        {unit && <span className="text-xs text-gray-500">{unit}</span>}
       </div>
-      {sub && <p className={`text-[10px] mt-0.5 ${subColor ?? "text-gray-500"}`}>{sub}</p>}
+      {sub && <p className={`text-xs mt-0.5 ${subColor ?? "text-gray-500"}`}>{sub}</p>}
       {hasSpark && (
         <div className="mt-1.5">
           <SparkLine
@@ -1934,11 +1934,11 @@ function TabContent({
             <h3 className="font-heading font-semibold text-white mb-2">{client.protocol.name}</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-[10px] text-gray-500 uppercase">Start</p>
+                <p className="text-xs text-gray-500 uppercase">Start</p>
                 <p className="text-gray-300">{client.protocol.startDate}</p>
               </div>
               <div>
-                <p className="text-[10px] text-gray-500 uppercase">Status</p>
+                <p className="text-xs text-gray-500 uppercase">Status</p>
                 <p className="text-gray-300 capitalize">{client.protocol.status}</p>
               </div>
             </div>
@@ -2084,12 +2084,12 @@ function TabContent({
                     <div key={g.id} className="p-2 rounded-lg bg-gray-800/30 border border-gray-800">
                       <div className="flex justify-between items-center mb-1">
                         <p className="text-xs text-white font-medium">{g.title}</p>
-                        <span className="text-[10px] text-kairos-gold">{progress}%</span>
+                        <span className="text-xs text-kairos-gold">{progress}%</span>
                       </div>
                       <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden">
                         <div className="h-full bg-kairos-gold rounded-full" style={{ width: `${progress}%` }} />
                       </div>
-                      <p className="text-[10px] text-gray-500 mt-1">{round(g.currentValue, 1)} / {round(g.targetValue, 1)} {g.targetUnit}</p>
+                      <p className="text-xs text-gray-500 mt-1">{round(g.currentValue, 1)} / {round(g.targetValue, 1)} {g.targetUnit}</p>
                     </div>
                   );
                 })}
@@ -2197,13 +2197,13 @@ function TabContent({
                   <div key={w.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
                     <div className="flex justify-between items-center mb-1">
                       <p className="text-sm text-white font-medium">{w.date}</p>
-                      {meta?.type && <span className="text-[10px] px-2 py-0.5 rounded bg-gray-700 text-gray-300">{meta.type}</span>}
+                      {meta?.type && <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300">{meta.type}</span>}
                     </div>
-                    {meta?.durationMinutes && <p className="text-[10px] text-gray-500">{meta.durationMinutes} min</p>}
+                    {meta?.durationMinutes && <p className="text-xs text-gray-500">{meta.durationMinutes} min</p>}
                     {exercises.length > 0 && !exercises[0]?.exerciseId?.startsWith("quick_log:") && (
                       <p className="text-xs text-gray-400 mt-1">{exercises.length} exercises, {exercises.reduce((s, e) => s + (e.sets?.length ?? 0), 0)} total sets</p>
                     )}
-                    {w.notes && !meta && <p className="text-[10px] text-gray-500 mt-1">{w.notes}</p>}
+                    {w.notes && !meta && <p className="text-xs text-gray-500 mt-1">{w.notes}</p>}
                   </div>
                 );
               })}
@@ -2225,7 +2225,7 @@ function TabContent({
               {/* Summary cards */}
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
-                  <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Steps</p>
+                  <p className="text-xs text-gray-500 uppercase mb-1">Avg Steps</p>
                   <p className="text-lg font-bold text-white">
                     {health.activity.filter((a) => a.steps != null).length > 0
                       ? Math.round(health.activity.reduce((sum, a) => sum + (a.steps ?? 0), 0) / health.activity.filter((a) => a.steps != null).length).toLocaleString()
@@ -2233,7 +2233,7 @@ function TabContent({
                   </p>
                 </div>
                 <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
-                  <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Calories</p>
+                  <p className="text-xs text-gray-500 uppercase mb-1">Avg Calories</p>
                   <p className="text-lg font-bold text-white">
                     {health.activity.filter((a) => a.caloriesActive != null).length > 0
                       ? Math.round(health.activity.reduce((sum, a) => sum + (a.caloriesActive ?? 0), 0) / health.activity.filter((a) => a.caloriesActive != null).length)
@@ -2241,7 +2241,7 @@ function TabContent({
                   </p>
                 </div>
                 <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
-                  <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Active Min</p>
+                  <p className="text-xs text-gray-500 uppercase mb-1">Avg Active Min</p>
                   <p className="text-lg font-bold text-white">
                     {health.activity.filter((a) => a.exerciseMinutes != null).length > 0
                       ? Math.round(health.activity.reduce((sum, a) => sum + (a.exerciseMinutes ?? 0), 0) / health.activity.filter((a) => a.exerciseMinutes != null).length)
@@ -2280,21 +2280,21 @@ function TabContent({
                   <div key={g.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
                     <div className="flex justify-between items-center mb-1">
                       <p className="text-sm text-white font-medium">{g.title}</p>
-                      <span className={`text-[10px] px-2 py-0.5 rounded ${
+                      <span className={`text-xs px-2 py-0.5 rounded ${
                         g.status === "active" ? "bg-green-500/10 text-green-400" :
                         g.status === "completed" ? "bg-blue-500/10 text-blue-400" :
                         "bg-gray-700 text-gray-400"
                       }`}>{g.status}</span>
                     </div>
-                    <p className="text-[10px] text-gray-500 mb-2">{g.category || "General"} &bull; {g.targetDirection || "reach"} to {round(g.targetValue, 1)} {g.targetUnit}</p>
+                    <p className="text-xs text-gray-500 mb-2">{g.category || "General"} &bull; {g.targetDirection || "reach"} to {round(g.targetValue, 1)} {g.targetUnit}</p>
                     <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden mb-1">
                       <div className="h-full bg-kairos-gold rounded-full" style={{ width: `${progress}%` }} />
                     </div>
-                    <p className="text-[10px] text-gray-500">{round(g.currentValue, 1)} / {round(g.targetValue, 1)} {g.targetUnit} ({progress}%)</p>
+                    <p className="text-xs text-gray-500">{round(g.currentValue, 1)} / {round(g.targetValue, 1)} {g.targetUnit} ({progress}%)</p>
                     {g.milestones.length > 0 && (
                       <div className="mt-2 flex gap-2 flex-wrap">
                         {g.milestones.map((m, i) => (
-                          <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded ${m.reached ? "bg-green-500/10 text-green-400" : "bg-gray-700/50 text-gray-500"}`}>
+                          <span key={i} className={`text-xs px-1.5 py-0.5 rounded ${m.reached ? "bg-green-500/10 text-green-400" : "bg-gray-700/50 text-gray-500"}`}>
                             {m.label}: {round(m.targetValue, 1)}
                           </span>
                         ))}
@@ -2338,15 +2338,15 @@ function TabContent({
               {/* Summary cards */}
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
-                  <p className="text-[10px] text-gray-500 uppercase mb-1">Total Fasts</p>
+                  <p className="text-xs text-gray-500 uppercase mb-1">Total Fasts</p>
                   <p className="text-lg font-bold text-white">{health.fasting.length}</p>
                 </div>
                 <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
-                  <p className="text-[10px] text-gray-500 uppercase mb-1">Completed</p>
+                  <p className="text-xs text-gray-500 uppercase mb-1">Completed</p>
                   <p className="text-lg font-bold text-green-400">{health.fasting.filter((f) => f.completed).length}</p>
                 </div>
                 <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-800 text-center">
-                  <p className="text-[10px] text-gray-500 uppercase mb-1">Avg Duration</p>
+                  <p className="text-xs text-gray-500 uppercase mb-1">Avg Duration</p>
                   <p className="text-lg font-bold text-white">
                     {(() => {
                       const durations = health.fasting
@@ -2435,9 +2435,9 @@ function TabContent({
                       <div key={doc.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
                         <div className="flex justify-between items-center mb-2">
                           <p className="text-sm text-white font-medium">{doc.title ?? "Genetic Report"}</p>
-                          <span className="text-[10px] text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
+                          <span className="text-xs text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
                         </div>
-                        {doc.providerName && <p className="text-[10px] text-gray-400 mb-1">Provider: {doc.providerName}</p>}
+                        {doc.providerName && <p className="text-xs text-gray-400 mb-1">Provider: {doc.providerName}</p>}
                         <DocFileLink docId={doc.id} hasFile={doc.hasFile} sourceFileName={doc.sourceFileName} />
                       </div>
                     );
@@ -2482,7 +2482,7 @@ function TabContent({
                           <div key={doc.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
                             <div className="flex justify-between items-center mb-2">
                               <p className="text-sm text-white font-medium">{doc.title ?? "DEXA Scan"}</p>
-                              <span className="text-[10px] text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
+                              <span className="text-xs text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
                             </div>
                             {pd && Object.keys(pd).length > 0 ? (
                               <div className="grid grid-cols-3 gap-2">
@@ -2491,15 +2491,15 @@ function TabContent({
                                   .slice(0, 12)
                                   .map(([k, v]) => (
                                     <div key={k} className="text-center p-1.5 rounded bg-gray-800/50">
-                                      <p className="text-[10px] text-gray-500 capitalize">{k.replace(/([A-Z])/g, " $1").replace(/_/g, " ").trim()}</p>
+                                      <p className="text-xs text-gray-500 capitalize">{k.replace(/([A-Z])/g, " $1").replace(/_/g, " ").trim()}</p>
                                       <p className="text-xs text-white font-medium">{String(v)}</p>
                                     </div>
                                   ))}
                               </div>
                             ) : (
-                              <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
+                              <p className="text-xs text-gray-500">Status: {doc.status ?? "pending"}</p>
                             )}
-                            {doc.providerName && <p className="text-[10px] text-gray-500 mt-2">Provider: {doc.providerName}</p>}
+                            {doc.providerName && <p className="text-xs text-gray-500 mt-2">Provider: {doc.providerName}</p>}
                             <DocFileLink docId={doc.id} hasFile={doc.hasFile} sourceFileName={doc.sourceFileName} />
                           </div>
                         );
@@ -2525,7 +2525,7 @@ function TabContent({
                           <div key={doc.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
                             <div className="flex justify-between items-center mb-2">
                               <p className="text-sm text-white font-medium">{doc.title ?? "Gut Biome Report"}</p>
-                              <span className="text-[10px] text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
+                              <span className="text-xs text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
                             </div>
                             {pd && Object.keys(pd).length > 0 ? (
                               <div className="space-y-1">
@@ -2539,14 +2539,14 @@ function TabContent({
                                   const improve = scores.filter(s => s.status?.toLowerCase() === "improve");
                                   return (
                                     <>
-                                      {attention.length > 0 && <p className="text-[10px] text-red-400">Attention: {attention.map(s => s.name).join(", ")}</p>}
-                                      {improve.length > 0 && <p className="text-[10px] text-yellow-400">Improve: {improve.map(s => s.name).join(", ")}</p>}
+                                      {attention.length > 0 && <p className="text-xs text-red-400">Attention: {attention.map(s => s.name).join(", ")}</p>}
+                                      {improve.length > 0 && <p className="text-xs text-yellow-400">Improve: {improve.map(s => s.name).join(", ")}</p>}
                                     </>
                                   );
                                 })()}
                               </div>
                             ) : (
-                              <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
+                              <p className="text-xs text-gray-500">Status: {doc.status ?? "pending"}</p>
                             )}
                             <DocFileLink docId={doc.id} hasFile={doc.hasFile} sourceFileName={doc.sourceFileName} />
                           </div>
@@ -2575,9 +2575,9 @@ function TabContent({
                           <div key={doc.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-800">
                             <div className="flex justify-between items-center mb-2">
                               <p className="text-sm text-white font-medium">{doc.title ?? "Medical Record"}</p>
-                              <span className="text-[10px] text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
+                              <span className="text-xs text-gray-500">{doc.reportDate ? new Date(doc.reportDate).toLocaleDateString() : "Unknown date"}</span>
                             </div>
-                            {doc.providerName && <p className="text-[10px] text-gray-400 mb-1">Provider: {doc.providerName}</p>}
+                            {doc.providerName && <p className="text-xs text-gray-400 mb-1">Provider: {doc.providerName}</p>}
                             {pd && Object.keys(pd).length > 0 ? (
                               <div className="space-y-1">
                                 {pd.documentType ? <p className="text-xs text-gray-300">Type: {String(pd.documentType)}</p> : null}
@@ -2592,7 +2592,7 @@ function TabContent({
                                 ) : null}
                               </div>
                             ) : (
-                              <p className="text-[10px] text-gray-500">Status: {doc.status ?? "pending"}</p>
+                              <p className="text-xs text-gray-500">Status: {doc.status ?? "pending"}</p>
                             )}
                             <DocFileLink docId={doc.id} hasFile={doc.hasFile} sourceFileName={doc.sourceFileName} />
                           </div>
@@ -2658,7 +2658,7 @@ function DocFileLink({
       href={`/api/phi-file?type=clinical&id=${docId}`}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 mt-1.5 text-[11px] text-kairos-gold hover:underline"
+      className="inline-flex items-center gap-1 mt-1.5 text-xs text-kairos-gold hover:underline"
     >
       <FileText size={11} /> Open {label}
     </a>
@@ -2733,7 +2733,7 @@ function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEd
       </div>
 
       {!canEdit && (
-        <p className="text-[11px] text-gray-500 mb-3 flex items-center gap-1">
+        <p className="text-xs text-gray-500 mb-3 flex items-center gap-1">
           <Lock size={10} /> Read-only — you don&apos;t have Exercise edit access for this client.
         </p>
       )}
@@ -2752,13 +2752,13 @@ function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEd
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm text-white font-medium">{p.name ?? "Program"}</p>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase ${ASSIGNMENT_STATUS_BADGES[p.status ?? "cancelled"] ?? ASSIGNMENT_STATUS_BADGES.cancelled}`}>
+                    <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold uppercase ${ASSIGNMENT_STATUS_BADGES[p.status ?? "cancelled"] ?? ASSIGNMENT_STATUS_BADGES.cancelled}`}>
                       {p.status ?? "unknown"}
                     </span>
-                    {p.isAiGenerated && <span className="text-[9px] px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 text-purple-400 font-semibold uppercase">AI</span>}
+                    {p.isAiGenerated && <span className="text-xs px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 text-purple-400 font-semibold uppercase">AI</span>}
                   </div>
-                  {p.description && <p className="text-[11px] text-gray-500 mt-0.5">{p.description}</p>}
-                  <p className="text-[10px] text-gray-500 mt-0.5">
+                  {p.description && <p className="text-xs text-gray-500 mt-0.5">{p.description}</p>}
+                  <p className="text-xs text-gray-500 mt-0.5">
                     Start {p.startDate}
                     {p.durationWeeks ? ` · ${p.durationWeeks} weeks` : ""}
                     {` · ${p.sessions.length} session${p.sessions.length === 1 ? "" : "s"}`}
@@ -2767,13 +2767,13 @@ function TrainingProgramManager({ clientId, canEdit }: { clientId: string; canEd
                 {canEdit && (
                   <div className="flex items-center gap-1 shrink-0">
                     {p.status !== "active" && (
-                      <button onClick={() => statusMutation.mutate({ assignmentId: p.assignmentId, clientId, status: "active" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 transition-colors disabled:opacity-50">Activate</button>
+                      <button onClick={() => statusMutation.mutate({ assignmentId: p.assignmentId, clientId, status: "active" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 transition-colors disabled:opacity-50">Activate</button>
                     )}
                     {p.status === "active" && (
-                      <button onClick={() => statusMutation.mutate({ assignmentId: p.assignmentId, clientId, status: "paused" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition-colors disabled:opacity-50">Pause</button>
+                      <button onClick={() => statusMutation.mutate({ assignmentId: p.assignmentId, clientId, status: "paused" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-xs font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition-colors disabled:opacity-50">Pause</button>
                     )}
                     {p.status !== "completed" && (
-                      <button onClick={() => statusMutation.mutate({ assignmentId: p.assignmentId, clientId, status: "completed" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors disabled:opacity-50">Complete</button>
+                      <button onClick={() => statusMutation.mutate({ assignmentId: p.assignmentId, clientId, status: "completed" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors disabled:opacity-50">Complete</button>
                     )}
                   </div>
                 )}
@@ -2872,20 +2872,20 @@ function TrainingProgramModal({
     <Modal title="Create / Assign Training Program" onClose={onClose}>
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Program Name *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Program Name *</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 12-Week Strength Base" className="kairos-input w-full" />
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Description</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Description</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Focus, goals, notes..." className="kairos-input w-full h-16 resize-none" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Duration (weeks)</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Duration (weeks)</label>
             <input type="number" min={1} value={durationWeeks} onChange={(e) => setDurationWeeks(e.target.value)} placeholder="e.g. 12" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Start Date *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Start Date *</label>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="kairos-input w-full" />
           </div>
         </div>
@@ -2893,14 +2893,14 @@ function TrainingProgramModal({
         {/* Sessions builder */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-gray-500 uppercase">Sessions</label>
-            <button onClick={addSession} className="flex items-center gap-1 text-[10px] text-kairos-gold hover:underline"><Plus size={10} /> Add Day</button>
+            <label className="text-xs text-gray-500 uppercase">Sessions</label>
+            <button onClick={addSession} className="flex items-center gap-1 text-xs text-kairos-gold hover:underline"><Plus size={10} /> Add Day</button>
           </div>
           <div className="space-y-3">
             {sessions.map((sess, si) => (
               <div key={si} className="p-2.5 rounded-lg border border-gray-800 bg-gray-800/20">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] text-gray-500 shrink-0">Day {si + 1}</span>
+                  <span className="text-xs text-gray-500 shrink-0">Day {si + 1}</span>
                   <input type="text" value={sess.name} onChange={(e) => updateSession(si, "name", e.target.value)} placeholder="Session name (e.g. Upper Body)" className="kairos-input flex-1 py-1 text-xs" />
                   {sessions.length > 1 && (
                     <button onClick={() => removeSession(si)} className="p-1 text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
@@ -2918,12 +2918,12 @@ function TrainingProgramModal({
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 pl-0.5">
-                        <input type="url" value={ex.videoUrl} onChange={(e) => updateExercise(si, ei, "videoUrl", e.target.value)} placeholder="Video link (YouTube/AI demo)" title="Exercise demo video URL" className="kairos-input flex-1 py-1 text-[11px]" />
-                        <input type="text" value={ex.notes} onChange={(e) => updateExercise(si, ei, "notes", e.target.value)} placeholder="Notes (tempo, cues...)" title="Coaching notes" className="kairos-input flex-1 py-1 text-[11px]" />
+                        <input type="url" value={ex.videoUrl} onChange={(e) => updateExercise(si, ei, "videoUrl", e.target.value)} placeholder="Video link (YouTube/AI demo)" title="Exercise demo video URL" className="kairos-input flex-1 py-1 text-xs" />
+                        <input type="text" value={ex.notes} onChange={(e) => updateExercise(si, ei, "notes", e.target.value)} placeholder="Notes (tempo, cues...)" title="Coaching notes" className="kairos-input flex-1 py-1 text-xs" />
                       </div>
                     </div>
                   ))}
-                  <button onClick={() => addExercise(si)} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-kairos-gold"><Plus size={10} /> Add Exercise</button>
+                  <button onClick={() => addExercise(si)} className="flex items-center gap-1 text-xs text-gray-400 hover:text-kairos-gold"><Plus size={10} /> Add Exercise</button>
                 </div>
               </div>
             ))}
@@ -3051,7 +3051,7 @@ function ApplyProgramTemplateModal({
   return (
     <Modal title={title} onClose={onClose}>
       <div className="mb-4">
-        <label className="text-[10px] text-gray-500 uppercase mb-1 block">
+        <label className="text-xs text-gray-500 uppercase mb-1 block">
           {isDiet ? "Diet template" : "Exercise template"}
         </label>
         {templatesQuery.isLoading ? (
@@ -3076,7 +3076,7 @@ function ApplyProgramTemplateModal({
                   }`}
                 >
                   <p className="text-sm text-white font-medium">{t.name}</p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">
+                  <p className="text-xs text-gray-500 mt-0.5">
                     {t.rowCount} {isDiet ? "meal" : "exercise"}{t.rowCount === 1 ? "" : "s"}
                     {type === "workouts" && t.dayCount != null ? ` · ${t.dayCount} day${t.dayCount === 1 ? "" : "s"}` : ""}
                     {isDiet && t.planType ? ` · ${t.planType}` : ""}
@@ -3087,7 +3087,7 @@ function ApplyProgramTemplateModal({
           </div>
         )}
       </div>
-      <p className="text-[11px] text-amber-400/90 flex items-center gap-1.5 mb-3">
+      <p className="text-xs text-amber-400/90 flex items-center gap-1.5 mb-3">
         <AlertTriangle size={12} className="shrink-0" /> Applying replaces this client&apos;s {overwrites}.
       </p>
       <div className="flex gap-3">
@@ -3167,7 +3167,7 @@ function MealPlanManager({ clientId, canEdit }: { clientId: string; canEdit: boo
       </div>
 
       {!canEdit && (
-        <p className="text-[11px] text-gray-500 mb-3 flex items-center gap-1">
+        <p className="text-xs text-gray-500 mb-3 flex items-center gap-1">
           <Lock size={10} /> Read-only — you don&apos;t have Diet edit access for this client.
         </p>
       )}
@@ -3217,28 +3217,28 @@ function MealPlanManager({ clientId, canEdit }: { clientId: string; canEdit: boo
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm text-white font-medium">{p.name}</p>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold uppercase ${ASSIGNMENT_STATUS_BADGES[p.status] ?? ASSIGNMENT_STATUS_BADGES.cancelled}`}>
+                      <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold uppercase ${ASSIGNMENT_STATUS_BADGES[p.status] ?? ASSIGNMENT_STATUS_BADGES.cancelled}`}>
                         {p.status}
                       </span>
-                      {p.isAiGenerated && <span className="text-[9px] px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 text-purple-400 font-semibold uppercase">AI</span>}
+                      {p.isAiGenerated && <span className="text-xs px-1.5 py-0.5 rounded border border-purple-500/30 bg-purple-500/10 text-purple-400 font-semibold uppercase">AI</span>}
                     </div>
                     {mt && (mt.calories != null) && (
-                      <p className="text-[10px] text-gray-500 mt-0.5">
+                      <p className="text-xs text-gray-500 mt-0.5">
                         {mt.calories} kcal · P {mt.protein ?? 0}g · C {mt.carbs ?? 0}g · F {mt.fat ?? 0}g{mt.fiber != null ? ` · Fiber ${mt.fiber}g` : ""}
                       </p>
                     )}
-                    {notes && <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{notes}</p>}
+                    {notes && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notes}</p>}
                   </div>
                   {canEdit && (
                     <div className="flex items-center gap-1 shrink-0">
                       {p.status !== "active" && (
-                        <button onClick={() => statusMutation.mutate({ mealPlanId: p.id, clientId, status: "active" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 transition-colors disabled:opacity-50">Activate</button>
+                        <button onClick={() => statusMutation.mutate({ mealPlanId: p.id, clientId, status: "active" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 transition-colors disabled:opacity-50">Activate</button>
                       )}
                       {p.status === "active" && (
-                        <button onClick={() => statusMutation.mutate({ mealPlanId: p.id, clientId, status: "paused" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition-colors disabled:opacity-50">Pause</button>
+                        <button onClick={() => statusMutation.mutate({ mealPlanId: p.id, clientId, status: "paused" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-xs font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition-colors disabled:opacity-50">Pause</button>
                       )}
                       {p.status !== "completed" && (
-                        <button onClick={() => statusMutation.mutate({ mealPlanId: p.id, clientId, status: "completed" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors disabled:opacity-50">Complete</button>
+                        <button onClick={() => statusMutation.mutate({ mealPlanId: p.id, clientId, status: "completed" })} disabled={statusMutation.isPending} className="px-2 py-1 rounded-lg text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors disabled:opacity-50">Complete</button>
                       )}
                     </div>
                   )}
@@ -3312,11 +3312,11 @@ function MealPlanModal({
     <Modal title="Create / Assign Meal Plan" onClose={onClose}>
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Plan Name *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Plan Name *</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High-Protein Cut" className="kairos-input w-full" />
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Macro Targets (optional)</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Macro Targets (optional)</label>
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
             <input type="number" min={0} value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="kcal" title="Calories" className="kairos-input w-full py-1 text-xs" />
             <input type="number" min={0} value={protein} onChange={(e) => setProtein(e.target.value)} placeholder="P (g)" title="Protein" className="kairos-input w-full py-1 text-xs" />
@@ -3326,7 +3326,7 @@ function MealPlanModal({
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Meals / Notes</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Meals / Notes</label>
           <textarea value={mealsText} onChange={(e) => setMealsText(e.target.value)} placeholder="Describe the plan's meals, timing, and guidance..." className="kairos-input w-full h-32 resize-none" />
         </div>
       </div>
@@ -3370,9 +3370,9 @@ function SleepEntryManager({ clientId, canEdit, openSignal }: { clientId: string
         )}
       </div>
       {canEdit ? (
-        <p className="text-[11px] text-gray-500">Manually log a sleep session for this client.</p>
+        <p className="text-xs text-gray-500">Manually log a sleep session for this client.</p>
       ) : (
-        <p className="text-[11px] text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Health Data edit access.</p>
+        <p className="text-xs text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Health Data edit access.</p>
       )}
       <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
 
@@ -3434,30 +3434,30 @@ function SleepEntryModal({
       <div className="space-y-3 mb-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Date *</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Sleep Score</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Sleep Score</label>
             <input type="number" min={0} max={100} value={score} onChange={(e) => setScore(e.target.value)} placeholder="0-100" className="kairos-input w-full" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Bedtime</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Bedtime</label>
             <input type="time" value={bedtime} onChange={(e) => setBedtime(e.target.value)} className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Wake Time</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Wake Time</label>
             <input type="time" value={wakeTime} onChange={(e) => setWakeTime(e.target.value)} className="kairos-input w-full" />
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Total Sleep (hours)</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Total Sleep (hours)</label>
           <input type="number" min={0} step="0.1" value={totalHours} onChange={(e) => setTotalHours(e.target.value)} placeholder="e.g. 7.5" className="kairos-input w-full" />
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Stages (optional)</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Stages (optional)</label>
           <div className="grid grid-cols-4 gap-2">
             <input type="number" min={0} step="0.1" value={deepHours} onChange={(e) => setDeepHours(e.target.value)} placeholder="Deep h" title="Deep (hours)" className="kairos-input w-full py-1 text-xs" />
             <input type="number" min={0} step="0.1" value={remHours} onChange={(e) => setRemHours(e.target.value)} placeholder="REM h" title="REM (hours)" className="kairos-input w-full py-1 text-xs" />
@@ -3466,7 +3466,7 @@ function SleepEntryModal({
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Notes</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context, quality, disturbances..." className="kairos-input w-full h-16 resize-none" />
         </div>
       </div>
@@ -3659,9 +3659,9 @@ function ClinicalDocManager({ clientId, canEdit }: { clientId: string; canEdit: 
         )}
       </div>
       {canEdit ? (
-        <p className="text-[11px] text-gray-500">Upload a DEXA scan, gut biome, or medical record (PDF, image, or document).</p>
+        <p className="text-xs text-gray-500">Upload a DEXA scan, gut biome, or medical record (PDF, image, or document).</p>
       ) : (
-        <p className="text-[11px] text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Labs edit access.</p>
+        <p className="text-xs text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Labs edit access.</p>
       )}
       <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
 
@@ -3708,9 +3708,9 @@ function GeneticsManager({ clientId, canEdit }: { clientId: string; canEdit: boo
         )}
       </div>
       {canEdit ? (
-        <p className="text-[11px] text-gray-500">Upload a genetic report (e.g. 23andMe, DNA panel). Stored with the client&apos;s clinical records.</p>
+        <p className="text-xs text-gray-500">Upload a genetic report (e.g. 23andMe, DNA panel). Stored with the client&apos;s clinical records.</p>
       ) : (
-        <p className="text-[11px] text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Labs edit access.</p>
+        <p className="text-xs text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Labs edit access.</p>
       )}
       <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
 
@@ -3804,7 +3804,7 @@ function ClinicalDocModal({
       <div className="space-y-3 mb-4">
         {!lockedDocType && (
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Document Type</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Document Type</label>
             <select value={docType} onChange={(e) => setDocType(e.target.value as ClinicalDocType)} className="kairos-input w-full">
               <option value="medical_record">Medical Record</option>
               <option value="dexa_scan">DEXA Scan</option>
@@ -3813,31 +3813,31 @@ function ClinicalDocModal({
           </div>
         )}
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Title *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Title *</label>
           <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} placeholder="e.g. Annual Physical Results" className="kairos-input w-full" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Provider</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Provider</label>
             <input type="text" value={providerName} onChange={(e) => setProviderName(e.target.value)} placeholder="e.g. Quest" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Report Date</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Report Date</label>
             <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className="kairos-input w-full" />
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">File (PDF, image, or document)</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">File (PDF, image, or document)</label>
           <input
             type="file"
             accept=".pdf,.doc,.docx,.csv,.xls,.xlsx,.txt,image/*"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="block w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-kairos-gold/30 file:bg-kairos-gold/10 file:text-kairos-gold file:text-xs file:font-medium hover:file:bg-kairos-gold/20"
           />
-          {file && <p className="text-[10px] text-gray-500 mt-1">Selected: {file.name}</p>}
+          {file && <p className="text-xs text-gray-500 mt-1">Selected: {file.name}</p>}
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Notes</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context or summary..." className="kairos-input w-full h-16 resize-none" />
         </div>
         {localError && <p className="text-xs text-red-400">{localError}</p>}
@@ -3899,9 +3899,9 @@ function MetricPanel({
         )}
       </div>
       {canEdit ? (
-        <p className="text-[11px] text-gray-500">{description}</p>
+        <p className="text-xs text-gray-500">{description}</p>
       ) : (
-        <p className="text-[11px] text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Health Data edit access.</p>
+        <p className="text-xs text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Health Data edit access.</p>
       )}
       <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
       {children}
@@ -3974,15 +3974,15 @@ function GlucoseModal({
     <Modal title="Add Glucose Reading" onClose={onClose}>
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date &amp; Time *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Date &amp; Time *</label>
           <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="kairos-input w-full" />
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Glucose (mg/dL) *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Glucose (mg/dL) *</label>
           <input type="number" step="any" min={0} value={value} onChange={(e) => setValue(e.target.value)} placeholder="e.g. 95" className="kairos-input w-full" />
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Notes</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Fasting, post-meal, context..." className="kairos-input w-full h-16 resize-none" />
         </div>
       </div>
@@ -4056,11 +4056,11 @@ function HrvModal({
     <Modal title="Add HRV Reading" onClose={onClose}>
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date &amp; Time *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Date &amp; Time *</label>
           <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="kairos-input w-full" />
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">RMSSD (ms) *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">RMSSD (ms) *</label>
           <input type="number" step="any" min={0} value={rmssd} onChange={(e) => setRmssd(e.target.value)} placeholder="e.g. 45" className="kairos-input w-full" />
         </div>
       </div>
@@ -4150,26 +4150,26 @@ function BloodPressureModal({
     <Modal title="Add Blood Pressure" onClose={onClose}>
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Date *</label>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Systolic *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Systolic *</label>
             <input type="number" min={0} value={systolic} onChange={(e) => setSystolic(e.target.value)} placeholder="120" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Diastolic *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Diastolic *</label>
             <input type="number" min={0} value={diastolic} onChange={(e) => setDiastolic(e.target.value)} placeholder="80" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Pulse</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Pulse</label>
             <input type="number" min={0} value={pulse} onChange={(e) => setPulse(e.target.value)} placeholder="bpm" className="kairos-input w-full" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Position</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Position</label>
             <select value={position} onChange={(e) => setPosition(e.target.value)} className="kairos-input w-full">
               <option value="">—</option>
               <option value="sitting">Sitting</option>
@@ -4178,7 +4178,7 @@ function BloodPressureModal({
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Arm</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Arm</label>
             <select value={arm} onChange={(e) => setArm(e.target.value)} className="kairos-input w-full">
               <option value="">—</option>
               <option value="left">Left</option>
@@ -4187,7 +4187,7 @@ function BloodPressureModal({
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Notes</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context..." className="kairos-input w-full h-16 resize-none" />
         </div>
       </div>
@@ -4311,20 +4311,20 @@ function BodyMeasurementModal({
       <div className="space-y-3 mb-4">
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Date *</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Weight (lbs)</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Weight (lbs)</label>
             <input type="number" step="any" min={0} value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="e.g. 180" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Body Fat %</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Body Fat %</label>
             <input type="number" step="any" min={0} value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} placeholder="e.g. 18" className="kairos-input w-full" />
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Circumferences (inches, optional)</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Circumferences (inches, optional)</label>
           <div className="grid grid-cols-3 gap-2">
             {circ.map(([label, value, setter]) => (
               <input
@@ -4342,7 +4342,7 @@ function BodyMeasurementModal({
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Notes</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Notes</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context..." className="kairos-input w-full h-16 resize-none" />
         </div>
       </div>
@@ -4426,24 +4426,24 @@ function ActivityModal({
     <Modal title="Add Activity Summary" onClose={onClose}>
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Date *</label>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Steps</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Steps</label>
             <input type="number" min={0} value={steps} onChange={(e) => setSteps(e.target.value)} placeholder="e.g. 8000" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Active Calories</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Active Calories</label>
             <input type="number" min={0} value={caloriesActive} onChange={(e) => setCaloriesActive(e.target.value)} placeholder="kcal" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Exercise Minutes</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Exercise Minutes</label>
             <input type="number" min={0} value={exerciseMinutes} onChange={(e) => setExerciseMinutes(e.target.value)} placeholder="min" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Stand Hours</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Stand Hours</label>
             <input type="number" min={0} value={standHours} onChange={(e) => setStandHours(e.target.value)} placeholder="hrs" className="kairos-input w-full" />
           </div>
         </div>
@@ -4551,12 +4551,12 @@ function GoalModal({
     <Modal title="Add Goal" onClose={onClose}>
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Title *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Title *</label>
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Lower fasting glucose" className="kairos-input w-full" />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Category</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Category</label>
             <select value={category} onChange={(e) => setCategory(e.target.value as GoalCategory)} className="kairos-input w-full">
               <option value="glucose">Glucose</option>
               <option value="sleep">Sleep</option>
@@ -4571,7 +4571,7 @@ function GoalModal({
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Direction</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Direction</label>
             <select value={targetDirection} onChange={(e) => setTargetDirection(e.target.value as GoalDirection)} className="kairos-input w-full">
               <option value="increase">Increase</option>
               <option value="decrease">Decrease</option>
@@ -4580,7 +4580,7 @@ function GoalModal({
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Timeframe</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Timeframe</label>
             <select value={timeframe} onChange={(e) => setTimeframe(e.target.value as GoalTimeframe)} className="kairos-input w-full">
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
@@ -4592,32 +4592,32 @@ function GoalModal({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Target Value *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Target Value *</label>
             <input type="number" step="any" value={targetValue} onChange={(e) => setTargetValue(e.target.value)} placeholder="e.g. 90" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Target Unit *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Target Unit *</label>
             <input type="text" value={targetUnit} onChange={(e) => setTargetUnit(e.target.value)} placeholder="e.g. mg/dL" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Start Value *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Start Value *</label>
             <input type="number" step="any" value={startValue} onChange={(e) => setStartValue(e.target.value)} placeholder="e.g. 110" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Current Value *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Current Value *</label>
             <input type="number" step="any" value={currentValue} onChange={(e) => setCurrentValue(e.target.value)} placeholder="e.g. 105" className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Start Date *</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Start Date *</label>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Target Date</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Target Date</label>
             <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className="kairos-input w-full" />
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Description</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Description</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Context, plan, rationale..." className="kairos-input w-full h-16 resize-none" />
         </div>
       </div>
@@ -4697,16 +4697,16 @@ function FastingModal({
     <Modal title="Add Fasting Log" onClose={onClose}>
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Date *</label>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Started At</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Started At</label>
             <input type="datetime-local" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} className="kairos-input w-full" />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase mb-1 block">Ended At</label>
+            <label className="text-xs text-gray-500 uppercase mb-1 block">Ended At</label>
             <input type="datetime-local" value={endedAt} onChange={(e) => setEndedAt(e.target.value)} className="kairos-input w-full" />
           </div>
         </div>
@@ -4818,11 +4818,11 @@ function CheckinModal({
     <Modal title="Add Check-in" onClose={onClose}>
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Date *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Date *</label>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="kairos-input w-full" />
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Vitals (optional)</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Vitals (optional)</label>
           <div className="grid grid-cols-3 gap-2">
             <input type="number" step="any" min={0} value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Weight" title="Weight (lbs)" className="kairos-input w-full py-1 text-xs" />
             <input type="number" step="any" min={0} value={sleepHours} onChange={(e) => setSleepHours(e.target.value)} placeholder="Sleep h" title="Sleep hours" className="kairos-input w-full py-1 text-xs" />
@@ -4832,7 +4832,7 @@ function CheckinModal({
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Nutrition (optional)</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Nutrition (optional)</label>
           <div className="grid grid-cols-3 gap-2">
             <input type="number" step="any" min={0} value={proteinG} onChange={(e) => setProteinG(e.target.value)} placeholder="Protein g" title="Protein (g)" className="kairos-input w-full py-1 text-xs" />
             <input type="number" step="any" min={0} value={carbsG} onChange={(e) => setCarbsG(e.target.value)} placeholder="Carbs g" title="Carbs (g)" className="kairos-input w-full py-1 text-xs" />
@@ -4843,7 +4843,7 @@ function CheckinModal({
           </div>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Activity (optional)</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Activity (optional)</label>
           <div className="grid grid-cols-2 gap-2">
             <input type="number" min={0} value={steps} onChange={(e) => setSteps(e.target.value)} placeholder="Steps" title="Steps" className="kairos-input w-full py-1 text-xs" />
             <input type="number" min={0} value={cardioMinutes} onChange={(e) => setCardioMinutes(e.target.value)} placeholder="Cardio min" title="Cardio minutes" className="kairos-input w-full py-1 text-xs" />

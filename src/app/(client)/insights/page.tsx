@@ -190,7 +190,7 @@ function HealthAgeRing({ healthAge }: { healthAge: HealthAgeData }) {
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-4xl font-heading font-bold" style={{ color }}>{biologicalAge}</span>
-          <span className="text-[10px] font-body uppercase tracking-wider text-kairos-silver-dark">Bio Age</span>
+          <span className="text-xs font-body uppercase tracking-wider text-kairos-silver-dark">Bio Age</span>
         </div>
       </div>
       <div className="space-y-2">
@@ -240,7 +240,7 @@ function DomainScoreBar({ domain }: { domain: DomainScore }) {
         <div className={cn("h-full rounded-full transition-all duration-700", barColor)} style={{ width: `${domain.score}%` }} />
       </div>
       {domain.keyFindings.length > 0 && (
-        <p className="text-[10px] font-body text-kairos-silver-dark">{domain.keyFindings[0]}</p>
+        <p className="text-xs font-body text-kairos-silver-dark">{domain.keyFindings[0]}</p>
       )}
     </div>
   );
@@ -284,7 +284,7 @@ function ReportViewer({
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Sparkles size={18} className="text-kairos-gold" />
-              <span className="text-[10px] font-heading font-bold uppercase tracking-wider text-kairos-gold">AI-Generated Report</span>
+              <span className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-gold">AI-Generated Report</span>
             </div>
             <h2 className="text-2xl font-heading font-bold text-white">{report.title}</h2>
             <p className="text-xs font-body text-kairos-silver-dark mt-1">
@@ -418,7 +418,7 @@ function ReportViewer({
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-heading font-semibold text-white">{m.value}</span>
                                 <span className={cn(
-                                  "text-[10px] font-heading font-bold px-1.5 py-0.5 rounded",
+                                  "text-xs font-heading font-bold px-1.5 py-0.5 rounded",
                                   m.status === "optimal" ? "bg-green-500/20 text-green-400" :
                                   m.status === "normal" ? "bg-blue-500/20 text-blue-400" :
                                   m.status === "borderline" ? "bg-yellow-500/20 text-yellow-400" :
@@ -435,7 +435,7 @@ function ReportViewer({
                       )}
                       {section.recommendations && section.recommendations.length > 0 && (
                         <div className="bg-kairos-royal-surface/50 rounded-lg p-3">
-                          <p className="text-[10px] font-heading font-bold uppercase tracking-wider text-kairos-gold mb-2">Recommendations</p>
+                          <p className="text-xs font-heading font-bold uppercase tracking-wider text-kairos-gold mb-2">Recommendations</p>
                           <div className="space-y-1">
                             {section.recommendations.map((r: string, ri: number) => (
                               <p key={ri} className="text-xs font-body text-kairos-silver-dark flex gap-2">
@@ -462,13 +462,13 @@ function ReportViewer({
                     <span className="text-sm font-heading font-semibold text-white">{p.pathway}</span>
                     <div className="flex items-center gap-2">
                       <span className={cn(
-                        "text-[10px] font-heading font-bold px-2 py-0.5 rounded-full",
+                        "text-xs font-heading font-bold px-2 py-0.5 rounded-full",
                         p.riskLevel === "high" ? "bg-red-500/20 text-red-400" :
                         p.riskLevel === "moderate" ? "bg-yellow-500/20 text-yellow-400" :
                         "bg-green-500/20 text-green-400"
                       )}>{p.riskLevel} risk</span>
                       <span className={cn(
-                        "text-[10px] font-heading font-bold px-2 py-0.5 rounded-full",
+                        "text-xs font-heading font-bold px-2 py-0.5 rounded-full",
                         p.currentProtocolCoverage === "fully_addressed" ? "bg-green-500/20 text-green-400" :
                         p.currentProtocolCoverage === "partially_addressed" ? "bg-yellow-500/20 text-yellow-400" :
                         "bg-red-500/20 text-red-400"
@@ -494,25 +494,25 @@ function ReportViewer({
                 {report.glucoseAnalysis.avgGlucose != null && (
                   <div className="text-center">
                     <p className="text-xl font-heading font-bold text-white">{round(report.glucoseAnalysis.avgGlucose, 0)}</p>
-                    <p className="text-[10px] font-body text-kairos-silver-dark">Avg mg/dL</p>
+                    <p className="text-xs font-body text-kairos-silver-dark">Avg mg/dL</p>
                   </div>
                 )}
                 {report.glucoseAnalysis.timeInRange != null && (
                   <div className="text-center">
                     <p className="text-xl font-heading font-bold text-white">{round(report.glucoseAnalysis.timeInRange, 0)}%</p>
-                    <p className="text-[10px] font-body text-kairos-silver-dark">Time in Range</p>
+                    <p className="text-xs font-body text-kairos-silver-dark">Time in Range</p>
                   </div>
                 )}
                 {report.glucoseAnalysis.spikeCount != null && (
                   <div className="text-center">
                     <p className="text-xl font-heading font-bold text-amber-400">{report.glucoseAnalysis.spikeCount}</p>
-                    <p className="text-[10px] font-body text-kairos-silver-dark">Spikes</p>
+                    <p className="text-xs font-body text-kairos-silver-dark">Spikes</p>
                   </div>
                 )}
                 {report.glucoseAnalysis.variability && (
                   <div className="text-center">
                     <p className="text-xl font-heading font-bold text-white capitalize">{report.glucoseAnalysis.variability}</p>
-                    <p className="text-[10px] font-body text-kairos-silver-dark">Variability</p>
+                    <p className="text-xs font-body text-kairos-silver-dark">Variability</p>
                   </div>
                 )}
               </div>
@@ -526,21 +526,21 @@ function ReportViewer({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="text-center">
                   <p className="text-xl font-heading font-bold text-white">{round(report.sleepAnalysis.avgDuration, 1)}</p>
-                  <p className="text-[10px] font-body text-kairos-silver-dark">Avg Duration</p>
+                  <p className="text-xs font-body text-kairos-silver-dark">Avg Duration</p>
                 </div>
                 {report.sleepAnalysis.avgQuality != null && (
                   <div className="text-center">
                     <p className="text-xl font-heading font-bold text-white">{round(report.sleepAnalysis.avgQuality, 0)}/100</p>
-                    <p className="text-[10px] font-body text-kairos-silver-dark">Quality</p>
+                    <p className="text-xs font-body text-kairos-silver-dark">Quality</p>
                   </div>
                 )}
                 <div className="text-center">
                   <p className="text-xl font-heading font-bold text-purple-400">{round(report.sleepAnalysis.deepSleepPct, 0)}</p>
-                  <p className="text-[10px] font-body text-kairos-silver-dark">Deep Sleep</p>
+                  <p className="text-xs font-body text-kairos-silver-dark">Deep Sleep</p>
                 </div>
                 <div className="text-center">
                   <p className="text-xl font-heading font-bold text-blue-400 capitalize">{report.sleepAnalysis.consistency}</p>
-                  <p className="text-[10px] font-body text-kairos-silver-dark">Consistency</p>
+                  <p className="text-xs font-body text-kairos-silver-dark">Consistency</p>
                 </div>
               </div>
             </div>
@@ -591,7 +591,7 @@ function ReportViewer({
                     <p className="text-sm font-body text-white">{c.insight}</p>
                     <div className="flex items-center gap-2 mt-2">
                       {c.domains?.map((d: string, di: number) => (
-                        <span key={di} className="text-[10px] font-heading font-bold px-2 py-0.5 rounded-full bg-kairos-gold/20 text-kairos-gold">{d}</span>
+                        <span key={di} className="text-xs font-heading font-bold px-2 py-0.5 rounded-full bg-kairos-gold/20 text-kairos-gold">{d}</span>
                       ))}
                     </div>
                     <p className="text-xs font-body text-kairos-silver-dark mt-1">{c.action}</p>
@@ -614,9 +614,9 @@ function ReportViewer({
                     <div className="flex-1">
                       <p className="text-sm font-body text-white">{a.action}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] font-heading font-bold px-2 py-0.5 rounded-full bg-kairos-royal-surface text-kairos-silver-dark capitalize">{a.category}</span>
-                        {a.timeframe && <span className="text-[10px] font-body text-kairos-silver-dark capitalize">{a.timeframe.replace(/_/g, " ")}</span>}
-                        {a.expectedImpact && <span className="text-[10px] font-body text-kairos-silver-dark">{a.expectedImpact}</span>}
+                        <span className="text-xs font-heading font-bold px-2 py-0.5 rounded-full bg-kairos-royal-surface text-kairos-silver-dark capitalize">{a.category}</span>
+                        {a.timeframe && <span className="text-xs font-body text-kairos-silver-dark capitalize">{a.timeframe.replace(/_/g, " ")}</span>}
+                        {a.expectedImpact && <span className="text-xs font-body text-kairos-silver-dark">{a.expectedImpact}</span>}
                       </div>
                     </div>
                   </div>
@@ -627,7 +627,7 @@ function ReportViewer({
 
           {/* Disclaimer */}
           <div className="p-3 rounded-lg bg-kairos-royal-surface border border-kairos-border">
-            <p className="text-[10px] font-body text-kairos-silver-dark">
+            <p className="text-xs font-body text-kairos-silver-dark">
               This AI-generated report is for informational purposes only and should not replace professional medical advice. Discuss any changes to your health protocol with your healthcare provider or EVERIST coach.
             </p>
           </div>
@@ -871,7 +871,7 @@ export default function InsightsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-white mb-1">Insight Sherpa</h1>
+          <h1 className="text-3xl font-heading font-bold text-white mb-1">Reports</h1>
           <p className="text-kairos-silver-dark font-body text-sm">
             Your AI guide to personalized health intelligence
           </p>
@@ -949,7 +949,7 @@ export default function InsightsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {saved && (
-                        <span className="text-[10px] font-heading font-bold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
+                        <span className="text-xs font-heading font-bold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
                           Saved
                         </span>
                       )}
@@ -959,7 +959,7 @@ export default function InsightsPage() {
                   <h3 className="text-base font-heading font-bold text-white mb-1">{rt.title}</h3>
                   <p className="text-xs font-body text-kairos-silver-dark mb-3 line-clamp-2">{rt.description}</p>
                   {saved ? (
-                    <div className="flex items-center gap-2 text-[10px] font-body text-kairos-silver-dark">
+                    <div className="flex items-center gap-2 text-xs font-body text-kairos-silver-dark">
                       <Clock size={12} />
                       <span>Generated {saved.createdAt.toLocaleDateString()}</span>
                       <span className="text-kairos-gold">• Click to view</span>
@@ -967,7 +967,7 @@ export default function InsightsPage() {
                   ) : (
                     <div className="flex flex-wrap gap-1">
                       {rt.metrics.map((m) => (
-                        <span key={m} className="text-[10px] font-heading font-semibold px-2 py-0.5 rounded-full bg-kairos-royal-surface text-kairos-silver-dark">
+                        <span key={m} className="text-xs font-heading font-semibold px-2 py-0.5 rounded-full bg-kairos-royal-surface text-kairos-silver-dark">
                           {m}
                         </span>
                       ))}
@@ -978,7 +978,7 @@ export default function InsightsPage() {
                       <div className="flex-1 h-1 bg-kairos-royal-surface rounded-full overflow-hidden">
                         <div className="h-full bg-kairos-gold rounded-full animate-pulse w-2/3" />
                       </div>
-                      <span className="text-[10px] font-body text-kairos-gold">Analyzing data...</span>
+                      <span className="text-xs font-body text-kairos-gold">Analyzing data...</span>
                     </div>
                   )}
                 </button>
@@ -1050,7 +1050,7 @@ export default function InsightsPage() {
               <div className="bg-kairos-card/50 rounded-kairos-sm p-4 border border-kairos-border">
                 <div className="flex items-center gap-2 mb-2">
                   <Lightbulb className="w-4 h-4 text-kairos-gold" />
-                  <span className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Insights</span>
+                  <span className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Insights</span>
                 </div>
                 <p className="text-lg font-bold text-white">{insights.length}</p>
                 <p className="text-xs text-kairos-silver-dark">Generated</p>
@@ -1058,7 +1058,7 @@ export default function InsightsPage() {
               <div className="bg-kairos-card/50 rounded-kairos-sm p-4 border border-kairos-border">
                 <div className="flex items-center gap-2 mb-2">
                   <Heart className="w-4 h-4 text-pink-400" />
-                  <span className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Positive</span>
+                  <span className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Positive</span>
                 </div>
                 <p className="text-lg font-bold text-pink-400">{insights.filter((i) => i.severity === "positive").length}</p>
                 <p className="text-xs text-kairos-silver-dark">Good signals</p>
@@ -1066,7 +1066,7 @@ export default function InsightsPage() {
               <div className="bg-kairos-card/50 rounded-kairos-sm p-4 border border-kairos-border">
                 <div className="flex items-center gap-2 mb-2">
                   <Zap className="w-4 h-4 text-yellow-400" />
-                  <span className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Actions</span>
+                  <span className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Actions</span>
                 </div>
                 <p className="text-lg font-bold text-yellow-400">{insights.filter((i) => i.severity === "warning" || i.severity === "critical").length}</p>
                 <p className="text-xs text-kairos-silver-dark">Needs attention</p>

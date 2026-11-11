@@ -159,7 +159,7 @@ export default function DailyGuidancePage({ params }: { params: { id: string } }
                     </button>
                     <div className="flex-1">
                       <p className={`text-sm ${t.completed ? "text-gray-500 line-through" : "text-white"}`}>{t.title}</p>
-                      {t.dueDate && <p className="text-[11px] text-gray-500">Due {t.dueDate}</p>}
+                      {t.dueDate && <p className="text-xs text-gray-500">Due {t.dueDate}</p>}
                     </div>
                     <button
                       onClick={() => deleteTaskMut.mutate({ taskId: t.id })}

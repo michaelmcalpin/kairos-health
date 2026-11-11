@@ -49,7 +49,7 @@ function AuditItem({ message }: { message: SSEMessage<AuditData> }) {
           <span className="text-xs text-gray-400 flex-shrink-0 tabular-nums">{timeStr}</span>
         </div>
         <p className="text-xs text-gray-500 mt-0.5">
-          <span className="font-mono text-[10px] bg-gray-100 rounded px-1 py-0.5">
+          <span className="font-mono text-xs bg-gray-100 rounded px-1 py-0.5">
             {entry.action}
           </span>{" "}
           {entry.details}

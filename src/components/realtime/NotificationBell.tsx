@@ -102,7 +102,7 @@ export function NotificationBell() {
       >
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-[9px] font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
+          <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-xs font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -146,7 +146,7 @@ export function NotificationBell() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span
-                            className={`text-[10px] font-heading font-bold px-1.5 py-0.5 rounded-full ${
+                            className={`text-xs font-heading font-bold px-1.5 py-0.5 rounded-full ${
                               meta.accent
                                 ? "bg-kairos-gold/15 text-kairos-gold"
                                 : "bg-kairos-royal-dark text-kairos-silver-dark"
@@ -160,7 +160,7 @@ export function NotificationBell() {
                           {n.title}
                         </p>
                         <p className="text-xs text-kairos-silver-dark mt-0.5 line-clamp-2">{n.body}</p>
-                        <p className="text-[10px] text-kairos-silver-dark mt-1">{relativeTime(n.createdAt)}</p>
+                        <p className="text-xs text-kairos-silver-dark mt-1">{relativeTime(n.createdAt)}</p>
                       </div>
                     </div>
                   </button>

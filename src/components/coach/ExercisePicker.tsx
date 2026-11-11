@@ -122,7 +122,7 @@ export function ExercisePicker({
         <div className="absolute z-50 mt-1 w-full max-h-64 overflow-y-auto rounded-kairos-sm border border-kairos-border bg-kairos-card shadow-kairos-lg">
           {grouped.map(({ group, items }) => (
             <div key={group}>
-              <div className="sticky top-0 flex items-center gap-1.5 bg-kairos-card px-2.5 py-1 text-[10px] font-heading font-semibold uppercase tracking-wider text-kairos-gold">
+              <div className="sticky top-0 flex items-center gap-1.5 bg-kairos-card px-2.5 py-1 text-xs font-heading font-semibold uppercase tracking-wider text-kairos-gold">
                 <Dumbbell size={10} />
                 {group}
               </div>

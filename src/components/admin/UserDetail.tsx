@@ -44,7 +44,7 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
             <p className="text-sm text-gray-400">{user.email}</p>
             <div className="flex items-center gap-2 mt-1">
               <span
-                className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                className="px-2 py-0.5 rounded-full text-xs font-medium"
                 style={{ backgroundColor: `${ROLE_COLORS[user.role]}20`, color: ROLE_COLORS[user.role] }}
               >
                 {ROLE_LABELS[user.role]}
@@ -54,7 +54,7 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
                 <span className="text-xs text-gray-400">{STATUS_LABELS[user.status]}</span>
               </div>
               {user.companyName && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-400">
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400">
                   {user.companyName}
                 </span>
               )}
@@ -255,8 +255,8 @@ export function UserDetail({ user, auditLog, onAction, onClose }: UserDetailProp
                   <p className="text-xs text-white">
                     {AUDIT_ACTION_LABELS[entry.action] ?? entry.action}
                   </p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">{entry.details}</p>
-                  <p className="text-[10px] text-gray-600 mt-0.5">
+                  <p className="text-xs text-gray-500 mt-0.5">{entry.details}</p>
+                  <p className="text-xs text-gray-600 mt-0.5">
                     by {entry.actorName} — {formatRelativeTime(entry.createdAt)}
                   </p>
                 </div>

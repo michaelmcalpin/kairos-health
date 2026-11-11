@@ -166,7 +166,7 @@ export default function BulkEditProtocolsPage({ params }: { params: { id: string
             Enter data by hand
           </h3>
         </div>
-        <p className="text-[11px] text-kairos-silver-dark mb-3">
+        <p className="text-xs text-kairos-silver-dark mb-3">
           Download a template with sample rows, fill in your own data in Excel or Google Sheets, then upload it above.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -182,14 +182,14 @@ export default function BulkEditProtocolsPage({ params }: { params: { id: string
                 <a
                   href={`/templates/${t.key}-template.xlsx`}
                   download
-                  className="text-[11px] font-medium text-kairos-gold hover:text-kairos-gold-light inline-flex items-center gap-1"
+                  className="text-xs font-medium text-kairos-gold hover:text-kairos-gold-light inline-flex items-center gap-1"
                 >
                   <Download size={11} /> Excel
                 </a>
                 <a
                   href={`/templates/${t.key}-template.csv`}
                   download
-                  className="text-[11px] font-medium text-kairos-silver-dark hover:text-white inline-flex items-center gap-1"
+                  className="text-xs font-medium text-kairos-silver-dark hover:text-white inline-flex items-center gap-1"
                 >
                   <Download size={11} /> CSV
                 </a>
@@ -215,7 +215,7 @@ export default function BulkEditProtocolsPage({ params }: { params: { id: string
                 <Sparkles size={14} /> This looks like {detected.length > 1 ? "more than one thing" : `a ${detected[0].label} document`}
               </h3>
               {pendingFile && (
-                <p className="text-[11px] text-kairos-silver-dark mt-0.5">{pendingFile.name}</p>
+                <p className="text-xs text-kairos-silver-dark mt-0.5">{pendingFile.name}</p>
               )}
             </div>
             <button onClick={cancelDetect} className="p-1 rounded-md text-gray-500 hover:text-white" title="Cancel">
@@ -233,7 +233,7 @@ export default function BulkEditProtocolsPage({ params }: { params: { id: string
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium bg-kairos-gold text-kairos-royal-dark hover:bg-kairos-gold-light transition-colors"
               >
                 {TAB_LABEL[d.type]}
-                {d.reason && <span className="text-[11px] font-normal opacity-80">· {d.reason}</span>}
+                {d.reason && <span className="text-xs font-normal opacity-80">· {d.reason}</span>}
               </button>
             ))}
             {/* Any remaining tabs as a fallback, in case detection was off. */}

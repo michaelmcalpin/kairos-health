@@ -47,7 +47,7 @@ function CategoryBadge({ systolic, diastolic }: { systolic: number; diastolic: n
   return (
     <span
       className={cn(
-        "text-[10px] font-heading font-semibold px-2 py-0.5 rounded-full whitespace-nowrap",
+        "text-xs font-heading font-semibold px-2 py-0.5 rounded-full whitespace-nowrap",
         categoryStyles[cat],
       )}
     >
@@ -218,7 +218,7 @@ export default function BloodPressurePage() {
         views={[{ id: "bp", label: "Top / bottom", lines: [{ key: "bp_systolic", label: "Top (systolic)" }, { key: "bp_diastolic", label: "Bottom (diastolic)" }] }]}
         empty={{
           message: "connect a cuff through Apple Health or Withings, or log a reading.",
-          actions: [{ label: "Connect a device", href: "/settings" }, { label: "Log a reading", onClick: () => setShowForm(true) }],
+          actions: [{ label: "Connect a device", href: "/settings?tab=integrations" }, { label: "Log a reading", onClick: () => setShowForm(true) }],
         }}
       />
 
@@ -457,7 +457,7 @@ export default function BloodPressurePage() {
                 <span className="text-xs font-body text-kairos-silver-dark ml-1">mmHg</span>
               </p>
               {averages && (
-                <p className="text-[10px] font-body text-kairos-silver-dark mt-1">
+                <p className="text-xs font-body text-kairos-silver-dark mt-1">
                   Range: {averages.minSystolic}&ndash;{averages.maxSystolic}
                 </p>
               )}
@@ -474,7 +474,7 @@ export default function BloodPressurePage() {
                 <span className="text-xs font-body text-kairos-silver-dark ml-1">mmHg</span>
               </p>
               {averages && (
-                <p className="text-[10px] font-body text-kairos-silver-dark mt-1">
+                <p className="text-xs font-body text-kairos-silver-dark mt-1">
                   {averages.count} reading{averages.count !== 1 ? "s" : ""} this period
                 </p>
               )}
@@ -490,7 +490,7 @@ export default function BloodPressurePage() {
                 {latest?.pulse != null ? latest.pulse : averages?.avgPulse != null ? Math.round(averages.avgPulse) : "--"}
                 <span className="text-xs font-body text-kairos-silver-dark ml-1">bpm</span>
               </p>
-              <p className="text-[10px] font-body text-kairos-silver-dark mt-1">Latest reading</p>
+              <p className="text-xs font-body text-kairos-silver-dark mt-1">Latest reading</p>
             </div>
           </div>
 
@@ -541,7 +541,7 @@ export default function BloodPressurePage() {
                         x={pad.left - 6}
                         y={toY(v) + 3}
                         textAnchor="end"
-                        className="fill-kairos-silver-dark text-[9px]"
+                        className="fill-kairos-silver-dark text-xs"
                       >
                         {v}
                       </text>
@@ -605,7 +605,7 @@ export default function BloodPressurePage() {
                         x={x}
                         y={chartHeight - 5}
                         textAnchor="middle"
-                        className="fill-kairos-silver-dark text-[9px]"
+                        className="fill-kairos-silver-dark text-xs"
                       >
                         {label}
                       </text>
@@ -709,7 +709,7 @@ export default function BloodPressurePage() {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-1">
               <h3 className="font-heading font-semibold text-white">Connect a BP Monitor</h3>
-              <span className="text-[10px] font-heading font-semibold px-2 py-0.5 rounded-full bg-kairos-gold/15 text-kairos-gold">
+              <span className="text-xs font-heading font-semibold px-2 py-0.5 rounded-full bg-kairos-gold/15 text-kairos-gold">
                 Coming Soon
               </span>
             </div>
@@ -720,11 +720,11 @@ export default function BloodPressurePage() {
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2 px-3 py-2 rounded-kairos-sm bg-kairos-royal-surface border border-kairos-border">
                 <span className="text-sm font-heading font-semibold text-white">Withings</span>
-                <span className="text-[9px] font-body text-kairos-silver-dark">BPM Connect / Core</span>
+                <span className="text-xs font-body text-kairos-silver-dark">BPM Connect / Core</span>
               </div>
               <div className="flex items-center gap-2 px-3 py-2 rounded-kairos-sm bg-kairos-royal-surface border border-kairos-border">
                 <span className="text-sm font-heading font-semibold text-white">Omron</span>
-                <span className="text-[9px] font-body text-kairos-silver-dark">Evolv / Platinum</span>
+                <span className="text-xs font-body text-kairos-silver-dark">Evolv / Platinum</span>
               </div>
             </div>
           </div>

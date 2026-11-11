@@ -125,7 +125,7 @@ export function NotificationPreferencesPanel({
         <div className="flex items-center gap-2 mb-3 px-2">
           <span className="flex-1 text-xs font-medium text-kairos-silver-dark">Category</span>
           {(Object.entries(CHANNEL_LABELS) as [DeliveryChannel, string][]).map(([channel, label]) => (
-            <span key={channel} className="w-14 text-center text-[10px] font-medium text-kairos-silver-dark uppercase">
+            <span key={channel} className="w-14 text-center text-xs font-medium text-kairos-silver-dark uppercase">
               {label}
             </span>
           ))}

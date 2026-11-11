@@ -15,7 +15,7 @@
  *                      gene, were its linked labs checked in the past year and are
  *                      they in range? Two-copy changes count double.
  */
-import { and, eq, gte, lte, inArray, desc } from "drizzle-orm";
+import { and, eq, gte, lte, inArray, desc, isNotNull } from "drizzle-orm";
 
 import type { db as DB } from "@/server/db";
 import {
@@ -287,7 +287,8 @@ export async function computePhysical(
       refHigh: biomarkerValues.refHigh, status: biomarkerValues.status, receivedAt: labResults.receivedAt,
     }).from(biomarkerValues)
       .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
-      .where(and(eq(labResults.clientId, clientId), gte(labResults.receivedAt, yearAgo)))
+      // Only results the care team has released (unreviewed uploads don't move the score).
+      .where(and(eq(labResults.clientId, clientId), gte(labResults.receivedAt, yearAgo), isNotNull(labResults.releasedAt)))
       .orderBy(desc(labResults.receivedAt)), []),
     safe(db.select({ code: biomarkerDefinitions.code, name: biomarkerDefinitions.name }).from(biomarkerDefinitions), []),
     safe(db.select().from(geneticProfiles).where(eq(geneticProfiles.clientId, clientId))

@@ -44,19 +44,19 @@ export function CoachLeaderboard({ data }: CoachLeaderboardProps) {
             </div>
             <div className="flex gap-6 text-right">
               <div>
-                <p className="text-[10px] text-gray-500">Health Score</p>
+                <p className="text-xs text-gray-500">Health Score</p>
                 <p className="text-sm font-heading font-bold" style={{ color: tc.accent }}>
                   {coach.avgClientHealthScore}
                 </p>
               </div>
               <div>
-                <p className="text-[10px] text-gray-500">Retention</p>
+                <p className="text-xs text-gray-500">Retention</p>
                 <p className="text-sm font-heading font-bold text-green-400">
                   {coach.clientRetention}%
                 </p>
               </div>
               <div>
-                <p className="text-[10px] text-gray-500">Rating</p>
+                <p className="text-xs text-gray-500">Rating</p>
                 <p className="text-sm font-heading font-bold text-blue-400">
                   {coach.rating}
                 </p>

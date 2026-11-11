@@ -457,11 +457,11 @@ export const SupplementsTab: React.FC<SupplementsTabProps> = ({ data, onChange }
                           }`}>
                             {item.name}
                           </p>
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-body border ${CATEGORY_COLORS[item.category]}`}>
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-body border ${CATEGORY_COLORS[item.category]}`}>
                             {item.category}
                           </span>
                           {item.source === 'trainer' && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-body border border-purple-500/30 bg-purple-500/10 text-purple-400">
+                            <span className="px-1.5 py-0.5 rounded text-xs font-body border border-purple-500/30 bg-purple-500/10 text-purple-400">
                               trainer
                             </span>
                           )}
@@ -471,7 +471,7 @@ export const SupplementsTab: React.FC<SupplementsTabProps> = ({ data, onChange }
                           <p className="text-xs font-body text-kairos-silver-dark mt-1 italic">{item.rationale}</p>
                         )}
                         {item.taken && item.takenAt && (
-                          <p className="text-[10px] font-body text-kairos-gold mt-1">
+                          <p className="text-xs font-body text-kairos-gold mt-1">
                             <Clock size={10} className="inline mr-1" />
                             Taken at {new Date(item.takenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </p>

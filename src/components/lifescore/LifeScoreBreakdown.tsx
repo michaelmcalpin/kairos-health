@@ -56,7 +56,7 @@ function Ring({ score, size = 150, label }: { score: number | null; size?: numbe
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-4xl font-heading font-bold text-white">{score ?? "—"}</span>
-        <span className="text-[11px] text-gray-500 mt-0.5">{label}</span>
+        <span className="text-xs text-gray-500 mt-0.5">{label}</span>
       </div>
     </div>
   );
@@ -74,9 +74,9 @@ function SideTile({ title, weight, score, sentiment, color }: { title: string; w
   const s = SENTIMENT[sentiment] ?? SENTIMENT.no_data;
   return (
     <div className="rounded-xl bg-kairos-royal-surface p-3 border border-kairos-border">
-      <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{title} · {weight}%</p>
+      <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">{title} · {weight}%</p>
       <p className="text-3xl font-heading font-bold mt-1" style={{ color }}>{score ?? "—"}</p>
-      <p className={cn("text-[11px] flex items-center gap-1", s.cls)}><s.Icon size={11} /> {s.label}</p>
+      <p className={cn("text-xs flex items-center gap-1", s.cls)}><s.Icon size={11} /> {s.label}</p>
     </div>
   );
 }
@@ -137,7 +137,7 @@ export function LifeScoreBreakdown({
                     <Bar value={p.score} color="#5DCAA5" />
                     <span className="text-sm font-semibold text-white w-8 text-right">{p.score ?? "—"}</span>
                   </div>
-                  <p className="text-[10px] text-gray-500 ml-5">
+                  <p className="text-xs text-gray-500 ml-5">
                     {p.detail ?? "No data yet"}{p.weight ? ` · ${p.weight}% of Physical` : ""}
                   </p>
                 </div>
@@ -146,20 +146,20 @@ export function LifeScoreBreakdown({
           </div>
           {!!physical.focus?.length && (
             <div className="mt-3">
-              <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Work on</p>
+              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1">Work on</p>
               <div className="flex flex-wrap gap-1.5">
                 {physical.focus.map((m) => (
-                  <span key={m.key} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">{m.label} · {m.score}</span>
+                  <span key={m.key} className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">{m.label} · {m.score}</span>
                 ))}
               </div>
             </div>
           )}
           {!!physical.strengths?.length && (
             <div className="mt-2">
-              <p className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold mb-1">Strengths</p>
+              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1">Strengths</p>
               <div className="flex flex-wrap gap-1.5">
                 {physical.strengths.map((m) => (
-                  <span key={m.key} className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">{m.label} · {m.score}</span>
+                  <span key={m.key} className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">{m.label} · {m.score}</span>
                 ))}
               </div>
             </div>
@@ -187,7 +187,7 @@ export function LifeScoreBreakdown({
             })}
           </div>
           {data.mental?.practice && data.mental.practice.bonus > 0 && (
-            <p className="text-[11px] text-gray-400 mt-2">
+            <p className="text-xs text-gray-400 mt-2">
               Mindful minutes: {data.mental.practice.minPerDay} a day, adding +{data.mental.practice.bonus} to Mind.
             </p>
           )}

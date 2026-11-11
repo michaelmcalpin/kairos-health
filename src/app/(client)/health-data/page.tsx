@@ -46,7 +46,7 @@ export default function HealthDataPage() {
               title={`${def.label} trend`}
               subtitle={def.about}
               views={[{ id: metric, label: def.label, lines: [{ key: metric }], ...(asHours ? { factor: 1 / 60, unit: "h", decimals: 1 } : {}) }]}
-              empty={{ message: "connect Apple Health, Oura or another device.", actions: [{ label: "Connect a device", href: "/settings" }] }}
+              empty={{ message: "connect Apple Health, Oura or another device.", actions: [{ label: "Connect a device", href: "/settings?tab=integrations" }] }}
               headerAction={
                 <label className="flex items-center gap-2 text-xs text-kairos-silver-dark">
                   <span className="sr-only sm:not-sr-only">Metric</span>
@@ -61,7 +61,7 @@ export default function HealthDataPage() {
             <MetricTrendCard
               title="Your trends"
               views={[{ id: "sleep", label: "Time asleep", lines: [{ key: "sleep_total_min" }], factor: 1 / 60, unit: "h", decimals: 1 }]}
-              empty={{ message: "connect Apple Health, Oura or another device.", actions: [{ label: "Connect a device", href: "/settings" }] }}
+              empty={{ message: "connect Apple Health, Oura or another device.", actions: [{ label: "Connect a device", href: "/settings?tab=integrations" }] }}
             />
           )}
           <HealthDataView data={q.data} />

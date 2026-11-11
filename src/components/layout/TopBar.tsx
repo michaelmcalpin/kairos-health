@@ -40,8 +40,8 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
     enabled: portal === "client",
   });
 
-  // Trainer portal: active alert count across the coach's roster
-  const { data: coachActiveData } = trpc.coach.alerts.activeCount.useQuery(undefined, {
+  // Trainer portal: open Inbox items (same list and count as /trainer/inbox)
+  const { data: coachActiveData } = trpc.coach.inbox.openCount.useQuery(undefined, {
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     retry: 1,
@@ -52,7 +52,7 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
     alertCount ??
     (portal === "trainer" ? coachActiveData?.count : portal === "client" ? unreadData?.count : 0) ??
     0;
-  const alertsHref = portal === "trainer" ? "/trainer/alerts" : "/alerts";
+  const alertsHref = portal === "trainer" ? "/trainer/inbox" : "/alerts";
 
   // Coaches, company admins and super admins can use more than one portal.
   const { data: me } = trpc.auth.me.useQuery(undefined, { staleTime: 5 * 60_000, retry: false });
@@ -123,7 +123,7 @@ export function TopBar({ title, subtitle, alertCount, showSearch = true, classNa
                 distinct icon for health alerts so there aren't two bells. */}
             {portal === "client" ? <AlertTriangle size={18} /> : <Bell size={18} />}
             {badgeCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-[9px] font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
+              <span className="absolute -top-0.5 -right-0.5 bg-danger text-white text-xs font-heading font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5">
                 {badgeCount > 99 ? "99+" : badgeCount}
               </span>
             )}

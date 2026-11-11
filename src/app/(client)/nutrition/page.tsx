@@ -84,7 +84,7 @@ function MacroRing({ pct, label, value }: { pct: number; label: string; value: s
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-base font-bold text-kairos-gold">{Math.round(pct)}%</span>
-          <span className="text-[10px] text-kairos-silver-dark">{value}</span>
+          <span className="text-xs text-kairos-silver-dark">{value}</span>
         </div>
       </div>
       <p className="text-xs font-body text-kairos-silver-dark">{label}</p>
@@ -510,7 +510,7 @@ export default function NutritionPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className="font-heading font-bold text-lg text-white">{library.libraryName}</h2>
                       {library.planType && library.planType !== library.libraryName && (
-                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-kairos-gold/15 text-kairos-gold border border-kairos-gold/30">
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-kairos-gold/15 text-kairos-gold border border-kairos-gold/30">
                           {library.planType}
                         </span>
                       )}
@@ -575,7 +575,7 @@ export default function NutritionPage() {
                                 <div className="flex items-center gap-2">
                                   <p className="font-heading font-semibold text-white text-sm truncate">{meal.name}</p>
                                   {meal.day && (
-                                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold">{meal.day}</span>
+                                    <span className="shrink-0 text-xs px-1.5 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold">{meal.day}</span>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-3 mt-1 text-xs text-kairos-silver-dark">
@@ -590,7 +590,7 @@ export default function NutritionPage() {
                                 {meal.tags?.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mt-1.5">
                                     {meal.tags.slice(0, 4).map((tag) => (
-                                      <span key={tag} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold">
+                                      <span key={tag} className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-kairos-gold/10 text-kairos-gold">
                                         <Tag className="w-2.5 h-2.5" />{tag}
                                       </span>
                                     ))}

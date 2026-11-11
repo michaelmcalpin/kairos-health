@@ -52,7 +52,7 @@ function dv(data: DexaData | undefined, key: string): number | null {
 function ChangeIndicator({ current, previous, inverse }: { current: number | null; previous: number | null; inverse?: boolean }) {
   if (current == null || previous == null) return null;
   const diff = current - previous;
-  if (Math.abs(diff) < 0.05) return <span className="text-[10px] text-kairos-silver-dark">—</span>;
+  if (Math.abs(diff) < 0.05) return <span className="text-xs text-kairos-silver-dark">—</span>;
   const isGood = inverse ? diff < 0 : diff > 0;
   return (
     <span className={cn("text-xs font-heading font-bold flex items-center gap-0.5", isGood ? "text-green-400" : "text-red-400")}>
@@ -70,7 +70,7 @@ function MetricCard({
 }) {
   return (
     <div className="bg-kairos-royal-surface rounded-xl p-4 border border-kairos-border">
-      <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider mb-1">{label}</p>
       <p className={cn("text-2xl font-heading font-bold", color)}>
         {value}
         {unit && <span className="text-sm text-kairos-silver-dark ml-1">{unit}</span>}
@@ -471,7 +471,7 @@ export default function DexaScanPage() {
                     })()}
                   </svg>
                 </div>
-                <div className="flex justify-between text-[10px] text-kairos-silver-dark px-2 mb-4">
+                <div className="flex justify-between text-xs text-kairos-silver-dark px-2 mb-4">
                   {points.map((p, i) => (
                     <div key={i} className="text-center">
                       <p className="font-bold text-white text-sm">{p.value.toFixed(1)}</p>
@@ -506,7 +506,7 @@ export default function DexaScanPage() {
                   onClick={() => { setTrendMetric(metric.key); setShowAllTrends(false); setAiTrendAnalysis(null); }}>
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-heading font-bold text-sm text-white">{metric.label}</h3>
-                    <span className="text-[10px] text-kairos-silver-dark">{points.length} scans</span>
+                    <span className="text-xs text-kairos-silver-dark">{points.length} scans</span>
                   </div>
                   <div className="h-16">
                     <svg viewBox="0 0 200 50" className="w-full h-full" preserveAspectRatio="none">
@@ -519,7 +519,7 @@ export default function DexaScanPage() {
                       })()}
                     </svg>
                   </div>
-                  <div className="flex justify-between text-[10px] text-kairos-silver-dark mt-1">
+                  <div className="flex justify-between text-xs text-kairos-silver-dark mt-1">
                     <span>{points[0]?.value.toFixed(1)} {metric.unit}</span>
                     <span>{points[points.length - 1]?.value.toFixed(1)} {metric.unit}</span>
                   </div>
@@ -546,7 +546,7 @@ export default function DexaScanPage() {
                 <h2 className="font-heading font-bold text-sm text-kairos-silver-dark uppercase tracking-wider">
                   Body Composition — {latestDate ? new Date(latestDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Latest"}
                 </h2>
-                {prevData && <p className="text-[10px] text-kairos-silver-dark mt-0.5">vs {prevDate ? new Date(prevDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Previous"}</p>}
+                {prevData && <p className="text-xs text-kairos-silver-dark mt-0.5">vs {prevDate ? new Date(prevDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Previous"}</p>}
               </div>
               {docs && docs.length >= 2 && (
                 <button onClick={() => setShowAllTrends(true)} className="kairos-btn-outline px-3 py-1.5 rounded-kairos-sm text-xs flex items-center gap-2 text-kairos-gold border-kairos-gold/30 hover:bg-kairos-gold/10">
@@ -560,10 +560,10 @@ export default function DexaScanPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-kairos-border">
-                    <th className="text-left py-2.5 px-3 text-[10px] text-kairos-silver-dark uppercase font-heading tracking-wider">Metric</th>
-                    <th className="text-right py-2.5 px-3 text-[10px] text-kairos-silver-dark uppercase font-heading tracking-wider">Current</th>
-                    {prevData && <th className="text-right py-2.5 px-3 text-[10px] text-kairos-silver-dark uppercase font-heading tracking-wider">Previous</th>}
-                    {prevData && <th className="text-right py-2.5 px-3 text-[10px] text-kairos-silver-dark uppercase font-heading tracking-wider">Change</th>}
+                    <th className="text-left py-2.5 px-3 text-xs text-kairos-silver-dark uppercase font-heading tracking-wider">Metric</th>
+                    <th className="text-right py-2.5 px-3 text-xs text-kairos-silver-dark uppercase font-heading tracking-wider">Current</th>
+                    {prevData && <th className="text-right py-2.5 px-3 text-xs text-kairos-silver-dark uppercase font-heading tracking-wider">Previous</th>}
+                    {prevData && <th className="text-right py-2.5 px-3 text-xs text-kairos-silver-dark uppercase font-heading tracking-wider">Change</th>}
                     <th className="w-8"></th>
                   </tr>
                 </thead>
@@ -674,7 +674,7 @@ export default function DexaScanPage() {
                           {doc.providerName && (
                             <span className="text-xs text-kairos-silver-dark">{doc.providerName}</span>
                           )}
-                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full border",
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full border",
                             doc.status === "processed" ? "bg-green-500/10 text-green-400 border-green-500/30"
                               : "bg-yellow-500/10 text-yellow-400 border-yellow-500/30")}>
                             {doc.status === "processed" ? "Processed" : "Pending Review"}

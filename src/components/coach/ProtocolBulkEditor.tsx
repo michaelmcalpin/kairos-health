@@ -621,7 +621,7 @@ export default function ProtocolBulkEditor({
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label className="block text-[11px] text-kairos-silver-dark mb-1">Plan type</label>
+              <label className="block text-xs text-kairos-silver-dark mb-1">Plan type</label>
               <input
                 list="plan-type-suggestions"
                 value={planMeta.planType ?? ""}
@@ -636,7 +636,7 @@ export default function ProtocolBulkEditor({
               </datalist>
             </div>
             <div>
-              <label className="block text-[11px] text-kairos-silver-dark mb-1">Start date</label>
+              <label className="block text-xs text-kairos-silver-dark mb-1">Start date</label>
               <input
                 type="date"
                 value={planMeta.startDate ?? ""}
@@ -645,7 +645,7 @@ export default function ProtocolBulkEditor({
               />
             </div>
             <div>
-              <label className="block text-[11px] text-kairos-silver-dark mb-1">End date</label>
+              <label className="block text-xs text-kairos-silver-dark mb-1">End date</label>
               <input
                 type="date"
                 value={planMeta.endDate ?? ""}
@@ -654,7 +654,7 @@ export default function ProtocolBulkEditor({
               />
             </div>
             <div>
-              <label className="block text-[11px] text-kairos-silver-dark mb-1">Cycle pattern</label>
+              <label className="block text-xs text-kairos-silver-dark mb-1">Cycle pattern</label>
               <input
                 value={planMeta.cyclePattern ?? ""}
                 onChange={(e) => setPlanMeta((p) => ({ ...p, cyclePattern: e.target.value }))}
@@ -663,7 +663,7 @@ export default function ProtocolBulkEditor({
               />
             </div>
           </div>
-          <p className="text-[11px] text-kairos-silver-dark mt-2">
+          <p className="text-xs text-kairos-silver-dark mt-2">
             Leave dates blank for an ongoing plan. Uploading a document with AI fills these in automatically.
           </p>
         </div>
@@ -743,7 +743,7 @@ export default function ProtocolBulkEditor({
           </button>
         )}
         <div className="flex-1" />
-        <span className="text-[11px] text-kairos-silver-dark">
+        <span className="text-xs text-kairos-silver-dark">
           {payloadCount} row{payloadCount === 1 ? "" : "s"} ready
         </span>
         <button
@@ -755,7 +755,7 @@ export default function ProtocolBulkEditor({
       </div>
 
       {/* AI import helper */}
-      <p className="text-[11px] text-kairos-silver-dark flex items-center gap-1.5">
+      <p className="text-xs text-kairos-silver-dark flex items-center gap-1.5">
         <Sparkles size={12} className="text-kairos-gold/70 shrink-0" />
         Upload a Word, PDF, Excel, or CSV file — AI reads it and fills the grid for you to review before publishing.
       </p>
@@ -843,9 +843,9 @@ export default function ProtocolBulkEditor({
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-gray-800/60 border-b border-gray-700">
-              <th className="w-9 py-2 px-2 text-[10px] text-gray-500 uppercase font-medium text-center">#</th>
+              <th className="w-9 py-2 px-2 text-xs text-gray-500 uppercase font-medium text-center">#</th>
               {columns.map((c) => (
-                <th key={c.key} className="text-left py-2 px-2 text-[10px] text-gray-500 uppercase font-medium whitespace-nowrap">
+                <th key={c.key} className="text-left py-2 px-2 text-xs text-gray-500 uppercase font-medium whitespace-nowrap">
                   {c.label}
                 </th>
               ))}
@@ -855,7 +855,7 @@ export default function ProtocolBulkEditor({
           <tbody>
             {rows.map((row, ri) => (
               <tr key={ri} className="border-b border-gray-800/50 hover:bg-gray-800/20">
-                <td className="py-1 px-2 text-center text-[11px] text-gray-600 align-middle">{ri + 1}</td>
+                <td className="py-1 px-2 text-center text-xs text-gray-600 align-middle">{ri + 1}</td>
                 {columns.map((c, ci) => (
                   <td key={c.key} className="py-1 px-1.5">
                     <input
@@ -888,7 +888,7 @@ export default function ProtocolBulkEditor({
         </table>
       </div>
 
-      <p className="text-[11px] text-kairos-silver-dark">
+      <p className="text-xs text-kairos-silver-dark">
         Tip: click a cell and paste a block copied from Google Sheets / Excel to fill multiple cells at once. Empty rows are
         ignored on publish.
       </p>
@@ -926,7 +926,7 @@ export default function ProtocolBulkEditor({
             Publish &amp; notify client
           </button>
         )}
-        <span className="text-[11px] text-kairos-silver-dark">
+        <span className="text-xs text-kairos-silver-dark">
           {payloadCount} row{payloadCount === 1 ? "" : "s"} ready
         </span>
       </div>
@@ -995,7 +995,7 @@ export default function ProtocolBulkEditor({
               ))}
             </ul>
           )}
-          <p className="text-[11px] text-kairos-silver-dark">
+          <p className="text-xs text-kairos-silver-dark">
             {isTemplate
               ? `${published.itemCount} row${published.itemCount === 1 ? "" : "s"} saved to this template. Apply it to a client to overwrite their plan.`
               : `${published.itemCount} item${published.itemCount === 1 ? "" : "s"} now saved. The client has been alerted.`}

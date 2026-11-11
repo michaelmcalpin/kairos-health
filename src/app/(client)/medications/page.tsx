@@ -235,12 +235,12 @@ export default function MedicationsPage() {
                               <span className="text-xs font-body text-kairos-silver-dark">{med.dosage}</span>
                             )}
                             {med.form && (
-                              <span className="text-[10px] font-body px-1.5 py-0.5 rounded bg-kairos-royal-surface text-kairos-silver-dark">
+                              <span className="text-xs font-body px-1.5 py-0.5 rounded bg-kairos-royal-surface text-kairos-silver-dark">
                                 {med.form}
                               </span>
                             )}
                             {med.frequency && (
-                              <span className="text-[10px] font-body text-kairos-silver-dark flex items-center gap-0.5">
+                              <span className="text-xs font-body text-kairos-silver-dark flex items-center gap-0.5">
                                 <Clock size={10} /> {med.frequency}
                               </span>
                             )}
@@ -257,13 +257,13 @@ export default function MedicationsPage() {
                         <div className="mt-3 pt-3 border-t border-kairos-border space-y-2">
                           {med.rationale && (
                             <div>
-                              <p className="text-[10px] font-heading font-semibold text-kairos-silver-dark uppercase tracking-wider mb-0.5">Why prescribed</p>
+                              <p className="text-xs font-heading font-semibold text-kairos-silver-dark uppercase tracking-wider mb-0.5">Why prescribed</p>
                               <p className="text-xs font-body text-kairos-silver">{med.rationale}</p>
                             </div>
                           )}
                           {med.coachNotes && (
                             <div>
-                              <p className="text-[10px] font-heading font-semibold text-kairos-silver-dark uppercase tracking-wider mb-0.5">Coach notes</p>
+                              <p className="text-xs font-heading font-semibold text-kairos-silver-dark uppercase tracking-wider mb-0.5">Coach notes</p>
                               <p className="text-xs font-body text-kairos-silver">{med.coachNotes}</p>
                             </div>
                           )}

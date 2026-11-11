@@ -138,7 +138,7 @@ export function GeneticsReview({ markers, pathways = [], profile, audience = "co
             <p>Everyone has two copies of each gene, one from each parent.</p>
             {(["two", "one", "none"] as Strength[]).map((s) => (
               <p key={s} className="flex items-start gap-2">
-                <span className={cn("shrink-0 text-[11px] px-2 py-0.5 rounded-full border", STRENGTH_STYLE[s])}>{STRENGTH_LABEL[s].short}</span>
+                <span className={cn("shrink-0 text-xs px-2 py-0.5 rounded-full border", STRENGTH_STYLE[s])}>{STRENGTH_LABEL[s].short}</span>
                 <span>{STRENGTH_LABEL[s].long}</span>
               </p>
             ))}
@@ -148,7 +148,7 @@ export function GeneticsReview({ markers, pathways = [], profile, audience = "co
 
         {focus.length > 0 && (
           <div className="mt-4">
-            <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-2">Start here</p>
+            <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Start here</p>
             <div className="flex flex-wrap gap-2">
               {focus.map((g) => (
                 <button
@@ -158,7 +158,7 @@ export function GeneticsReview({ markers, pathways = [], profile, audience = "co
                   className="text-left px-3 py-2 rounded-xl bg-kairos-gold/10 border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
                 >
                   <span className="block text-sm font-semibold text-white">{g.gene}</span>
-                  {g.nickname && <span className="block text-[11px] text-kairos-gold">{g.nickname}</span>}
+                  {g.nickname && <span className="block text-xs text-kairos-gold">{g.nickname}</span>}
                 </button>
               ))}
             </div>
@@ -207,7 +207,7 @@ export function GeneticsReview({ markers, pathways = [], profile, audience = "co
                   <p className="text-xs text-gray-400 mt-0.5">{s.blurb}</p>
                 </div>
                 {score && pathwayTotal(score.genesInPathway) > 0 && (
-                  <span className="text-[11px] text-gray-400 bg-kairos-royal-surface rounded-full px-2.5 py-1">
+                  <span className="text-xs text-gray-400 bg-kairos-royal-surface rounded-full px-2.5 py-1">
                     {score.genesAffected}/{pathwayTotal(score.genesInPathway)} genes changed
                   </span>
                 )}
@@ -222,7 +222,7 @@ export function GeneticsReview({ markers, pathways = [], profile, audience = "co
         })
       )}
 
-      <p className="text-[11px] text-gray-500 leading-relaxed flex gap-2">
+      <p className="text-xs text-gray-500 leading-relaxed flex gap-2">
         <AlertTriangle size={13} className="shrink-0 mt-0.5" />
         {isClient
           ? "This is for learning, not a diagnosis. Talk with your coach or doctor before changing medicines or supplements."
@@ -237,7 +237,7 @@ function SummaryTile({ label, hint, value, tone }: { label: string; hint: string
     <div className={cn("rounded-xl border p-3", STRENGTH_STYLE[tone])}>
       <p className="text-2xl font-heading font-bold">{value}</p>
       <p className="text-xs font-semibold">{label}</p>
-      <p className="text-[11px] opacity-70">{hint}</p>
+      <p className="text-xs opacity-70">{hint}</p>
     </div>
   );
 }
@@ -252,11 +252,11 @@ function GeneCard({ gene: g, open, onToggle, audience }: { gene: GeneView; open:
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-white">{g.gene}</span>
             {g.nickname && <span className="text-xs text-kairos-gold">{g.nickname}</span>}
-            <span className={cn("text-[11px] px-2 py-0.5 rounded-full border", STRENGTH_STYLE[g.strength])}>
+            <span className={cn("text-xs px-2 py-0.5 rounded-full border", STRENGTH_STYLE[g.strength])}>
               {STRENGTH_LABEL[g.strength].short}
             </span>
             {g.strength !== "none" && (
-              <span className={cn("text-[11px]", PRIORITY_STYLE[g.priority])}>{PRIORITY_LABEL[g.priority]}</span>
+              <span className={cn("text-xs", PRIORITY_STYLE[g.priority])}>{PRIORITY_LABEL[g.priority]}</span>
             )}
           </div>
           <p className="text-xs text-gray-300 mt-1 leading-relaxed">{g.plain}</p>
@@ -268,7 +268,7 @@ function GeneCard({ gene: g, open, onToggle, audience }: { gene: GeneView; open:
         <div className="px-3 pb-4 space-y-4 border-t border-kairos-border pt-3">
           {g.changed && g.strength !== "none" && (
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1">What this change can mean</p>
+              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1">What this change can mean</p>
               <p className="text-sm text-gray-200 leading-relaxed">{g.changed}</p>
             </div>
           )}
@@ -278,10 +278,10 @@ function GeneCard({ gene: g, open, onToggle, audience }: { gene: GeneView; open:
 
           {g.symptoms.length > 0 && g.strength !== "none" && (
             <div>
-              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold mb-1.5">Signs to watch for</p>
+              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-1.5">Signs to watch for</p>
               <div className="flex flex-wrap gap-1.5">
                 {g.symptoms.map((s) => (
-                  <span key={s} className="text-[11px] text-gray-300 bg-kairos-royal-surface rounded-full px-2.5 py-1">{s}</span>
+                  <span key={s} className="text-xs text-gray-300 bg-kairos-royal-surface rounded-full px-2.5 py-1">{s}</span>
                 ))}
               </div>
             </div>
@@ -322,7 +322,7 @@ function GeneCard({ gene: g, open, onToggle, audience }: { gene: GeneView; open:
 
           {(g.technical.function || g.technical.effect || g.rsId || g.genotype) && (
             <div>
-              <button type="button" onClick={() => setShowTech((s) => !s)} className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300">
+              <button type="button" onClick={() => setShowTech((s) => !s)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300">
                 <Eye size={12} /> {showTech ? "Hide" : "Show"} {isClient ? "science detail" : "coach detail"}
               </button>
               {showTech && (
@@ -361,7 +361,7 @@ function ActionBlock({
           ))}
         </ul>
       )}
-      {note && <p className="text-[10px] text-gray-500 mt-2">{note}</p>}
+      {note && <p className="text-xs text-gray-500 mt-2">{note}</p>}
     </div>
   );
 }

@@ -130,27 +130,27 @@ export default function CoachClientsPage() {
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <div className="kairos-card p-3 text-center">
           <p className="text-2xl font-heading font-bold text-kairos-gold">{stats?.totalClients ?? data?.total ?? clients.length}</p>
-          <p className="text-[10px] text-gray-500 uppercase">Total</p>
+          <p className="text-xs text-gray-500 uppercase">Total</p>
         </div>
         <div className="kairos-card p-3 text-center">
           <p className="text-2xl font-heading font-bold text-white">{round(stats?.avgHealthScore, 0)}</p>
-          <p className="text-[10px] text-gray-500 uppercase">Avg LifeScore</p>
+          <p className="text-xs text-gray-500 uppercase">Avg LifeScore</p>
         </div>
         <div className="kairos-card p-3 text-center">
           <p className="text-2xl font-heading font-bold text-green-400">{stats?.stableCount ?? 0}</p>
-          <p className="text-[10px] text-gray-500 uppercase">Stable</p>
+          <p className="text-xs text-gray-500 uppercase">Stable</p>
         </div>
         <div className="kairos-card p-3 text-center">
           <p className="text-2xl font-heading font-bold text-yellow-400">{stats?.attentionCount ?? 0}</p>
-          <p className="text-[10px] text-gray-500 uppercase">Attention</p>
+          <p className="text-xs text-gray-500 uppercase">Attention</p>
         </div>
         <div className="kairos-card p-3 text-center">
           <p className="text-2xl font-heading font-bold text-red-400">{stats?.criticalCount ?? 0}</p>
-          <p className="text-[10px] text-gray-500 uppercase">Critical</p>
+          <p className="text-xs text-gray-500 uppercase">Critical</p>
         </div>
         <div className="kairos-card p-3 text-center" title="No LifeScore yet: no device data, labs or check-ins">
           <p className="text-2xl font-heading font-bold text-gray-400">{stats?.noDataCount ?? 0}</p>
-          <p className="text-[10px] text-gray-500 uppercase">No data</p>
+          <p className="text-xs text-gray-500 uppercase">No data</p>
         </div>
       </div>
 
@@ -316,7 +316,7 @@ function SharedWithMeSection() {
                       <span
                         key={badge.key}
                         title={`${badge.label}: ${level === "none" ? "no access" : level === "read" ? "view only" : "view & edit"}`}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold border ${
                           level === "write"
                             ? "bg-kairos-gold/15 text-kairos-gold border-kairos-gold/30"
                             : level === "read"
@@ -990,14 +990,14 @@ function PendingTab({
               <div className="min-w-0">
                 <p className="text-sm text-white truncate">{inv.email}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
                     Pending
                   </span>
-                  <span className="text-[10px] text-gray-500">
+                  <span className="text-xs text-gray-500">
                     Sent {new Date(inv.createdAt).toLocaleDateString()}
                   </span>
                   {inv.expiresAt && (
-                    <span className="text-[10px] text-gray-500">
+                    <span className="text-xs text-gray-500">
                       Expires {new Date(inv.expiresAt).toLocaleDateString()}
                     </span>
                   )}
@@ -1027,7 +1027,7 @@ function PendingTab({
               <div className="min-w-0">
                 <p className="text-sm text-gray-300 truncate">{inv.email}</p>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                  <span className={`text-xs px-2 py-0.5 rounded-full border ${
                     inv.status === "accepted"
                       ? "bg-green-500/10 text-green-400 border-green-500/20"
                       : inv.status === "cancelled"
@@ -1036,7 +1036,7 @@ function PendingTab({
                   }`}>
                     {inv.status === "accepted" ? "Accepted" : inv.status === "cancelled" ? "Cancelled" : "Expired"}
                   </span>
-                  <span className="text-[10px] text-gray-500">
+                  <span className="text-xs text-gray-500">
                     {new Date(inv.createdAt).toLocaleDateString()}
                   </span>
                 </div>

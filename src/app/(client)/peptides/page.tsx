@@ -579,7 +579,7 @@ export default function PeptidesPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-heading font-semibold text-white">{cycle.name}</h3>
-                        <span className={cn("text-[10px] font-heading font-bold uppercase px-2 py-0.5 rounded-full", STATUS_COLORS[cycle.status as CycleStatus])}>
+                        <span className={cn("text-xs font-heading font-bold uppercase px-2 py-0.5 rounded-full", STATUS_COLORS[cycle.status as CycleStatus])}>
                           {STATUS_LABELS[cycle.status as CycleStatus]}
                         </span>
                       </div>
@@ -662,7 +662,7 @@ export default function PeptidesPage() {
                       <MapPin size={12} className="text-kairos-silver-dark" />
                       <div className="flex flex-wrap gap-1">
                         {(cycle.injectionSites as string[]).map((site) => (
-                          <span key={site} className="text-[10px] px-2 py-0.5 rounded-full bg-kairos-royal-surface text-kairos-silver-dark border border-kairos-border">
+                          <span key={site} className="text-xs px-2 py-0.5 rounded-full bg-kairos-royal-surface text-kairos-silver-dark border border-kairos-border">
                             {site}
                           </span>
                         ))}
@@ -727,7 +727,7 @@ export default function PeptidesPage() {
                       {cycle.startDate} → {cycle.endDate || "Ongoing"}{cycle.durationWeeks ? ` (${cycle.durationWeeks} weeks)` : ""}
                     </p>
                   </div>
-                  <span className={cn("text-[10px] font-heading font-bold uppercase px-2 py-0.5 rounded-full", STATUS_COLORS.completed)}>
+                  <span className={cn("text-xs font-heading font-bold uppercase px-2 py-0.5 rounded-full", STATUS_COLORS.completed)}>
                     Completed
                   </span>
                 </div>

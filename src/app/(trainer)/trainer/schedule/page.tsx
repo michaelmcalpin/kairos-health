@@ -233,7 +233,7 @@ export default function CoachSchedulePage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="kairos-card p-6">
             <div className="flex items-start justify-between mb-2">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Upcoming</p>
+              <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Upcoming</p>
               <Calendar className="w-5 h-5 text-kairos-gold" />
             </div>
             <p className="font-heading font-bold text-2xl text-white">{isStatsLoading ? "-" : stats.upcomingAppointments}</p>
@@ -242,7 +242,7 @@ export default function CoachSchedulePage() {
 
           <div className="kairos-card p-6">
             <div className="flex items-start justify-between mb-2">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Today</p>
+              <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Today</p>
               <Clock className="w-5 h-5 text-kairos-gold" />
             </div>
             <p className="font-heading font-bold text-2xl text-white">{isStatsLoading ? "-" : stats.todayAppointments}</p>
@@ -251,7 +251,7 @@ export default function CoachSchedulePage() {
 
           <div className="kairos-card p-6">
             <div className="flex items-start justify-between mb-2">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Hours Completed</p>
+              <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Hours Completed</p>
               <Clock className="w-5 h-5 text-kairos-gold" />
             </div>
             <p className="font-heading font-bold text-2xl text-white">{isStatsLoading ? "-" : stats.hoursBookedThisWeek}h</p>
@@ -260,7 +260,7 @@ export default function CoachSchedulePage() {
 
           <div className="kairos-card p-6">
             <div className="flex items-start justify-between mb-2">
-              <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-wider">Completed</p>
+              <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-wider">Completed</p>
               <Users className="w-5 h-5 text-kairos-gold" />
             </div>
             <p className="font-heading font-bold text-2xl text-white">{isStatsLoading ? "-" : stats.completedThisWeek}</p>

@@ -41,7 +41,7 @@ export default async function HomePage() {
           </svg>
           <div>
             <h1 className="font-heading font-bold text-xl text-kairos-gold tracking-wide">EVERIST.ai</h1>
-            <p className="text-[10px] font-heading text-kairos-silver-dark uppercase tracking-widest">
+            <p className="text-xs font-heading text-kairos-silver-dark uppercase tracking-widest">
               Private Health Management
             </p>
           </div>

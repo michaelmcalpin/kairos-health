@@ -223,7 +223,7 @@ export default function Page() {
                         style={{ width: `${trainer.percentage}%`, backgroundColor: company.brandColor }}
                       />
                     </div>
-                    <span className="text-[10px] text-kairos-silver-dark">{trainer.clients} clients</span>
+                    <span className="text-xs text-kairos-silver-dark">{trainer.clients} clients</span>
                   </div>
                 </div>
               ))}
@@ -314,7 +314,7 @@ export default function Page() {
                           <td className="py-4 px-4">
                             <div className="flex items-center gap-2">
                               <div
-                                className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold text-white"
+                                className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-white"
                                 style={{ backgroundColor: c.brandColor }}
                               >
                                 {c.name.charAt(0)}

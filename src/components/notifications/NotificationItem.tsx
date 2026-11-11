@@ -73,14 +73,14 @@ export function NotificationItem({
           </p>
 
           <div className="flex items-center gap-3 mt-2">
-            <span className="text-[10px] text-kairos-silver-dark">
+            <span className="text-xs text-kairos-silver-dark">
               {timeAgo}
             </span>
 
             {notification.actionUrl && notification.actionLabel && (
               <button
                 onClick={() => onAction?.(notification.actionUrl!)}
-                className="text-[11px] font-medium text-kairos-gold hover:text-kairos-gold-light transition-colors"
+                className="text-xs font-medium text-kairos-gold hover:text-kairos-gold-light transition-colors"
               >
                 {notification.actionLabel}
               </button>
@@ -89,7 +89,7 @@ export function NotificationItem({
             {isUnread && onRead && (
               <button
                 onClick={() => onRead(notification.id)}
-                className="text-[11px] text-kairos-silver-dark hover:text-kairos-silver transition-colors"
+                className="text-xs text-kairos-silver-dark hover:text-kairos-silver transition-colors"
               >
                 Mark read
               </button>
@@ -98,7 +98,7 @@ export function NotificationItem({
             {onArchive && (
               <button
                 onClick={() => onArchive(notification.id)}
-                className="text-[11px] text-kairos-silver-dark hover:text-red-400 transition-colors"
+                className="text-xs text-kairos-silver-dark hover:text-red-400 transition-colors"
               >
                 Dismiss
               </button>

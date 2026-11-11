@@ -28,7 +28,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="font-heading font-bold text-lg text-white">Est. Revenue by Tier</h3>
-          <p className="text-[10px] text-gray-500">{REVENUE_ESTIMATE_NOTE} — current mix shown for each month (no billing history yet)</p>
+          <p className="text-xs text-gray-500">{REVENUE_ESTIMATE_NOTE} — current mix shown for each month (no billing history yet)</p>
         </div>
         <div className="flex gap-4">
           {data.revenueByTier.map((tier) => (
@@ -51,7 +51,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
           return (
             <g key={`grid-${i}`}>
               <line x1={padding.left} y1={y} x2={chartWidth - padding.right} y2={y} stroke={tc.primaryLight} strokeDasharray="4" />
-              <text x={padding.left - 8} y={y + 4} textAnchor="end" className="text-[9px]" fill={tc.textSecondary}>
+              <text x={padding.left - 8} y={y + 4} textAnchor="end" className="text-xs" fill={tc.textSecondary}>
                 ${Math.round(value / 1000)}k
               </text>
             </g>
@@ -79,7 +79,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
                 x={x + barWidth / 2}
                 y={tier1Y - 6}
                 textAnchor="middle"
-                className="text-[9px] font-bold"
+                className="text-xs font-bold"
                 fill={tc.accent}
               >
                 ${Math.round(d.totalRevenue / 1000)}k
@@ -89,7 +89,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
                 x={x + barWidth / 2}
                 y={padding.top + innerHeight + 20}
                 textAnchor="middle"
-                className="text-[10px]"
+                className="text-xs"
                 fill={tc.textSecondary}
               >
                 {getShortMonthLabel(d.date)}
@@ -112,15 +112,15 @@ export function RevenueChart({ data }: RevenueChartProps) {
       {/* Revenue summary */}
       <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t border-gray-700/50">
         <div>
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Est. MRR</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Est. MRR</p>
           <p className="text-lg font-heading font-bold" style={{ color: tc.accent }}>{formatCurrency(data.mrr)}</p>
         </div>
         <div>
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Est. ARR</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Est. ARR</p>
           <p className="text-lg font-heading font-bold text-white">{formatCurrency(data.arr)}</p>
         </div>
         <div>
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Est. ARPU</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Est. ARPU</p>
           <p className="text-lg font-heading font-bold text-white">{formatCurrency(data.avgRevenuePerUser)}</p>
         </div>
       </div>

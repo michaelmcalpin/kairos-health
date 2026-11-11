@@ -34,7 +34,7 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
           return (
             <g key={`grid-${i}`}>
               <line x1={padding.left} y1={y} x2={chartWidth - padding.right} y2={y} stroke={tc.primaryLight} strokeDasharray="4" />
-              <text x={padding.left - 8} y={y + 4} textAnchor="end" className="text-[10px]" fill={tc.textSecondary}>{value}</text>
+              <text x={padding.left - 8} y={y + 4} textAnchor="end" className="text-xs" fill={tc.textSecondary}>{value}</text>
             </g>
           );
         })}
@@ -73,7 +73,7 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
                 x={x + barWidth / 2}
                 y={y - 6}
                 textAnchor="middle"
-                className="text-[10px] font-bold"
+                className="text-xs font-bold"
                 fill={tc.accent}
               >
                 {d.cumulativeUsers}
@@ -83,7 +83,7 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
                 x={x + barWidth / 2}
                 y={padding.top + innerHeight + 20}
                 textAnchor="middle"
-                className="text-[10px]"
+                className="text-xs"
                 fill={tc.textSecondary}
               >
                 {getShortMonthLabel(d.date)}
@@ -93,7 +93,7 @@ export function GrowthChart({ data, title = "User Growth" }: GrowthChartProps) {
                 x={x + barWidth / 2}
                 y={padding.top + innerHeight + 34}
                 textAnchor="middle"
-                className="text-[9px]"
+                className="text-xs"
                 fill={tc.textSecondary}
               >
                 +{d.newUsers}

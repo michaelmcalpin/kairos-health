@@ -244,7 +244,7 @@ export function BookingForm({ coachId, coachName, onBook, onCancel }: BookingFor
                         : "hover:bg-gray-800 text-gray-300"
                     }`}
                   >
-                    <div className="text-[10px]">{dayName}</div>
+                    <div className="text-xs">{dayName}</div>
                     <div className="text-sm font-semibold">{dayNum}</div>
                   </button>
                 );

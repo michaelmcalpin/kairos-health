@@ -81,11 +81,11 @@ export function IntegrationStatusCard({
         <>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider">Last Sync</span>
+              <span className="text-xs text-gray-400 uppercase tracking-wider">Last Sync</span>
               <p className="text-sm font-medium text-gray-700">{timeAgo(integration.lastSyncAt)}</p>
             </div>
             <div>
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider">Records</span>
+              <span className="text-xs text-gray-400 uppercase tracking-wider">Records</span>
               <p className="text-sm font-medium text-gray-700">
                 {integration.recordsSynced.toLocaleString()}
               </p>
@@ -96,7 +96,7 @@ export function IntegrationStatusCard({
             {integration.dataTypes.map((dt) => (
               <span
                 key={dt}
-                className="text-[10px] px-1.5 py-0.5 bg-kairos-royal-surface text-gray-300 rounded"
+                className="text-xs px-1.5 py-0.5 bg-kairos-royal-surface text-gray-300 rounded"
               >
                 {dt}
               </span>
