@@ -4,10 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { GeneticsReview } from "@/components/genetics/GeneticsReview";
 import { LifeScoreBreakdown } from "@/components/lifescore/LifeScoreBreakdown";
-import { biomarkerName } from "@/lib/labs/normalize";
 import { formatDose } from "@/lib/text/dose";
 import { confirmOtherPerson, cleanUploadError } from "@/lib/upload/confirm-owner";
 import { HealthDataView } from "@/components/health/HealthDataView";
+import { CoachLabsReview } from "@/components/labs/CoachLabsReview";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, MessageSquare, Settings, Calendar, Activity, TrendingUp,
@@ -2306,33 +2306,8 @@ function TabContent({
       );
 
     case "labs":
-      return (
-        <div className="kairos-card">
-          <h2 className="text-base font-heading font-bold text-kairos-gold mb-3 flex items-center gap-2">
-            <FlaskConical size={16} /> Lab Results ({health.labs.length})
-          </h2>
-          {health.labs.length === 0 ? (
-            <p className="text-sm text-gray-500 py-6 text-center">No lab results</p>
-          ) : (
-            <div className="space-y-4">
-              {health.labs.map((lab) => (
-                <div key={lab.id} className="border border-gray-800 rounded-lg overflow-hidden">
-                  <div className="p-3 bg-gray-800/30 flex justify-between items-center">
-                    <p className="text-sm text-white font-medium">Lab — {new Date(lab.receivedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
-                    <span className="text-[10px] text-gray-500">{lab.biomarkers.length} markers</span>
-                  </div>
-                  {lab.biomarkers.length > 0 && (
-                    <DataTable
-                      headers={["Biomarker", "Value", "Unit", "Ref Low", "Ref High", "Status"]}
-                      rows={lab.biomarkers.map((b) => [biomarkerName(b.code), round(b.value, 2), b.unit ?? "—", round(b.refLow, 2), round(b.refHigh, 2), b.status ?? "—"])}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      );
+      // Rendered by LabResultManager → CoachLabsReview (review queue + range bars + trends).
+      return null;
 
     case "nutrition":
       return (
@@ -3510,41 +3485,56 @@ function LabResultManager({ clientId, canEdit, openSignal }: { clientId: string;
   const utils = trpc.useUtils();
   const [showModal, setShowModal] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Entering values for an existing result (e.g. a PDF the client uploaded).
+  const [attach, setAttach] = useState<{ resultId: string; date: string } | null>(null);
 
-  useEffect(() => { if (openSignal) { setShowModal(true); setErrorMsg(null); } }, [openSignal]);
+  useEffect(() => { if (openSignal) { setAttach(null); setShowModal(true); setErrorMsg(null); } }, [openSignal]);
 
   const createMutation = trpc.coach.data.createLabResult.useMutation({
-    onSuccess: () => { utils.coach.clients.getClientHealthData.invalidate(); setShowModal(false); setErrorMsg(null); },
+    onSuccess: () => {
+      utils.coach.clients.getClientHealthData.invalidate();
+      utils.coach.data.labOverview.invalidate({ clientId });
+      setShowModal(false); setAttach(null); setErrorMsg(null);
+    },
     onError: (e) => setErrorMsg(e.message),
   });
 
   return (
-    <div className="kairos-card">
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
-        <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2">
-          <FlaskConical size={16} /> Add Lab Result
-        </h2>
-        {canEdit && (
-          <button
-            onClick={() => { setErrorMsg(null); setShowModal(true); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
-          >
-            <Plus size={12} /> Add Lab Result
-          </button>
+    <div className="space-y-6">
+      <div className="kairos-card">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+          <h2 className="text-base font-heading font-bold text-kairos-gold flex items-center gap-2">
+            <FlaskConical size={16} /> Labs
+          </h2>
+          {canEdit && (
+            <button
+              onClick={() => { setErrorMsg(null); setAttach(null); setShowModal(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-kairos-gold/10 text-kairos-gold border border-kairos-gold/30 hover:bg-kairos-gold/20 transition-colors"
+            >
+              <Plus size={12} /> Add Lab Result
+            </button>
+          )}
+        </div>
+        {canEdit ? (
+          <p className="text-xs text-gray-500">Enter a lab panel by hand. New results wait in Review &amp; release until you release them to the client.</p>
+        ) : (
+          <p className="text-xs text-gray-500 flex items-center gap-1"><Lock size={12} /> Read-only — you don&apos;t have Labs edit access.</p>
         )}
+        <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
       </div>
-      {canEdit ? (
-        <p className="text-[11px] text-gray-500">Manually enter a lab panel and its biomarker values.</p>
-      ) : (
-        <p className="text-[11px] text-gray-500 flex items-center gap-1"><Lock size={10} /> Read-only — you don&apos;t have Labs edit access.</p>
-      )}
-      <PanelError message={errorMsg} onClose={() => setErrorMsg(null)} />
+
+      <CoachLabsReview
+        clientId={clientId}
+        canEdit={canEdit}
+        onEnterValues={(resultId, date) => { setErrorMsg(null); setAttach({ resultId, date }); setShowModal(true); }}
+      />
 
       {showModal && (
         <LabResultModal
           saving={createMutation.isPending}
-          onClose={() => setShowModal(false)}
-          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload })}
+          initialDate={attach?.date}
+          onClose={() => { setShowModal(false); setAttach(null); }}
+          onSubmit={(payload) => createMutation.mutate({ clientId, ...payload, ...(attach ? { resultId: attach.resultId } : {}) })}
         />
       )}
     </div>
@@ -3553,17 +3543,19 @@ function LabResultManager({ clientId, canEdit, openSignal }: { clientId: string;
 
 function LabResultModal({
   saving,
+  initialDate,
   onClose,
   onSubmit,
 }: {
   saving: boolean;
+  initialDate?: string;
   onClose: () => void;
   onSubmit: (payload: {
     receivedAt: string;
     biomarkers: Array<{ code: string; value: number; unit?: string | null; refLow?: number | null; refHigh?: number | null; status?: string | null }>;
   }) => void;
 }) {
-  const [receivedAt, setReceivedAt] = useState(todayISO());
+  const [receivedAt, setReceivedAt] = useState(initialDate ?? todayISO());
   const [markers, setMarkers] = useState<BiomarkerDraft[]>([
     { code: "", value: "", unit: "", refLow: "", refHigh: "", status: "" },
   ]);
@@ -3595,13 +3587,13 @@ function LabResultModal({
     <Modal title="Add Lab Result" onClose={onClose}>
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase mb-1 block">Received Date *</label>
+          <label className="text-xs text-gray-500 uppercase mb-1 block">Received Date *</label>
           <input type="date" value={receivedAt} onChange={(e) => setReceivedAt(e.target.value)} className="kairos-input w-full" />
         </div>
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-gray-500 uppercase">Biomarkers *</label>
-            <button onClick={addMarker} className="flex items-center gap-1 text-[10px] text-kairos-gold hover:underline"><Plus size={10} /> Add Marker</button>
+            <label className="text-xs text-gray-500 uppercase">Biomarkers *</label>
+            <button onClick={addMarker} className="flex items-center gap-1 text-xs text-kairos-gold hover:underline"><Plus size={12} /> Add Marker</button>
           </div>
           <div className="space-y-1.5">
             {markers.map((m, i) => (
@@ -3617,7 +3609,7 @@ function LabResultModal({
               </div>
             ))}
           </div>
-          <p className="text-[10px] text-gray-600 mt-1">Provide at least one marker with a code and value.</p>
+          <p className="text-xs text-gray-600 mt-1">Provide at least one marker with a code and value.</p>
         </div>
       </div>
       <div className="flex gap-3">

@@ -339,7 +339,14 @@ export const labResults = pgTable("lab_results", {
   receivedAt: timestamp("received_at").defaultNow(),
   pdfUrl: text("pdf_url"),
   ocrStatus: varchar("ocr_status", { length: 50 }).default("pending"),
-});
+  // Review-and-release (see src/lib/labs/review.ts). Client sees values only once released.
+  releasedAt: timestamp("released_at"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: uuid("reviewed_by").references(() => users.id),
+  coachNote: text("coach_note"),
+}, (t) => [
+  index("lab_results_client_review_idx").on(t.clientId, t.releasedAt, t.reviewedAt),
+]);
 
 export const biomarkerValues = pgTable("biomarker_values", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -350,6 +357,8 @@ export const biomarkerValues = pgTable("biomarker_values", {
   refLow: real("ref_low"),
   refHigh: real("ref_high"),
   status: varchar("status", { length: 20 }),
+  /** Coach flagged this value during review (outlier, recheck). */
+  flagged: boolean("flagged").notNull().default(false),
 });
 
 export const biomarkerDefinitions = pgTable("biomarker_definitions", {

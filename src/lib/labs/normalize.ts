@@ -11,9 +11,34 @@
  * - One row per marker per panel (first wins).
  */
 
-export interface BiomarkerDef { code: string; name: string; category: string; unit: string; refLow: number; refHigh: number }
+/**
+ * A catalog entry. `refLow` / `refHigh` are typical adult reference limits,
+ * used only when the report gave none and its unit matches. They are null
+ * where the normal range depends on sex, age or the lab (e.g. creatinine,
+ * hemoglobin, ALT); then status comes only from the report's own range.
+ */
+export interface BiomarkerDef { code: string; name: string; category: BiomarkerCategory; unit: string; refLow: number | null; refHigh: number | null }
 
-/** Mirrors the seeded biomarker_definitions table. */
+export type BiomarkerCategory =
+  | "metabolic" | "lipids" | "hormones" | "inflammation" | "vitamins" | "minerals"
+  | "electrolytes" | "kidney" | "liver" | "blood";
+
+/** Display order and names for categories. */
+export const BIOMARKER_CATEGORIES: Array<{ key: BiomarkerCategory | "other"; label: string }> = [
+  { key: "metabolic", label: "Metabolic" },
+  { key: "lipids", label: "Heart & lipids" },
+  { key: "hormones", label: "Hormones & thyroid" },
+  { key: "inflammation", label: "Inflammation" },
+  { key: "vitamins", label: "Vitamins" },
+  { key: "minerals", label: "Minerals & iron" },
+  { key: "electrolytes", label: "Electrolytes" },
+  { key: "kidney", label: "Kidney" },
+  { key: "liver", label: "Liver" },
+  { key: "blood", label: "Blood count" },
+  { key: "other", label: "Other markers" },
+];
+
+/** The first 16 mirror the seeded biomarker_definitions table. */
 export const BIOMARKER_CATALOG: BiomarkerDef[] = [
   { code: "GLUCOSE_FASTING", name: "Fasting Glucose", category: "metabolic", unit: "mg/dL", refLow: 70, refHigh: 100 },
   { code: "HBA1C", name: "Hemoglobin A1C", category: "metabolic", unit: "%", refLow: 4.0, refHigh: 5.6 },
@@ -31,6 +56,34 @@ export const BIOMARKER_CATALOG: BiomarkerDef[] = [
   { code: "HOMOCYSTEINE", name: "Homocysteine", category: "inflammation", unit: "umol/L", refLow: 0, refHigh: 15 },
   { code: "DHEA_S", name: "DHEA-Sulfate", category: "hormones", unit: "ug/dL", refLow: 100, refHigh: 400 },
   { code: "FREE_T3", name: "Free T3", category: "hormones", unit: "pg/mL", refLow: 2.0, refHigh: 4.4 },
+  // Common panel markers. Ranges only where typical adult limits are widely shared;
+  // sex-, age- or lab-dependent markers carry a name and unit only.
+  { code: "FREE_T4", name: "Free T4", category: "hormones", unit: "ng/dL", refLow: 0.8, refHigh: 1.8 },
+  { code: "SHBG", name: "Sex Hormone Binding Globulin", category: "hormones", unit: "nmol/L", refLow: null, refHigh: null },
+  { code: "ESTRADIOL", name: "Estradiol", category: "hormones", unit: "pg/mL", refLow: null, refHigh: null },
+  { code: "CORTISOL", name: "Cortisol", category: "hormones", unit: "ug/dL", refLow: null, refHigh: null },
+  { code: "NON_HDL", name: "Non-HDL Cholesterol", category: "lipids", unit: "mg/dL", refLow: null, refHigh: 130 },
+  { code: "APOB", name: "Apolipoprotein B", category: "lipids", unit: "mg/dL", refLow: null, refHigh: null },
+  { code: "LPA", name: "Lipoprotein(a)", category: "lipids", unit: "nmol/L", refLow: null, refHigh: null },
+  { code: "SODIUM", name: "Sodium", category: "electrolytes", unit: "mmol/L", refLow: 135, refHigh: 145 },
+  { code: "POTASSIUM", name: "Potassium", category: "electrolytes", unit: "mmol/L", refLow: 3.5, refHigh: 5.0 },
+  { code: "CALCIUM", name: "Calcium", category: "electrolytes", unit: "mg/dL", refLow: 8.5, refHigh: 10.5 },
+  { code: "MAGNESIUM", name: "Magnesium", category: "minerals", unit: "mg/dL", refLow: 1.7, refHigh: 2.2 },
+  { code: "IRON", name: "Iron", category: "minerals", unit: "ug/dL", refLow: null, refHigh: null },
+  { code: "CREATININE", name: "Creatinine", category: "kidney", unit: "mg/dL", refLow: null, refHigh: null },
+  { code: "EGFR", name: "eGFR (kidney filtration)", category: "kidney", unit: "mL/min/1.73m2", refLow: 60, refHigh: null },
+  { code: "BUN", name: "Blood Urea Nitrogen", category: "kidney", unit: "mg/dL", refLow: null, refHigh: null },
+  { code: "URIC_ACID", name: "Uric Acid", category: "kidney", unit: "mg/dL", refLow: null, refHigh: null },
+  { code: "ALT", name: "ALT (liver enzyme)", category: "liver", unit: "U/L", refLow: null, refHigh: null },
+  { code: "AST", name: "AST (liver enzyme)", category: "liver", unit: "U/L", refLow: null, refHigh: null },
+  { code: "ALP", name: "Alkaline Phosphatase", category: "liver", unit: "U/L", refLow: null, refHigh: null },
+  { code: "GGT", name: "GGT (liver enzyme)", category: "liver", unit: "U/L", refLow: null, refHigh: null },
+  { code: "ALBUMIN", name: "Albumin", category: "liver", unit: "g/dL", refLow: 3.5, refHigh: 5.0 },
+  { code: "BILIRUBIN_TOTAL", name: "Total Bilirubin", category: "liver", unit: "mg/dL", refLow: null, refHigh: null },
+  { code: "WBC", name: "White Blood Cells", category: "blood", unit: "K/uL", refLow: 4.5, refHigh: 11.0 },
+  { code: "HEMOGLOBIN", name: "Hemoglobin", category: "blood", unit: "g/dL", refLow: null, refHigh: null },
+  { code: "HEMATOCRIT", name: "Hematocrit", category: "blood", unit: "%", refLow: null, refHigh: null },
+  { code: "PLATELETS", name: "Platelets", category: "blood", unit: "K/uL", refLow: 150, refHigh: 450 },
 ];
 
 const CATALOG_BY_CODE = new Map(BIOMARKER_CATALOG.map((d) => [d.code, d]));
@@ -52,6 +105,32 @@ const ALIASES: Record<string, string> = {
   HOMOCYSTEINE_PLASMA: "HOMOCYSTEINE", PLASMA_HOMOCYSTEINE: "HOMOCYSTEINE",
   DHEA_SULFATE: "DHEA_S", DHEAS: "DHEA_S", DHEA_SO4: "DHEA_S",
   T3_FREE: "FREE_T3", FT3: "FREE_T3",
+  T4_FREE: "FREE_T4", FT4: "FREE_T4", FREE_THYROXINE: "FREE_T4", THYROXINE_FREE: "FREE_T4",
+  SEX_HORMONE_BINDING_GLOBULIN: "SHBG",
+  ESTRADIOL_E2: "ESTRADIOL", E2: "ESTRADIOL", ESTRADIOL_SENSITIVE: "ESTRADIOL",
+  CORTISOL_AM: "CORTISOL", CORTISOL_SERUM: "CORTISOL", CORTISOL_TOTAL: "CORTISOL",
+  NON_HDL_CHOLESTEROL: "NON_HDL", NON_HDL_C: "NON_HDL", NONHDL: "NON_HDL",
+  APO_B: "APOB", APOLIPOPROTEIN_B: "APOB", APOLIPOPROTEIN_B_100: "APOB",
+  LP_A: "LPA", LIPOPROTEIN_A: "LPA",
+  NA: "SODIUM", SODIUM_SERUM: "SODIUM",
+  K: "POTASSIUM", POTASSIUM_SERUM: "POTASSIUM",
+  CA: "CALCIUM", CALCIUM_SERUM: "CALCIUM", CALCIUM_TOTAL: "CALCIUM",
+  MG: "MAGNESIUM", MAGNESIUM_SERUM: "MAGNESIUM",
+  IRON_SERUM: "IRON", IRON_TOTAL: "IRON", SERUM_IRON: "IRON",
+  CREATININE_SERUM: "CREATININE", CREAT: "CREATININE",
+  E_GFR: "EGFR", GFR: "EGFR", EGFR_CKD_EPI: "EGFR",
+  UREA_NITROGEN: "BUN", BLOOD_UREA_NITROGEN: "BUN", UREA_NITROGEN_BUN: "BUN",
+  URATE: "URIC_ACID",
+  SGPT: "ALT", ALANINE_AMINOTRANSFERASE: "ALT", ALT_SGPT: "ALT",
+  SGOT: "AST", ASPARTATE_AMINOTRANSFERASE: "AST", AST_SGOT: "AST",
+  ALKALINE_PHOSPHATASE: "ALP", ALK_PHOS: "ALP",
+  GAMMA_GT: "GGT", GAMMA_GLUTAMYL_TRANSFERASE: "GGT", GGTP: "GGT",
+  ALBUMIN_SERUM: "ALBUMIN",
+  BILIRUBIN: "BILIRUBIN_TOTAL", TOTAL_BILIRUBIN: "BILIRUBIN_TOTAL", BILIRUBIN_T: "BILIRUBIN_TOTAL",
+  WHITE_BLOOD_CELLS: "WBC", WHITE_BLOOD_CELL_COUNT: "WBC", WBC_COUNT: "WBC", LEUKOCYTES: "WBC",
+  HGB: "HEMOGLOBIN", HB: "HEMOGLOBIN",
+  HCT: "HEMATOCRIT",
+  PLT: "PLATELETS", PLATELET_COUNT: "PLATELETS",
 };
 
 export function normalizeCode(raw: string): string {
@@ -60,6 +139,10 @@ export function normalizeCode(raw: string): string {
 }
 
 /** Human name for a code: catalog name, else "FREE_TESTOSTERONE" → "Free testosterone". */
+export function biomarkerDef(code: string): BiomarkerDef | undefined {
+  return CATALOG_BY_CODE.get(normalizeCode(code));
+}
+
 export function biomarkerName(code: string): string {
   const c = CATALOG_BY_CODE.get(normalizeCode(code));
   if (c) return c.name;
@@ -67,7 +150,7 @@ export function biomarkerName(code: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-const sameUnit = (a: string | null | undefined, b: string) =>
+export const sameUnit = (a: string | null | undefined, b: string) =>
   !!a && a.replace(/\s|µ/g, (m) => (m === "µ" ? "u" : "")).toLowerCase() === b.replace(/\s/g, "").toLowerCase();
 
 export interface RawBiomarker {

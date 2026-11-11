@@ -3,33 +3,20 @@
 import { useState, useMemo } from "react";
 import {
   TestTube2,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  CheckCircle,
   AlertTriangle,
-  Calendar,
   FileText,
   Plus,
   X,
   Upload,
   Link,
-  BarChart3,
   Loader2,
   Sparkles,
-  ArrowLeft,
+  Hourglass,
+  MessageSquareText,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { round } from "@/lib/format/number";
-
-const LAB_CATEGORIES = [
-  { id: "all", label: "All Markers" },
-  { id: "metabolic", label: "Metabolic" },
-  { id: "cardiovascular", label: "Cardiovascular" },
-  { id: "hormonal", label: "Hormonal" },
-  { id: "inflammatory", label: "Inflammatory" },
-  { id: "nutritional", label: "Nutritional" },
-];
+import { BiomarkerGroups } from "@/components/labs/BiomarkerGroups";
+import type { MarkerTrend } from "@/lib/labs/trends";
 
 interface TestEntry {
   id: string;
@@ -48,7 +35,6 @@ interface ManualEntryForm {
 }
 
 export default function LabsPage() {
-  const [activeCategory, setActiveCategory] = useState<string>("all");
   const [showAddResults, setShowAddResults] = useState(false);
   const [activeTab, setActiveTab] = useState<"pdf" | "url" | "manual">("pdf");
   const [urlInput, setUrlInput] = useState("");
@@ -70,30 +56,18 @@ export default function LabsPage() {
   const [aiParsing, setAiParsing] = useState(false);
   const [aiParseResult, setAiParseResult] = useState<Record<string, unknown> | null>(null);
   const [aiParseError, setAiParseError] = useState<string | null>(null);
-  const [trendMarker, setTrendMarker] = useState<string | null>(null); // code of marker to trend
-  const [showAllTrends, setShowAllTrends] = useState(false);
-  const [aiTrendAnalysis, setAiTrendAnalysis] = useState<string | null>(null);
-  const [aiTrendLoading, setAiTrendLoading] = useState(false);
+  const [aiTrend, setAiTrend] = useState<{ code: string; text: string | null; loading: boolean } | null>(null);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
-  // tRPC queries
-  const ordersQuery = trpc.clientPortal.labs.listOrders.useQuery({ limit: 10 }, { staleTime: 30_000 });
-  const biomarkersQuery = trpc.clientPortal.labs.listBiomarkers.useQuery(undefined, { staleTime: 30_000 });
-  const summaryQuery = trpc.clientPortal.labs.summary.useQuery(undefined, { staleTime: 30_000 });
-  const { data: ordersData = [] } = ordersQuery;
-  const { data: biomarkersData = [] } = biomarkersQuery;
-  const { data: summaryData } = summaryQuery;
-  const labsError = ordersQuery.isError || biomarkersQuery.isError || summaryQuery.isError;
-  const labsRefetch = () => { ordersQuery.refetch(); biomarkersQuery.refetch(); summaryQuery.refetch(); };
-
-  // Trend data queries
-  const singleTrendQuery = trpc.clientPortal.labs.getBiomarkerHistory.useQuery(
-    { code: trendMarker! },
-    { enabled: !!trendMarker, staleTime: 60_000 }
-  );
-  const allTrendsQuery = trpc.clientPortal.labs.getAllBiomarkerHistory.useQuery(
-    undefined,
-    { enabled: showAllTrends, staleTime: 60_000 }
-  );
+  // tRPC queries — one overview (released values only, pending panels without values) + orders.
+  const overviewQuery = trpc.clientPortal.labs.overview.useQuery(undefined, { staleTime: 30_000 });
+  const ordersQuery = trpc.clientPortal.labs.listOrders.useQuery({ limit: 20 }, { staleTime: 30_000 });
+  const overview = overviewQuery.data;
+  const labsError = overviewQuery.isError || ordersQuery.isError;
+  const labsRefetch = () => { overviewQuery.refetch(); ordersQuery.refetch(); };
+  // Orders with no result yet (e.g. ordered, awaiting the draw). Panels with a result show in the panel list.
+  const panelOrderIds = new Set((overview?.panels ?? []).map((p) => p.orderId).filter(Boolean));
+  const openOrders = (ordersQuery.data ?? []).filter((o) => !panelOrderIds.has(o.id) && !o.pdfUrl);
 
   // tRPC mutations
   const utils = trpc.useUtils();
@@ -104,28 +78,14 @@ export default function LabsPage() {
     onSuccess: () => { utils.clientPortal.labs.invalidate(); resetForm(); },
   });
   const addManualResultsMutation = trpc.clientPortal.labs.addManualResults.useMutation({
-    onSuccess: () => { utils.clientPortal.labs.invalidate(); resetForm(); },
+    onSuccess: (res) => {
+      utils.clientPortal.labs.invalidate();
+      resetForm();
+      setSavedNotice(res.pendingReview
+        ? "Sent to your care team. You'll see these results here once they've reviewed them."
+        : "Results saved.");
+    },
   });
-
-  // Filter biomarkers by category
-  const filteredMarkers = activeCategory === "all"
-    ? biomarkersData
-    : biomarkersData.filter((m) => m.category === activeCategory);
-
-  // Compute stats from real biomarker data
-  const totalMarkers = biomarkersData.length;
-  const inRange = biomarkersData.filter((m) => m.status === "normal" || m.status === "optimal").length;
-  const outOfRange = biomarkersData.filter((m) => m.status === "high" || m.status === "low").length;
-
-  const getStatusColor = (status: string): string => {
-    switch (status) {
-      case "optimal": return "bg-green-900/20 text-green-400 border-green-700/50";
-      case "normal": return "bg-blue-900/20 text-blue-400 border-blue-700/50";
-      case "high": case "borderline": return "bg-yellow-900/20 text-yellow-400 border-yellow-700/50";
-      case "low": case "out-of-range": return "bg-red-900/20 text-red-400 border-red-700/50";
-      default: return "bg-kairos-card border-kairos-border text-kairos-silver-dark";
-    }
-  };
 
   const handleAddTest = () => {
     if (currentTest.testName && currentTest.resultValue && currentTest.referenceRange) {
@@ -273,6 +233,8 @@ export default function LabsPage() {
           panelName: manualForm.labName,
           provider: manualForm.requestingDoctor || undefined,
           receivedDate: manualForm.date,
+          // Values read from a file by AI wait for coach review; typed values show at once.
+          parsed: !!aiParseResult,
           biomarkers,
         });
       }
@@ -293,19 +255,9 @@ export default function LabsPage() {
     setAiParseError(null);
   };
 
-  const getOrderStatusColor = (status: string): string => {
-    switch (status) {
-      case "results_received": return "bg-green-900/20 text-green-400 border-green-700/50";
-      case "pending": case "ordered": return "bg-yellow-900/20 text-yellow-400 border-yellow-700/50";
-      case "processing": return "bg-sky-900/20 text-sky-300 border-sky-700/50";
-      default: return "bg-kairos-card border-kairos-border text-kairos-silver-dark";
-    }
-  };
-
-  // AI trend analysis
-  async function fetchAiTrendAnalysis(markerName: string, points: Array<{ value: number; date: string; refLow?: number | null; refHigh?: number | null }>) {
-    setAiTrendLoading(true);
-    setAiTrendAnalysis(null);
+  // Plain-words explanation of one marker's trend (released values only).
+  async function explainTrend(m: MarkerTrend) {
+    setAiTrend({ code: m.code, text: null, loading: true });
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -313,23 +265,15 @@ export default function LabsPage() {
         body: JSON.stringify({
           messages: [{
             role: "user",
-            content: `Analyze the trend for this biomarker: ${markerName}.\n\nData points (oldest to newest):\n${points.map(p => `${new Date(p.date).toLocaleDateString()}: ${p.value}${p.refLow != null ? ` (ref: ${p.refLow}-${p.refHigh})` : ""}`).join("\n")}\n\nProvide a concise 2-3 sentence analysis of the trend direction, whether it's concerning or positive, and any actionable insight. Be specific about the numbers.`,
+            content: `Analyze the trend for this biomarker: ${m.name}.\n\nData points (oldest to newest):\n${m.points.map((p) => `${new Date(p.date).toLocaleDateString()}: ${p.value}${p.unit ? ` ${p.unit}` : ""}${p.refLow != null || p.refHigh != null ? ` (ref: ${p.refLow ?? ""}-${p.refHigh ?? ""})` : ""}`).join("\n")}\n\nProvide a concise 2-3 sentence analysis of the trend direction, whether it's concerning or positive, and any actionable insight. Be specific about the numbers.`,
           }],
         }),
       });
       const data = await res.json();
-      setAiTrendAnalysis(data.reply || data.content || "Unable to generate analysis.");
+      setAiTrend({ code: m.code, text: data.reply || data.content || "Unable to generate analysis.", loading: false });
     } catch {
-      setAiTrendAnalysis("Could not generate AI analysis at this time.");
-    } finally {
-      setAiTrendLoading(false);
+      setAiTrend({ code: m.code, text: "Could not generate AI analysis at this time.", loading: false });
     }
-  }
-
-  function openTrend(code: string) {
-    setTrendMarker(code);
-    setShowAllTrends(false);
-    setAiTrendAnalysis(null);
   }
 
   if (labsError) {
@@ -354,41 +298,51 @@ export default function LabsPage() {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-heading font-bold text-3xl text-white mb-2">Lab Results</h1>
-          <p className="text-kairos-silver-dark font-body">Track your biomarkers and health metrics over time</p>
+          <p className="text-kairos-silver-dark font-body">Your biomarkers, where each sits in its reference range, and how it&apos;s changing.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setShowAddResults(true)}
-            className="kairos-btn-gold text-black px-4 py-2 rounded-kairos-sm font-body text-sm font-medium flex items-center gap-2 hover:bg-kairos-gold/90 transition-all">
-            <Plus className="w-4 h-4" /> Add Lab Results
-          </button>
-        </div>
+        <button onClick={() => { setShowAddResults(true); setSavedNotice(null); }}
+          className="kairos-btn-outline px-4 py-2 rounded-kairos-sm font-body text-sm font-medium flex items-center gap-2">
+          <Plus className="w-4 h-4" aria-hidden /> Add lab results
+        </button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="kairos-card p-6 rounded-kairos-sm">
-          <p className="text-kairos-silver-dark text-sm font-body mb-2">Total Markers</p>
-          <p className="text-2xl font-bold text-white font-heading">{totalMarkers}</p>
-          <p className="text-xs text-kairos-silver-dark mt-2">Tracked</p>
+      {savedNotice && (
+        <div className="p-3 rounded-kairos-sm border border-kairos-border bg-white/[0.03] text-sm text-white flex items-start justify-between gap-3" role="status">
+          <span>{savedNotice}</span>
+          <button onClick={() => setSavedNotice(null)} aria-label="Dismiss" className="text-kairos-silver-dark hover:text-white"><X className="w-4 h-4" /></button>
         </div>
-        <div className="kairos-card p-6 rounded-kairos-sm">
-          <p className="text-kairos-silver-dark text-sm font-body mb-2">In Range</p>
-          <p className="text-2xl font-bold text-green-400 font-heading">{inRange}</p>
-          <p className="text-xs text-kairos-silver-dark mt-2">{totalMarkers > 0 ? Math.round((inRange / totalMarkers) * 100) : 0}%</p>
+      )}
+
+      {/* Under review */}
+      {(overview?.pendingCount ?? 0) > 0 && (
+        <div className="kairos-card flex items-start gap-3" role="status">
+          <Hourglass className="w-5 h-5 text-kairos-silver mt-0.5 shrink-0" aria-hidden />
+          <div>
+            <p className="text-white font-medium">Your care team is reviewing these</p>
+            <p className="text-sm text-kairos-silver-dark">
+              {overview!.pendingCount === 1 ? "1 lab panel is" : `${overview!.pendingCount} lab panels are`} with your coach. Results appear here with their note once released.
+            </p>
+          </div>
         </div>
-        <div className="kairos-card p-6 rounded-kairos-sm">
-          <p className="text-kairos-silver-dark text-sm font-body mb-2">Out of Range</p>
-          <p className="text-2xl font-bold text-red-400 font-heading">{outOfRange}</p>
-          <p className="text-xs text-kairos-silver-dark mt-2">Needs attention</p>
-        </div>
-        <div className="kairos-card p-6 rounded-kairos-sm">
-          <p className="text-kairos-silver-dark text-sm font-body mb-2">Lab Orders</p>
-          <p className="text-2xl font-bold text-blue-400 font-heading">{summaryData?.totalOrders ?? 0}</p>
-          <p className="text-xs text-kairos-silver-dark mt-2">Total</p>
-        </div>
+      )}
+
+      {/* Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: "Markers tracked", value: overview?.counts.total, hint: "Latest value of each" },
+          { label: "In range", value: overview?.counts.inRange, hint: "Within the reference range" },
+          { label: "Outside range", value: overview?.counts.outOfRange, hint: "Above or below range" },
+          { label: "No range given", value: overview?.counts.noRange, hint: "Shown without a status" },
+        ].map((t) => (
+          <div key={t.label} className="kairos-card p-5 rounded-kairos-sm">
+            <p className="text-kairos-silver-dark text-sm font-body mb-1">{t.label}</p>
+            <p className="text-2xl font-bold text-white font-heading">{overviewQuery.isLoading || t.value == null ? "—" : t.value}</p>
+            <p className="text-xs text-kairos-silver-dark mt-1">{t.hint}</p>
+          </div>
+        ))}
       </div>
 
       {/* Add Lab Results Modal */}
@@ -545,263 +499,104 @@ export default function LabsPage() {
         </div>
       )}
 
-      {/* Single Marker Trend View */}
-      {trendMarker && !showAllTrends && (() => {
-        const markerInfo = biomarkersData.find((m) => m.code === trendMarker);
-        const points = singleTrendQuery.data ?? [];
-        return (
-          <div className="kairos-card border border-kairos-gold/30">
-            <div className="flex items-center justify-between mb-4">
+      {/* Biomarkers by category: range bar + trend across panels */}
+      <section className="space-y-4" aria-labelledby="labs-markers-title">
+        <div className="flex items-center gap-2">
+          <TestTube2 className="w-5 h-5 text-kairos-silver" aria-hidden />
+          <h2 id="labs-markers-title" className="font-heading font-bold text-xl text-white">Your biomarkers</h2>
+        </div>
+        {overviewQuery.isLoading ? (
+          <div className="kairos-card flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-kairos-silver-dark" aria-label="Loading" /></div>
+        ) : (overview?.groups.length ?? 0) === 0 ? (
+          <div className="kairos-card text-center py-10">
+            <TestTube2 size={32} className="text-kairos-silver-dark mx-auto mb-3" aria-hidden />
+            <p className="text-sm font-body text-kairos-silver-dark">
+              {(overview?.pendingCount ?? 0) > 0
+                ? "Your care team is reviewing your results. They'll appear here once released."
+                : "No lab results yet. Add a lab report to see your biomarkers here."}
+            </p>
+          </div>
+        ) : (
+          <BiomarkerGroups
+            groups={overview!.groups}
+            detailExtra={(m) => m.points.length >= 2 ? (
+              <div className="space-y-2">
+                <button type="button" onClick={() => explainTrend(m)} disabled={aiTrend?.code === m.code && aiTrend.loading}
+                  className="kairos-btn-outline px-3 py-1.5 rounded-kairos-sm text-xs flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
+                  {aiTrend?.code === m.code && aiTrend.loading ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <Sparkles size={12} aria-hidden />}
+                  Explain this trend
+                </button>
+                {aiTrend?.code === m.code && aiTrend.text && (
+                  <p className="text-sm text-white leading-relaxed p-3 rounded-kairos-sm border border-kairos-border bg-white/[0.03]">{aiTrend.text}</p>
+                )}
+              </div>
+            ) : null}
+          />
+        )}
+      </section>
+
+      {/* Panels: one per report, with the coach's note once released */}
+      <section className="space-y-3" aria-labelledby="labs-panels-title">
+        <div className="flex items-center gap-2">
+          <FileText className="w-5 h-5 text-kairos-silver" aria-hidden />
+          <h2 id="labs-panels-title" className="font-heading font-bold text-xl text-white">Lab panels</h2>
+        </div>
+        {(overview?.panels ?? []).map((p) => (
+          <div key={p.resultId} className="kairos-card p-5 rounded-kairos-sm space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-heading font-semibold text-white">{p.panelName}</p>
+                <p className="text-xs text-kairos-silver-dark">
+                  {new Date(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {p.provider && p.provider !== "unknown" ? ` · ${p.provider}` : ""}
+                  {p.reviewState !== "pending_review" ? ` · ${p.markerCount} marker${p.markerCount === 1 ? "" : "s"}` : ""}
+                </p>
+              </div>
               <div className="flex items-center gap-3">
-                <button onClick={() => { setTrendMarker(null); setAiTrendAnalysis(null); }} className="text-kairos-silver-dark hover:text-white"><ArrowLeft size={18} /></button>
-                <div>
-                  <h2 className="font-heading font-bold text-lg text-white">{markerInfo?.name ?? trendMarker} Trend</h2>
-                  <p className="text-xs text-kairos-silver-dark">{points.length} data points</p>
-                </div>
-              </div>
-              {points.length >= 2 && (
-                <button
-                  onClick={() => fetchAiTrendAnalysis(markerInfo?.name ?? trendMarker, points)}
-                  disabled={aiTrendLoading}
-                  className="kairos-btn-outline px-3 py-1.5 rounded-kairos-sm text-xs flex items-center gap-1.5"
-                >
-                  {aiTrendLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                  AI Analysis
-                </button>
-              )}
-            </div>
-            {singleTrendQuery.isLoading ? (
-              <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-kairos-gold" /></div>
-            ) : points.length < 2 ? (
-              <p className="text-sm text-kairos-silver-dark text-center py-8">Need at least 2 results to show a trend. Upload more lab results.</p>
-            ) : (
-              <>
-                <div className="h-48 relative mb-4">
-                  <svg viewBox="0 0 400 120" className="w-full h-full" preserveAspectRatio="none">
-                    {/* Reference range band */}
-                    {points[0].refLow != null && points[0].refHigh != null && (() => {
-                      const allVals = points.map(p => p.value);
-                      const minV = Math.min(...allVals, points[0].refLow!);
-                      const maxV = Math.max(...allVals, points[0].refHigh!);
-                      const range = maxV - minV || 1;
-                      const yLow = 110 - ((points[0].refLow! - minV) / range) * 100;
-                      const yHigh = 110 - ((points[0].refHigh! - minV) / range) * 100;
-                      return <rect x="0" y={yHigh} width="400" height={yLow - yHigh} fill="rgba(74,222,128,0.08)" />;
-                    })()}
-                    {/* Line */}
-                    {(() => {
-                      const allVals = points.map(p => p.value);
-                      const minV = Math.min(...allVals) * 0.9;
-                      const maxV = Math.max(...allVals) * 1.1;
-                      const range = maxV - minV || 1;
-                      const pts = points.map((p, i) => {
-                        const x = (i / (points.length - 1)) * 380 + 10;
-                        const y = 110 - ((p.value - minV) / range) * 100;
-                        return `${x},${y}`;
-                      });
-                      return (
-                        <>
-                          <polyline points={pts.join(" ")} fill="none" stroke="#D4AF37" strokeWidth="2.5" strokeLinejoin="round" />
-                          {points.map((p, i) => {
-                            const x = (i / (points.length - 1)) * 380 + 10;
-                            const y = 110 - ((p.value - minV) / range) * 100;
-                            return <circle key={i} cx={x} cy={y} r="4" fill="#D4AF37" stroke="#1a1a2e" strokeWidth="2" />;
-                          })}
-                        </>
-                      );
-                    })()}
-                  </svg>
-                </div>
-                <div className="flex justify-between text-[10px] text-kairos-silver-dark px-2 mb-4">
-                  {points.map((p, i) => (
-                    <div key={i} className="text-center">
-                      <p className="font-bold text-white text-sm">{round(p.value, 2)}</p>
-                      <p>{new Date(p.date).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}</p>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-            {aiTrendAnalysis && (
-              <div className="p-3 bg-kairos-gold/5 border border-kairos-gold/20 rounded-xl mt-2">
-                <div className="flex items-center gap-2 mb-1.5"><Sparkles size={14} className="text-kairos-gold" /><p className="text-xs font-heading text-kairos-gold uppercase">AI Analysis</p></div>
-                <p className="text-sm text-white leading-relaxed">{aiTrendAnalysis}</p>
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* All Trends View */}
-      {showAllTrends && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button onClick={() => setShowAllTrends(false)} className="text-kairos-silver-dark hover:text-white"><ArrowLeft size={18} /></button>
-              <h2 className="font-heading font-bold text-lg text-white">All Biomarker Trends</h2>
-            </div>
-          </div>
-          {allTrendsQuery.isLoading ? (
-            <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-kairos-gold" /></div>
-          ) : (allTrendsQuery.data ?? []).length === 0 ? (
-            <div className="kairos-card text-center py-10"><p className="text-sm text-kairos-silver-dark">Need at least 2 lab results to show trends.</p></div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(allTrendsQuery.data ?? []).map((marker) => (
-                <div key={marker.code} className="kairos-card border border-kairos-border hover:border-kairos-gold/30 cursor-pointer transition-all"
-                  onClick={() => openTrend(marker.code)}>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-heading font-bold text-sm text-white">{marker.name}</h3>
-                    <span className="text-[10px] text-kairos-silver-dark">{marker.points.length} points</span>
-                  </div>
-                  <div className="h-16">
-                    <svg viewBox="0 0 200 50" className="w-full h-full" preserveAspectRatio="none">
-                      {(() => {
-                        const vals = marker.points.map((p: { value: number }) => p.value);
-                        const minV = Math.min(...vals) * 0.9;
-                        const maxV = Math.max(...vals) * 1.1;
-                        const range = maxV - minV || 1;
-                        const pts = marker.points.map((p: { value: number }, i: number) => {
-                          const x = (i / (marker.points.length - 1)) * 190 + 5;
-                          const y = 45 - ((p.value - minV) / range) * 40;
-                          return `${x},${y}`;
-                        });
-                        return <polyline points={pts.join(" ")} fill="none" stroke="#D4AF37" strokeWidth="2" strokeLinejoin="round" />;
-                      })()}
-                    </svg>
-                  </div>
-                  <div className="flex justify-between text-[10px] text-kairos-silver-dark mt-1">
-                    <span>{round(marker.points[0]?.value, 2)}</span>
-                    <span>{round(marker.points[marker.points.length - 1]?.value, 2)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Category Filter Tabs + Trend Toggle */}
-      {!trendMarker && !showAllTrends && (
-        <>
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex gap-2 flex-wrap">
-              {LAB_CATEGORIES.map((category) => (
-                <button key={category.id} onClick={() => setActiveCategory(category.id)}
-                  className={`px-4 py-2 rounded-kairos-sm font-body text-sm font-medium transition-all ${activeCategory === category.id ? "kairos-btn-gold text-black" : "kairos-btn-outline text-kairos-silver-dark hover:text-white"}`}>
-                  {category.label}
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setShowAllTrends(true)}
-              className="kairos-btn-outline px-4 py-2 rounded-kairos-sm text-sm flex items-center gap-2 text-kairos-gold border-kairos-gold/30 hover:bg-kairos-gold/10">
-              <BarChart3 size={14} /> View All Trends
-            </button>
-          </div>
-
-          {/* Lab Markers */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-4">
-              <TestTube2 className="w-5 h-5 text-kairos-gold" />
-              <h2 className="font-heading font-bold text-xl text-white">
-                {activeCategory === "all" ? "All Biomarkers" : `${LAB_CATEGORIES.find((c) => c.id === activeCategory)?.label ?? ""} Markers`}
-              </h2>
-              <span className="text-kairos-silver-dark text-sm">({filteredMarkers.length})</span>
-            </div>
-
-            <div className="grid gap-3">
-              {filteredMarkers.map((marker) => (
-                <div key={marker.code} className="kairos-card p-5 rounded-kairos-sm border border-kairos-border hover:border-kairos-gold/30 transition-all cursor-pointer"
-                  onClick={() => openTrend(marker.code)}>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                    <div>
-                      <h3 className="font-heading font-bold text-white mb-1">{marker.name}</h3>
-                      <p className="text-xs text-kairos-silver-dark">
-                        Ref: {round(marker.refLow, 2)}–{round(marker.refHigh, 2)} {marker.unit ?? ""}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold text-white">{round(marker.value, 2)}</span>
-                        <span className="text-sm text-kairos-silver-dark">{marker.unit}</span>
-                      </div>
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-body ${getStatusColor(marker.status ?? "")}`}>
-                        {(marker.status === "normal" || marker.status === "optimal") && <CheckCircle className="w-3 h-3" />}
-                        {(marker.status === "high" || marker.status === "low") && <AlertTriangle className="w-3 h-3" />}
-                        {(marker.status ?? "unknown").charAt(0).toUpperCase() + (marker.status ?? "unknown").slice(1)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-end gap-3">
-                      <div className="text-right">
-                        <p className="text-xs text-kairos-silver-dark">
-                          Last: {marker.lastMeasured ? new Date(marker.lastMeasured).toLocaleDateString() : "—"}
-                        </p>
-                      </div>
-                      <BarChart3 size={16} className="text-kairos-silver-dark" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {filteredMarkers.length === 0 && (
-              <div className="kairos-card text-center py-10">
-                <TestTube2 size={32} className="text-kairos-silver-dark mx-auto mb-3" />
-                <p className="text-sm font-body text-kairos-silver-dark">No biomarker data available yet. Upload lab results to get started.</p>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* Recent Lab Orders */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-4">
-          <FileText className="w-5 h-5 text-kairos-gold" />
-          <h2 className="font-heading font-bold text-xl text-white">Recent Lab Orders</h2>
-        </div>
-        <div className="space-y-3">
-          {ordersData.map((order) => (
-            <div key={order.id} className="kairos-card p-5 rounded-kairos-sm border border-kairos-border">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                <div>
-                  <p className="text-sm font-body text-kairos-silver-dark">Test Date</p>
-                  <p className="font-heading font-bold text-white">{order.testDate ? new Date(order.testDate).toLocaleDateString() : order.orderedAt ? new Date(order.orderedAt).toLocaleDateString() : "—"}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-body text-kairos-silver-dark">Panel Type</p>
-                  <p className="font-heading font-bold text-white">{order.panelName ?? "Lab Panel"}</p>
-                </div>
-                <div className="md:text-right space-y-2">
-                  <span className={`inline-flex items-center px-3 py-1 rounded-kairos-sm text-xs font-body font-medium border ${getOrderStatusColor(order.status ?? "")}`}>
-                    {order.status === "results_received" && <><CheckCircle className="w-3 h-3 mr-1" />Results Ready</>}
-                    {order.status === "ordered" && <><Minus className="w-3 h-3 mr-1" />Ordered</>}
-                    {order.status === "processing" && <><Minus className="w-3 h-3 mr-1" />Your care team is reviewing these</>}
-                    {!["results_received", "ordered", "processing"].includes(order.status ?? "") && (order.status ?? "Unknown")}
+                {p.reviewState === "pending_review" ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border border-kairos-border text-kairos-silver">
+                    <Hourglass className="w-3 h-3" aria-hidden /> Your care team is reviewing these
                   </span>
-                  {order.pdfUrl && (
-                    <div>
-                      <a
-                        href={order.pdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-body text-kairos-gold hover:text-kairos-gold/80 transition-colors"
-                      >
-                        <FileText className="w-3 h-3" /> View original
-                      </a>
-                    </div>
-                  )}
-                </div>
+                ) : p.reviewState === "released" ? (
+                  <span className="text-xs text-kairos-silver-dark">Reviewed by your care team</span>
+                ) : (
+                  <span className="text-xs text-kairos-silver-dark">Entered by you</span>
+                )}
+                {p.fileUrl && (
+                  <a href={p.fileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-sky-300 hover:text-sky-200">
+                    <FileText className="w-3 h-3" aria-hidden /> View original
+                  </a>
+                )}
               </div>
             </div>
-          ))}
-          {ordersData.length === 0 && (
-            <div className="kairos-card text-center py-6">
-              <p className="text-sm font-body text-kairos-silver-dark">No lab orders yet.</p>
+            {p.coachNote && (
+              <div className="flex items-start gap-2 p-3 rounded-kairos-sm border border-kairos-border bg-white/[0.03]">
+                <MessageSquareText className="w-4 h-4 text-kairos-silver mt-0.5 shrink-0" aria-hidden />
+                <div>
+                  <p className="text-xs text-kairos-silver-dark mb-0.5">Note from your care team</p>
+                  <p className="text-sm text-white whitespace-pre-line">{p.coachNote}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        {openOrders.map((o) => (
+          <div key={o.id} className="kairos-card p-5 rounded-kairos-sm flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-heading font-semibold text-white">{o.panelName ?? "Lab panel"}</p>
+              <p className="text-xs text-kairos-silver-dark">Ordered {o.orderedAt ? new Date(o.orderedAt).toLocaleDateString() : ""}</p>
             </div>
-          )}
-        </div>
-      </div>
+            <span className="text-xs text-kairos-silver">
+              {o.status === "processing" ? "Your care team is reviewing these" : o.status === "ordered" || o.status === "pending" ? "Ordered — waiting for results" : "Waiting for results"}
+            </span>
+          </div>
+        ))}
+        {!overviewQuery.isLoading && (overview?.panels.length ?? 0) === 0 && openOrders.length === 0 && (
+          <div className="kairos-card text-center py-6">
+            <p className="text-sm font-body text-kairos-silver-dark">No lab panels yet.</p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

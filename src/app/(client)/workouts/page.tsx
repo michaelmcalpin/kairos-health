@@ -21,6 +21,7 @@ import {
   Play,
 } from "lucide-react";
 import { DateRangeNavigator } from "@/components/ui/DateRangeNavigator";
+import { MetricTrendCard } from "@/components/charts/MetricTrendCard";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useWorkouts } from "@/hooks/client/useWorkouts";
 import { trpc } from "@/lib/trpc";
@@ -253,6 +254,25 @@ export default function WorkoutsPage() {
           <p className="text-kairos-silver-dark font-body">Longevity-focused training for optimal health and performance</p>
         </div>
         <div className="text-xs font-heading font-semibold px-4 py-2 rounded-kairos-sm bg-kairos-gold/20 text-kairos-gold">Active Plan</div>
+      </div>
+
+      <MetricTrendCard
+        title="Movement trend"
+        subtitle="Daily activity from Apple Health and your other devices."
+        views={[
+          { id: "exercise", label: "Exercise min", lines: [{ key: "exercise_min" }], kind: "bar" },
+          { id: "steps", label: "Steps", lines: [{ key: "steps" }], kind: "bar" },
+          { id: "kcal", label: "Active cal", lines: [{ key: "active_kcal" }], kind: "bar" },
+        ]}
+        empty={{
+          message: "connect Apple Health or another tracker to see daily movement.",
+          actions: [{ label: "Connect a device", href: "/settings" }],
+        }}
+      />
+
+      <div className="pt-2">
+        <h2 className="font-heading font-semibold text-white">Workouts and plan</h2>
+        <p className="text-sm text-kairos-silver-dark">Today&apos;s workout, your protocols and the workout log for a chosen week or month.</p>
       </div>
 
       <DateRangeNavigator

@@ -8,6 +8,7 @@ import { useSleep } from "@/hooks/client/useSleep";
 import { Moon, Clock, Zap, Brain, TrendingUp, Sun, Plus, X, AlertTriangle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { round } from "@/lib/format/number";
+import { MetricTrendCard } from "@/components/charts/MetricTrendCard";
 
 // ─── Sleep stages ────
 interface SleepStageBlock { stage: string; duration: number; }
@@ -114,6 +115,7 @@ export default function SleepPage() {
       // Invalidate cache so new entry appears immediately
       utils.clientPortal.sleep.list.invalidate();
       utils.clientPortal.sleep.stats.invalidate();
+      utils.clientPortal.healthData.invalidate();
 
       // Show success feedback
       setSaveSuccess(true);
@@ -182,12 +184,27 @@ export default function SleepPage() {
         </div>
         <button
           onClick={() => setShowManualEntry(!showManualEntry)}
-          className="kairos-btn-gold flex items-center gap-2"
+          className="kairos-btn-outline flex items-center gap-1.5 px-3 py-1.5 text-sm"
+          aria-expanded={showManualEntry}
         >
-          <Plus size={18} />
-          Add Sleep Entry
+          <Plus size={16} aria-hidden />
+          Log a night
         </button>
       </div>
+
+      <MetricTrendCard
+        title="Sleep trend"
+        subtitle="Merged from Oura, Apple Health and your own entries — one value per night."
+        views={[
+          { id: "total", label: "Time asleep", lines: [{ key: "sleep_total_min" }], factor: 1 / 60, unit: "h", decimals: 1 },
+          { id: "score", label: "Score", lines: [{ key: "sleep_score" }], unit: "/100", decimals: 0 },
+          { id: "stages", label: "Deep & REM", lines: [{ key: "sleep_deep_min", label: "Deep" }, { key: "sleep_rem_min", label: "REM" }], factor: 1 / 60, unit: "h", decimals: 1 },
+        ]}
+        empty={{
+          message: "connect Oura or Apple Health, or log a night.",
+          actions: [{ label: "Connect a device", href: "/settings" }, { label: "Log a night", onClick: () => setShowManualEntry(true) }],
+        }}
+      />
 
       {/* Success Toast */}
       {saveSuccess && (
@@ -350,6 +367,11 @@ export default function SleepPage() {
           </div>
         </div>
       )}
+
+      <div className="pt-2">
+        <h2 className="font-heading font-semibold text-white">Night-by-night details</h2>
+        <p className="text-sm text-kairos-silver-dark">Stages, bedtimes and entries for a chosen day, week or month.</p>
+      </div>
 
       <DateRangeNavigator
         availablePeriods={["day", "week", "month"]}

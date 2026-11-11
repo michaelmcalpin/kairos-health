@@ -1,14 +1,22 @@
 import { z } from "zod";
 import { router, clientProcedure } from "@/server/trpc";
 import { labOrders, labResults, biomarkerValues } from "@/server/db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, isNotNull } from "drizzle-orm";
 import { normalizeBiomarkers, biomarkerName } from "@/lib/labs/normalize";
+import { initialReviewFields, isClientVisible } from "@/lib/labs/review";
+import { clientLabOverview } from "@/server/services/labs";
 
 async function safeQ<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
 }
 
+/** Clients only see values of results their care team has released. */
+const released = isNotNull(labResults.releasedAt);
+
 export const clientLabsRouter = router({
+  /** Everything the Labs page shows: panels (pending ones without values), grouped marker trends, counts. */
+  overview: clientProcedure.query(({ ctx }) => clientLabOverview(ctx.db, ctx.dbUserId)),
+
   // List lab orders for the client
   listOrders: clientProcedure
     .input(
@@ -38,7 +46,8 @@ export const clientLabsRouter = router({
           id: o.id,
           provider: o.provider,
           panelName: o.panelName,
-          status: o.status,
+          // Results waiting for coach review read as "processing" (care team reviewing).
+          status: result && !isClientVisible(result) ? "processing" : o.status,
           orderedAt: o.orderedAt,
           testDate: result?.receivedAt ?? o.orderedAt, // actual test date from results
           // Route file access through the authorized proxy — never expose the
@@ -68,6 +77,9 @@ export const clientLabsRouter = router({
       });
 
       if (!result) return { order, result: null, biomarkers: [] };
+      if (!isClientVisible(result)) {
+        return { order: { ...order, status: "processing" }, result: { id: result.id, receivedAt: result.receivedAt, pdfUrl: null, ocrStatus: result.ocrStatus }, biomarkers: [] };
+      }
 
       // Get biomarker values
       const values = await safeQ(() => ctx.db.query.biomarkerValues.findMany({
@@ -111,7 +123,7 @@ export const clientLabsRouter = router({
       })
       .from(biomarkerValues)
       .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
-      .where(eq(labResults.clientId, ctx.dbUserId))
+      .where(and(eq(labResults.clientId, ctx.dbUserId), released))
       .orderBy(desc(labResults.receivedAt)), []);
 
     // Deduplicate: keep only the latest value per biomarker code
@@ -157,7 +169,7 @@ export const clientLabsRouter = router({
         })
         .from(biomarkerValues)
         .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
-        .where(and(eq(labResults.clientId, ctx.dbUserId), eq(biomarkerValues.biomarkerCode, input.code)))
+        .where(and(eq(labResults.clientId, ctx.dbUserId), released, eq(biomarkerValues.biomarkerCode, input.code)))
         .orderBy(labResults.receivedAt), []);
 
       return rows.map((r) => ({
@@ -184,7 +196,7 @@ export const clientLabsRouter = router({
       })
       .from(biomarkerValues)
       .innerJoin(labResults, eq(biomarkerValues.resultId, labResults.id))
-      .where(eq(labResults.clientId, ctx.dbUserId))
+      .where(and(eq(labResults.clientId, ctx.dbUserId), released))
       .orderBy(labResults.receivedAt), []);
 
     // Group by biomarker code
@@ -268,6 +280,7 @@ export const clientLabsRouter = router({
         receivedAt: receivedAt,
         pdfUrl: input.pdfUrl,
         ocrStatus: "pending",
+        ...initialReviewFields("pdf_upload"),
       });
 
       return {
@@ -324,6 +337,7 @@ export const clientLabsRouter = router({
         receivedAt: receivedAt,
         pdfUrl: input.sourceUrl,
         ocrStatus: "url_imported",
+        ...initialReviewFields("url_import"),
       });
 
       return {
@@ -351,6 +365,8 @@ export const clientLabsRouter = router({
         panelName: z.string(),
         provider: z.string().optional(),
         receivedDate: z.string().optional(),
+        /** Values came from AI parsing of a file: wait for coach review before showing. */
+        parsed: z.boolean().optional(),
         biomarkers: z.array(
           z.object({
             code: z.string(),
@@ -372,13 +388,17 @@ export const clientLabsRouter = router({
         ? new Date(input.receivedDate)
         : now;
 
+      // Typed-in values are the client's own and show at once; parsed values wait for review.
+      const review = initialReviewFields(input.parsed ? "client_parsed" : "client_manual", now);
+      const orderStatus = review.releasedAt ? "results_received" : "processing";
+
       // Create lab order
       await ctx.db.insert(labOrders).values({
         id: orderId,
         clientId: ctx.dbUserId,
         panelName: input.panelName,
         provider: input.provider,
-        status: "results_received",
+        status: orderStatus,
         orderedAt: now,
       });
 
@@ -389,7 +409,8 @@ export const clientLabsRouter = router({
         clientId: ctx.dbUserId,
         receivedAt: receivedAt,
         pdfUrl: null,
-        ocrStatus: "manual",
+        ocrStatus: input.parsed ? "ai_parsed" : "manual",
+        ...review,
       });
 
       // Insert biomarker values
@@ -414,7 +435,7 @@ export const clientLabsRouter = router({
           id: orderId,
           panelName: input.panelName,
           provider: input.provider,
-          status: "results_received",
+          status: orderStatus,
           orderedAt: now,
         },
         result: {
@@ -422,9 +443,10 @@ export const clientLabsRouter = router({
           orderId: orderId,
           receivedAt: receivedAt,
           pdfUrl: null,
-          ocrStatus: "manual",
+          ocrStatus: input.parsed ? "ai_parsed" : "manual",
         },
         biomarkerCount: input.biomarkers.length,
+        pendingReview: !review.releasedAt,
       };
     }),
 });
