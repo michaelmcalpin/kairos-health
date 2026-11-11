@@ -2,6 +2,7 @@
 
 import { Sidebar, adminNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 
 export default function AdminLayout({
@@ -15,7 +16,9 @@ export default function AdminLayout({
         <Sidebar items={adminNavItems} userName="Admin" />
         <div className="flex-1 min-w-0 ml-0 lg:ml-64">
           <TopBar title="EVERIST.ai" subtitle="Administration" />
-          <main className="p-6 overflow-x-hidden">{children}</main>
+          <main className="overflow-x-hidden">
+            <PageContainer>{children}</PageContainer>
+          </main>
         </div>
       </div>
     </RoleGuard>

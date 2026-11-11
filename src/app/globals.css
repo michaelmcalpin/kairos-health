@@ -29,22 +29,27 @@
   --k-card:           10 22 40;      /* #0A1628  Glacial Navy */
   --k-card-hover:     16 30 52;      /* #101E34 */
   --k-input:          5 13 24;       /* #050D18  Deep Abyss */
+  --k-surface-hover:  26 39 61;      /* #1A273D  hover / selected rows */
 
   /* Text */
   --k-text:           255 255 255;   /* #FFFFFF  Summit White */
   --k-text-secondary: 192 197 206;   /* #C0C5CE  Silver Ridge */
+  --k-text-muted:     139 150 168;   /* #8B96A8  ≥4.5:1 on bg/surface/raised */
   --k-text-light:     255 255 255;   /* #FFFFFF */
+
+  /* Premium accent — tier badges / milestones only, never links or buttons */
+  --k-accent-premium: 201 169 110;   /* #C9A96E  Champagne */
 
   /* Semantic */
   --k-success:        74 157 91;     /* #4A9D5B */
   --k-warning:        212 168 67;    /* #D4A843 */
-  --k-danger:         198 93 93;     /* #C65D5D */
+  --k-danger:         224 112 112;   /* #E07070  (was #C65D5D: 4.4:1 on cards) */
   --k-info:           74 144 217;    /* #4A90D9 */
 
   /* Semantic washes (full values) */
   --k-success-wash:   rgba(74,157,91,0.15);
   --k-warning-wash:   rgba(212,168,67,0.15);
-  --k-danger-wash:    rgba(198,93,93,0.15);
+  --k-danger-wash:    rgba(224,112,112,0.15);
   --k-info-wash:      rgba(74,144,217,0.15);
 
   /* Surfaces */
@@ -79,11 +84,16 @@
   --k-card:           58 58 60;      /* #3A3A3C  Charcoal Slate */
   --k-card-hover:     74 74 76;      /* #4A4A4C */
   --k-input:          44 44 46;      /* #2C2C2E */
+  --k-surface-hover:  84 84 86;      /* #545456 */
 
   /* Text */
   --k-text:           250 245 240;   /* #FAF5F0  Soft Cream */
   --k-text-secondary: 201 168 154;   /* #C9A89A  Dusty Rose */
+  --k-text-muted:     189 181 174;   /* #BDB5AE */
   --k-text-light:     250 245 240;   /* #FAF5F0 */
+
+  /* Premium accent — tier badges / milestones only */
+  --k-accent-premium: 212 180 131;   /* #D4B483 */
 
   /* Semantic */
   --k-success:        107 142 94;    /* #6B8E5E  Sage Green */
@@ -91,11 +101,12 @@
   --k-danger:         201 123 107;   /* #C97B6B  Terra Red */
   --k-info:           107 139 164;   /* #6B8BA4  Slate Blue */
 
-  /* Semantic washes (full values) */
-  --k-success-wash:   #E6EBE3;
-  --k-warning-wash:   #FDF3EB;
-  --k-danger-wash:    #FAEAE6;
-  --k-info-wash:      #E6EDF2;
+  /* Semantic washes (full values) — translucent so they work on the dark
+     charcoal surfaces (previously light-theme hexes) */
+  --k-success-wash:   rgba(107,142,94,0.15);
+  --k-warning-wash:   rgba(196,149,106,0.15);
+  --k-danger-wash:    rgba(201,123,107,0.15);
+  --k-info-wash:      rgba(107,139,164,0.15);
 
   /* Surfaces */
   --k-sand:           232 222 214;   /* #E8DED6  Warm Sand */
@@ -125,10 +136,14 @@
   --k-card-hover:     22 32 80;      /* #162050 */
   --k-border:         rgba(30,42,90,1); /* #1E2A5A */
   --k-input:          24 34 68;      /* #182244 */
+  --k-surface-hover:  30 42 90;      /* #1E2A5A */
 
   --k-text:           224 224 224;   /* #E0E0E0 */
   --k-text-secondary: 158 158 158;   /* #9E9E9E */
+  --k-text-muted:     147 153 176;   /* #9399B0 */
   --k-text-light:     245 245 247;   /* #F5F5F7 */
+
+  --k-accent-premium: 232 212 139;   /* #E8D48B */
 
   --k-success:        46 125 50;     /* #2E7D32 */
   --k-warning:        230 81 0;      /* #E65100 */

@@ -2,6 +2,7 @@
 
 import { Sidebar, superAdminNavItems } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { trpc } from "@/lib/trpc";
 
@@ -21,7 +22,9 @@ export default function SuperAdminLayout({
         <Sidebar items={superAdminNavItems} userName={userName} />
         <div className="flex-1 min-w-0 ml-0 lg:ml-64">
           <TopBar title="EVERIST.ai" subtitle="Platform Administration" />
-          <main className="p-6 overflow-x-hidden">{children}</main>
+          <main className="overflow-x-hidden">
+            <PageContainer>{children}</PageContainer>
+          </main>
         </div>
       </div>
     </RoleGuard>
