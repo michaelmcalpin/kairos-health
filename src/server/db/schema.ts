@@ -1424,3 +1424,18 @@ export const taskMissReasons = pgTable("task_miss_reasons", {
   uniqueIndex("task_miss_unique_idx").on(t.clientId, t.date, t.itemKey),
   index("task_miss_client_date_idx").on(t.clientId, t.date),
 ]);
+
+// Coach Inbox state for items that have no row of their own (HRV deviation,
+// no device data, message awaiting reply) and for shared-access coaches, who
+// keep their own state instead of changing the client's alert. `item_key`
+// encodes the occurrence (see src/lib/coach-inbox/model.ts), so a new
+// occurrence starts as New again. state: new | acknowledged | resolved.
+export const coachInboxStates = pgTable("coach_inbox_states", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  coachId: uuid("coach_id").notNull().references(() => users.id),
+  itemKey: varchar("item_key", { length: 200 }).notNull(),
+  state: varchar("state", { length: 20 }).notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("coach_inbox_states_coach_key_idx").on(t.coachId, t.itemKey),
+]);

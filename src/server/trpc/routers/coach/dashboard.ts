@@ -14,8 +14,10 @@ import {
 } from "@/server/db/schema";
 import { ne, eq, desc, asc, and, sql, gte, between, inArray } from "drizzle-orm";
 import { expireSchedulingAlerts } from "@/server/services/alert-hygiene";
-import { clientScoreStatuses } from "@/server/services/client-status";
+import { clientScoreStatuses, type ClientScoreStatus } from "@/server/services/client-status";
 import { getCoachRevenueEstimate } from "@/server/services/revenue";
+import { loadInbox } from "@/server/services/coach-inbox";
+import { buildTiles, rankTriage, type TriageCandidate } from "@/lib/coach-today/triage";
 
 // Helper: safely run a query against a table that may not exist yet.
 // Returns the fallback instead of crashing the whole procedure.
@@ -251,6 +253,120 @@ export const coachDashboardRouter = router({
       todaySchedule.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
       return { kpis, priorityClients, todaySchedule };
+    }),
+
+  /**
+   * getToday — the coach "Today" triage view.
+   *
+   *   tiles     Critical clients, Needs attention, Unanswered messages,
+   *             today's sessions.
+   *   triage    Only clients who need action (critical → attention), each
+   *             with the LifeScore status reason and one primary action.
+   *   schedule  The coach's appointments on `date` (coach-local YYYY-MM-DD).
+   *
+   * Open alerts and unanswered messages come from the same loader as the
+   * Inbox, so the numbers match what the Inbox lists.
+   */
+  getToday: trainerProcedure
+    .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .query(async ({ ctx, input }) => {
+      const coachId = ctx.dbUserId;
+      const now = new Date();
+
+      const rels = await ctx.db.query.trainerClientRelationships.findMany({
+        where: and(
+          eq(trainerClientRelationships.trainerId, coachId),
+          eq(trainerClientRelationships.status, "active"),
+        ),
+      });
+      const clientIds = rels.map((r) => r.clientId);
+
+      // Open health alerts + messages awaiting reply (booking notices are Info
+      // and never count toward needing attention).
+      const inbox = await loadInbox(ctx.db, coachId, { sources: ["alerts", "messages"], now });
+      const openAlerts = new Map<string, number>();
+      const waiting = new Map<string, { conversationId: string; hours: number }>();
+      const waitingHours: number[] = [];
+      for (const item of inbox) {
+        if (item.kind === "alert" && item.state === "new") {
+          openAlerts.set(item.clientId, (openAlerts.get(item.clientId) ?? 0) + 1);
+        } else if (item.kind === "message") {
+          const hours = (now.getTime() - new Date(item.timestamp).getTime()) / 3_600_000;
+          waitingHours.push(hours);
+          const conversationId = item.key.split(":")[1];
+          const prev = waiting.get(item.clientId);
+          if (!prev || hours > prev.hours) waiting.set(item.clientId, { conversationId, hours });
+        }
+      }
+
+      const [clientUsers, lsMap, dayAppointments] = await Promise.all([
+        clientIds.length
+          ? ctx.db.query.users.findMany({ where: inArray(users.id, clientIds) })
+          : Promise.resolve([] as (typeof users.$inferSelect)[]),
+        clientIds.length
+          ? clientScoreStatuses(ctx.db, clientIds.map((id) => ({ id, activeAlerts: openAlerts.get(id) ?? 0 })))
+          : Promise.resolve(new Map<string, ClientScoreStatus>()),
+        safeQ(
+          () => ctx.db.query.appointments.findMany({
+            where: and(eq(appointments.coachId, coachId), eq(appointments.date, input.date)),
+            orderBy: [asc(appointments.startTime)],
+            limit: 100,
+          }),
+          [] as (typeof appointments.$inferSelect)[],
+        ),
+      ]);
+      const userMap = new Map(clientUsers.map((u) => [u.id, u]));
+
+      const candidates: TriageCandidate[] = clientIds.map((id) => {
+        const u = userMap.get(id);
+        const name = displayName(u);
+        const initials = u?.firstName && u?.lastName
+          ? `${u.firstName[0]}${u.lastName[0]}`.toUpperCase()
+          : name.slice(0, 2).toUpperCase();
+        const ls = lsMap.get(id);
+        return {
+          id,
+          name,
+          initials,
+          core: ls?.core ?? null,
+          status: ls?.status ?? "insufficient_data",
+          reason: ls?.reason ?? "No scores yet",
+          trend: ls?.trend ?? "flat",
+          openAlerts: openAlerts.get(id) ?? 0,
+          waiting: waiting.get(id) ?? null,
+        };
+      });
+      const triage = rankTriage(candidates);
+
+      // Schedule rail
+      const missing = Array.from(new Set(dayAppointments.filter((a) => !a.clientName && !userMap.has(a.clientId)).map((a) => a.clientId)));
+      const extraUsers = missing.length
+        ? await safeQ(() => ctx.db.query.users.findMany({ where: inArray(users.id, missing) }), [] as (typeof users.$inferSelect)[])
+        : [];
+      for (const u of extraUsers) userMap.set(u.id, u);
+      const schedule = dayAppointments.map((a) => ({
+        id: a.id,
+        clientId: a.clientId,
+        clientName: a.clientName ?? displayName(userMap.get(a.clientId)),
+        startTime: a.startTime,
+        endTime: a.endTime,
+        sessionType: a.sessionType,
+        meetingType: a.meetingType,
+        status: a.status,
+        meetingLink: a.meetingLink ?? null,
+      }));
+
+      return {
+        date: input.date,
+        tiles: buildTiles(triage, waitingHours, schedule),
+        triage,
+        schedule,
+        roster: {
+          total: candidates.length,
+          stable: candidates.filter((c) => c.status === "stable").length,
+          noData: candidates.filter((c) => c.status === "insufficient_data").length,
+        },
+      };
     }),
 
   // ── Existing queries (kept for backwards compatibility) ─────

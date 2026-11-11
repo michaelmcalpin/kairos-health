@@ -127,7 +127,7 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
     // Select only the columns we use — avoids 500s if a newer client_profiles
     // column (e.g. coach_add_code) hasn't been migrated onto this database yet.
     safeQ(() => db.query.clientProfiles.findFirst({ where: eq(clientProfiles.userId, clientId), columns: { userId: true, tier: true } }), undefined),
-    safeQ(() => db.select({ count: sql<number>`count(*)` }).from(alerts).where(and(eq(alerts.clientId, clientId), eq(alerts.status, "active"))), [{ count: 0 }]),
+    safeQ(() => db.select({ count: sql<number>`count(*)` }).from(alerts).where(and(eq(alerts.clientId, clientId), eq(alerts.status, "active"), ne(alerts.type, "scheduling"))), [{ count: 0 }]),
     safeQ(() => db.query.glucoseReadings.findMany({ where: eq(glucoseReadings.clientId, clientId), orderBy: desc(glucoseReadings.timestamp), limit: 7 }), []),
     safeQ(() => db.query.sleepSessions.findMany({ where: and(eq(sleepSessions.clientId, clientId), gte(sleepSessions.date, daysAgoStr(21))), orderBy: desc(sleepSessions.date) }), []),
     safeQ(() => db.query.hrvReadings.findMany({ where: and(eq(hrvReadings.clientId, clientId), gte(hrvReadings.timestamp, new Date(Date.now() - 14 * 86400000))), orderBy: desc(hrvReadings.timestamp), limit: 5000 }), []),
@@ -315,7 +315,7 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
     safeQ(() => db
       .select({ clientId: alerts.clientId, count: sql<number>`count(*)` })
       .from(alerts)
-      .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")))
+      .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active"), ne(alerts.type, "scheduling")))
       .groupBy(alerts.clientId), []),
     safeQ(() => db.query.glucoseReadings.findMany({
       where: inArray(glucoseReadings.clientId, clientIds),

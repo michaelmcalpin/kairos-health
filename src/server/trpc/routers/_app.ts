@@ -46,6 +46,7 @@ import { coachSharedAccessRouter } from "./coach/shared-access";
 import { coachDashboardRouter } from "./coach/dashboard";
 import { coachClientsRouter } from "./coach/clients";
 import { coachAlertsRouter } from "./coach/alerts";
+import { coachInboxRouter } from "./coach/inbox";
 import { coachScheduleRouter } from "./coach/schedule";
 import { coachRevenueRouter } from "./coach/revenue";
 import { coachMessagingRouter } from "./coach/messaging";
@@ -119,6 +120,7 @@ export const appRouter = router({
     dashboard: coachDashboardRouter,
     clients: coachClientsRouter,
     alerts: coachAlertsRouter,
+    inbox: coachInboxRouter,
     schedule: coachScheduleRouter,
     revenue: coachRevenueRouter,
     messaging: coachMessagingRouter,

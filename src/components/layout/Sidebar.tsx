@@ -23,7 +23,6 @@ import {
   Users,
   BarChart3,
   Calendar,
-  ClipboardList,
   TrendingUp,
   UserCircle,
   DollarSign,
@@ -358,10 +357,9 @@ export const clientNavItems: NavItem[] = [
 
 // ─── Trainer Nav ─────────────────────────────────────────────────
 export const trainerNavItems: NavItem[] = [
-  { label: "Dashboard", href: "/trainer/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
-  { label: "Alerts", href: "/trainer/alerts", icon: <Bell size={18} />, section: "Overview" },
+  { label: "Today", href: "/trainer/dashboard", icon: <LayoutDashboard size={18} />, section: "Overview" },
+  { label: "Inbox", href: "/trainer/inbox", icon: <Bell size={18} />, section: "Overview" },
   { label: "Schedule", href: "/trainer/schedule", icon: <Calendar size={18} />, section: "Overview" },
-  { label: "Follow-ups", href: "/trainer/followups", icon: <ClipboardList size={18} />, section: "Overview" },
   { label: "Clients", href: "/trainer/clients", icon: <Users size={18} />, section: "Clients" },
   { label: "Programs", href: "/trainer/programs", icon: <Dumbbell size={18} />, section: "Clients" },
   { label: "Messages", href: "/trainer/messages", icon: <MessageCircle size={18} />, section: "Clients" },
