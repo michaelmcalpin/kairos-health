@@ -8,6 +8,7 @@ import { computeAdherence, computeToday } from "@/server/trpc/routers/client/tod
 import { computeLifeScore } from "@/lib/lifescore/score";
 import { healthDataSummary } from "@/server/trpc/routers/client/healthData";
 import { mergeSleepRows, mergeActivityRows, nightlyHrv, normalizeBodyFatPct } from "@/server/services/health-metrics";
+import { clientScoreStatus, clientScoreStatuses } from "@/server/services/client-status";
 import {
   trainerClientRelationships,
   clientInvitations,
@@ -57,11 +58,6 @@ function deriveName(firstName: string | null, lastName: string | null, email: st
 }
 
 type ClientStatus = "stable" | "attention" | "critical";
-function deriveStatus(healthScore: number, activeAlerts: number): ClientStatus {
-  if (healthScore < 60 || activeAlerts >= 4) return "critical";
-  if (healthScore < 75 || activeAlerts >= 2) return "attention";
-  return "stable";
-}
 
 type ScoreTrend = "up" | "down" | "flat";
 function deriveTrend(values: number[]): ScoreTrend {
@@ -223,11 +219,16 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
   }
 
   // Score trend from glucose (as proxy for overall health trend)
-  const scoreTrend: ScoreTrend = glucoseTrend === "down" ? "up" : glucoseTrend === "up" ? "down" : "flat";
+  let scoreTrend: ScoreTrend = glucoseTrend === "down" ? "up" : glucoseTrend === "up" ? "down" : "flat";
 
-  // Status
-  const status: ClientStatus | "insufficient_data" =
-    healthScore === null ? "insufficient_data" : deriveStatus(healthScore, activeAlerts);
+  // Status + score from LifeScore (one 0–100 scale everywhere): the score
+  // shown is the Core LifeScore, null when there's no data.
+  const ls = await clientScoreStatus(db, clientId, activeAlerts);
+  const status: ClientStatus | "insufficient_data" = ls.status;
+  const statusReason = ls.reason;
+  const lifeScore = { core: ls.core, physical: ls.physical, mental: ls.mental };
+  healthScore = ls.core;
+  scoreTrend = ls.trend;
 
   // Last active
   const lastActiveDate = recentCheckins[0]?.submittedAt ?? user.updatedAt ?? user.createdAt;
@@ -249,6 +250,8 @@ async function fetchClientData(db: typeof import("@/server/db").db, clientId: st
     lastActive,
     lastActiveDate: lastActiveDate instanceof Date ? lastActiveDate.toISOString() : String(lastActiveDate),
     status,
+    statusReason,
+    lifeScore,
     nextSession: null as string | null,
     memberSince,
     metrics: {
@@ -379,6 +382,9 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
   const weightByClient = groupByClient(recentWeightAll, 5);
   const checkinsByClient = groupByClient(recentCheckinsAll, 14);
 
+  // LifeScore-based status/score per client (limited concurrency).
+  const lsMap = await clientScoreStatuses(db, clientIds.map((id) => ({ id, activeAlerts: alertCountMap.get(id) ?? 0 })));
+
   // Process each client using the pre-fetched data
   const results = clientIds.map((clientId) => {
     const user = userMap.get(clientId);
@@ -460,11 +466,15 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
     }
 
     // Score trend from glucose (as proxy for overall health trend)
-    const scoreTrend: ScoreTrend = glucoseTrend === "down" ? "up" : glucoseTrend === "up" ? "down" : "flat";
+    let scoreTrend: ScoreTrend = glucoseTrend === "down" ? "up" : glucoseTrend === "up" ? "down" : "flat";
 
-    // Status — a no-data client has no honest status, not "stable".
-    const status: ClientStatus | "insufficient_data" =
-      healthScore === null ? "insufficient_data" : deriveStatus(healthScore, activeAlerts);
+    // Status + score from LifeScore; "insufficient_data" when there are no scores.
+    const ls = lsMap.get(clientId);
+    const status: ClientStatus | "insufficient_data" = ls?.status ?? "insufficient_data";
+    const statusReason = ls?.reason ?? "No scores yet";
+    const lifeScore = { core: ls?.core ?? null, physical: ls?.physical ?? null, mental: ls?.mental ?? null };
+    healthScore = ls?.core ?? null;
+    scoreTrend = ls?.trend ?? "flat";
 
     // Last active
     const lastActiveDate = recentCheckins[0]?.submittedAt ?? user.updatedAt ?? user.createdAt;
@@ -486,6 +496,8 @@ async function fetchClientDataBatch(db: typeof import("@/server/db").db, clientI
       lastActive,
       lastActiveDate: lastActiveDate instanceof Date ? lastActiveDate.toISOString() : String(lastActiveDate),
       status,
+      statusReason,
+      lifeScore,
       nextSession: null as string | null,
       memberSince,
       metrics: {
@@ -813,7 +825,7 @@ export const coachClientsRouter = router({
     if (clientIds.length === 0) {
       return {
         totalClients: 0, tier1Count: 0, tier2Count: 0, tier3Count: 0,
-        criticalCount: 0, attentionCount: 0, stableCount: 0,
+        criticalCount: 0, attentionCount: 0, stableCount: 0, noDataCount: 0,
         avgHealthScore: null as number | null, avgAdherence: 0, totalAlerts: 0,
       };
     }
@@ -821,8 +833,8 @@ export const coachClientsRouter = router({
     const enrollmentDates = new Map(relationships.map((r) => [r.clientId, r.startedAt]));
     const clients = await fetchClientDataBatch(ctx.db, clientIds, enrollmentDates);
 
-    // Only clients with real biometric data contribute to the average — a
-    // no-data client has a null score and must not be counted as 0 or 75.
+    // Only clients with a LifeScore contribute to the average — a no-data
+    // client has a null score and must not be counted as 0.
     const scoredClients = clients.filter((c) => c.healthScore !== null);
 
     return {
@@ -833,6 +845,7 @@ export const coachClientsRouter = router({
       criticalCount: clients.filter((c) => c.status === "critical").length,
       attentionCount: clients.filter((c) => c.status === "attention").length,
       stableCount: clients.filter((c) => c.status === "stable").length,
+      noDataCount: clients.filter((c) => c.status === "insufficient_data").length,
       // null when no client has a score, so consumers can show "—".
       avgHealthScore: scoredClients.length > 0
         ? Math.round(scoredClients.reduce((s, c) => s + (c.healthScore as number), 0) / scoredClients.length)

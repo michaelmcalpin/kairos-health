@@ -618,6 +618,9 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
                       <span className={STATUS_COLORS[client.status]}>{STATUS_LABELS[client.status]}</span>
                     </>
                   )}
+                  {"statusReason" in client && client.statusReason && client.status !== "stable" && (
+                    <span className="text-gray-400">· {String(client.statusReason)}</span>
+                  )}
                 </div>
                 <span className="text-gray-600">&bull;</span>
                 <span className="text-gray-500">{client.email}</span>

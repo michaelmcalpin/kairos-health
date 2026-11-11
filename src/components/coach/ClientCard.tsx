@@ -59,6 +59,9 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick, toda
                 <>
                   <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT_COLORS[client.status as ClientStatus]}`} />
                   <span className="text-xs text-gray-500">{STATUS_LABELS[client.status as ClientStatus]}</span>
+                  {client.statusReason && client.status !== "stable" && (
+                    <span className="text-xs text-gray-400 truncate max-w-[16rem]" title={client.statusReason}>· {client.statusReason}</span>
+                  )}
                 </>
               )}
               <span className="text-xs text-gray-600">•</span>
@@ -77,8 +80,8 @@ export const ClientCard = React.memo(function ClientCard({ client, onClick, toda
 
         {/* Metrics */}
         <div className="flex items-center gap-3 sm:gap-5 shrink-0">
-          {/* Health Score */}
-          <div className="text-center">
+          {/* LifeScore (Core) */}
+          <div className="text-center" title={client.lifeScore ? `LifeScore · Physical ${client.lifeScore.physical ?? "—"} · Mental ${client.lifeScore.mental ?? "—"}` : "LifeScore"}>
             <p className="text-lg font-heading font-bold text-kairos-gold">{round(client.healthScore, 0)}</p>
             {noData ? (
               <p className="text-[10px] text-gray-500">No data</p>

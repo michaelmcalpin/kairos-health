@@ -89,7 +89,7 @@ export default function CoachClientsPage() {
             <p className="text-gray-400 text-sm">Manage your client roster, track progress, and prioritize attention</p>
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="kairos-card p-3 h-20 animate-pulse bg-gray-800/50" />
           ))}
@@ -127,14 +127,14 @@ export default function CoachClientsPage() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <div className="kairos-card p-3 text-center">
           <p className="text-2xl font-heading font-bold text-kairos-gold">{stats?.totalClients ?? data?.total ?? clients.length}</p>
           <p className="text-[10px] text-gray-500 uppercase">Total</p>
         </div>
         <div className="kairos-card p-3 text-center">
           <p className="text-2xl font-heading font-bold text-white">{round(stats?.avgHealthScore, 0)}</p>
-          <p className="text-[10px] text-gray-500 uppercase">Avg Score</p>
+          <p className="text-[10px] text-gray-500 uppercase">Avg LifeScore</p>
         </div>
         <div className="kairos-card p-3 text-center">
           <p className="text-2xl font-heading font-bold text-green-400">{stats?.stableCount ?? 0}</p>
@@ -147,6 +147,10 @@ export default function CoachClientsPage() {
         <div className="kairos-card p-3 text-center">
           <p className="text-2xl font-heading font-bold text-red-400">{stats?.criticalCount ?? 0}</p>
           <p className="text-[10px] text-gray-500 uppercase">Critical</p>
+        </div>
+        <div className="kairos-card p-3 text-center" title="No LifeScore yet: no device data, labs or check-ins">
+          <p className="text-2xl font-heading font-bold text-gray-400">{stats?.noDataCount ?? 0}</p>
+          <p className="text-[10px] text-gray-500 uppercase">No data</p>
         </div>
       </div>
 
@@ -196,7 +200,7 @@ export default function CoachClientsPage() {
                   : "bg-gray-800 text-gray-400 border border-gray-700 hover:border-gray-600"
               }`}
             >
-              {field === "healthScore" ? "Score" : field === "alerts" ? "Alerts" : field === "adherence" ? "Adherence" : "Name"}
+              {field === "healthScore" ? "LifeScore" : field === "alerts" ? "Alerts" : field === "adherence" ? "Adherence" : "Name"}
               {sortBy === field && (sortOrder === "asc" ? " ↑" : " ↓")}
             </button>
           ))}

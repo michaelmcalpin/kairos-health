@@ -22,13 +22,17 @@ export interface CoachClientSummary {
   initials: string;
   email: string;
   tier: ClientTier;
-  healthScore: number | null; // null when the client has no biometric data
+  /** Core LifeScore 0–100 (60% Physical + 40% Mental); null with no data. */
+  healthScore: number | null;
   scoreTrend: ScoreTrend;
   activeAlerts: number;
   adherence: number; // 0-100
   lastActive: string; // relative time string
   lastActiveDate: string; // ISO date
-  status: ClientStatus | "insufficient_data"; // "insufficient_data" when healthScore is null
+  status: ClientStatus | "insufficient_data"; // from LifeScore; "insufficient_data" with no scores
+  /** One-line reason for the status, e.g. "Time asleep low (42/100)". */
+  statusReason?: string;
+  lifeScore?: { core: number | null; physical: number | null; mental: number | null };
   nextSession: string | null;
   memberSince: string; // ISO date
 }

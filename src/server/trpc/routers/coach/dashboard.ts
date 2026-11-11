@@ -14,6 +14,7 @@ import {
 } from "@/server/db/schema";
 import { ne, eq, desc, asc, and, sql, gte, between, inArray } from "drizzle-orm";
 import { expireSchedulingAlerts } from "@/server/services/alert-hygiene";
+import { clientScoreStatuses } from "@/server/services/client-status";
 import { getCoachRevenueEstimate } from "@/server/services/revenue";
 
 // Helper: safely run a query against a table that may not exist yet.
@@ -64,12 +65,7 @@ export const coachDashboardRouter = router({
         return { kpis: [], priorityClients: [], todaySchedule: [] };
       }
 
-      // Helper: safely query a table that may not exist yet (returns [] on error)
-      const safeQuery = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
-        try { return await fn(); } catch { return fallback; }
-      };
-
-      const [allUsers, allProfiles, alertCounts, allLatestSleep, allLatestGlucose] = await Promise.all([
+      const [allUsers, allProfiles, alertCounts] = await Promise.all([
         // Batch: all users at once
         ctx.db.query.users.findMany({ where: inArray(users.id, clientIds) }),
         // Batch: all client profiles at once
@@ -80,43 +76,21 @@ export const coachDashboardRouter = router({
           .from(alerts)
           .where(and(inArray(alerts.clientId, clientIds), eq(alerts.status, "active")))
           .groupBy(alerts.clientId),
-        // Batch: latest sleep per client (table may not exist yet)
-        safeQuery(
-          () => ctx.db.execute(sql`
-            SELECT DISTINCT ON (client_id) *
-            FROM sleep_sessions
-            WHERE client_id = ANY(${clientIds})
-            ORDER BY client_id, date DESC
-          `),
-          [] as unknown as Awaited<ReturnType<typeof ctx.db.execute>>,
-        ),
-        // Batch: latest glucose per client (table may not exist yet)
-        safeQuery(
-          () => ctx.db.execute(sql`
-            SELECT DISTINCT ON (client_id) *
-            FROM glucose_readings
-            WHERE client_id = ANY(${clientIds})
-            ORDER BY client_id, timestamp DESC
-          `),
-          [] as unknown as Awaited<ReturnType<typeof ctx.db.execute>>,
-        ),
       ]);
 
       // Build lookup maps
       const userMap = new Map(allUsers.map((u) => [u.id, u]));
       const profileMap = new Map(allProfiles.map((p) => [p.userId, p]));
       const alertCountMap = new Map(alertCounts.map((a) => [a.clientId, Number(a.count)]));
-      const sleepRows = allLatestSleep as unknown as Array<{ client_id: string; score: number | null }>;
-      const sleepMap = new Map(sleepRows.map((s) => [s.client_id, s]));
-      const glucoseRows = allLatestGlucose as unknown as Array<{ client_id: string; value_mgdl: string | null }>;
-      const glucoseMap = new Map(glucoseRows.map((g) => [g.client_id, g]));
+
+      // One 0–100 scale: the Core LifeScore, with LifeScore-based status.
+      const lsMap = await clientScoreStatuses(ctx.db, clientIds.map((id) => ({ id, activeAlerts: alertCountMap.get(id) ?? 0 })));
+      const STATUS_TEXT = { critical: "Critical Review", attention: "Review Needed", stable: "On Track", insufficient_data: "No data" } as const;
 
       const clientDetails = clientIds.map((clientId) => {
         const user = userMap.get(clientId);
         const profile = profileMap.get(clientId);
         const activeAlerts = alertCountMap.get(clientId) ?? 0;
-        const latestSleep = sleepMap.get(clientId) as { score: number | null } | undefined;
-        const latestGlucose = glucoseMap.get(clientId) as { value_mgdl: string | null } | undefined;
 
         const firstName = user?.firstName ?? "";
         const lastName = user?.lastName ?? "";
@@ -125,15 +99,8 @@ export const coachDashboardRouter = router({
           ? `${firstName[0]}${lastName[0]}`.toUpperCase()
           : name.slice(0, 2).toUpperCase();
 
-        // Simple health score derived from available data
-        let healthScore = 75; // baseline
-        if (latestSleep?.score) healthScore += Math.min(10, Math.round((Number(latestSleep.score) - 50) / 5));
-        if (latestGlucose?.value_mgdl) {
-          const gv = Number(latestGlucose.value_mgdl);
-          if (gv >= 70 && gv <= 100) healthScore += 10;
-          else if (gv > 100 && gv <= 120) healthScore += 5;
-        }
-        healthScore = Math.max(0, Math.min(100, healthScore));
+        const ls = lsMap.get(clientId);
+        const healthScore = ls?.core ?? null;
 
         return {
           id: clientId,
@@ -143,18 +110,19 @@ export const coachDashboardRouter = router({
           tier: (profile?.tier ?? "tier1") as string,
           healthScore,
           activeAlerts,
-          status: activeAlerts >= 3 ? "Critical Review" as const
-            : activeAlerts >= 1 ? "Review Needed" as const
-            : "On Track" as const,
+          status: STATUS_TEXT[ls?.status ?? "insufficient_data"],
+          statusKey: ls?.status ?? "insufficient_data",
+          statusReason: ls?.reason ?? "No scores yet",
         };
       });
 
       // ── KPIs ───────────────────────────────────────────────
       const totalClients = clientDetails.length;
       const pendingAlerts = clientDetails.reduce((s, c) => s + c.activeAlerts, 0);
-      const avgHealthScore = totalClients > 0
-        ? Math.round(clientDetails.reduce((s, c) => s + c.healthScore, 0) / totalClients)
-        : 0;
+      const scored = clientDetails.filter((c) => c.healthScore != null);
+      const avgHealthScore = scored.length > 0
+        ? Math.round(scored.reduce((s, c) => s + (c.healthScore as number), 0) / scored.length)
+        : null;
       // Shared estimate (active clients × tier price) — same number as the Revenue page
       const revenue = (await getCoachRevenueEstimate(ctx.db, trainerId)).mrr;
 
@@ -203,8 +171,8 @@ export const coachDashboardRouter = router({
           icon: "calendar",
         },
         {
-          label: "Avg Health Score",
-          value: avgHealthScore,
+          label: "Avg LifeScore",
+          value: avgHealthScore ?? "—",
           unit: "/100",
           trend: "flat",
           trendValue: "across clients",
@@ -220,10 +188,12 @@ export const coachDashboardRouter = router({
       ];
 
       // ── Priority Clients (highest alerts, lowest health score) ──
+      const RANK = { critical: 0, attention: 1, insufficient_data: 2, stable: 3 } as const;
       const priorityClients = [...clientDetails]
         .sort((a, b) => {
+          if (RANK[a.statusKey] !== RANK[b.statusKey]) return RANK[a.statusKey] - RANK[b.statusKey];
           if (b.activeAlerts !== a.activeAlerts) return b.activeAlerts - a.activeAlerts;
-          return a.healthScore - b.healthScore;
+          return (a.healthScore ?? 101) - (b.healthScore ?? 101);
         })
         .slice(0, 4)
         .map((c) => ({
@@ -233,6 +203,7 @@ export const coachDashboardRouter = router({
           healthScore: c.healthScore,
           alerts: c.activeAlerts,
           status: c.status,
+          reason: c.statusReason,
         }));
 
       // ── Schedule from real appointments (respects selected date range) ──
