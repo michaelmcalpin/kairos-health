@@ -69,13 +69,17 @@ async function verifyCoachClientAccess(
   db: Database,
   coachId: string,
   clientId: string,
-  category: "diet" | "exercise",
+  category: "diet" | "exercise" | "care_plan",
   minLevel: "read" | "write",
   userRole?: string,
 ) {
   if (userRole === "super_admin") return;
   const access = await getCoachAccess(db, coachId, clientId);
-  if (!access.hasAnyAccess || !hasCategoryAccess(access, category, minLevel)) {
+  // "care_plan" (supplements, peptides): any care-team coach, like protocols.ts.
+  const ok = category === "care_plan"
+    ? (["diet", "exercise", "labs", "healthData"] as const).some((c) => hasCategoryAccess(access, c, minLevel))
+    : hasCategoryAccess(access, category, minLevel);
+  if (!access.hasAnyAccess || !ok) {
     throw new TRPCError({
       code: "FORBIDDEN",
       message: "No active relationship or granted access to this client",
@@ -83,8 +87,10 @@ async function verifyCoachClientAccess(
   }
 }
 
-function accessCategoryFor(type: ProtocolType): "diet" | "exercise" {
-  return type === "workouts" ? "exercise" : "diet";
+function accessCategoryFor(type: ProtocolType): "diet" | "exercise" | "care_plan" {
+  if (type === "workouts") return "exercise";
+  if (type === "supplements" || type === "peptides") return "care_plan";
+  return "diet";
 }
 
 // ─── Column definitions (stable per type, for the grid headers) ──────────────

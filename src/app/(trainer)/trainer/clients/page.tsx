@@ -315,7 +315,7 @@ function SharedWithMeSection() {
                     return (
                       <span
                         key={badge.key}
-                        title={`${badge.label}: ${level === "none" ? "no access" : level === "read" ? "view only" : "view & edit"}`}
+                        title={`${badge.label}: ${level === "none" ? "no access" : level === "read" ? "observer (view only)" : "care team (view & edit)"}`}
                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold border ${
                           level === "write"
                             ? "bg-kairos-gold/15 text-kairos-gold border-kairos-gold/30"

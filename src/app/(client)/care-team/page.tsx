@@ -20,19 +20,21 @@ const CATEGORIES: { key: CategoryKey; label: string; desc: string; icon: typeof 
   { key: "healthDataAccess", label: "Health Data", desc: "Glucose, sleep, HRV, vitals", icon: Activity },
 ];
 
+// Care-team coaches coordinate and edit together; "Observer" is the explicit
+// view-only choice for someone who should only watch.
 const LEVEL_OPTIONS: { value: AccessLevel; label: string }[] = [
-  { value: "none", label: "No Access" },
-  { value: "read", label: "View Only" },
-  { value: "write", label: "View & Edit" },
+  { value: "none", label: "Not shared" },
+  { value: "write", label: "Care team (view & edit)" },
+  { value: "read", label: "Observer (view only)" },
 ];
 
 type CategoryLevels = Record<CategoryKey, AccessLevel>;
 
 const DEFAULT_SHARE_LEVELS: CategoryLevels = {
-  dietAccess: "read",
-  exerciseAccess: "read",
-  labsAccess: "read",
-  healthDataAccess: "read",
+  dietAccess: "write",
+  exerciseAccess: "write",
+  labsAccess: "write",
+  healthDataAccess: "write",
 };
 
 function coachName(c: { firstName: string | null; lastName: string | null; email: string | null }) {

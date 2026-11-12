@@ -66,10 +66,15 @@ type MyAccess = {
 };
 
 /** Which sharing category gates each data tab (tabs not listed are never gated). */
+/** Care-team coach (not an Observer): may edit the shared protocol. */
+function isCareTeamEditor(a: { diet: string; exercise: string; labs: string; healthData: string } | undefined | null): boolean {
+  return !!a && [a.diet, a.exercise, a.labs, a.healthData].includes("write");
+}
+
 const TAB_ACCESS_CATEGORY: Partial<Record<DataTab, AccessCategory>> = {
   nutrition: "diet",
   fasting: "diet",
-  supplements: "diet",
+  // supplements: the protocol is the shared care plan — any care-team coach sees it.
   workouts: "exercise",
   activity: "exercise",
   labs: "labs",
@@ -788,7 +793,7 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
               <BulkEditLink clientId={params.id} tab="supplements" label="Edit supplements & peptides in Bulk Editor" />
               <ProtocolEditor
                 clientId={params.id}
-                canEdit={!isSharedOnly || myAccess?.diet === "write"}
+                canEdit={!isSharedOnly || isCareTeamEditor(myAccess)}
               />
               <PeptidesPanel clientId={params.id} />
             </div>
@@ -1294,11 +1299,11 @@ function SharedClientView({ clientId, access }: { clientId: string; access: MyAc
         })}
       </div>
 
-      {/* Protocol (shared Diet access) + Coach discussion */}
+      {/* Protocol (any care-team coach) + Coach discussion */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {access.diet !== "none" && (
-            <ProtocolEditor clientId={clientId} canEdit={access.diet === "write"} />
+          {access.hasAnyAccess && (
+            <ProtocolEditor clientId={clientId} canEdit={isCareTeamEditor(access)} />
           )}
           <CoachDiscussion clientId={clientId} />
         </div>

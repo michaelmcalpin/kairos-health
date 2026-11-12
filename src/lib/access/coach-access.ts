@@ -7,8 +7,10 @@
  *  1. PRIMARY relationship (trainer_client_relationships, status=active):
  *     the assigned coach — full write access to all categories.
  *  2. CLIENT-GRANTED access (client_coach_access, status=active): the
- *     client explicitly shares specific categories (diet, exercise, labs,
- *     health data) at read or write level with any coach.
+ *     client shares specific categories (diet, exercise, labs, health data)
+ *     with any coach. "write" = care team: views AND edits (labs, protocols,
+ *     diet, exercise, medications…) and coordinates with the other coaches.
+ *     "read" = Observer: an explicit view-only choice.
  *
  * Categories:
  *  - diet: nutrition, meals, fasting

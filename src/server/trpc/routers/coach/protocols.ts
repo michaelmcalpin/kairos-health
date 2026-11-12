@@ -19,9 +19,10 @@ import { eq, and, desc, inArray } from "drizzle-orm";
 
 // ─── Relationship guard ─────────────────────────────────────
 // Allows access when the coach is the client's primary coach (active
-// trainer-client relationship) OR when the client has shared Diet access
-// with the coach (clientCoachAccess): "read" suffices for reads, "write"
-// is required for write operations.
+// trainer-client relationship) OR is on the client's care team
+// (clientCoachAccess). The protocol (supplements, medications, peptides) is
+// the shared care plan: any care-team coach ("write" on any category) can
+// edit it; an Observer ("read" only) can view it.
 async function verifyCoachClientRelationship(
   db: typeof import("@/server/db").db,
   coachId: string,
@@ -41,7 +42,7 @@ async function verifyCoachClientRelationship(
   });
   if (rel) return;
 
-  // No primary relationship — check client-granted shared access (Diet category).
+  // No primary relationship — check client-granted care-team access.
   const grant = await db.query.clientCoachAccess.findFirst({
     where: and(
       eq(clientCoachAccess.clientId, clientId),
@@ -49,10 +50,10 @@ async function verifyCoachClientRelationship(
       eq(clientCoachAccess.status, "active"),
     ),
   });
-  const allowed =
-    !!grant &&
-    (grant.dietAccess === "write" ||
-      (minLevel === "read" && grant.dietAccess === "read"));
+  const levels = grant ? [grant.dietAccess, grant.exerciseAccess, grant.labsAccess, grant.healthDataAccess] : [];
+  const allowed = minLevel === "write"
+    ? levels.includes("write")
+    : levels.some((l) => l !== "none");
   if (!allowed) {
     throw new TRPCError({ code: "FORBIDDEN", message: "No active relationship with this client" });
   }
