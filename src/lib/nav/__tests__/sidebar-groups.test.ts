@@ -75,7 +75,7 @@ describe("section open state", () => {
 });
 
 describe("client nav model", () => {
-  it("has exactly the four destinations, in order", () => {
+  it("has the four destinations plus Settings, in order", () => {
     expect(groupBySection(CLIENT_NAV).map((g) => g.name)).toEqual([...CLIENT_DESTINATIONS]);
     const today = CLIENT_NAV.filter((e) => e.section === "Today");
     expect(today).toHaveLength(1);
@@ -90,8 +90,13 @@ describe("client nav model", () => {
     expect(labels).not.toContain("Insight Sherpa");
   });
 
-  it("keeps the feature-toggled Cycle Tracker label the layout filters on", () => {
-    expect(CLIENT_NAV.some((e) => e.label === "Cycle Tracker")).toBe(true);
+  it("keeps the feature-toggled Cycle Tracker route the layout filters on", () => {
+    expect(CLIENT_NAV.some((e) => e.href === "/cycle-tracker")).toBe(true);
+  });
+
+  it("Settings is a single plain link in the sidebar", () => {
+    const settings = CLIENT_NAV.filter((e) => e.section === "Settings");
+    expect(settings).toEqual([expect.objectContaining({ label: "Settings", href: "/settings" })]);
   });
 
   it("places every client page: nav, profile menu, or a documented other entry point", () => {

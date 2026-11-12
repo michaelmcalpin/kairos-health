@@ -230,7 +230,7 @@ function InboxContent() {
                   <span className="text-xs text-kairos-silver-dark">{relativeTime(item.timestamp)}</span>
                 </div>
                 <p className="text-sm font-heading font-semibold text-white mt-1">{item.title}</p>
-                {item.detail && <p className="text-sm text-kairos-silver-dark mt-0.5 line-clamp-2">{item.detail}</p>}
+                {item.detail && <p className="text-sm text-kairos-silver-dark mt-0.5 line-clamp-4">{item.detail}</p>}
               </div>
               <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
                 <Link

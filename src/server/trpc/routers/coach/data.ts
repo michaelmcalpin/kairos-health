@@ -8,9 +8,9 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, trainerProcedure } from "@/server/trpc";
+import { getCoachAccess, hasCategoryAccess } from "@/lib/access/coach-access";
 import {
   clinicalDocuments,
-  trainerClientRelationships,
   labResults,
   labOrders,
   biomarkerValues,
@@ -39,25 +39,27 @@ function sanitizeClinicalDoc<
   return { ...doc, hasFile };
 }
 
-// ─── Relationship guard ─────────────────────────────────────
-async function verifyCoachClientRelationship(
+/**
+ * Labs & clinical documents: the primary coach, or any coach the client has
+ * shared their labs with (read to view; write to upload, review and release).
+ * The primary coach may not be a clinician, and a secondary coach may be the
+ * one who ordered the labs.
+ */
+async function verifyLabsAccess(
   db: typeof import("@/server/db").db,
   coachId: string,
   clientId: string,
-  userRole?: string,
+  userRole: string | undefined,
+  level: "read" | "write",
 ) {
-  if (userRole === "super_admin") return;
-  // A coach is always allowed to view/edit their own record (dual-role).
-  if (coachId === clientId) return;
-  const rel = await db.query.trainerClientRelationships.findFirst({
-    where: and(
-      eq(trainerClientRelationships.trainerId, coachId),
-      eq(trainerClientRelationships.clientId, clientId),
-      eq(trainerClientRelationships.status, "active"),
-    ),
-  });
-  if (!rel) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "No active relationship with this client" });
+  const access = await getCoachAccess(db, coachId, clientId, userRole);
+  if (!hasCategoryAccess(access, "labs", level)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: level === "write"
+        ? "You don't have permission to add or release labs for this client. The client can grant it under their care-team sharing."
+        : "This client hasn't shared their labs with you.",
+    });
   }
 }
 
@@ -72,7 +74,7 @@ export const coachDataRouter = router({
       docType: z.enum(["dexa_scan", "gut_biome", "medical_record"]).optional(),
     }))
     .query(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await verifyLabsAccess(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole, "read");
 
       const conditions = [eq(clinicalDocuments.clientId, input.clientId)];
       if (input.docType) {
@@ -97,7 +99,7 @@ export const coachDataRouter = router({
       });
       if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
 
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, doc.clientId, ctx.userRole);
+      await verifyLabsAccess(ctx.db, ctx.dbUserId, doc.clientId, ctx.userRole, "read");
       return sanitizeClinicalDoc(doc);
     }),
 
@@ -118,7 +120,7 @@ export const coachDataRouter = router({
       confirmOtherPerson: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await verifyLabsAccess(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole, "write");
       // Stop a file that names one of this coach's OTHER clients unless confirmed.
       const confirmedOtherPerson = await assertDocBelongsToClient(
         ctx.db, input.clientId, input, await coachClientIds(ctx.db, ctx.dbUserId), input.confirmOtherPerson === true,
@@ -164,7 +166,7 @@ export const coachDataRouter = router({
       });
       if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
 
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, doc.clientId, ctx.userRole);
+      await verifyLabsAccess(ctx.db, ctx.dbUserId, doc.clientId, ctx.userRole, "write");
 
       const [updated] = await ctx.db.update(clinicalDocuments)
         .set({
@@ -193,7 +195,7 @@ export const coachDataRouter = router({
       });
       if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
 
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, doc.clientId, ctx.userRole);
+      await verifyLabsAccess(ctx.db, ctx.dbUserId, doc.clientId, ctx.userRole, "write");
 
       await ctx.db.delete(clinicalDocuments)
         .where(eq(clinicalDocuments.id, input.docId));
@@ -221,7 +223,7 @@ export const coachDataRouter = router({
       })).min(1),
     }))
     .mutation(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await verifyLabsAccess(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole, "write");
 
       // Coach-entered values wait in "pending review" until the coach releases them.
       let lab: { id: string };
@@ -265,7 +267,7 @@ export const coachDataRouter = router({
   listLabResults: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await verifyLabsAccess(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole, "read");
 
       const labs = await ctx.db.query.labResults.findMany({
         where: eq(labResults.clientId, input.clientId),
@@ -307,7 +309,7 @@ export const coachDataRouter = router({
   labOverview: trainerProcedure
     .input(z.object({ clientId: z.string() }))
     .query(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await verifyLabsAccess(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole, "read");
       return coachLabOverview(ctx.db, input.clientId);
     }),
 
@@ -331,7 +333,7 @@ export const coachDataRouter = router({
       })).max(300).default([]),
     }))
     .mutation(async ({ ctx, input }) => {
-      await verifyCoachClientRelationship(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole);
+      await verifyLabsAccess(ctx.db, ctx.dbUserId, input.clientId, ctx.userRole, "write");
       const result = await ctx.db.query.labResults.findFirst({
         where: and(eq(labResults.id, input.resultId), eq(labResults.clientId, input.clientId)),
       });

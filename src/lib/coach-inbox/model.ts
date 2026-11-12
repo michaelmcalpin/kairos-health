@@ -26,6 +26,9 @@ export type InboxState = "new" | "acknowledged" | "resolved";
 export type InboxKind = "alert" | "scheduling" | "hrv" | "no_data" | "message";
 export type InboxCategory = "health" | "messages" | "sessions";
 
+/** Length of the client-message preview shown in the Inbox. */
+export const MESSAGE_PREVIEW_CHARS = 300;
+
 export interface InboxItem {
   /** Stable id, also the key for state changes: "alert:<uuid>", "msg:<conv>:<msg>", … */
   key: string;
@@ -218,7 +221,7 @@ export function mapMessage(
     severity: "action", state: override ?? "new",
     clientId: m.clientId, clientName,
     title: waitingText(hours),
-    detail: body ? (body.length > 140 ? `${body.slice(0, 140)}…` : body) : null,
+    detail: body ? (body.length > MESSAGE_PREVIEW_CHARS ? `${body.slice(0, MESSAGE_PREVIEW_CHARS)}…` : body) : null,
     timestamp: sent.toISOString(),
     action: { label: "Reply", href: `/trainer/messages?conversationId=${m.conversationId}` },
   };
