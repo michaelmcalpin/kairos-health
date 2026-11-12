@@ -50,7 +50,11 @@ export interface PhysicalPart {
   detail: string | null;
 }
 
-export interface MetricScore { key: string; label: string; value: number; score: number }
+export interface MetricScore {
+  key: string; label: string; value: number; score: number;
+  /** Weight inside the Health data part (for "how to raise it" estimates). */
+  weight?: number;
+}
 
 export interface PhysicalResult {
   score: number | null;
@@ -59,6 +63,10 @@ export interface PhysicalResult {
   parts: PhysicalPart[];
   /** Scored health metrics, lowest first, so the UI can show what to work on. */
   metrics: MetricScore[];
+  /** Sum of the weights of the scored measures (device + extras) in the window. */
+  healthWeightSum: number;
+  /** True when the Health data part blends in how the body feels (85/15). */
+  feelBlended: boolean;
 }
 
 const clamp = (n: number) => Math.round(Math.max(0, Math.min(100, n)));
@@ -96,7 +104,7 @@ export function scoreHealthData(series: MetricSeries, endDate: string, windowDay
     if (avg == null) continue;
     const s = scoreMetric(def, avg, mean(base));
     if (s == null) continue;
-    metrics.push({ key: def.key, label: def.label, value: avg, score: clamp(s) });
+    metrics.push({ key: def.key, label: def.label, value: avg, score: clamp(s), weight: def.weight });
     wSum += def.weight;
     sSum += s * def.weight;
   }
@@ -108,13 +116,13 @@ export function scoreHealthData(series: MetricSeries, endDate: string, windowDay
 export function blendExtras(
   base: { score: number | null; metrics: MetricScore[]; weightSum: number },
   extras: WeightedScore[],
-): { score: number | null; metrics: MetricScore[] } {
+): { score: number | null; metrics: MetricScore[]; weightSum: number } {
   let wSum = base.score != null ? base.weightSum : 0;
   let sSum = base.score != null ? base.score * base.weightSum : 0;
   for (const e of extras) { wSum += e.weight; sSum += e.score * e.weight; }
-  const metrics = [...base.metrics, ...extras.map(({ key, label, value, score }) => ({ key, label, value, score }))]
+  const metrics = [...base.metrics, ...extras.map(({ key, label, value, score, weight }) => ({ key, label, value, score, weight }))]
     .sort((a, b) => a.score - b.score);
-  return { score: wSum > 0 ? clamp(sSum / wSum) : null, metrics };
+  return { score: wSum > 0 ? clamp(sSum / wSum) : null, metrics, weightSum: wSum };
 }
 
 /** Latest value per metric within the series (for slow-moving body measures). */
@@ -383,6 +391,8 @@ export async function computePhysical(
     baselineHealthScore: baselineHealth.score,
     parts: combined.parts,
     metrics: health.metrics,
+    healthWeightSum: health.weightSum,
+    feelBlended: feel != null && health.score != null,
     extras,
   };
 }

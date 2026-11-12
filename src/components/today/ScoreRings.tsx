@@ -2,19 +2,14 @@
 
 /**
  * Today hero: three score rings — Core LifeScore, Physical, Mental. Tapping a
- * ring opens its contributors (LifeScoreBreakdown focused on that score).
+ * ring opens "Your LifeScore, explained" (/lifescore/explained) at that
+ * section: the breakdown and what it takes to raise it.
  * Missing scores show "—" with a reason, never 0.
  */
-import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
-import { cn } from "@/utils/cn";
-import {
-  LifeScoreBreakdown,
-  type LifeScoreBreakdownData,
-  type LifeScoreFocus,
-} from "@/components/lifescore/LifeScoreBreakdown";
+import type { LifeScoreBreakdownData, LifeScoreFocus } from "@/components/lifescore/LifeScoreBreakdown";
 
 const SENTIMENT_LABEL: Record<string, string> = {
   well: "Going well",
@@ -28,7 +23,7 @@ const RING_COLOR: Record<LifeScoreFocus, string> = {
   mental: "#8F7FD6",
 };
 
-function Ring({ score, color, size = 104 }: { score: number | null; color: string; size?: number }) {
+export function ScoreRing({ score, color, size = 104 }: { score: number | null; color: string; size?: number }) {
   const stroke = 9;
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
@@ -83,7 +78,7 @@ function whyLine(focus: LifeScoreFocus, d: LifeScoreBreakdownData): string {
 }
 
 export function ScoreRings({ data, loading }: { data: LifeScoreBreakdownData | undefined; loading: boolean }) {
-  const [open, setOpen] = useState<LifeScoreFocus | null>(null);
+  const topAction = (data as { actions?: Array<{ title: string; gain: number | null }> } | undefined)?.actions?.[0];
 
   const rings: Array<{ key: LifeScoreFocus; label: string; score: number | null }> = [
     { key: "core", label: "Core LifeScore", score: data?.score ?? null },
@@ -94,45 +89,38 @@ export function ScoreRings({ data, loading }: { data: LifeScoreBreakdownData | u
   return (
     <section className="kairos-card p-5" aria-label="Your scores">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {rings.map((r) => {
-          const selected = open === r.key;
-          return (
-            <button
-              key={r.key}
-              type="button"
-              onClick={() => setOpen(selected ? null : r.key)}
-              aria-expanded={selected}
-              aria-controls="today-score-contributors"
-              disabled={loading || !data}
-              className={cn(
-                "flex sm:flex-col items-center gap-4 sm:gap-2 rounded-xl p-3 text-left sm:text-center border transition-colors",
-                selected ? "border-kairos-gold/50 bg-kairos-gold/5" : "border-transparent hover:border-kairos-border",
-              )}
-            >
-              <Ring score={loading ? null : r.score} color={RING_COLOR[r.key]} />
-              <div className="min-w-0">
-                <p className="text-sm font-heading font-semibold text-white">{r.label}</p>
-                <p className="text-xs text-kairos-silver-dark">
-                  {loading ? "Loading…" : data ? whyLine(r.key, data) : "Score unavailable right now."}
-                </p>
-              </div>
-            </button>
-          );
-        })}
+        {rings.map((r) => (
+          <Link
+            key={r.key}
+            href={`/lifescore/explained#${r.key}`}
+            aria-label={`${r.label}: ${r.score ?? "no score yet"}. See what makes it up and how to raise it.`}
+            className="flex sm:flex-col items-center gap-4 sm:gap-2 rounded-xl p-3 text-left sm:text-center border border-transparent hover:border-kairos-gold/40 hover:bg-kairos-gold/5 transition-colors"
+          >
+            <ScoreRing score={loading ? null : r.score} color={RING_COLOR[r.key]} />
+            <div className="min-w-0">
+              <p className="text-sm font-heading font-semibold text-white">{r.label}</p>
+              <p className="text-xs text-kairos-silver-dark">
+                {loading ? "Loading…" : data ? whyLine(r.key, data) : "Score unavailable right now."}
+              </p>
+            </div>
+          </Link>
+        ))}
       </div>
 
-      {open && data && (
-        <div id="today-score-contributors" className="mt-5 border-t border-kairos-border pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-heading font-semibold text-white">
-              {open === "core" ? "What makes up your Core LifeScore" : open === "physical" ? "Physical contributors" : "Mental contributors"}
-            </h3>
-            <Link href="/lifescore" className="text-xs text-kairos-gold font-semibold flex items-center gap-1">
-              Trend & check-in <ChevronRight size={14} />
-            </Link>
-          </div>
-          <LifeScoreBreakdown data={data} focus={open} hideRing compact={open !== "core"} />
-        </div>
+      {!loading && data && (
+        <Link
+          href="/lifescore/explained#core"
+          className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-kairos-border px-4 py-3 hover:border-kairos-gold/40 transition-colors"
+        >
+          <span className="text-sm text-kairos-silver">
+            {topAction
+              ? <>Biggest win right now: <span className="text-white font-semibold">{topAction.title}</span>{topAction.gain != null ? ` (up to +${topAction.gain >= 10 ? Math.round(topAction.gain) : topAction.gain} pts)` : ""}</>
+              : "See what makes up your score"}
+          </span>
+          <span className="text-xs text-kairos-gold font-semibold flex items-center gap-1 whitespace-nowrap">
+            How to raise it <ChevronRight size={14} />
+          </span>
+        </Link>
       )}
     </section>
   );

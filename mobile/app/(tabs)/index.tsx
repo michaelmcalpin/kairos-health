@@ -218,14 +218,14 @@ function FullDashboard() {
         </Pressable>
 
         {/* ─── 1b. LifeScore entry ─────────────────────────── */}
-        <Pressable onPress={() => router.push("/lifescore" as never)}>
+        <Pressable onPress={() => router.push("/insights/lifescore-explained" as never)}>
           <Card style={styles.lifeScorePrompt}>
             <View style={styles.lifeScorePromptIcon}>
               <Activity size={18} color={Colors.gold} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.lifeScorePromptTitle}>Everist LifeScore</Text>
-              <Text style={styles.lifeScorePromptSub}>Your whole-person check-in — body, mind, purpose, relationships, work</Text>
+              <Text style={styles.lifeScorePromptSub}>See what makes up your score and how to raise it</Text>
             </View>
           </Card>
         </Pressable>

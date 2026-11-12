@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { HeartPulse, Brain, Compass, Users, Briefcase, Sparkles, Lock } from "lucide-react";
+import Link from "next/link";
+import { HeartPulse, Brain, Compass, Users, Briefcase, Sparkles, Lock, ChevronRight } from "lucide-react";
 
 import { trpc } from "@/lib/trpc";
 import { LifeScoreBreakdown } from "@/components/lifescore/LifeScoreBreakdown";
@@ -72,7 +73,18 @@ export default function LifeScorePage() {
             <div className="h-64 animate-pulse bg-gray-800/50 rounded-lg" />
           ) : (
             <>
-              {score && <LifeScoreBreakdown data={score} />}
+              {score && (
+                <Link href="/lifescore/explained" className="block rounded-xl hover:bg-white/5 transition-colors" aria-label="Open your LifeScore explained">
+                  <LifeScoreBreakdown data={score} />
+                </Link>
+              )}
+              {score && (
+                <div className="flex justify-center mt-4">
+                  <Link href="/lifescore/explained" className="inline-flex items-center gap-1 text-sm font-semibold text-kairos-gold">
+                    What&apos;s behind your score and how to raise it <ChevronRight size={14} />
+                  </Link>
+                </div>
+              )}
               {!score?.hasData && (
                 <p className="text-xs text-gray-500 text-center mt-4">
                   Rate a few dimensions to start building your LifeScore.

@@ -30,7 +30,8 @@ import {
 } from "@/server/db/schema";
 import { computeAdherence } from "@/server/trpc/routers/client/today";
 import { computePhysical, type PhysicalPart, type MetricScore } from "./physical";
-import { mindfulBonus } from "./extras";
+import { mindfulBonus, MINDFUL_MAX_BONUS } from "./extras";
+import { buildLifeScoreActions, type LifeScoreAction } from "./actions";
 import { loadDailyMetrics, type MetricSeries } from "@/server/services/health-metrics";
 
 /** Core = Physical × 0.6 + Mental × 0.4 (fixed). */
@@ -53,12 +54,18 @@ export interface DimensionResult {
 export interface LifeScoreResult {
   /** Core LifeScore 0–100 (60% Physical + 40% Mental), or null with no data. */
   score: number | null;
-  physical: SideResult & { parts: PhysicalPart[]; focus: MetricScore[]; strengths: MetricScore[] };
+  physical: SideResult & {
+    parts: PhysicalPart[]; focus: MetricScore[]; strengths: MetricScore[];
+    /** Every scored measure, lowest first. */
+    measures: MetricScore[];
+  };
   mental: SideResult & {
     /** Mindful minutes a day (7-day average) and the points they added to Mind. */
     practice: { minPerDay: number; bonus: number } | null;
   };
   dimensions: DimensionResult[];
+  /** What would raise the score most, with estimated Core points. */
+  actions: LifeScoreAction[];
   hasData: boolean;
   windowDays: number;
 }
@@ -262,6 +269,23 @@ export async function computeLifeScore(
   }
 
   const metrics = physical?.metrics ?? [];
+  const checkinDays7 = new Set(checkins.filter((c) => c.date >= currentStart && c.rating != null).map((c) => c.date)).size;
+  const actions = buildLifeScoreActions({
+    physicalScore,
+    mentalScore,
+    parts: physical?.parts ?? [],
+    metrics: metrics.map((m) => ({ ...m, weight: m.weight ?? 1 })),
+    healthWeightSum: physical?.healthWeightSum ?? 0,
+    feelBlended: physical?.feelBlended ?? false,
+    mentalAreas: MENTAL_DIMENSIONS.map((d) => ({
+      dimension: d,
+      score: dimensions.find((x) => x.dimension === d)?.score ?? null,
+      weight: rawWeights[d] || 0,
+    })),
+    mindful,
+    mindfulMaxBonus: MINDFUL_MAX_BONUS,
+    checkinDays7,
+  });
   return {
     score: composite,
     physical: {
@@ -270,9 +294,11 @@ export async function computeLifeScore(
       parts: physical?.parts ?? [],
       focus: metrics.filter((m) => m.score < 70).slice(0, 4),
       strengths: [...metrics].reverse().filter((m) => m.score >= 85).slice(0, 4),
+      measures: metrics,
     },
     mental: { score: mentalScore, sentiment: mentalSentiment, practice: mindful },
     dimensions,
+    actions,
     hasData: scored.length > 0,
     windowDays: CURRENT_WINDOW,
   };

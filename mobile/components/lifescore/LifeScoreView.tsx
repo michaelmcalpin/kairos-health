@@ -10,9 +10,9 @@ import {
   KeyboardAvoidingView, Platform, Keyboard, Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import Svg, { Circle } from "react-native-svg";
-import { Lock } from "lucide-react-native";
+import { Lock, ChevronRight } from "lucide-react-native";
 
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -54,7 +54,9 @@ export default function LifeScoreView() {
   const historyQuery = trpc.clientPortal.lifeScore.getJournalHistory.useQuery({ limit: 10 }, DEFAULT_QUERY_OPTIONS);
   const saveJournal = trpc.clientPortal.lifeScore.saveJournal.useMutation();
 
-  const score = scoreQuery.data as (BreakdownData & { score: number | null; hasData: boolean }) | undefined;
+  const score = scoreQuery.data as (BreakdownData & { score: number | null; hasData: boolean; actions?: Array<{ title: string; gain: number | null }> }) | undefined;
+  const topAction = score?.actions?.[0];
+  const router = useRouter();
 
   const history = (historyQuery.data as { id: string; date: string; text: string; themes: { dimension: string; theme: string; valence: string }[] }[] | undefined) ?? [];
 
@@ -106,10 +108,24 @@ export default function LifeScoreView() {
             <ActivityIndicator color={Colors.gold} style={{ paddingVertical: Spacing.xl }} />
           ) : (
             <>
-              <View style={{ alignItems: "center", marginBottom: Spacing.md }}>
-                <Ring score={score?.score ?? null} />
-              </View>
-              {score && <LifeScoreBreakdown data={score} />}
+              <Pressable
+                onPress={() => router.push("/insights/lifescore-explained" as never)}
+                accessibilityRole="button"
+                accessibilityLabel="Open your LifeScore explained"
+              >
+                <View style={{ alignItems: "center", marginBottom: Spacing.md }}>
+                  <Ring score={score?.score ?? null} />
+                </View>
+                {score && <LifeScoreBreakdown data={score} />}
+              </Pressable>
+              {score && (
+                <Pressable onPress={() => router.push("/insights/lifescore-explained" as never)} style={styles.explainRow}>
+                  <Text style={styles.explainText} numberOfLines={2}>
+                    {topAction ? `Biggest win: ${topAction.title}${topAction.gain != null ? ` (up to +${topAction.gain >= 10 ? Math.round(topAction.gain) : topAction.gain} pts)` : ""}` : "What's behind your score and how to raise it"}
+                  </Text>
+                  <ChevronRight size={16} color={Colors.gold} />
+                </Pressable>
+              )}
               {!score?.hasData && (
                 <Text style={styles.emptyHint}>Rate a few areas below to start building your LifeScore.</Text>
               )}
@@ -177,6 +193,8 @@ export default function LifeScoreView() {
 }
 
 const styles = StyleSheet.create({
+  explainRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginTop: Spacing.md, paddingTop: Spacing.md, borderTopWidth: 1, borderTopColor: "rgba(192,197,206,0.15)" },
+  explainText: { flex: 1, color: Colors.silver, fontSize: FontSizes.sm },
   safe: { flex: 1, backgroundColor: Colors.dark },
   content: { padding: Spacing.md, paddingBottom: Spacing.xxl },
   tagline: { fontSize: FontSizes.sm, color: Colors.silver, lineHeight: 20, marginBottom: Spacing.md },

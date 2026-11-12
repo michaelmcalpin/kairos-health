@@ -33,6 +33,7 @@ export default function InsightsLayout() {
     >
       <Stack.Screen name="index" options={{ title: "Insight Sherpa" }} />
       <Stack.Screen name="lifescore" options={{ title: "Everist LifeScore" }} />
+      <Stack.Screen name="lifescore-explained" options={{ title: "Your LifeScore, explained" }} />
       <Stack.Screen name="view" options={{ title: "AI Report" }} />
       <Stack.Screen name="report" options={{ title: "Report" }} />
       <Stack.Screen name="analyze" options={{ title: "Health Analysis" }} />
