@@ -12,6 +12,7 @@
  * that endpoint is available.
  */
 
+import { useLifeScore, gainWords } from "@/hooks/useLifeScore";
 import React, { useState, useCallback } from "react";
 import { View, Text, ScrollView, StyleSheet, Platform, RefreshControl, ActivityIndicator, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -46,7 +47,6 @@ import {
 } from "@/components/dashboard";
 import { SummitGlyph } from "@/components/brand";
 import {
-  useHealthScore,
   useDashboardOverview,
   useAlerts,
 } from "@/hooks/useHealthData";
@@ -103,33 +103,31 @@ function FullDashboard() {
   const todayHook = useToday(dayNav.dateStr);
 
   // ── tRPC data hooks ──────────────────────────────────────────
-  const healthScore = useHealthScore();
+  const lifeScore = useLifeScore();
   const overview = useDashboardOverview();
   const alertsHook = useAlerts("active");
   const protocolHook = useDashboardProtocol();
 
   // Derived data from hooks
-  const HEALTH_SCORE = healthScore.healthScore;
-  const healthScoreDetail = healthScore.healthScoreDetail;
   const KPI_DATA = overview.kpiData;
   const BIOMETRICS_DATA = overview.biometricsData;
   const ALERTS_DATA = alertsHook.alerts;
   const PROTOCOL_DATA = protocolHook.protocols;
 
-  const isLoading = healthScore.isLoading || overview.isLoading || alertsHook.isLoading || protocolHook.isLoading;
+  const isLoading = lifeScore.isLoading || overview.isLoading || alertsHook.isLoading || protocolHook.isLoading;
 
   // ── Pull-to-refresh ──────────────────────────────────────────
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
-      healthScore.refetch(),
+      lifeScore.refetch(),
       overview.refetch(),
       alertsHook.refetch(),
       protocolHook.refetch(),
     ]);
     setRefreshing(false);
-  }, [healthScore.refetch, overview.refetch, alertsHook.refetch, protocolHook.refetch]);
+  }, [lifeScore.refetch, overview.refetch, alertsHook.refetch, protocolHook.refetch]);
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -179,53 +177,55 @@ function FullDashboard() {
         </View>
         <Text style={styles.taglineText}>Full data analysis mode</Text>
 
-        {/* ─── 1. Health Score Hero ────────────────────────── */}
-        <Pressable onPress={() => router.push("/insights")}>
+        {/* ─── 1. LifeScore Hero (the one score) ─────────────── */}
+        <Pressable
+          onPress={() => router.push("/insights/lifescore-explained" as never)}
+          accessibilityRole="button"
+          accessibilityLabel={`Core LifeScore ${lifeScore.core ?? "not available yet"}. See the breakdown and how to raise it.`}
+        >
           <Card style={styles.heroCard}>
-            {HEALTH_SCORE != null ? (
+            {lifeScore.core != null ? (
               <>
-                <HealthScoreRing score={HEALTH_SCORE} size={160} strokeWidth={12} />
-                <Text style={styles.heroLabel}>Overall Health Score</Text>
+                <HealthScoreRing score={lifeScore.core} size={160} strokeWidth={12} />
+                <Text style={styles.heroLabel}>Core LifeScore</Text>
                 <View style={styles.heroStatsRow}>
-                  {["Sleep", "Glucose", "HRV"].map((label, i) => {
-                    const sub = healthScoreDetail?.subScores.find(
-                      (s) => s.label === label,
-                    );
-                    return (
-                      <React.Fragment key={label}>
-                        {i > 0 && <View style={styles.heroDivider} />}
-                        <View style={styles.heroStat}>
-                          <Text style={styles.heroStatValue}>
-                            {sub ? sub.value : "—"}
-                          </Text>
-                          <Text style={styles.heroStatLabel}>{label}</Text>
-                        </View>
-                      </React.Fragment>
-                    );
-                  })}
+                  {([["Physical", lifeScore.physical], ["Mental", lifeScore.mental]] as const).map(([label, v], i) => (
+                    <React.Fragment key={label}>
+                      {i > 0 && <View style={styles.heroDivider} />}
+                      <View style={styles.heroStat}>
+                        <Text style={styles.heroStatValue}>{v ?? "—"}</Text>
+                        <Text style={styles.heroStatLabel}>{label}</Text>
+                      </View>
+                    </React.Fragment>
+                  ))}
                 </View>
+                <Text style={styles.heroWin} numberOfLines={2}>
+                  {lifeScore.topAction
+                    ? `Biggest win: ${lifeScore.topAction.title}${gainWords(lifeScore.topAction.gain)}`
+                    : "Tap to see what makes up your score"}
+                </Text>
               </>
             ) : (
               <View style={styles.heroEmpty}>
                 <Activity size={36} color={Colors.silver} strokeWidth={1.5} />
-                <Text style={styles.heroEmptyTitle}>No health score yet</Text>
+                <Text style={styles.heroEmptyTitle}>No LifeScore yet</Text>
                 <Text style={styles.heroEmptyText}>
-                  Connect a device or log data to see your score
+                  Connect a device or do a daily check-in to start your score
                 </Text>
               </View>
             )}
           </Card>
         </Pressable>
 
-        {/* ─── 1b. LifeScore entry ─────────────────────────── */}
-        <Pressable onPress={() => router.push("/insights/lifescore-explained" as never)}>
+        {/* ─── 1b. Daily check-in ─────────────────────────── */}
+        <Pressable onPress={() => router.push("/lifescore" as never)}>
           <Card style={styles.lifeScorePrompt}>
             <View style={styles.lifeScorePromptIcon}>
               <Activity size={18} color={Colors.gold} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.lifeScorePromptTitle}>Everist LifeScore</Text>
-              <Text style={styles.lifeScorePromptSub}>See what makes up your score and how to raise it</Text>
+              <Text style={styles.lifeScorePromptTitle}>Today&apos;s LifeScore check-in</Text>
+              <Text style={styles.lifeScorePromptSub}>Rate Mind, Purpose, Relationships and Work — it builds your Mental score</Text>
             </View>
           </Card>
         </Pressable>
@@ -477,6 +477,7 @@ function FullDashboard() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const styles = StyleSheet.create({
+  heroWin: { color: Colors.silver, fontSize: FontSizes.sm, textAlign: "center", marginTop: Spacing.md, paddingHorizontal: Spacing.md },
   container: {
     flex: 1,
     backgroundColor: Colors.dark,

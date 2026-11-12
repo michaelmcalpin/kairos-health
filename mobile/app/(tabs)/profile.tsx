@@ -6,6 +6,7 @@
  * privacy & security, support links, and sign-out.
  */
 
+import { useLifeScore } from "@/hooks/useLifeScore";
 import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
@@ -88,10 +89,8 @@ export default function ProfileScreen() {
     undefined,
     DEFAULT_QUERY_OPTIONS,
   );
-  const healthScoreQuery = trpc.clientPortal.dashboard.getHealthScore.useQuery(
-    undefined,
-    DEFAULT_QUERY_OPTIONS,
-  );
+  // The one score shown everywhere: the Core LifeScore.
+  const lifeScore = useLifeScore();
   const coachQuery = trpc.clientPortal.settings.getMyCoach.useQuery(
     undefined,
     DEFAULT_QUERY_OPTIONS,
@@ -153,7 +152,7 @@ export default function ProfileScreen() {
       ? `${(latestMeasurementQuery.data as any).weightLbs} lbs`
       : "—",
     bloodType: apiProfile?.bloodType ?? "—",
-    healthScore: (healthScoreQuery.data as any)?.score ?? "—",
+    healthScore: lifeScore.core ?? "—",
     tier: (apiProfile?.tier ?? null) as string | null,
   };
 
@@ -296,7 +295,7 @@ export default function ProfileScreen() {
         <Card style={styles.healthCard}>
           <View style={styles.healthHeader}>
             <View>
-              <Text style={styles.healthLabel}>Health Score</Text>
+              <Text style={styles.healthLabel}>Core LifeScore</Text>
               <View style={styles.scoreRow}>
                 <Text style={styles.scoreValue}>{USER.healthScore}</Text>
                 <Text style={styles.scoreMax}>/100</Text>

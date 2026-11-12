@@ -13,9 +13,12 @@ import { HealthScoreRing } from "@/components/dashboard/HealthScoreRing";
 interface HealthScoreSummaryProps {
   score: number;
   trend: "up" | "down" | "flat";
-  trendDelta: number;
+  /** Omit to show only the trend arrow and label. */
+  trendDelta?: number;
   trendLabel: string;
-  subScores: { label: string; value: number }[];
+  subScores: { label: string; value: number | string }[];
+  /** Small caption under the ring row, e.g. "Physical LifeScore". */
+  title?: string;
 }
 
 export function HealthScoreSummary({
@@ -24,6 +27,7 @@ export function HealthScoreSummary({
   trendDelta,
   trendLabel,
   subScores,
+  title,
 }: HealthScoreSummaryProps) {
   const trendColor =
     trend === "up" ? Colors.success : trend === "down" ? Colors.danger : Colors.silver;
@@ -39,12 +43,15 @@ export function HealthScoreSummary({
             <Text style={[styles.trendArrow, { color: trendColor }]}>
               {trendArrow}
             </Text>
-            <Text style={[styles.trendDelta, { color: trendColor }]}>
-              {trendDelta > 0 ? "+" : ""}
-              {trendDelta}
-            </Text>
+            {trendDelta != null && (
+              <Text style={[styles.trendDelta, { color: trendColor }]}>
+                {trendDelta > 0 ? "+" : ""}
+                {trendDelta}
+              </Text>
+            )}
           </View>
           <Text style={styles.trendLabel}>{trendLabel}</Text>
+          {title && <Text style={styles.trendLabel}>{title}</Text>}
         </View>
       </View>
 

@@ -5,7 +5,7 @@
  * summary, biometric categories grid, recent readings section, and an
  * AI-generated insight card.
  *
- * Uses tRPC hooks (useBiometricCategories, useHealthScore, useHealthAnalysis)
+ * Uses tRPC hooks (useBiometricCategories, useLifeScore, useHealthAnalysis)
  * for live data with automatic fallback when the API is unreachable.
  * Recent readings show an empty state until a dedicated endpoint is available.
  * AI insights are powered by the insights.getAnalysis endpoint with a
@@ -53,7 +53,10 @@ import {
   InsightsCard,
 } from "@/components/health";
 import type { DateRange } from "@/components/health";
-import { useBiometricCategories, useHealthScore, rangeToDates } from "@/hooks/useHealthData";
+import { useBiometricCategories, rangeToDates } from "@/hooks/useHealthData";
+import { useLifeScore, sentimentWords } from "@/hooks/useLifeScore";
+
+const PART_SHORT: Record<string, string> = { health_data: "Devices", labs: "Labs", medications: "Protocol", genetics: "Genetics" };
 import { useHealthAnalysis } from "@/hooks/useInsights";
 
 /** Map the UI date range to the AI analysis range parameter. */
@@ -116,11 +119,13 @@ export default function HealthScreen() {
     refetch: refetchCategories,
   } = useBiometricCategories(rangeDates);
 
+  // The one score: Physical side of the LifeScore (devices, labs, protocol, genetics).
   const {
-    healthScoreDetail,
+    data: lifeScoreData,
+    physical: physicalScore,
     isLoading: scoreLoading,
     refetch: refetchScore,
-  } = useHealthScore(rangeDates);
+  } = useLifeScore();
 
   const {
     analysis: overallAnalysis,
@@ -186,20 +191,25 @@ export default function HealthScreen() {
         {/* ─── 1. Date Range Selector ──────────────────────── */}
         <DateRangeSelector selected={dateRange} onChange={setDateRange} />
 
-        {/* ─── 2. Health Score Summary ─────────────────────── */}
-        {healthScoreDetail ? (
-          <HealthScoreSummary
-            score={healthScoreDetail.overall}
-            trend={healthScoreDetail.trend}
-            trendDelta={healthScoreDetail.trendDelta}
-            trendLabel={healthScoreDetail.trendLabel}
-            subScores={healthScoreDetail.subScores}
-          />
+        {/* ─── 2. Physical LifeScore Summary ───────────────── */}
+        {physicalScore != null && lifeScoreData ? (
+          <Pressable onPress={() => router.push("/insights/lifescore-explained" as never)} accessibilityRole="button">
+            <HealthScoreSummary
+              score={physicalScore}
+              trend={lifeScoreData.physical.sentiment === "well" ? "up" : lifeScoreData.physical.sentiment === "struggling" ? "down" : "flat"}
+              trendLabel={sentimentWords(lifeScoreData.physical.sentiment)}
+              title="Physical LifeScore"
+              subScores={lifeScoreData.physical.parts
+                .filter((p) => p.score != null)
+                .slice(0, 4)
+                .map((p) => ({ label: PART_SHORT[p.key] ?? p.label, value: p.score as number }))}
+            />
+          </Pressable>
         ) : (
           <Card style={styles.emptyScoreCard}>
-            <Text style={styles.emptyScoreTitle}>No health score yet</Text>
+            <Text style={styles.emptyScoreTitle}>No Physical score yet</Text>
             <Text style={styles.emptyScoreText}>
-              Connect a device or log data to see your score
+              Connect a device, log data or add labs to see your score
             </Text>
           </Card>
         )}

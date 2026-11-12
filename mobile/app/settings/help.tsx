@@ -62,9 +62,9 @@ const FAQ_ITEMS: FAQItem[] = [
       "Yes! Go to Privacy & Security in Settings, and enable 'Share with Care Team.' You can also generate a shareable health report from the Insights tab by tapping 'Export Report.' This creates a PDF summary that you can email or print for your healthcare provider.",
   },
   {
-    question: "How is my Health Score calculated?",
+    question: "How is my LifeScore calculated?",
     answer:
-      "Your Health Score (0-100) is a composite metric based on multiple biomarkers: HRV, resting heart rate, sleep quality, glucose variability, activity levels, and lab results. Each category is weighted and compared against optimal ranges for your age and gender. The score updates daily as new data comes in.",
+      "Your Core LifeScore (0-100) is 60% Physical and 40% Mental. Physical blends your device data (sleep, heart, activity, vitals, workouts), labs, how well you follow your protocol, and genetics follow-through. Mental comes from your daily ratings of Mind, Purpose, Relationships and Work, plus a small bonus for mindful minutes. It's a 7-day average, and anything you haven't tracked is left out, never counted as zero. Tap your score to see every part and what would raise it most.",
   },
   {
     question: "How do I enable notifications?",
